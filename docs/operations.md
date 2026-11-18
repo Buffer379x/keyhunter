@@ -18,6 +18,8 @@ Bei einem Upgrade auf 0.2.2 kannst du für den direkten Zugriff per LAN-IP eine 
 
 Bei einem bereits eingerichteten Container kannst du das Feld **Repository** direkt auf `ghcr.io/buffer379x/keyhunter:latest` ändern. Behalte das Datenvolume und die lokale Konfiguration. Unraids Funktion **Check for Updates** erkennt neue Images unter diesem Tag. Für eine feste Version lässt sich `latest` durch eine Versionsnummer ersetzen.
 
+Wenn der Status **not available** ist, prüfe zuerst das Feld **Repository**. Eine lokal importierte Referenz wie `keyhunter:0.2.2` hat keine GHCR-Herkunft für die Updateprüfung. Mit der GHCR-Referenz kannst du **Check for Updates** erneut ausführen. Falls die Anzeige ausbleibt, teste im Unraid-Terminal `docker pull ghcr.io/buffer379x/keyhunter:latest`. Nach erfolgreichem Pull kannst du im Docker-Tab unter **Advanced View → Force Update** den Container aus seinem bestehenden Template neu erstellen. Bei diesem Schritt bleiben die eingebundenen Daten erhalten.
+
 Die Veröffentlichung wurde unter Linux/amd64 mit Docker geprüft. Das XML ist für die manuelle Installation vorbereitet. Der Test auf einer Unraid-Installation steht aus.
 
 ## Zugangsdaten
@@ -46,4 +48,4 @@ Die GitHub-Releases enthalten zugehörige Image-Archive mit Prüfsumme. Importie
 
 ## GitHub-Veröffentlichung
 
-Verwende als GitHub-Release-Titel die Versionsnummer, zum Beispiel `0.2.2`. Die Veröffentlichungs-Action erstellt den numerischen OCI-Tag und aktualisiert `latest` für den aktuellen stabilen Release. Das Package benötigt die Sichtbarkeit **Public** für Abrufe ohne Anmeldung und unter **Manage Actions access** Schreibzugriff für das zugehörige Repository.
+Verwende als GitHub-Release-Titel die Versionsnummer, zum Beispiel `0.2.2`. Die Veröffentlichungs-Action veröffentlicht den numerischen Tag und `latest` als Image-Index für `linux/amd64`. So kann auch Unraids Updateprüfung vor 7.4.0 den Image-Digest abrufen. Das Package benötigt die Sichtbarkeit **Public** für Abrufe ohne Anmeldung und unter **Manage Actions access** Schreibzugriff für das zugehörige Repository.

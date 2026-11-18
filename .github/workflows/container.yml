@@ -51,20 +51,40 @@ jobs:
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
           printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           trap 'docker logout ghcr.io >/dev/null' EXIT
-          if details=$(docker manifest inspect "$image:$VERSION" 2>&1); then
-            # Re-running this workflow can update latest while preserving the version image.
-            docker pull --platform linux/amd64 "$image:$VERSION"
-          elif [[ "$details" == *"no such manifest"* || "$details" == *"manifest unknown"* ]]; then
+          version_ref="$image:$VERSION"
+          if details=$(docker buildx imagetools inspect --raw "$version_ref" 2>&1); then
+            # Older Unraid versions accept an OCI index, even for a single platform.
+            case "$(jq -er '.mediaType' <<< "$details")" in
+              application/vnd.oci.image.index.v1+json|application/vnd.docker.distribution.manifest.list.v2+json) ;;
+              application/vnd.oci.image.manifest.v1+json|application/vnd.docker.distribution.manifest.v2+json)
+                docker buildx imagetools create --prefer-index=true --tag "$version_ref" "$version_ref"
+                ;;
+              *)
+                echo "Unexpected media type for the published image." >&2
+                exit 1
+                ;;
+            esac
+          elif [[ "$details" == *"no such manifest"* || "$details" == *"manifest unknown"* || "$details" == *"$version_ref: not found"* ]]; then
             docker build --platform linux/amd64 \
               --label "org.opencontainers.image.revision=$(git rev-parse HEAD)" \
-              --tag "$image:$VERSION" .
-            docker push --platform linux/amd64 "$image:$VERSION"
+              --tag "$version_ref" .
+            docker push --platform linux/amd64 "$version_ref"
+            docker buildx imagetools create --prefer-index=true --tag "$version_ref" "$version_ref"
           else
             printf '%s\n' "$details" >&2
             exit 1
           fi
+
+          check_index() {
+            docker buildx imagetools inspect --raw "$1" | jq -e '
+              (.mediaType == "application/vnd.oci.image.index.v1+json"
+                or .mediaType == "application/vnd.docker.distribution.manifest.list.v2+json")
+              and any(.manifests[]; .platform.os == "linux" and .platform.architecture == "amd64")
+            ' >/dev/null
+          }
+          check_index "$version_ref"
           latest_tag=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
           if [[ "$RELEASE_TAG" == "$latest_tag" ]]; then
-            docker tag "$image:$VERSION" "$image:latest"
-            docker push --platform linux/amd64 "$image:latest"
+            docker buildx imagetools create --tag "$image:latest" "$version_ref"
+            check_index "$image:latest"
           fi
