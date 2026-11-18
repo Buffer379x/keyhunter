@@ -44,3 +44,24 @@ test('owner can set up, save service fees, use keyboard dialog, and log in again
   await expect(page.getByRole('heading', { name: 'Meine Wunschliste.' })).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test('owner replaces and removes the IGDB credentials from settings', async ({ page }) => {
+  await signInToFixture(page);
+  await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
+  const igdb = page.getByRole('region', { name: 'IGDB-Zugang' });
+  await igdb.getByLabel('Client-ID', { exact: true }).fill('browser-fixture-client');
+  await igdb.getByLabel('Client Secret', { exact: true }).fill('browser-fixture-secret');
+  const update = page.waitForRequest(r => r.url().endsWith('/settings/igdb') && r.method() === 'PUT');
+  await igdb.getByRole('button', { name: 'IGDB-Zugang speichern' }).click();
+  expect((await update).postDataJSON()).toEqual({
+    client_id: 'browser-fixture-client', client_secret: 'browser-fixture-secret',
+  });
+  await expect(igdb.getByText('IGDB-Zugang gespeichert und geprüft.')).toBeVisible();
+  await expect(igdb.getByLabel('Client Secret', { exact: true })).toHaveValue('');
+  await page.reload();
+  await expect(igdb.getByLabel('Client-ID', { exact: true })).toHaveValue('');
+  await expect(igdb.getByLabel('Client Secret', { exact: true })).toHaveValue('');
+  await igdb.getByRole('button', { name: 'IGDB-Zugang entfernen' }).click();
+  await igdb.getByRole('button', { name: 'Entfernen bestätigen' }).click();
+  await expect(igdb.getByText('Noch keine Zugangsdaten hinterlegt.')).toBeVisible();
+});

@@ -109,7 +109,6 @@ impl Fixture {
             data_dir: dir.path().join("data"),
             frontend_dir: frontend,
             bootstrap_file: None,
-            igdb_env_file: None,
             allow_insecure_http: true,
         };
         let provider = Arc::new(Provider {
@@ -482,32 +481,4 @@ async fn changed_provider_platform_marks_saved_selection_for_review() {
     );
     let (_, items) = f.call("GET", "/api/v1/wishlist", Value::Null).await;
     assert_eq!(items[0]["verification"], "needs_review");
-}
-
-#[tokio::test]
-async fn overly_open_credentials_are_not_used_for_live_requests() {
-    use keyhunter::catalog::provider::IgdbProvider;
-    use std::os::unix::fs::PermissionsExt;
-    let directory = tempfile::tempdir().unwrap();
-    let file = directory.path().join("igdb.env");
-    std::fs::write(
-        &file,
-        "IGDB_CLIENT_ID=fixture-client\nIGDB_CLIENT_SECRET=synthetic-secret\n",
-    )
-    .unwrap();
-    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).unwrap();
-    assert!(
-        IgdbProvider::new(Some(&file))
-            .unwrap()
-            .status()
-            .await
-            .configured
-    );
-    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o644)).unwrap();
-    let provider = IgdbProvider::new(Some(&file)).unwrap();
-    assert!(!provider.status().await.configured);
-    assert!(matches!(
-        provider.search("Example", 169).await,
-        Err(CatalogError::NotConfigured)
-    ));
 }

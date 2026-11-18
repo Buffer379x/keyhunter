@@ -8,7 +8,6 @@ pub struct Config {
     pub data_dir: PathBuf,
     pub frontend_dir: PathBuf,
     pub bootstrap_file: Option<PathBuf>,
-    pub igdb_env_file: Option<PathBuf>,
     pub allow_insecure_http: bool,
 }
 
@@ -30,7 +29,6 @@ impl Config {
                 .map(PathBuf::from)
                 .unwrap_or_else(|| "../frontend/dist".into()),
             bootstrap_file: env::var_os("KEYHUNTER_BOOTSTRAP_FILE").map(PathBuf::from),
-            igdb_env_file: env::var_os("KEYHUNTER_IGDB_ENV_FILE").map(PathBuf::from),
             allow_insecure_http: match env::var("KEYHUNTER_ALLOW_INSECURE_HTTP").as_deref() {
                 Ok("true") => true,
                 Ok("false") | Err(_) => false,

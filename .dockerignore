@@ -22,3 +22,6 @@ frontend/playwright.config.ts
 **/bootstrap-token
 **/.DS_Store
 **/._*
+
+**/igdb-credentials.json
+**/.igdb-credentials-*.tmp

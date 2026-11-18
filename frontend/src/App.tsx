@@ -4,6 +4,7 @@ import { api, HttpError } from './api';
 import type { Settings, SourceStatuses } from './api';
 import Wishlist from './features/Wishlist';
 import PriceAlerts from './features/PriceAlerts';
+import IgdbAccess from './features/IgdbAccess';
 import { shopNames } from './features/Offers';
 import { Brand, Button, InfoDialog, Notice } from './components';
 import { formatFeePercent, parseFeePercent } from './fees';
@@ -15,7 +16,8 @@ function routePage(): Page {
 }
 const sourceStates: Record<string, string> = {
   ready: 'Abruf erfolgreich', idle: 'Bereit für die Angebotssuche', paused: 'Abrufe pausiert', error: 'Letzter Abruf fehlgeschlagen',
-  configured: 'Zugang konfiguriert', not_configured: 'Zugangsdatei fehlt oder ist nicht lesbar',
+  configured: 'Zugang konfiguriert', not_configured: 'IGDB-Zugang noch nicht eingerichtet',
+  invalid_credentials: 'Zugangsdaten abgewiesen',
   disabled: 'Deaktiviert', rate_limited: 'Abruf pausiert · Limit', unavailable: 'Quelle vorübergehend nicht verfügbar',
 };
 
@@ -36,10 +38,14 @@ export default function App() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [feeDraft, setFeeDraft] = useState<Record<string, string>>({});
 
+  const refreshSources = useCallback(() => {
+    void api<SourceStatuses>('/sources/status').then(setSourceStatus).catch(() => setSourceStatus(null));
+  }, []);
+
   async function loadSettings() {
     const data = await api<Settings>('/settings');
     setSettings(data);
-    void api<SourceStatuses>('/sources/status').then(setSourceStatus).catch(() => setSourceStatus(null));
+    refreshSources();
     setSavedCountry(data.target_country);
     setFeeDraft(Object.fromEntries(data.sources.map(source => [source.id, formatFeePercent(source.fee_basis_points)])));
   }
@@ -96,18 +102,18 @@ export default function App() {
         ...settings, sources,
       }, csrf);
       setSettings(saved); setSavedCountry(saved.target_country); setFeeDraft(Object.fromEntries(saved.sources.map(s => [s.id, formatFeePercent(s.fee_basis_points)]))); setMessage('Einstellungen gespeichert.');
-      void api<SourceStatuses>('/sources/status').then(setSourceStatus).catch(() => setSourceStatus(null));
+      refreshSources();
     } catch (e) { handleProtectedError(e); }
     finally { setBusy(false); }
   }
   const navigate = useCallback((next: Page) => {
     setPage(next); setMessage(''); setError('');
     const url = new URL(window.location.href);
-    if (next === 'settings') { url.searchParams.set('view', 'settings'); void api<SourceStatuses>('/sources/status').then(setSourceStatus).catch(() => setSourceStatus(null)); }
+    if (next === 'settings') { url.searchParams.set('view', 'settings'); refreshSources(); }
     else if (next === 'alerts') url.searchParams.set('view', 'alerts');
     else url.searchParams.delete('view');
     if (url.href !== window.location.href) window.history.pushState(null, '', url);
-  }, []);
+  }, [refreshSources]);
   useEffect(() => {
     const restore = () => setPage(routePage());
     window.addEventListener('popstate', restore); return () => window.removeEventListener('popstate', restore);
@@ -154,6 +160,10 @@ export default function App() {
             </article>)}</div><button className="text-button" type="button" onClick={() => setDialogOpen(true)}>Wie werden Gebühren behandelt?</button></div></section>
             <div className="settings-actions"><p>Änderungen gelten nach dem Speichern.</p><Button type="submit" disabled={busy}>{busy ? 'Wird gespeichert …' : 'Änderungen speichern'}</Button></div>
           </form>}
+          {settings && <div className="settings-form"><IgdbAccess
+            configured={sourceStatus?.igdb?.configured} csrf={csrf}
+            onChanged={refreshSources} onError={handleProtectedError}
+          /></div>}
         </>}
       </main>
       <footer className="app-footer"><span>KEYHUNTER <strong>GLOBAL</strong></span><span>Deine Auswahl. Dein Überblick.</span></footer>

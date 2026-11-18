@@ -15,13 +15,14 @@ pub(crate) fn platform_valid(id: i64) -> bool {
 }
 pub(crate) fn provider_error(error: CatalogError) -> ApiError {
     match error {
+        CatalogError::Storage => internal(),
         CatalogError::NotConfigured => ApiError(
             StatusCode::SERVICE_UNAVAILABLE,
-            "IGDB-Zugang ist nicht konfiguriert. Die gespeicherte Wunschliste bleibt verfügbar.",
+            "Hinterlege den IGDB-Zugang in den Einstellungen. Die gespeicherte Wunschliste bleibt verfügbar.",
         ),
         CatalogError::InvalidCredentials => ApiError(
             StatusCode::SERVICE_UNAVAILABLE,
-            "IGDB hat den Zugang abgewiesen. Bitte die lokale Zugangskonfiguration prüfen.",
+            "IGDB hat den Zugang abgewiesen. Prüfe die Zugangsdaten in den Einstellungen.",
         ),
         CatalogError::Unavailable => ApiError(
             StatusCode::SERVICE_UNAVAILABLE,

@@ -38,7 +38,7 @@ export interface WishlistItem {
   game: CatalogGame | null;
   manual_title: string | null;
 }
-export type SourceStatuses = Record<string, { state: string; enabled: boolean; last_success_at: number | null; retry_at: number | null }>;
+export type SourceStatuses = Record<string, { state: string; enabled: boolean; configured?: boolean; last_success_at: number | null; retry_at: number | null }>;
 export async function api<T>(path: string, method = 'GET', body?: unknown, csrf?: string, signal?: AbortSignal): Promise<T> {
   let response: Response;
   try {

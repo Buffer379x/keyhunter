@@ -112,3 +112,47 @@ pub(crate) async fn put_settings(
     tx.commit().await?;
     Ok(Json(load(&state).await?))
 }
+
+pub(crate) async fn put_igdb_credentials(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    input: Result<
+        Json<crate::catalog::provider::IgdbCredentials>,
+        axum::extract::rejection::JsonRejection,
+    >,
+) -> ApiResult<StatusCode> {
+    let session = auth::authenticate(&state, &headers).await?;
+    auth::require_csrf(&state, &headers, &session)?;
+    let Json(input) = input.map_err(|_| {
+        ApiError(
+            StatusCode::BAD_REQUEST,
+            "Gib Client-ID und Client Secret ein.",
+        )
+    })?;
+    state.catalog.update_credentials(Some(input)).await.map_err(|error| match error {
+        crate::catalog::provider::CatalogError::InvalidCredentials => ApiError(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "Client-ID und Client Secret sind ungültig oder wurden von Twitch abgewiesen.",
+        ),
+        crate::catalog::provider::CatalogError::Storage => ApiError(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "IGDB-Zugang konnte nicht gespeichert werden. Prüfe den Schreibzugriff auf das Datenverzeichnis.",
+        ),
+        error => crate::catalog::provider_error(error),
+    })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub(crate) async fn delete_igdb_credentials(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> ApiResult<StatusCode> {
+    let session = auth::authenticate(&state, &headers).await?;
+    auth::require_csrf(&state, &headers, &session)?;
+    state
+        .catalog
+        .update_credentials(None)
+        .await
+        .map_err(crate::catalog::provider_error)?;
+    Ok(StatusCode::NO_CONTENT)
+}

@@ -187,3 +187,5 @@ dialog .button { margin-top: 6px; }
   .sidebar nav .nav-item { font-size: .75rem; }
   .sidebar nav .nav-item > span:first-child { display: none; }
 }
+
+.igdb-access-form { display: grid; gap: 1rem; margin-top: 1rem; }

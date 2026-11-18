@@ -1,13 +1,21 @@
 //! Explicit synthetic provider for browser checks; never selected by the production binary.
 use async_trait::async_trait;
 use keyhunter::{
-    catalog::provider::{CatalogError, CatalogGame, CatalogProvider, ProviderStatus},
+    catalog::provider::{
+        CatalogError, CatalogGame, CatalogProvider, IgdbCredentials, ProviderStatus,
+    },
     config::Config,
     create_app_with_catalog,
 };
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
+};
 
-struct FixtureProvider;
+struct FixtureProvider(AtomicBool);
 fn fixture(id: i64, name: &str, kind: &str, platforms: &[i64]) -> CatalogGame {
     CatalogGame {
         igdb_id: id,
@@ -88,11 +96,23 @@ impl CatalogProvider for FixtureProvider {
     }
     async fn status(&self) -> ProviderStatus {
         ProviderStatus {
-            configured: true,
-            state: "configured".into(),
+            configured: self.0.load(Ordering::Relaxed),
+            state: if self.0.load(Ordering::Relaxed) {
+                "configured"
+            } else {
+                "not_configured"
+            }
+            .into(),
             last_success_at: None,
             retry_at: None,
         }
+    }
+    async fn update_credentials(
+        &self,
+        credentials: Option<IgdbCredentials>,
+    ) -> Result<(), CatalogError> {
+        self.0.store(credentials.is_some(), Ordering::Relaxed);
+        Ok(())
     }
 }
 
@@ -100,7 +120,8 @@ impl CatalogProvider for FixtureProvider {
 async fn main() -> anyhow::Result<()> {
     let config = Config::from_env()?;
     let bind = config.bind;
-    let app = create_app_with_catalog(config, Arc::new(FixtureProvider)).await?;
+    let app =
+        create_app_with_catalog(config, Arc::new(FixtureProvider(AtomicBool::new(true)))).await?;
     let listener = tokio::net::TcpListener::bind(bind).await?;
     axum::serve(listener, app).await?;
     Ok(())

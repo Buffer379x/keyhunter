@@ -84,9 +84,7 @@ pub(crate) fn digest(value: &str) -> [u8; 32] {
 }
 
 pub async fn create_app(config: config::Config) -> Result<Router> {
-    let provider = Arc::new(catalog::provider::IgdbProvider::new(
-        config.igdb_env_file.as_deref(),
-    )?);
+    let provider = Arc::new(catalog::provider::IgdbProvider::new(&config.data_dir)?);
     create_app_inner(config, provider, true).await
 }
 
@@ -203,6 +201,11 @@ async fn create_app_inner(
         .route(
             "/settings",
             get(settings::get_settings).put(settings::put_settings),
+        )
+        .route(
+            "/settings/igdb",
+            axum::routing::put(settings::put_igdb_credentials)
+                .delete(settings::delete_igdb_credentials),
         )
         .fallback(api_not_found);
     Ok(Router::new()

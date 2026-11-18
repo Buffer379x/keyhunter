@@ -31,7 +31,6 @@ impl Fixture {
             data_dir: dir.path().join("data"),
             frontend_dir: frontend,
             bootstrap_file: None,
-            igdb_env_file: None,
             allow_insecure_http: true,
         };
         let app = create_app(config.clone()).await.unwrap();
@@ -509,4 +508,95 @@ async fn insecure_nonloopback_or_path_origins_are_rejected() {
         config.origin = origin.into();
         assert!(config.validate().is_err());
     }
+}
+
+#[tokio::test]
+async fn igdb_credentials_are_write_only_and_protected() {
+    let f = Fixture::new().await;
+    let origin = Some("http://localhost:3000");
+    let path = "/api/v1/settings/igdb";
+    let rejected = json!({"client_id":"declined-fixture-id","client_secret":""});
+    let (status, _, _) = call(&f.app, "PUT", path, rejected.clone(), None, None, origin).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    let (cookie, csrf) = setup(&f).await;
+    let (status, _, _) = call(
+        &f.app,
+        "PUT",
+        path,
+        rejected.clone(),
+        Some(&cookie),
+        None,
+        origin,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, _, _) = call(
+        &f.app,
+        "DELETE",
+        path,
+        Value::Null,
+        Some(&cookie),
+        Some(&csrf),
+        Some("https://evil.example"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, data, _) = call(
+        &f.app,
+        "PUT",
+        path,
+        rejected,
+        Some(&cookie),
+        Some(&csrf),
+        origin,
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(!data.to_string().contains("declined-fixture-id"));
+    let (status, data, _) = call(
+        &f.app,
+        "PUT",
+        path,
+        json!({"client_id":{"declined-fixture-id":1},"client_secret":true}),
+        Some(&cookie),
+        Some(&csrf),
+        origin,
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(!data.to_string().contains("declined-fixture-id"));
+    assert_eq!(
+        call(&f.app, "GET", path, Value::Null, Some(&cookie), None, None)
+            .await
+            .0,
+        StatusCode::METHOD_NOT_ALLOWED
+    );
+    assert!(!f.config.data_dir.join("igdb-credentials.json").exists());
+    assert_eq!(
+        call(
+            &f.app,
+            "DELETE",
+            path,
+            Value::Null,
+            Some(&cookie),
+            Some(&csrf),
+            origin
+        )
+        .await
+        .0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, data, _) = call(
+        &f.app,
+        "GET",
+        "/api/v1/sources/status",
+        Value::Null,
+        Some(&cookie),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(data["igdb"]["configured"], false);
+    assert!(data["igdb"].get("client_id").is_none() && data["igdb"].get("client_secret").is_none());
 }

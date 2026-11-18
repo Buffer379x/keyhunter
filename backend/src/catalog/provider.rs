@@ -7,8 +7,9 @@ use reqwest::{
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
-    os::unix::fs::PermissionsExt,
-    path::Path,
+    io::Write,
+    os::unix::fs::{OpenOptionsExt, PermissionsExt},
+    path::{Path, PathBuf},
     time::{Duration, Instant, SystemTime},
 };
 use tokio::sync::Mutex;
@@ -54,6 +55,7 @@ pub enum CatalogError {
     Unavailable,
     InvalidResponse,
     RateLimited,
+    Storage,
 }
 
 #[derive(Clone, Serialize)]
@@ -69,17 +71,42 @@ pub trait CatalogProvider: Send + Sync {
     async fn search(&self, query: &str, platform: i64) -> Result<Vec<CatalogGame>, CatalogError>;
     async fn game(&self, id: i64) -> Result<Option<CatalogGame>, CatalogError>;
     async fn status(&self) -> ProviderStatus;
+    async fn update_credentials(
+        &self,
+        _credentials: Option<IgdbCredentials>,
+    ) -> Result<(), CatalogError> {
+        Err(CatalogError::Storage)
+    }
 }
 
-struct Credentials {
-    id: String,
-    secret: String,
+#[derive(Clone, Deserialize, Serialize)]
+pub struct IgdbCredentials {
+    client_id: String,
+    client_secret: String,
+}
+
+impl IgdbCredentials {
+    fn validated(self) -> Result<Self, CatalogError> {
+        let client_id = self.client_id.trim();
+        let client_secret = self.client_secret.trim();
+        let valid = |value: &str| {
+            !value.is_empty() && value.len() <= 512 && value.bytes().all(|b| b.is_ascii_graphic())
+        };
+        if !valid(client_id) || !valid(client_secret) {
+            return Err(CatalogError::InvalidCredentials);
+        }
+        Ok(Self {
+            client_id: client_id.into(),
+            client_secret: client_secret.into(),
+        })
+    }
 }
 struct Token {
     value: String,
     expires: Instant,
 }
 struct Wire {
+    credentials: Option<IgdbCredentials>,
     token: Option<Token>,
     next_request: Instant,
     pause_until: i64,
@@ -89,7 +116,7 @@ struct Wire {
 
 pub struct IgdbProvider {
     client: Client,
-    credentials: Option<Credentials>,
+    credentials_path: PathBuf,
     oauth_url: String,
     games_url: String,
     spacing: Duration,
@@ -97,20 +124,27 @@ pub struct IgdbProvider {
 }
 
 impl IgdbProvider {
-    pub fn new(path: Option<&Path>) -> Result<Self, reqwest::Error> {
+    pub fn new(data_dir: &Path) -> Result<Self, reqwest::Error> {
+        let credentials_path = data_dir.join("igdb-credentials.json");
+        let credentials = read_credentials(&credentials_path);
         Ok(Self {
             client: Client::builder()
                 .https_only(true)
                 .redirect(reqwest::redirect::Policy::none())
                 .connect_timeout(Duration::from_secs(5))
                 .timeout(Duration::from_secs(10))
-                .user_agent("KeyHunter/0.1 (private catalog client)")
+                .user_agent(concat!(
+                    "KeyHunter/",
+                    env!("CARGO_PKG_VERSION"),
+                    " (private catalog client)"
+                ))
                 .build()?,
-            credentials: path.and_then(read_credentials),
+            credentials_path,
             oauth_url: "https://id.twitch.tv/oauth2/token".into(),
             games_url: "https://api.igdb.com/v4/games".into(),
             spacing: Duration::from_millis(350),
             wire: Mutex::new(Wire {
+                credentials,
                 token: None,
                 next_request: Instant::now(),
                 pause_until: 0,
@@ -161,20 +195,17 @@ impl IgdbProvider {
         Ok(response)
     }
 
-    async fn token(&self, wire: &mut Wire, credentials: &Credentials) -> Result<(), CatalogError> {
-        if wire
-            .token
-            .as_ref()
-            .is_some_and(|t| t.expires > Instant::now())
-        {
-            return Ok(());
-        }
+    async fn oauth_token(
+        &self,
+        wire: &mut Wire,
+        credentials: &IgdbCredentials,
+    ) -> Result<Token, CatalogError> {
         let response = self
             .send(
                 wire,
                 self.client.post(&self.oauth_url).form(&[
-                    ("client_id", credentials.id.as_str()),
-                    ("client_secret", credentials.secret.as_str()),
+                    ("client_id", credentials.client_id.as_str()),
+                    ("client_secret", credentials.client_secret.as_str()),
                     ("grant_type", "client_credentials"),
                 ]),
             )
@@ -201,24 +232,29 @@ impl IgdbProvider {
             return Err(CatalogError::InvalidResponse);
         }
         let validity = token.expires_in.saturating_sub(30).clamp(1, 30 * 86400);
-        wire.token = Some(Token {
+        Ok(Token {
             value: token.access_token,
             expires: Instant::now() + Duration::from_secs(validity),
-        });
-        Ok(())
+        })
     }
 
     async fn query(&self, query: String) -> Result<Vec<CatalogGame>, CatalogError> {
-        let credentials = self
-            .credentials
-            .as_ref()
-            .ok_or(CatalogError::NotConfigured)?;
         let mut wire = self.wire.lock().await;
+        let credentials = wire
+            .credentials
+            .clone()
+            .ok_or(CatalogError::NotConfigured)?;
         let result = async {
             for attempt in 0..2 {
-                self.token(&mut wire, credentials).await?;
+                if !wire
+                    .token
+                    .as_ref()
+                    .is_some_and(|token| token.expires > Instant::now())
+                {
+                    wire.token = Some(self.oauth_token(&mut wire, &credentials).await?);
+                }
                 let mut headers = HeaderMap::new();
-                let mut client_id = HeaderValue::from_str(&credentials.id)
+                let mut client_id = HeaderValue::from_str(&credentials.client_id)
                     .map_err(|_| CatalogError::InvalidCredentials)?;
                 client_id.set_sensitive(true);
                 headers.insert("Client-ID", client_id);
@@ -288,10 +324,12 @@ impl CatalogProvider for IgdbProvider {
     }
     async fn status(&self) -> ProviderStatus {
         let wire = self.wire.lock().await;
-        let state = if self.credentials.is_none() {
+        let state = if wire.credentials.is_none() {
             "not_configured"
         } else if wire.pause_until > now() {
             "rate_limited"
+        } else if wire.last_error == Some(CatalogError::InvalidCredentials) {
+            "invalid_credentials"
         } else if wire.last_error.is_some() {
             "unavailable"
         } else if wire.last_success.is_some() {
@@ -300,49 +338,74 @@ impl CatalogProvider for IgdbProvider {
             "configured"
         };
         ProviderStatus {
-            configured: self.credentials.is_some(),
+            configured: wire.credentials.is_some(),
             state: state.into(),
             last_success_at: wire.last_success,
             retry_at: (wire.pause_until > now()).then_some(wire.pause_until),
         }
     }
+
+    async fn update_credentials(
+        &self,
+        credentials: Option<IgdbCredentials>,
+    ) -> Result<(), CatalogError> {
+        let mut wire = self.wire.lock().await;
+        let (credentials, token) = match credentials {
+            Some(credentials) => {
+                let credentials = credentials.validated()?;
+                let token = self.oauth_token(&mut wire, &credentials).await?;
+                write_credentials(&self.credentials_path, &credentials)
+                    .map_err(|_| CatalogError::Storage)?;
+                (Some(credentials), Some(token))
+            }
+            None => {
+                match fs::remove_file(&self.credentials_path) {
+                    Ok(()) => {}
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(_) => return Err(CatalogError::Storage),
+                };
+                (None, None)
+            }
+        };
+        wire.credentials = credentials;
+        wire.token = token;
+        wire.last_success = None;
+        wire.last_error = None;
+        Ok(())
+    }
 }
 
-fn read_credentials(path: &Path) -> Option<Credentials> {
-    let metadata = fs::metadata(path).ok()?;
-    if !metadata.is_file() || metadata.len() > 16384 || metadata.permissions().mode() & 0o077 != 0 {
+fn read_credentials(path: &Path) -> Option<IgdbCredentials> {
+    let metadata = fs::symlink_metadata(path).ok()?;
+    if !metadata.is_file() || metadata.len() > 8192 || metadata.permissions().mode() & 0o077 != 0 {
         return None;
     }
-    let contents = fs::read_to_string(path).ok()?;
-    let (mut id, mut secret) = (None, None);
-    for line in contents
-        .lines()
-        .map(str::trim)
-        .filter(|s| !s.starts_with('#'))
-    {
-        let Some((key, value)) = line.split_once('=') else {
-            continue;
-        };
-        let mut value = value.trim();
-        if value.len() >= 2
-            && ((value.starts_with('"') && value.ends_with('"'))
-                || (value.starts_with('\'') && value.ends_with('\'')))
-        {
-            value = &value[1..value.len() - 1];
-        }
-        if value.is_empty() || value.len() > 512 || value.chars().any(char::is_control) {
-            continue;
-        }
-        match key.trim() {
-            "IGDB_CLIENT_ID" => id = Some(value.to_string()),
-            "IGDB_CLIENT_SECRET" => secret = Some(value.to_string()),
-            _ => {}
-        }
+    let contents = fs::read(path).ok()?;
+    serde_json::from_slice::<IgdbCredentials>(&contents)
+        .ok()?
+        .validated()
+        .ok()
+}
+
+fn write_credentials(path: &Path, credentials: &IgdbCredentials) -> anyhow::Result<()> {
+    let temporary =
+        path.with_file_name(format!(".igdb-credentials-{}.tmp", crate::random_token()?));
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&temporary)?;
+    let result = (|| -> anyhow::Result<()> {
+        let body = serde_json::to_vec(credentials)?;
+        file.write_all(&body)?;
+        file.sync_all()?;
+        fs::rename(&temporary, path)?;
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(temporary);
     }
-    Some(Credentials {
-        id: id?,
-        secret: secret?,
-    })
+    result
 }
 
 async fn decode<T: serde::de::DeserializeOwned>(mut response: Response) -> Result<T, CatalogError> {
@@ -484,8 +547,10 @@ mod tests {
         State(state): State<Arc<Server>>,
         Form(form): Form<HashMap<String, String>>,
     ) -> Response {
-        if form.get("client_secret").map(String::as_str) != Some("synthetic-secret")
-            || form.get("grant_type").map(String::as_str) != Some("client_credentials")
+        if !matches!(
+            form.get("client_secret").map(String::as_str),
+            Some("synthetic-secret" | "rotated-secret")
+        ) || form.get("grant_type").map(String::as_str) != Some("client_credentials")
         {
             return StatusCode::UNAUTHORIZED.into_response();
         }
@@ -536,14 +601,15 @@ mod tests {
                 .timeout(Duration::from_secs(3))
                 .build()
                 .unwrap(),
-            credentials: Some(Credentials {
-                id: "fixture-client".into(),
-                secret: "synthetic-secret".into(),
-            }),
+            credentials_path: PathBuf::new(),
             oauth_url: format!("http://{address}/token"),
             games_url: format!("http://{address}/games"),
             spacing: Duration::from_millis(2),
             wire: Mutex::new(Wire {
+                credentials: Some(IgdbCredentials {
+                    client_id: "fixture-client".into(),
+                    client_secret: "synthetic-secret".into(),
+                }),
                 token: None,
                 next_request: Instant::now(),
                 pause_until: 0,
@@ -601,7 +667,10 @@ mod tests {
         assert_eq!(provider.status().await.state, "unavailable");
         task.abort();
         assert!(matches!(
-            IgdbProvider::new(None).unwrap().search("none", 169).await,
+            IgdbProvider::new(tempfile::tempdir().unwrap().path())
+                .unwrap()
+                .search("none", 169)
+                .await,
             Err(CatalogError::NotConfigured)
         ));
     }
@@ -614,6 +683,79 @@ mod tests {
         ));
         assert_eq!(server.tokens.load(Ordering::SeqCst), 2);
         assert_eq!(server.games.load(Ordering::SeqCst), 2);
+        task.abort();
+    }
+    #[tokio::test]
+    async fn credential_changes_preserve_valid_access_and_survive_restart() {
+        let (mut provider, server, task) = fixture("rotation").await;
+        let dir = tempfile::tempdir().unwrap();
+        provider.credentials_path = dir.path().join("igdb-credentials.json");
+        let credentials = |secret: &str| {
+            Some(IgdbCredentials {
+                client_id: "fixture-client".into(),
+                client_secret: secret.into(),
+            })
+        };
+
+        provider
+            .update_credentials(credentials("synthetic-secret"))
+            .await
+            .unwrap();
+        let file = &provider.credentials_path;
+        assert_eq!(
+            fs::metadata(file).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert!(
+            IgdbProvider::new(dir.path())
+                .unwrap()
+                .status()
+                .await
+                .configured
+        );
+
+        assert_eq!(
+            provider
+                .update_credentials(credentials("rejected-secret"))
+                .await,
+            Err(CatalogError::InvalidCredentials)
+        );
+        assert_eq!(
+            read_credentials(file).unwrap().client_secret,
+            "synthetic-secret"
+        );
+        provider
+            .search("old access still works", 169)
+            .await
+            .unwrap();
+        assert_eq!(server.tokens.load(Ordering::SeqCst), 1);
+
+        provider
+            .update_credentials(credentials("rotated-secret"))
+            .await
+            .unwrap();
+        provider.search("replacement works", 169).await.unwrap();
+        assert_eq!(server.tokens.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            read_credentials(file).unwrap().client_secret,
+            "rotated-secret"
+        );
+
+        fs::set_permissions(file, fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(
+            !IgdbProvider::new(dir.path())
+                .unwrap()
+                .status()
+                .await
+                .configured
+        );
+        provider.update_credentials(None).await.unwrap();
+        assert!(!file.exists());
+        assert!(!provider.status().await.configured);
+        assert!(matches!(
+            provider.search("after removal", 169).await,
+            Err(CatalogError::NotConfigured)
+        ));
         task.abort();
     }
     #[test]
