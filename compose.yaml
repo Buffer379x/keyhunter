@@ -1,0 +1,32 @@
+services:
+  keyhunter:
+    image: keyhunter:local
+    build: .
+    user: "${KEYHUNTER_UID:-1000}:${KEYHUNTER_GID:-1000}"
+    environment:
+      KEYHUNTER_ORIGIN: "${KEYHUNTER_ORIGIN:-http://localhost:3000}"
+      KEYHUNTER_ALLOW_INSECURE_HTTP: "${KEYHUNTER_ALLOW_INSECURE_HTTP:-true}"
+      KEYHUNTER_IGDB_ENV_FILE: /run/secrets/igdb_env
+      KEYHUNTER_NTFY_ENV_FILE: /config/ntfy.env
+      KEYHUNTER_SHOP_DAILY_JOBS: "${KEYHUNTER_SHOP_DAILY_JOBS:-120}"
+    ports:
+      - "127.0.0.1:${KEYHUNTER_PORT:-3000}:3000"
+    volumes:
+      - ./work/local/runtime/data:/data
+      - ./work/local/runtime/config:/config:ro
+    secrets:
+      - igdb_env
+    restart: unless-stopped
+    stop_grace_period: 20s
+    mem_limit: 512m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+
+secrets:
+  igdb_env:
+    file: ./work/local/igdb.env
