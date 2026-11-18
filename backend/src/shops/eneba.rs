@@ -191,6 +191,8 @@ fn countries(value: &Value) -> Vec<String> {
 
 fn strip_suffix(name: &str) -> Option<&str> {
     [
+        " pc xbox series x s xbox live key ",
+        " xbox series x s xbox live key ",
         " pc xbox live key ",
         " xbox live key ",
         " pc xbox live key",
@@ -285,17 +287,52 @@ pub(crate) async fn search_products(
         .filter_map(|url| Shop::Eneba.product_url(url))
         .take(2)
         .collect();
+    if let Some(key) = keys.first() {
+        let slug = collection_slug(key);
+        if !slug.is_empty()
+            && slug.len() <= 160
+            && slug
+                .bytes()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-')
+        {
+            let collection = Url::parse(&format!("https://www.eneba.com/de/store/{slug}-games"))
+                .map_err(|_| ShopError::Parse)?;
+            match client.get(&collection, 2 * 1024 * 1024, false).await {
+                Ok(body) => {
+                    for url in collection_products(&body, keys) {
+                        if !urls.contains(&url) {
+                            urls.push(url);
+                        }
+                    }
+                }
+                Err(ShopError::NotFound) => {}
+                Err(error) => return Err(error),
+            }
+        }
+    }
     for url in search_urls(keys) {
         if !urls.contains(&url) {
             urls.push(url);
         }
     }
+    urls.sort_by_key(|url| {
+        if url.path().ends_with("-global") {
+            0
+        } else if url.path().ends_with("-europe") {
+            1
+        } else {
+            2
+        }
+    });
     let mut products = Vec::new();
     for url in urls.into_iter().take(4) {
         match client.get(&url, 2 * 1024 * 1024, false).await {
             Ok(body) => {
                 let product = parse(&url, &body)?;
-                if keys.contains(&title_key(&product.title)) {
+                if keys.iter().any(|key| {
+                    *key == title_key(&product.title)
+                        || collection_slug(key) == collection_slug(&title_key(&product.title))
+                }) {
                     products.push((url.to_string(), product));
                     if products.len() >= 2 {
                         break;
@@ -309,9 +346,75 @@ pub(crate) async fn search_products(
     Ok(products)
 }
 
+fn collection_slug(key: &str) -> String {
+    let tokens: Vec<_> = key.split_whitespace().collect();
+    let mut words = Vec::new();
+    let mut i = 0;
+    while i < tokens.len() {
+        let start = i;
+        while i < tokens.len()
+            && tokens[i].len() == 1
+            && tokens[i].bytes().all(|c| c.is_ascii_lowercase())
+        {
+            i += 1;
+        }
+        if i - start >= 3 {
+            words.push(tokens[start..i].join(""));
+        } else {
+            words.extend(tokens[start..i].iter().map(|s| s.to_string()));
+        }
+        if i < tokens.len() {
+            words.push(tokens[i].to_string());
+            i += 1;
+        }
+    }
+    words.join("-")
+}
+
+fn collection_products(body: &str, keys: &[String]) -> Vec<Url> {
+    let document = Html::parse_document(body);
+    let selector = Selector::parse("a[href]").expect("static selector");
+    document
+        .select(&selector)
+        .filter_map(|node| {
+            let href = node.value().attr("href")?;
+            let base = Url::parse("https://www.eneba.com").ok()?;
+            let url = Shop::Eneba.product_url(base.join(href).ok()?.as_str())?;
+            let slug = url.path().rsplit('/').next()?.strip_prefix("xbox-")?;
+            let key = title_key(slug);
+            let title = strip_suffix(&key)?;
+            keys.iter()
+                .any(|k| *k == title || collection_slug(k) == collection_slug(title))
+                .then_some(url)
+        })
+        .take(30)
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn public_collection_extracts_matching_game_across_platform_spellings() {
+        let html = r#"<a href="/xbox-starfield-pc-xbox-series-x-s-xbox-live-key-global">Starfield</a>
+            <a href="/xbox-starfield-premium-edition-pc-xbox-series-x-s-xbox-live-key-global">Premium</a>
+            <a href="https://untrusted.example/xbox-starfield-pc-xbox-live-key-global">foreign</a>"#;
+        let urls = collection_products(html, &["starfield".into()]);
+        assert_eq!(urls.len(), 1);
+        assert!(
+            urls[0]
+                .path()
+                .ends_with("starfield-pc-xbox-series-x-s-xbox-live-key-global")
+        );
+        assert_eq!(
+            strip_suffix("starfield pc xbox series x s xbox live key global"),
+            Some("starfield")
+        );
+        assert_eq!(
+            collection_slug("s t a l k e r 2 heart of chornobyl"),
+            "stalker-2-heart-of-chornobyl"
+        );
+    }
     #[test]
     fn targeted_urls_preserve_game_and_edition_and_exclude_unrepresentable_titles() {
         let base = search_urls(&["forza horizon 5".into()]);

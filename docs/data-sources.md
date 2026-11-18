@@ -34,7 +34,7 @@ Die Schätzung ist je Shop standardmäßig ausgeschaltet. Der vorbereitete Wert 
 
 ## Automatische Eneba-Suche ab 0.3.0
 
-Das Speichern eines Wunsches erzeugt sofort einen persistenten Suchjob. Auch bestehende Wünsche erhalten beim Upgrade einen Suchjob. Der Worker prüft passende öffentliche Produktpfade aus dem bestätigten Spieletitel und dem lokalen Index. Pro Suchlauf werden höchstens vier Produktseiten geprüft. 404 wird als fehlender Kandidat behandelt, andere Fehler und Quellenlimits bleiben sichtbar. Die Quelle kann pausiert oder in den Einstellungen deaktiviert werden.
+Das Speichern eines Wunsches erzeugt sofort einen persistenten Suchjob. Auch bestehende Wünsche erhalten beim Upgrade einen Suchjob. Der Worker entnimmt passende Produktlinks aus der öffentlichen Spiel-Kategorieseite und ergänzt sie durch bekannte Pfade aus Spieletitel und lokalem Index. Pro Suchlauf werden eine öffentliche Spiel-Kategorieseite und höchstens vier Produktseiten geprüft. 404 wird als fehlender Kandidat behandelt, andere Fehler und Quellenlimits bleiben sichtbar. Die Quelle kann pausiert oder in den Einstellungen deaktiviert werden.
 
 Der Suchlauf speichert tatsächlich empfangene Produkte und deren Preise. Das Ergebnis erscheint im Dashboard ohne manuell hinterlegten Produktlink. Titel-/Editions-/Plattformkonflikte verhindern eine automatische Freigabe. Mit veränderter Produktidentität werden alte Freigaben erneut prüfpflichtig. Ein manueller Produktlink ergänzt die automatische Suche bei Abdeckungslücken. Die begrenzte Suche garantiert keinen vollständigen Shopkatalog.
 
