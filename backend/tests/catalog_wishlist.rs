@@ -41,6 +41,7 @@ fn game(id: i64) -> CatalogGame {
         }],
         aliases: vec!["Alternative".into()],
         cover_url: None,
+        artwork_url: None,
         version_parent: (id == 2).then_some(1),
         edition_name: (id == 2).then_some("Premium".into()),
         kind: match id {

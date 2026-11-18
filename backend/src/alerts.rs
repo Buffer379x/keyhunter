@@ -167,9 +167,16 @@ pub(crate) async fn test_message(
         ));
     }
     let t = now();
-    let n=sqlx::query("INSERT INTO alert_outbox(observed_at,message,due) SELECT ?,'KEYHUNTER Global: Testnachricht',?
-        WHERE NOT EXISTS(SELECT 1 FROM alert_outbox WHERE wish_id IS NULL AND observed_at>?)")
-        .bind(t).bind(t).bind(t-60).execute(&state.pool).await?.rows_affected();
+    let n = sqlx::query(
+        "INSERT INTO alert_outbox(observed_at,message,due) SELECT ?,'KeyHunter: Testnachricht',?
+        WHERE NOT EXISTS(SELECT 1 FROM alert_outbox WHERE wish_id IS NULL AND observed_at>?)",
+    )
+    .bind(t)
+    .bind(t)
+    .bind(t - 60)
+    .execute(&state.pool)
+    .await?
+    .rows_affected();
     if n == 0 {
         return Err(ApiError(
             StatusCode::CONFLICT,
@@ -303,7 +310,7 @@ pub(crate) async fn observe(
             "geschätzter Gesamtpreis"
         };
         let message = format!(
-            "KEYHUNTER Global: {title}\n{}.{:02} EUR ({basis})",
+            "KeyHunter: {title}\n{}.{:02} EUR ({basis})",
             best / 100,
             best % 100
         );
@@ -391,7 +398,7 @@ impl Ntfy {
             .client
             .post(self.url.clone())
             .header("Content-Type", "text/plain; charset=utf-8")
-            .header("Title", "KEYHUNTER Global")
+            .header("Title", "KeyHunter")
             .body(message);
         if let Some(value) = &self.authorization {
             request = request.header(reqwest::header::AUTHORIZATION, value.clone());

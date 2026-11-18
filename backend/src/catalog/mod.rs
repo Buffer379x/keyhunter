@@ -223,3 +223,28 @@ pub(crate) async fn source_status(
     entries.insert("igdb".into(), igdb);
     Ok(Json(Value::Object(entries)))
 }
+
+pub(crate) async fn editions(
+    State(state): State<Shared>,
+    Path(id): Path<i64>,
+    headers: HeaderMap,
+) -> ApiResult<Json<Vec<CatalogGame>>> {
+    auth::authenticate(&state, &headers).await?;
+    enabled(&state).await?;
+    let game = load_game(&state, id).await?;
+    let parent = game.version_parent.unwrap_or(id);
+    let games = state
+        .catalog
+        .editions(parent)
+        .await
+        .map_err(provider_error)?;
+    save_games(&state, &games).await?;
+    Ok(Json(
+        games
+            .into_iter()
+            .filter(|g| {
+                g.selection_allowed() && g.platforms.iter().any(|p| p.id == 169 || p.id == 49)
+            })
+            .collect(),
+    ))
+}

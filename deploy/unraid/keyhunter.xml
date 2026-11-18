@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Container version="2">
-  <Name>keyhunter</Name>
+  <Name>KeyHunter</Name>
   <Repository>ghcr.io/buffer379x/keyhunter:latest</Repository>
   <Registry>https://github.com/users/Buffer379x/packages/container/package/keyhunter</Registry>
   <Network>bridge</Network>
@@ -18,7 +18,7 @@
   <Config Name="App data" Target="/data" Default="" Mode="rw" Description="Dedicated local appdata directory. The template prepares the data directory at startup. SQLite must not use SMB/NFS." Type="Path" Display="always" Required="true" Mask="false"/>
   <Config Name="Configuration" Target="/config" Default="" Mode="ro" Description="Optional protected config directory containing ntfy.env. Restrict file access to the container UID. Never paste secrets into template variables." Type="Path" Display="always" Required="false" Mask="false"/>
   <Config Name="ntfy configuration file" Target="KEYHUNTER_NTFY_ENV_FILE" Default="/config/ntfy.env" Description="Optional owner-readable file containing NTFY_URL and NTFY_TOKEN." Type="Variable" Display="advanced" Required="false" Mask="false">/config/ntfy.env</Config>
-  <Config Name="Daily jobs per shop" Target="KEYHUNTER_SHOP_DAILY_JOBS" Default="120" Description="Daily cap for product and discovery jobs per shop. One job makes up to three public requests." Type="Variable" Display="advanced" Required="false" Mask="false">120</Config>
+  <Config Name="Daily jobs per shop" Target="KEYHUNTER_SHOP_DAILY_JOBS" Default="120" Description="Daily cap for product and discovery jobs per shop. A title search checks robots.txt and up to four product pages." Type="Variable" Display="advanced" Required="false" Mask="false">120</Config>
   <Config Name="Web origin (optional)" Target="KEYHUNTER_ORIGIN" Default="" Description="Leave blank to use the browser host. Set a complete HTTP(S) URL to pin one origin." Type="Variable" Display="advanced" Required="false" Mask="false"/>
   <Config Name="Allow LAN HTTP" Target="KEYHUNTER_ALLOW_INSECURE_HTTP" Default="true" Description="Allows sign-in and changes over HTTP on private IP addresses when no origin is pinned. Set false for HTTPS only." Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
 </Container>

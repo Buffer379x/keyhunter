@@ -7,11 +7,11 @@ test('owner can set up, save service fees, use keyboard dialog, and log in again
   await signInToFixture(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'test-results/wishlist-desktop.png', fullPage: true });
-  const savedCountryLabel = await page.getByText(/^Zielland:/).innerText();
+  const savedCountryLabel = await page.locator('.target-pill').innerText();
   await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
   await page.getByLabel('Zielland', { exact: true }).selectOption('FR');
   await page.getByRole('button', { name: /^Wunschliste/ }).click();
-  await expect(page.getByText(/^Zielland:/)).toHaveText(savedCountryLabel);
+  await expect(page.locator('.target-pill')).toHaveText(savedCountryLabel);
   await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
   await page.getByLabel('Zielland', { exact: true }).selectOption('DE');
   const eneba = page.getByRole('article', { name: 'Eneba' });
@@ -41,7 +41,7 @@ test('owner can set up, save service fees, use keyboard dialog, and log in again
   await expect(page.getByRole('button', { name: 'Anmelden', exact: true })).toBeVisible();
   await page.getByLabel('Passphrase', { exact: true }).fill('browser test passphrase only');
   await page.getByLabel('Passphrase', { exact: true }).press('Enter');
-  await expect(page.getByRole('heading', { name: 'Meine Wunschliste.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Meine Wunschliste' })).toBeVisible();
   expect(errors).toEqual([]);
 });
 

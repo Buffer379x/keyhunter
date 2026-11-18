@@ -16,5 +16,5 @@ export async function signInToFixture(page: Page) {
     await page.getByLabel('Passphrase', { exact: true }).fill('browser test passphrase only');
     await page.getByLabel('Passphrase', { exact: true }).press('Enter');
   }
-  await expect(page.getByRole('heading', { name: 'Meine Wunschliste.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Meine Wunschliste' })).toBeVisible();
 }

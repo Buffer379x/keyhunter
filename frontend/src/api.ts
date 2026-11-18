@@ -24,6 +24,7 @@ export interface CatalogGame {
   platforms: { id: number; name: string }[];
   aliases: string[];
   cover_url: string | null;
+  artwork_url?: string | null;
   version_parent: number | null;
   edition_name: string | null;
   kind: string;

@@ -14,7 +14,7 @@ use std::{
 };
 use tokio::sync::Mutex;
 
-const FIELDS: &str = "id,name,slug,summary,first_release_date,platforms.name,cover.image_id,alternative_names.name,version_parent,version_title,game_type.type";
+const FIELDS: &str = "id,name,slug,summary,first_release_date,platforms.name,cover.image_id,artworks.image_id,screenshots.image_id,alternative_names.name,version_parent,version_title,game_type.type";
 const MAX_RESPONSE: usize = 2 * 1024 * 1024;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -33,6 +33,8 @@ pub struct CatalogGame {
     pub platforms: Vec<Platform>,
     pub aliases: Vec<String>,
     pub cover_url: Option<String>,
+    #[serde(default)]
+    pub artwork_url: Option<String>,
     pub version_parent: Option<i64>,
     pub edition_name: Option<String>,
     pub kind: String,
@@ -70,6 +72,9 @@ pub struct ProviderStatus {
 pub trait CatalogProvider: Send + Sync {
     async fn search(&self, query: &str, platform: i64) -> Result<Vec<CatalogGame>, CatalogError>;
     async fn game(&self, id: i64) -> Result<Option<CatalogGame>, CatalogError>;
+    async fn editions(&self, _parent: i64) -> Result<Vec<CatalogGame>, CatalogError> {
+        Ok(vec![])
+    }
     async fn status(&self) -> ProviderStatus;
     async fn update_credentials(
         &self,
@@ -322,6 +327,12 @@ impl CatalogProvider for IgdbProvider {
             .await?;
         Ok(games.into_iter().find(|game| game.igdb_id == id))
     }
+    async fn editions(&self, parent: i64) -> Result<Vec<CatalogGame>, CatalogError> {
+        self.query(format!(
+            "fields {FIELDS}; where id = {parent} | version_parent = {parent}; limit 30;"
+        ))
+        .await
+    }
     async fn status(&self) -> ProviderStatus {
         let wire = self.wire.lock().await;
         let state = if wire.credentials.is_none() {
@@ -441,6 +452,10 @@ struct RawGame {
     #[serde(default)]
     alternative_names: Vec<Alias>,
     cover: Option<Cover>,
+    #[serde(default)]
+    artworks: Vec<Cover>,
+    #[serde(default)]
+    screenshots: Vec<Cover>,
     version_parent: Option<i64>,
     version_title: Option<String>,
     game_type: Option<GameType>,
@@ -508,6 +523,17 @@ fn normalize(raw: RawGame) -> Result<CatalogGame, CatalogError> {
             .collect(),
         aliases,
         cover_url,
+        artwork_url: raw
+            .screenshots
+            .into_iter()
+            .chain(raw.artworks)
+            .filter_map(|a| a.image_id)
+            .find(|id| {
+                !id.is_empty()
+                    && id.len() <= 80
+                    && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+            })
+            .map(|id| format!("https://images.igdb.com/igdb/image/upload/t_1080p/{id}.jpg")),
         version_parent: raw.version_parent.filter(|id| *id > 0),
         edition_name: raw
             .version_title

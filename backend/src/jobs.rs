@@ -48,6 +48,7 @@ struct Job {
     id: i64,
     link_id: Option<i64>,
     failures: i64,
+    wish_id: Option<String>,
 }
 async fn claim(
     pool: &SqlitePool,
@@ -85,8 +86,8 @@ async fn claim(
         AND (j.link_id IS NULL OR l.review!='rejected')
         AND NOT EXISTS(SELECT 1 FROM shop_job running WHERE running.source=j.source AND running.lease_until>?)
         AND EXISTS(SELECT 1 FROM wishlist_item)
-        ORDER BY j.due,(j.link_id IS NULL),j.id LIMIT 1)
-        RETURNING id,link_id,failures")
+        ORDER BY (j.wish_id IS NOT NULL) DESC,j.due,(j.link_id IS NULL),j.id LIMIT 1)
+        RETURNING id,link_id,failures,wish_id")
         .bind(t+180).bind(token).bind(shop.id()).bind(t).bind(t).bind(t).bind(day).bind(budget).bind(t)
         .fetch_optional(&mut *tx).await?;
     if claimed.is_some() {
@@ -100,6 +101,7 @@ async fn claim(
 enum Work {
     Product(Box<Product>),
     Discovery(Vec<(String, String)>),
+    Search(Vec<(String, Product)>),
 }
 
 async fn run_one(pool: &SqlitePool, shop: Shop, budget: i64) -> anyhow::Result<bool> {
@@ -107,7 +109,19 @@ async fn run_one(pool: &SqlitePool, shop: Shop, budget: i64) -> anyhow::Result<b
     let Some(job) = claim(pool, shop, &token, now(), budget).await? else {
         return Ok(false);
     };
-    let result = if let Some(link) = job.link_id {
+    let result = if let Some(id) = &job.wish_id {
+        match offers::wish(pool, id).await {
+            Ok(wish) => {
+                let keys = wish.keys();
+                let known:Vec<String> = sqlx::query_scalar("SELECT url FROM shop_candidate WHERE source=? AND title_key IN (SELECT value FROM json_each(?)) LIMIT 2")
+                    .bind(shop.id()).bind(serde_json::to_string(&keys)?).fetch_all(pool).await?;
+                crate::shops::eneba::search_products(&keys, &known)
+                    .await
+                    .map(Work::Search)
+            }
+            Err(_) => Err(ShopError::NotFound),
+        }
+    } else if let Some(link) = job.link_id {
         let raw: Option<String> = sqlx::query_scalar("SELECT url FROM offer_link WHERE id=?")
             .bind(link)
             .fetch_optional(pool)
@@ -130,7 +144,7 @@ async fn run_one(pool: &SqlitePool, shop: Shop, budget: i64) -> anyhow::Result<b
     let t = now();
     let (due, failures) = match &result {
         Ok(Work::Product(_)) => (t + INTERVAL, 0),
-        Ok(Work::Discovery(_)) => (t + DAY, 0),
+        Ok(Work::Discovery(_) | Work::Search(_)) => (t + DAY, 0),
         Err(error) => {
             let failures = job.failures + 1;
             let ordinary = if failures == 3 {
@@ -162,6 +176,12 @@ async fn run_one(pool: &SqlitePool, shop: Shop, budget: i64) -> anyhow::Result<b
         return Ok(true);
     }
 
+    sqlx::query("UPDATE shop_job SET checked_at=?,last_error=? WHERE id=?")
+        .bind(t)
+        .bind(result.as_ref().err().map(ShopError::code))
+        .bind(job.id)
+        .execute(&mut *tx)
+        .await?;
     let mut measured = None;
     match result {
         Ok(Work::Product(product)) => {
@@ -184,6 +204,47 @@ async fn run_one(pool: &SqlitePool, shop: Shop, budget: i64) -> anyhow::Result<b
                     .await?;
                 measured = Some((id, link));
             }
+            set_success(&mut tx, shop, t, false).await?;
+        }
+        Ok(Work::Search(products)) => {
+            let id = job.wish_id.as_ref().expect("search job");
+            let wish = offers::wish(pool, id)
+                .await
+                .map_err(|_| anyhow::anyhow!("Wishlist entry unavailable"))?;
+            let mut found = 0;
+            for (url, product) in products {
+                if !wish.matches(&product) {
+                    continue;
+                }
+                let auto = wish.auto_matches(&product);
+                let link:Option<i64>=sqlx::query_scalar("INSERT INTO offer_link(wish_id,source,url,review,fingerprint)
+                    SELECT ?,?,?,?,? WHERE (SELECT COUNT(*) FROM offer_link WHERE wish_id=?)<16
+                    ON CONFLICT(wish_id,source,url) DO UPDATE SET url=excluded.url WHERE review!='rejected' RETURNING id")
+                    .bind(id).bind(shop.id()).bind(&url).bind(if auto {"confirmed"} else {"pending"})
+                    .bind(auto.then(||product.fingerprint())).bind(id).fetch_optional(&mut *tx).await?;
+                let Some(link) = link else { continue };
+                sqlx::query("UPDATE offer_link SET review=CASE WHEN review='pending' AND ? THEN 'confirmed' ELSE review END,
+                    fingerprint=CASE WHEN review='pending' AND ? THEN ? ELSE fingerprint END,
+                    latest=?,observed_at=?,attempted_at=?,last_error=NULL WHERE id=?")
+                    .bind(auto).bind(auto).bind(product.fingerprint()).bind(serde_json::to_string(&product)?).bind(t).bind(t).bind(link).execute(&mut *tx).await?;
+                sqlx::query("INSERT OR IGNORE INTO shop_job(source,link_id,due) VALUES(?,?,?)")
+                    .bind(shop.id())
+                    .bind(link)
+                    .bind(t + INTERVAL)
+                    .execute(&mut *tx)
+                    .await?;
+                let market = product.purchase_country.as_deref().unwrap_or_default();
+                sqlx::query("INSERT OR IGNORE INTO price_observation(link_id,product_id,observed_at,market,fingerprint,offers,activation,availability) VALUES(?,?,?,?,?,?,?,?)")
+                    .bind(link).bind(&product.id).bind(t).bind(market).bind(product.fingerprint()).bind(serde_json::to_string(&product.offers)?)
+                    .bind(product.activation(market)).bind(product.availability.as_str()).execute(&mut *tx).await?;
+                alerts::observe(&mut tx, id, link, t).await?;
+                found += 1;
+            }
+            sqlx::query("UPDATE shop_job SET result_count=? WHERE id=?")
+                .bind(found)
+                .bind(job.id)
+                .execute(&mut *tx)
+                .await?;
             set_success(&mut tx, shop, t, false).await?;
         }
         Ok(Work::Discovery(candidates)) => {
@@ -218,7 +279,7 @@ async fn run_one(pool: &SqlitePool, shop: Shop, budget: i64) -> anyhow::Result<b
         alerts::observe(&mut tx, &id, link, t).await?;
     }
     tx.commit().await?;
-    if job.link_id.is_none() {
+    if job.link_id.is_none() && job.wish_id.is_none() {
         attach(pool, shop).await?;
     }
     Ok(true)
@@ -274,9 +335,55 @@ async fn attach(pool: &SqlitePool, shop: Shop) -> anyhow::Result<()> {
     Ok(())
 }
 
+pub(crate) async fn schedule_wish(pool: &SqlitePool, id: &str) -> sqlx::Result<()> {
+    sqlx::query("INSERT OR IGNORE INTO shop_job(source,wish_id,due) SELECT 'eneba',id,? FROM wishlist_item WHERE id=?")
+        .bind(now()).bind(id).execute(pool).await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn wishlist_searches_are_persistent_idempotent_prioritized_and_cascade() {
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        sqlx::query("INSERT INTO game(id,manual_title,manual_key,created_at) VALUES('g','Example','example',0)").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO wishlist_item VALUES('wish','g',169,0)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        schedule_wish(&pool, "wish").await.unwrap();
+        schedule_wish(&pool, "wish").await.unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM shop_job WHERE wish_id='wish'")
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            1
+        );
+        let claimed = claim(&pool, Shop::Eneba, "search", now(), 120)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(claimed.wish_id.as_deref(), Some("wish"));
+        assert!(claimed.link_id.is_none());
+        sqlx::query("DELETE FROM wishlist_item WHERE id='wish'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM shop_job WHERE wish_id='wish'")
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            0
+        );
+    }
     #[tokio::test]
     async fn persistent_lease_budget_and_source_pause() {
         let pool = sqlx::sqlite::SqlitePoolOptions::new()

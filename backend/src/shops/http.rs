@@ -105,6 +105,9 @@ async fn fetch(
     if res.status().is_redirection() || matches!(res.status().as_u16(), 401 | 403) {
         return Err(ShopError::Denied);
     }
+    if res.status() == StatusCode::NOT_FOUND {
+        return Err(ShopError::NotFound);
+    }
     if !res.status().is_success() {
         return Err(ShopError::Network);
     }

@@ -1,5 +1,5 @@
 mod driffle;
-mod eneba;
+pub(crate) mod eneba;
 mod http;
 
 use serde::{Deserialize, Serialize};
@@ -170,6 +170,7 @@ pub(crate) fn title_key(value: &str) -> String {
 #[derive(Debug)]
 pub(crate) enum ShopError {
     Network,
+    NotFound,
     Throttled(i64),
     Denied,
     Parse,
@@ -179,6 +180,7 @@ impl ShopError {
     pub(crate) fn code(&self) -> &'static str {
         match self {
             Self::Network => "network",
+            Self::NotFound => "not_found",
             Self::Throttled(_) => "rate_limited",
             Self::Denied => "access_denied",
             Self::Parse => "invalid_response",

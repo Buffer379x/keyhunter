@@ -6,7 +6,7 @@ import Wishlist from './features/Wishlist';
 import PriceAlerts from './features/PriceAlerts';
 import IgdbAccess from './features/IgdbAccess';
 import { shopNames } from './features/Offers';
-import { Brand, Button, InfoDialog, Notice } from './components';
+import { Brand, Button, Icon, InfoDialog, Notice } from './components';
 import { formatFeePercent, parseFeePercent } from './fees';
 
 type Page = 'wishlist' | 'settings' | 'alerts';
@@ -27,6 +27,7 @@ const errorText = (error: unknown) => error instanceof Error ? error.message : '
 export default function App() {
   const [screen, setScreen] = useState<Screen>('loading');
   const [csrf, setCsrf] = useState('');
+  const [searchSignal, setSearchSignal] = useState(0);
   const [page, setPage] = useState<Page>(routePage);
   const [wishlistCount, setWishlistCount] = useState<number | null>(null);
   const [sourceStatus, setSourceStatus] = useState<SourceStatuses | null>(null);
@@ -118,6 +119,16 @@ export default function App() {
     const restore = () => setPage(routePage());
     window.addEventListener('popstate', restore); return () => window.removeEventListener('popstate', restore);
   }, []);
+  const openSearch = useCallback(() => { navigate('wishlist'); setSearchSignal(n => n + 1); }, [navigate]);
+  useEffect(() => {
+    function keyboard(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault(); openSearch();
+      }
+    }
+    window.addEventListener('keydown', keyboard);
+    return () => window.removeEventListener('keydown', keyboard);
+  }, [openSearch]);
   const openSettings = useCallback(() => navigate('settings'), [navigate]);
 
   const countryNames = useMemo(() => new Intl.DisplayNames(['de'], { type: 'region' }), []);
@@ -128,29 +139,30 @@ export default function App() {
     <aside className="auth-story"><Brand /><div><p className="eyebrow">DEINE SPIELE. DEIN ÜBERBLICK.</p><h1>Die nächste<br />Entdeckung<br /><em>beginnt hier.</em></h1><p>Xbox-Spiele vormerken. Editionen unterscheiden. Angebote mit klarem Blick auf Region und Preis verfolgen.</p></div><span className="private-label"><span className="status-dot" /> Privat gehostet · nur für dich</span></aside>
     <main className="auth-main">
       <div className="mobile-brand"><Brand /></div>
-      {screen === 'loading' ? <div className="auth-card"><p role="status">KEYHUNTER wird geladen …</p></div> : screen === 'offline' ? <div className="auth-card"><h1>Verbindung unterbrochen</h1><Notice error>{error}</Notice><Button onClick={() => void initialize()}>Erneut versuchen</Button></div> :
+      {screen === 'loading' ? <div className="auth-card"><p role="status">KeyHunter wird geladen …</p></div> : screen === 'offline' ? <div className="auth-card"><h1>Verbindung unterbrochen</h1><Notice error>{error}</Notice><Button onClick={() => void initialize()}>Erneut versuchen</Button></div> :
         <AuthForm setup={screen === 'setup'} busy={busy} error={error} onSubmit={signIn} />}
     </main>
   </div>;
 
-  return <div className="app-shell">
+  return <div className={`app-shell ${page === 'wishlist' ? 'dashboard-page' : 'settings-page'}`}>
     <a href="#main-content" className="skip-link">Zum Inhalt</a>
     <aside className="sidebar"><Brand />
-      <div className="sidebar-caption">DEIN BEREICH</div>
+
       <nav aria-label="Hauptnavigation">
-        <button className={`nav-item ${page === 'wishlist' ? 'active' : ''}`} aria-current={page === 'wishlist' ? 'page' : undefined} onClick={() => navigate('wishlist')}><span aria-hidden="true">☆</span>Wunschliste<span className="count">{wishlistCount ?? '–'}</span></button>
-        <button className={`nav-item ${page === 'alerts' ? 'active' : ''}`} aria-current={page === 'alerts' ? 'page' : undefined} onClick={() => navigate('alerts')}><span aria-hidden="true">♧</span>Preisalarme</button>
-        <button className={`nav-item ${page === 'settings' ? 'active' : ''}`} aria-current={page === 'settings' ? 'page' : undefined} onClick={() => navigate('settings')}><span aria-hidden="true">⚙</span>Einstellungen</button>
+        <button className={`nav-item ${page === 'wishlist' ? 'active' : ''}`} aria-current={page === 'wishlist' ? 'page' : undefined} onClick={() => navigate('wishlist')}><Icon name="heart" />Wunschliste<span className="count">{wishlistCount ?? '–'}</span></button>
+        <button className={`nav-item ${page === 'alerts' ? 'active' : ''}`} aria-current={page === 'alerts' ? 'page' : undefined} onClick={() => navigate('alerts')}><Icon name="bell" />Preisalarme</button>
+        <button className={`nav-item ${page === 'settings' ? 'active' : ''}`} aria-current={page === 'settings' ? 'page' : undefined} onClick={() => navigate('settings')}><Icon name="settings" />Einstellungen</button>
       </nav>
-      <div className="sidebar-bottom"><div className="platform-label">PLATTFORM</div><strong>Xbox Series X|S</strong><p>Auch Xbox One · EUR</p><Button secondary className="logout" onClick={() => void logout()} disabled={busy}>Abmelden</Button></div>
+      <div className="sidebar-platform"><p>Plattformen</p><div className="platform-selected"><Icon name="game" /><span>Xbox</span><span>✓</span></div><small>Series X|S · Xbox One</small></div>
+      <div className="sidebar-bottom"><span className="status-dot" /><small>KeyHunter <span className="version">0.3.0</span></small><Button secondary className="logout" aria-label="Abmelden" title="Abmelden" onClick={() => void logout()} disabled={busy}><Icon name="logout" /></Button></div>
     </aside>
     <div className="workspace">
-      <header className="topbar"><span>Deine persönliche Spieleübersicht</span><span className="private-pill"><span className="status-dot" /> Privater Bereich</span></header>
+      <header className="topbar"><button className="global-search" onClick={openSearch}><Icon name="search" /><span>Nach Spielen suchen …</span><kbd>Ctrl K</kbd></button><div className="topbar-right"><span className="target-pill"><Icon name="globe" />{savedCountry ? targetLabel : 'Zielland wählen'}</span><button className="avatar" aria-label="Einstellungen öffnen" onClick={openSettings}>K</button></div></header>
       <main id="main-content" tabIndex={-1}>
         {error && <Notice error>{error}</Notice>}
         {message && <Notice>{message}</Notice>}
-        {page === 'wishlist' ? <Wishlist csrf={csrf} targetCountry={savedCountry} targetLabel={targetLabel ?? 'Noch nicht gewählt'} onSettings={openSettings} onCountChange={setWishlistCount} onError={handleProtectedError} /> : page === 'alerts' ? <PriceAlerts csrf={csrf} onError={handleProtectedError} /> : <>
-          <div className="page-heading"><div><p className="eyebrow">SO PASST KEYHUNTER ZU DIR</p><h1>Einstellungen<span className="accent-dot">.</span></h1><p>Dein Zielland, deine Quellen und deine Preisgrundlage.</p></div></div>
+        {page === 'wishlist' ? <Wishlist searchSignal={searchSignal} csrf={csrf} targetCountry={savedCountry} targetLabel={targetLabel ?? 'Noch nicht gewählt'} onSettings={openSettings} onCountChange={setWishlistCount} onError={handleProtectedError} /> : page === 'alerts' ? <PriceAlerts csrf={csrf} onError={handleProtectedError} /> : <>
+          <div className="page-heading"><div><p className="eyebrow">DEINE EINSTELLUNGEN</p><h1>Einstellungen<span className="accent-dot">.</span></h1><p>Dein Zielland, deine Quellen und deine Preisgrundlage.</p></div></div>
           {settings && <form onSubmit={saveSettings} className="settings-form">
             <section className="settings-card" aria-labelledby="general-title"><div className="section-number">01</div><div className="section-content"><h2 id="general-title">Region & Anzeige</h2><p>Das Zielland bestimmt die Aktivierungseignung. Angebote aus anderen Ländern bleiben sichtbar.</p><div className="field-grid"><div className="field"><label htmlFor="target-country">Zielland</label><select id="target-country" value={settings.target_country ?? ''} onChange={e => { setSettings({ ...settings, target_country: e.target.value || null }); setMessage(''); }}><option value="">Bitte wählen</option>{countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}</select></div><div className="field"><label htmlFor="currency">Vergleichswährung</label><input id="currency" readOnly value="EUR · Euro" /><span className="field-help">Preise werden in Euro verglichen.</span></div></div></div></section>
             <section className="settings-card" aria-labelledby="sources-title"><div className="section-number">02</div><div className="section-content"><h2 id="sources-title">Datenquellen</h2><p>Metadaten und Shopangebote erfüllen unterschiedliche Aufgaben.</p><div className="source-list">{settings.sources.map(source => <article className="source-card" key={source.id} aria-label={shopNames[source.id]}>
@@ -166,7 +178,7 @@ export default function App() {
           /></div>}
         </>}
       </main>
-      <footer className="app-footer"><span>KEYHUNTER <strong>GLOBAL</strong></span><span>Deine Auswahl. Dein Überblick.</span></footer>
+      <footer className="app-footer"><span>KeyHunter</span><span>Deine Auswahl. Dein Überblick.</span></footer>
     </div>
     <InfoDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
   </div>;
@@ -182,7 +194,7 @@ function AuthForm({ setup, busy, error, onSubmit }: { setup: boolean; busy: bool
     if (setup && password !== confirm) { setLocalError('Die Passphrasen stimmen nicht überein.'); return; }
     await onSubmit(password, setup ? token : undefined);
   }
-  return <div className="auth-card"><p className="eyebrow">DEIN PRIVATER BEREICH</p><h1>{setup ? 'Willkommen bei KEYHUNTER.' : 'Schön, dass du da bist.'}</h1><p className="auth-intro">{setup ? 'Richte deinen persönlichen Zugang ein. Nur du verwaltest deine Spiele und Einstellungen.' : 'Melde dich an, um deine Wunschliste und Einstellungen zu öffnen.'}</p>
+  return <div className="auth-card"><p className="eyebrow">DEIN PRIVATER BEREICH</p><h1>{setup ? 'Willkommen bei KeyHunter.' : 'Schön, dass du da bist.'}</h1><p className="auth-intro">{setup ? 'Richte deinen persönlichen Zugang ein. Nur du verwaltest deine Spiele und Einstellungen.' : 'Melde dich an, um deine Wunschliste und Einstellungen zu öffnen.'}</p>
     <form onSubmit={submit}>
       {(localError || error) && <Notice error>{localError || error}</Notice>}
       {setup && <div className="field"><label htmlFor="setup-token">Einrichtungscode</label><input id="setup-token" type="password" autoComplete="off" value={token} onChange={e => setToken(e.target.value)} required spellCheck={false} /><span className="field-help">Aus der lokalen Datei <code>bootstrap-token</code> im Datenverzeichnis.</span></div>}

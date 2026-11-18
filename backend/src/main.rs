@@ -13,7 +13,7 @@ async fn main() -> Result<()> {
     let bind = config.bind;
     let app = create_app(config).await?;
     let listener = tokio::net::TcpListener::bind(bind).await?;
-    tracing::info!(%bind, "KEYHUNTER ready");
+    tracing::info!(%bind, "KeyHunter ready");
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown())
         .await?;

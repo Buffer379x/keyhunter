@@ -2,7 +2,7 @@
 set -eu
 
 fail() {
-    printf 'KEYHUNTER: %s\n' "$1" >&2
+    printf 'KeyHunter: %s\n' "$1" >&2
     exit 1
 }
 

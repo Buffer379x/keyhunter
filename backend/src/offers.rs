@@ -62,6 +62,23 @@ impl Wish {
         }
         keys
     }
+    pub(crate) fn auto_matches(&self, product: &Product) -> bool {
+        self.payload
+            .as_ref()
+            .and_then(|p| serde_json::from_str::<crate::catalog::provider::CatalogGame>(p).ok())
+            .is_some_and(|game| {
+                game.selection_allowed()
+                    && game.platforms.iter().any(|p| p.id == self.platform_id)
+                    && [
+                        title_key(&game.name),
+                        format!("{} standard edition", title_key(&game.name)),
+                        format!("{} standard", title_key(&game.name)),
+                    ]
+                    .contains(&title_key(&product.title))
+            })
+            && product.key_game
+            && product.platform_ids.contains(&self.platform_id)
+    }
     pub(crate) fn matches(&self, product: &Product) -> bool {
         product.key_game
             && product.platform_ids.contains(&self.platform_id)
@@ -159,6 +176,8 @@ pub(crate) struct OffersView {
     best_estimate: Option<i64>,
     target_country: String,
     discovery_running: bool,
+    searches: Vec<Value>,
+    sources: Vec<Value>,
 }
 
 pub(crate) async fn list(
@@ -226,7 +245,27 @@ pub(crate) async fn list(
     }
     history.sort_unstable_by_key(|a| std::cmp::Reverse(a.observed_at));
     let discovery_running: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM shop_job j JOIN shop_state p ON p.source=j.source JOIN source_settings s ON s.id=j.source
-        WHERE j.link_id IS NULL AND s.enabled AND p.retry_at<=? AND j.due<=? AND (p.budget_day!=? OR p.jobs_today<?))").bind(t).bind(t).bind(t/86400).bind(crate::jobs::daily_budget()).fetch_one(&state.pool).await?;
+        WHERE j.link_id IS NULL AND j.wish_id IS NULL AND s.enabled AND p.retry_at<=? AND j.due<=? AND (p.budget_day!=? OR p.jobs_today<?))").bind(t).bind(t).bind(t/86400).bind(crate::jobs::daily_budget()).fetch_one(&state.pool).await?;
+    type SearchRow = (
+        String,
+        bool,
+        i64,
+        i64,
+        Option<i64>,
+        Option<String>,
+        Option<i64>,
+        bool,
+    );
+    let search_rows:Vec<SearchRow> = sqlx::query_as(
+        "SELECT j.source,s.enabled,j.due,j.lease_until,j.checked_at,COALESCE(j.last_error,p.last_error),j.result_count,
+        (p.retry_at>? OR (p.budget_day=? AND p.jobs_today>=?)) FROM shop_job j
+        JOIN source_settings s ON s.id=j.source JOIN shop_state p ON p.source=j.source WHERE j.wish_id=?")
+        .bind(t).bind(t/86400).bind(crate::jobs::daily_budget()).bind(&id).fetch_all(&state.pool).await?;
+    let searches=search_rows.into_iter().map(|(source,enabled,due,lease,checked,error,count,paused)| {
+        let status=if !enabled {"disabled"} else if paused {"paused"} else if lease>t {"searching"}
+            else if error.is_some() {"error"} else if checked.is_none() || due<=t {"queued"} else if count==Some(0) {"no_match"} else {"complete"};
+        json!({"source":source,"status":status,"checked_at":checked,"last_error":error,"result_count":count})
+    }).collect();
     Ok(Json(OffersView {
         links: rows,
         history,
@@ -234,6 +273,12 @@ pub(crate) async fn list(
         best_estimate,
         target_country: target,
         discovery_running,
+        searches,
+        sources: source_rows(&state.pool)
+            .await?
+            .into_iter()
+            .map(|(id, status)| json!({"source":id,"status":status}))
+            .collect(),
     }))
 }
 
@@ -350,6 +395,9 @@ pub(crate) async fn refresh(
     auth::require_csrf(&state, &headers, &session)?;
     wish(&state.pool, &id).await?;
     let t = now();
+    crate::jobs::schedule_wish(&state.pool, &id).await?;
+    sqlx::query("UPDATE shop_job SET due=MIN(due,?) WHERE wish_id=? AND lease_until<=? AND COALESCE(checked_at,0)<=?")
+        .bind(t).bind(&id).bind(t).bind(t-900).execute(&state.pool).await?;
     sqlx::query("UPDATE shop_job SET due=MIN(due,?) WHERE lease_until<=? AND failures=0
         AND link_id IN (SELECT id FROM offer_link WHERE wish_id=? AND review!='rejected' AND last_error IS NULL AND COALESCE(attempted_at,0)<=?)")
         .bind(t).bind(t).bind(id).bind(t-900).execute(&state.pool).await?;
@@ -367,11 +415,77 @@ pub(crate) async fn source_rows(pool: &SqlitePool) -> ApiResult<Vec<(String, Val
     }).collect())
 }
 
+pub(crate) async fn wishlist_prices(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> ApiResult<Json<Value>> {
+    auth::authenticate(&state, &headers).await?;
+    let target = target(&state.pool).await?;
+    let ids: Vec<String> = sqlx::query_scalar("SELECT id FROM wishlist_item")
+        .fetch_all(&state.pool)
+        .await?;
+    let mut prices = serde_json::Map::new();
+    let time = now();
+    for id in ids {
+        let wish = wish(&state.pool, &id).await?;
+        let mut best = None;
+        for link in links(&state.pool, &id, time).await? {
+            if let Some(p) = link
+                .product()
+                .filter(|p| link.available(&wish, p, &target, time))
+            {
+                for quote in p.offers {
+                    update_min(&mut best, quote.cents);
+                }
+            }
+        }
+        prices.insert(id, json!(best));
+    }
+    Ok(Json(Value::Object(prices)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::shops::Quote;
 
+    #[test]
+    fn automatic_confirmation_requires_catalog_identity() {
+        let payload=serde_json::json!({"igdb_id":1,"name":"Forza Horizon 5","slug":null,"summary":null,"first_release_date":null,
+            "platforms":[{"id":169,"name":"Xbox Series X|S"}],"aliases":["Unrelated Name"],"cover_url":null,
+            "version_parent":null,"edition_name":null,"kind":"base_game","fetched_at":0}).to_string();
+        let wish = Wish::from_parts(169, None, Some(payload));
+        let mut p = Product {
+            id: "test".into(),
+            name: "Forza Horizon 5".into(),
+            title: "Forza Horizon 5".into(),
+            platform_ids: vec![169],
+            key_game: true,
+            region: None,
+            allowed: vec![],
+            blocked: vec![],
+            purchase_country: None,
+            offers: vec![],
+            availability: Availability::Unknown,
+        };
+        assert!(wish.auto_matches(&p));
+        assert!(!Wish::from_parts(169, Some("Forza Horizon 5".into()), None).auto_matches(&p));
+        for title in [
+            "Forza Horizon 5 Premium Edition",
+            "Forza Horizon 5 Remaster",
+            "Forza Horizon 6",
+            "Unrelated Name",
+        ] {
+            p.title = title.into();
+            assert!(!wish.auto_matches(&p));
+        }
+        p.title = "Forza Horizon 5".into();
+        p.platform_ids = vec![6];
+        assert!(!wish.auto_matches(&p));
+        p.platform_ids = vec![169];
+        p.key_game = false;
+        assert!(!wish.auto_matches(&p));
+    }
     #[test]
     fn exact_product_scope_and_price_quality() {
         let wish = Wish::from_parts(169, Some("Forza Horizon 5".into()), None);

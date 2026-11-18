@@ -178,8 +178,10 @@ async fn create_app_inner(
         .route("/me", get(auth::me))
         .route("/catalog/search", get(catalog::search))
         .route("/catalog/games/{id}", get(catalog::game_detail))
+        .route("/catalog/games/{id}/editions", get(catalog::editions))
         .route("/sources/status", get(catalog::source_status))
         .route("/wishlist", get(wishlist::list).post(wishlist::add))
+        .route("/wishlist/prices", get(offers::wishlist_prices))
         .route(
             "/wishlist/{id}/offers",
             get(offers::list).post(offers::add_link),

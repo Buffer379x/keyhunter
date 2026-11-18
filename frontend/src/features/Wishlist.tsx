@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
-import type { WishlistItem } from '../api';
-import { Button, KeyMark, Notice } from '../components';
+import type { CatalogGame, WishlistItem } from '../api';
+import { Button, Icon, KeyMark, Notice } from '../components';
 import CatalogSearch from './CatalogSearch';
-import Offers from './Offers';
+import Offers, { money } from './Offers';
 import { Cover, itemName, kindName, platformName, releaseYear } from './catalog-ui';
 
-interface Props { csrf: string; targetCountry: string | null; targetLabel: string; onSettings: () => void; onCountChange: (count: number) => void; onError: (error: unknown) => void }
+interface Props { searchSignal: number; csrf: string; targetCountry: string | null; targetLabel: string; onSettings: () => void; onCountChange: (count: number) => void; onError: (error: unknown) => void }
 const routeSelection = () => new URL(window.location.href).searchParams.get('item');
-export default function Wishlist({ csrf, targetCountry, targetLabel, onSettings, onCountChange, onError }: Props) {
+export default function Wishlist({ searchSignal, csrf, targetCountry, targetLabel, onSettings, onCountChange, onError }: Props) {
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState('');
@@ -16,6 +16,12 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, onSettings,
   const [filter, setFilter] = useState(() => new URL(window.location.href).searchParams.get('filter') ?? '');
   const [selectedId, setSelectedId] = useState<string | null>(routeSelection);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [prices, setPrices] = useState<Record<string, number | null>>({});
+  const [tab, setTab] = useState('offers');
+  const [editions, setEditions] = useState<CatalogGame[]>([]);
+  const [editionBusy, setEditionBusy] = useState(false);
+  const [editionError, setEditionError] = useState('');
+  useEffect(() => { if (searchSignal) setSearchOpen(true); }, [searchSignal]);
   const [removeItem, setRemoveItem] = useState<WishlistItem | null>(null);
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState('');
@@ -25,6 +31,39 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, onSettings,
   const listHeading = useRef<HTMLHeadingElement>(null);
   const focusListAfterRemove = useRef(false);
   const selected = items.find(item => item.id === selectedId);
+  useEffect(() => {
+    setTab('offers'); setEditions([]); setEditionError('');
+    if (!selected?.game) return;
+    const controller = new AbortController();
+    void api<CatalogGame[]>(`/catalog/games/${selected.game.igdb_id}/editions`, 'GET', undefined, undefined, controller.signal)
+      .then(rows => { if (!controller.signal.aborted) setEditions(rows.filter(game => game.platforms.some(p => p.id === selected.platform_id))); })
+      .catch(error => { if (!controller.signal.aborted) setEditionError(error instanceof Error ? error.message : 'Editionen konnten nicht geladen werden.'); });
+    return () => controller.abort();
+  }, [selected?.id, selected?.game?.igdb_id, selected?.platform_id]);
+  async function chooseEdition(game: CatalogGame) {
+    if (!selected || editionBusy) return;
+    const existing = items.find(item => item.game?.igdb_id === game.igdb_id && item.platform_id === selected.platform_id);
+    if (existing) { select(existing.id); return; }
+    setEditionBusy(true); setEditionError('');
+    try {
+      const result = await api<{ item: WishlistItem; created: boolean }>('/wishlist', 'POST', { igdb_id: game.igdb_id, platform_id: selected.platform_id }, csrf);
+      added(result.item, result.created);
+    } catch (error) { setEditionError(error instanceof Error ? error.message : 'Edition konnte nicht ausgewählt werden.'); }
+    finally { setEditionBusy(false); }
+  }
+  useEffect(() => {
+    if (!items.length) return;
+    const controller = new AbortController();
+    async function readPrices() {
+      try {
+        const data = await api<Record<string, number | null>>('/wishlist/prices','GET',undefined,undefined,controller.signal);
+        if (!controller.signal.aborted) setPrices(data);
+      } catch { /* The detail view provides source errors. */ }
+    }
+    void readPrices();
+    const timer=window.setInterval(() => void readPrices(),30000);
+    return () => { controller.abort(); window.clearInterval(timer); };
+  }, [items]);
   const closeSearch = useCallback(() => setSearchOpen(false), []);
 
   const load = useCallback(async () => {
@@ -101,25 +140,33 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, onSettings,
   const text = filter.toLocaleLowerCase('de-DE');
   const visible = items.filter(item => [itemName(item), ...(item.game?.aliases ?? [])].some(name => name.toLocaleLowerCase('de-DE').includes(text)));
 
+  const variants = [...editions];
+  if (selected?.game && !variants.some(g => g.igdb_id === selected.game?.igdb_id)) variants.unshift(selected.game);
+  const heroGame = variants.find(game => game.igdb_id === selected?.game?.igdb_id) ?? selected?.game;
+  variants.sort((a,b) => (a.version_parent ? 1 : 0) - (b.version_parent ? 1 : 0) || a.igdb_id - b.igdb_id);
   return <div className={`wishlist-feature ${selected ? 'has-selection' : ''}`}>
-    <div className="page-heading"><div><p className="eyebrow">DEIN NÄCHSTES SPIEL WARTET</p><h1>Meine Wunschliste<span className="accent-dot">.</span></h1><p>Alles, was du als Nächstes spielen möchtest.</p></div><div className="heading-actions"><Button secondary disabled={loading || !!listError || !items.length} onClick={exportList}>Liste exportieren</Button><span className="subtle-tag">{loading ? 'Wird geladen …' : `${items.length} von 100 Spielen`}</span><Button disabled={loading || !!listError || items.length >= 100} onClick={() => setSearchOpen(true)}>Spiel hinzufügen<span aria-hidden="true"> +</span></Button></div></div>
-    {message && <Notice>{message}</Notice>}
-    {listError && <Notice error>{listError}<div><Button secondary onClick={() => void load()}>Liste erneut laden</Button></div></Notice>}
-    {!targetCountry && <div className="country-callout"><div><strong>Wo möchtest du deine Keys aktivieren?</strong><p>Wähle dein Zielland, damit Angebote passend eingeordnet werden.</p></div><Button secondary onClick={onSettings}>Zielland wählen</Button></div>}
-    <div className="wishlist-layout">
-      <section className="list-panel" aria-labelledby="wishlist-title"><div className="panel-heading"><h2 id="wishlist-title" ref={listHeading} tabIndex={-1}>Vorgemerkt</h2><span>{loading ? '…' : items.length}</span></div><label className="search-label" htmlFor="wishlist-filter">Wunschliste filtern</label><input id="wishlist-filter" placeholder="Titel in deiner Liste …" value={filter} maxLength={200} onChange={event => filterList(event.target.value)} disabled={loading || items.length === 0} />
-        {loading ? <p className="list-loading" role="status">Wunschliste wird geladen …</p> : items.length === 0 ? <div className="list-empty"><span aria-hidden="true">☆</span><p>{listError ? 'Die Liste ist derzeit nicht abrufbar.' : 'Deine Liste ist noch leer.'}</p></div> : visible.length === 0 ? <p className="list-loading">Kein Titel passt zu deinem Listenfilter.</p> : <ul className="wishlist-items" aria-label="Vorgemerkte Spiele">{visible.map(item => <li key={item.id}><button className={`wishlist-entry ${selectedId === item.id ? 'selected' : ''}`} onClick={() => select(item.id)} aria-current={selectedId === item.id ? 'true' : undefined}><Cover src={item.game?.cover_url ?? null} /><div><strong>{itemName(item)}</strong><span>{platformName(item.platform_id)}</span><span className={item.verification === 'catalog' ? 'entry-kind' : 'entry-unverified'}>{item.game ? `${item.verification === 'needs_review' ? 'Zu prüfen · ' : ''}${kindName(item.game)}` : 'Manuell · ungeprüft'}</span></div></button></li>)}</ul>}
-        <div className="list-footer">Deine Wunschliste bleibt nach einem Neustart erhalten.</div>
-      </section>
-      {selected ? <section className="game-detail" aria-labelledby="game-title"><Button secondary className="mobile-back" onClick={() => select(null)}>‹ Zur Wunschliste</Button>
-        <div className="game-hero"><Cover src={selected.game?.cover_url ?? null} large /><div className="game-hero-copy"><p className="eyebrow">{selected.game ? 'DEIN WUNSCHSPIEL' : 'MANUELL VORGEMERKT'}</p><h2 id="game-title">{itemName(selected)}</h2><p className="game-meta">{platformName(selected.platform_id)} · {releaseYear(selected.game?.first_release_date ?? null)}</p><span className={`kind-badge ${selected.verification === 'catalog' ? '' : 'unverified'}`}>{selected.game ? `${selected.verification === 'needs_review' ? 'Zu prüfen · ' : ''}${kindName(selected.game)}` : 'Titel, Plattform und Edition ungeprüft'}</span><div className="game-actions"><Button secondary onClick={() => { setRemoveError(''); setRemoveItem(selected); }}>Aus Wunschliste entfernen</Button>{selected.game?.slug && <a className="source-link" href={`https://www.igdb.com/games/${selected.game.slug}`} target="_blank" rel="noopener noreferrer">Bei IGDB ansehen ↗</a>}</div></div></div>
-        {selected.verification !== 'catalog' && <Notice>{selected.verification === 'needs_review' ? 'Die aktuellen Katalogdaten bestätigen die gewählte Plattform oder Produktart nicht mehr. Bitte die Zuordnung prüfen.' : 'Dieser Eintrag ist ungeprüft. Er ist kein Nachweis für ein passendes oder im Zielland aktivierbares Key-Angebot.'}</Notice>}
-        <div className="game-detail-body"><section aria-labelledby="game-info-title"><h3 id="game-info-title">Spielinformationen</h3><p>{selected.game?.summary ?? 'Für diesen Titel liegt noch keine geprüfte Beschreibung vor.'}</p>{selected.game?.kind === 'edition' && <p className="metadata-note">IGDB führt diese Edition separat. Welche Inhalte ein Händlerprodukt enthält, muss am konkreten Angebot geprüft werden.</p>}{(selected.game?.aliases.length ?? 0) > 0 && <p className="metadata-note">Auch bekannt als: {selected.game?.aliases.join(' · ')}</p>}<p className="metadata-note">{selected.game ? 'Quelle: IGDB · Jahr der Erstveröffentlichung, nicht zwingend der Xbox-Version.' : 'Quelle: eigener Eintrag · Plattform vom Nutzer gewählt, nicht vom Katalog bestätigt.'}</p></section>
-          <Offers key={selected.id} id={selected.id} csrf={csrf} targetLabel={targetLabel} onError={onError} />
-        </div>
-      </section> : <section className="empty-detail" aria-labelledby="empty-title"><div className="empty-orbit"><KeyMark /></div><p className="eyebrow">PLATZ FÜR DEINE FAVORITEN</p><h2 id="empty-title">{items.length ? 'Welches Spiel interessiert dich?' : <>Eine Liste.<br />Viele nächste Abenteuer.</>}</h2><p>{items.length ? 'Wähle links einen Titel oder suche nach deinem nächsten Wunschspiel.' : 'Suche ein Spiel, bestätige die Xbox-Version und speichere es dauerhaft in deiner Wunschliste.'}</p>{selectedId && !selected && !loading && <p>Der verlinkte Eintrag ist nicht mehr in deiner Liste.</p>}<Button onClick={() => setSearchOpen(true)} disabled={loading || !!listError || items.length >= 100}>Im Katalog suchen</Button></section>}
-    </div>
-    <div className="footnote"><span>Zielland: <strong>{targetLabel}</strong></span><span>Andere Angebotsländer bleiben sichtbar.</span></div>
+    <section className="list-panel" aria-labelledby="wishlist-title">
+      <div className="wishlist-head"><div><p className="eyebrow">DEINE SAMMLUNG</p><h1 id="wishlist-title" ref={listHeading} tabIndex={-1}>Meine Wunschliste</h1></div><Button title="Spiel hinzufügen" aria-label="Spiel hinzufügen" className="add-game-button" disabled={loading || !!listError || items.length >= 100} onClick={() => setSearchOpen(true)}><Icon name="plus" size={21} /></Button></div>
+      <div className="list-count"><span>Gespeicherte Spiele</span><span>{loading ? 'Wird geladen …' : `${items.length} von 100 Spielen`}</span></div>
+      <label className="search-label" htmlFor="wishlist-filter">Wunschliste filtern</label><div className="list-search"><Icon name="search" size={15} /><input id="wishlist-filter" placeholder="Liste filtern …" value={filter} maxLength={200} onChange={event => filterList(event.target.value)} disabled={loading || items.length === 0} /></div>
+      {listError && <Notice error>{listError}<Button secondary onClick={() => void load()}>Liste erneut laden</Button></Notice>}
+      {loading ? <p className="list-loading" role="status">Wunschliste wird geladen …</p> : items.length === 0 ? <div className="list-empty"><Icon name="heart" size={32} /><p>{listError ? 'Die Liste ist derzeit nicht abrufbar.' : 'Deine Liste ist noch leer.'}</p></div> : visible.length === 0 ? <p className="list-loading">Kein Titel passt zu deinem Listenfilter.</p> : <ul className="wishlist-items" aria-label="Vorgemerkte Spiele">{visible.map(item => <li key={item.id}><button className={`wishlist-entry ${selectedId === item.id ? 'selected' : ''}`} onClick={() => select(item.id)} aria-current={selectedId === item.id ? 'true' : undefined}><Cover src={item.game?.cover_url ?? null} /><div><strong>{itemName(item)}</strong><span><Icon name="game" size={13} />{platformName(item.platform_id)}</span><span className={item.verification === 'catalog' ? 'entry-kind' : 'entry-unverified'}>{item.game ? `${item.verification === 'needs_review' ? 'Zu prüfen · ' : ''}${kindName(item.game)}` : 'Manuell · ungeprüft'}</span></div>{prices[item.id] != null && <span className="list-price">ab {money(prices[item.id]!)}</span>}</button></li>)}</ul>}
+      <div className="list-footer"><span><Icon name="refresh" size={14} /> Angebote werden automatisch gesucht</span><Button secondary disabled={loading || !!listError || !items.length} onClick={exportList}><Icon name="download" size={14} />Liste exportieren</Button></div>
+    </section>
+    {selected ? <section className="game-detail" aria-labelledby="game-title">
+      <div className="game-hero">
+        {heroGame?.artwork_url && <img className="hero-artwork" src={heroGame.artwork_url} alt="" referrerPolicy="no-referrer" onError={event => { event.currentTarget.style.display = 'none'; }} />}
+        <div className="hero-shade" />
+        <div className="breadcrumbs"><Button secondary className="mobile-back" onClick={() => select(null)}>‹ Zur Wunschliste</Button><span className="desktop-breadcrumb">Wunschliste <Icon name="arrow" size={13} /> {itemName(selected)}</span></div>
+        <div className="hero-inner"><Cover src={selected.game?.cover_url ?? null} large /><div className="game-hero-copy"><p className="game-kicker">XBOX GAME PRICE TRACKER <span /></p><h2 id="game-title">{itemName(selected)}</h2><div className="hero-chips"><span className="platform-chip"><Icon name="game" size={13} />{platformName(selected.platform_id)}</span><span className="chip">{selected.game ? kindName(selected.game) : 'Manuell · ungeprüft'}</span><span className="chip">{releaseYear(selected.game?.first_release_date ?? null)}</span></div><p className="hero-description">{heroGame?.summary ?? 'Für diesen Titel liegen noch keine Kataloginformationen vor.'}</p></div></div>
+        <div className="hero-actions"><Button secondary onClick={() => { setRemoveError(''); setRemoveItem(selected); }}><Icon name="heart" />Auf der Wunschliste <span>✓</span></Button><Button secondary onClick={() => setTab('alert')}><Icon name="bell" />Preisalarm</Button></div>
+      </div>
+      <nav className="content-tabs" aria-label="Spieldetails">{[['offers','tag','Angebote & Preise'],['editions','layers','Editionen vergleichen'],['history','chart','Preisverlauf'],['info','info','Spielinfos']].map(([value,icon,label]) => <button key={value} className={tab === value ? 'active' : ''} aria-current={tab === value ? 'page' : undefined} onClick={() => setTab(value)}><Icon name={icon} /><span>{label}</span></button>)}</nav>
+      {message && <Notice>{message}</Notice>}
+      {!targetCountry && <div className="country-callout"><span>Wähle dein Zielland für den Preisvergleich.</span><Button secondary onClick={onSettings}>Zielland wählen</Button></div>}
+      {selected.verification !== 'catalog' && <Notice>{selected.verification === 'needs_review' ? 'Die Katalogdaten bestätigen diese Auswahl nicht mehr. Bitte prüfe Plattform und Produkttyp.' : 'Manueller Titel · Zuordnungen werden vor dem Preisvergleich geprüft.'}</Notice>}
+      <Offers key={selected.id} id={selected.id} csrf={csrf} targetLabel={targetLabel} tab={tab} onError={onError} editionPanel={<section className="dashboard-card edition-card"><div className="card-heading"><Icon name="game" /><h3>Editionen & Auswahl</h3><span>{variants.length} {variants.length === 1 ? 'Edition' : 'Editionen'}</span></div>{editionError && <p className="field-help">{editionError}</p>}<div className="edition-rows">{variants.map(game => <button className={`edition-row ${selected.game?.igdb_id === game.igdb_id ? 'selected' : ''}`} key={game.igdb_id} disabled={editionBusy} onClick={() => void chooseEdition(game)}><Cover src={game.cover_url} /><span><strong>{game.edition_name ?? (game.kind === 'base_game' ? 'Standard Edition' : game.name)}</strong><small>{game.version_parent ? 'Eigenständige Edition' : 'Hauptspiel'}</small></span>{selected.game?.igdb_id === game.igdb_id && <span className="selection-badge">Ausgewählt</span>}<Icon name="arrow" size={16} /></button>)}</div></section>} infoPanel={<section className="dashboard-card info-card"><div className="card-heading"><Icon name="info" /><h3>Spielinformationen</h3></div><p>{selected.game?.summary ?? 'Für diesen Titel liegt noch keine Beschreibung vor.'}</p>{selected.game?.kind === 'edition' && <p className="metadata-note">Die Inhalte des konkreten Händlerangebots sind auf der Produktseite beschrieben.</p>}{selected.game?.aliases.length ? <p className="metadata-note">Auch bekannt als {selected.game.aliases.join(' · ')}</p> : null}{selected.game?.slug && <a className="source-link" href={`https://www.igdb.com/games/${selected.game.slug}`} target="_blank" rel="noopener noreferrer">Spieledaten von IGDB <Icon name="external" size={14} /></a>}</section>} />
+    </section> : <section className="empty-detail" aria-labelledby="empty-title"><div className="empty-orbit"><KeyMark /></div><h2 id="empty-title">{items.length ? 'Wähle ein Wunschspiel' : 'Dein nächstes Spiel wartet.'}</h2><p>{items.length ? 'Öffne einen Titel aus deiner Liste, um die Angebote zu vergleichen.' : 'Suche dein Spiel. KeyHunter findet passende Xbox-Angebote für deine Auswahl.'}</p>{selectedId && !loading && <p>Der verlinkte Eintrag ist nicht mehr in deiner Liste.</p>}<Button onClick={() => setSearchOpen(true)} disabled={loading || !!listError || items.length >= 100}>Im Katalog suchen</Button></section>}
     <CatalogSearch open={searchOpen} csrf={csrf} items={items} onClose={closeSearch} onAdded={added} onError={onError} />
     <dialog ref={removeDialog} aria-labelledby="remove-title" onCancel={event => { if (removing) event.preventDefault(); else setRemoveItem(null); }}><p className="eyebrow">WUNSCHLISTE VERWALTEN</p><h2 id="remove-title">Titel entfernen?</h2><p>„{removeItem ? itemName(removeItem) : ''}“ wird aus deiner Wunschliste entfernt.</p>{removeError && <Notice error>{removeError}</Notice>}<div className="dialog-actions"><Button secondary disabled={removing} onClick={() => setRemoveItem(null)}>Behalten</Button><Button disabled={removing} onClick={() => void remove()}>{removing ? 'Wird entfernt …' : 'Entfernen bestätigen'}</Button></div></dialog>
   </div>;

@@ -250,9 +250,84 @@ fn sitemap_locs(body: &str) -> Result<impl Iterator<Item = &str>, ShopError> {
         .filter(|s| !s.contains(['&', '<', '>'])))
 }
 
+pub(crate) fn search_urls(keys: &[String]) -> Vec<Url> {
+    let Some(title) = keys.first() else {
+        return vec![];
+    };
+    let slug = title.split_whitespace().collect::<Vec<_>>().join("-");
+    if slug.len() < 2
+        || !slug
+            .bytes()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-')
+    {
+        return vec![];
+    }
+    [
+        "pc-xbox-live-key-global",
+        "xbox-live-key-global",
+        "pc-xbox-live-key-europe",
+        "xbox-live-key-europe",
+    ]
+    .iter()
+    .filter_map(|suffix| {
+        Shop::Eneba.product_url(&format!("https://www.eneba.com/de/xbox-{slug}-{suffix}"))
+    })
+    .collect()
+}
+
+pub(crate) async fn search_products(
+    keys: &[String],
+    known: &[String],
+) -> Result<Vec<(String, Product)>, ShopError> {
+    let mut client = PublicClient::new(Shop::Eneba.host()).await?;
+    let mut urls: Vec<_> = known
+        .iter()
+        .filter_map(|url| Shop::Eneba.product_url(url))
+        .take(2)
+        .collect();
+    for url in search_urls(keys) {
+        if !urls.contains(&url) {
+            urls.push(url);
+        }
+    }
+    let mut products = Vec::new();
+    for url in urls.into_iter().take(4) {
+        match client.get(&url, 2 * 1024 * 1024, false).await {
+            Ok(body) => {
+                let product = parse(&url, &body)?;
+                if keys.contains(&title_key(&product.title)) {
+                    products.push((url.to_string(), product));
+                    if products.len() >= 2 {
+                        break;
+                    }
+                }
+            }
+            Err(ShopError::NotFound) => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(products)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn targeted_urls_preserve_game_and_edition_and_exclude_unrepresentable_titles() {
+        let base = search_urls(&["forza horizon 5".into()]);
+        assert_eq!(
+            base[0].as_str(),
+            "https://www.eneba.com/de/xbox-forza-horizon-5-pc-xbox-live-key-global"
+        );
+        let premium = search_urls(&["forza horizon 5 premium edition".into()]);
+        assert!(
+            premium
+                .iter()
+                .all(|url| url.path().contains("premium-edition"))
+        );
+        assert!(search_urls(&["遊戲".into()]).is_empty());
+        assert!(search_urls(&[]).is_empty());
+    }
     #[test]
     fn sitemap_ignores_partial_elements_and_rejects_declarations() {
         assert!(sitemap_locs("<!DOCTYPE example><urlset><loc>&xxe;</loc>").is_err());

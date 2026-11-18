@@ -5,8 +5,8 @@ test('catalog choice persists, editions stay distinct, filters and removal work 
   const errors: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
   await signInToFixture(page);
-  await expect(page.getByRole('heading', { name: 'Meine Wunschliste.' })).toBeVisible();
-  await page.getByRole('button', { name: 'Spiel hinzufügen', exact: false }).click();
+  await expect(page.getByRole('heading', { name: 'Meine Wunschliste' })).toBeVisible();
+  await page.getByRole('button', { name: 'Spiel hinzufügen', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Spiel hinzufügen', exact: true });
   await dialog.getByLabel('Spiel im Katalog suchen').fill('forza');
   await expect(dialog.getByRole('status')).toContainText('2 Treffer');
@@ -16,7 +16,7 @@ test('catalog choice persists, editions stay distinct, filters and removal work 
   expect(page.url()).toContain('item=');
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Forza Horizon 5: Premium Edition', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Spiel hinzufügen', exact: false }).click();
+  await page.getByRole('button', { name: 'Spiel hinzufügen', exact: true }).click();
   await dialog.getByLabel('Spiel im Katalog suchen').fill('forza');
   await expect(dialog.getByRole('button', { name: 'Forza Horizon 5: Premium Edition vormerken', exact: true })).toBeDisabled();
   await dialog.getByRole('button', { name: 'Forza Horizon 5 vormerken', exact: true }).click();
@@ -35,20 +35,20 @@ test('catalog choice persists, editions stay distinct, filters and removal work 
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.setViewportSize({ width: 320, height: 800 });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByRole('button', { name: 'Aus Wunschliste entfernen' }).click();
+  await page.getByRole('button', { name: 'Auf der Wunschliste' }).click();
   await page.getByRole('button', { name: 'Entfernen bestätigen' }).click();
   await expect(page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('listitem')).toHaveCount(1);
   await page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('button', { name: /Forza Horizon 5/ }).click();
-  await page.getByRole('button', { name: 'Aus Wunschliste entfernen' }).click();
+  await page.getByRole('button', { name: 'Auf der Wunschliste' }).click();
   await page.getByRole('button', { name: 'Entfernen bestätigen' }).click();
   await expect(page.getByText('0 von 100 Spielen', { exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Vorgemerkt', exact: true })).toBeFocused();
+  await expect(page.getByRole('heading', { name: 'Meine Wunschliste', exact: true })).toBeFocused();
   expect(errors).toEqual([]);
 });
 
 test('old search cannot replace newer results, outage differs from empty and manual stays unverified', async ({ page }) => {
   await signInToFixture(page);
-  await page.getByRole('button', { name: 'Spiel hinzufügen', exact: false }).click();
+  await page.getByRole('button', { name: 'Spiel hinzufügen', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Spiel hinzufügen', exact: true });
   const input = dialog.getByLabel('Spiel im Katalog suchen');
   const oldQuery = `alt-${Date.now()}`;
@@ -66,9 +66,47 @@ test('old search cannot replace newer results, outage differs from empty and man
   await expect(dialog.getByRole('alert')).toContainText('vorübergehend nicht erreichbar');
   await dialog.getByRole('button', { name: 'Ungeprüft vormerken' }).click();
   await expect(page.getByRole('heading', { name: 'ausfall', exact: true })).toBeVisible();
-  await expect(page.getByText('Titel, Plattform und Edition ungeprüft', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Aus Wunschliste entfernen' }).click();
+  await expect(page.getByText('Manueller Titel · Zuordnungen werden vor dem Preisvergleich geprüft.', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Auf der Wunschliste' }).click();
   await page.getByRole('button', { name: 'Entfernen bestätigen' }).click();
   await expect(page.getByText('0 von 100 Spielen', { exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Vorgemerkt', exact: true })).toBeFocused();
+  await expect(page.getByRole('heading', { name: 'Meine Wunschliste', exact: true })).toBeFocused();
+});
+
+test('dashboard shows automatic discovery, tabs and observed offer eligibility', async ({ page }) => {
+  await signInToFixture(page);
+  await page.getByRole('button', { name: 'Nach Spielen suchen …' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Spiel hinzufügen', exact: true });
+  await dialog.getByLabel('Spiel im Katalog suchen').fill('forza');
+  await dialog.getByRole('button', { name: 'Forza Horizon 5 vormerken', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Aktuelle Angebote', exact: true })).toBeVisible();
+  await expect(page.getByText('Suche eingeplant', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Produktlink von Eneba oder Driffle')).not.toBeVisible();
+
+  // Synthetic response verifies rendering and filtering independently of shop availability.
+  const link = (id: number, eligible: boolean) => ({
+    id, source: 'eneba', url: 'https://www.eneba.com/de/xbox-fixture-xbox-live-key-global',
+    review: 'confirmed', can_confirm: true, eligible, queued: false, enabled: true,
+    stale: false, observed_at: 1794950000, attempted_at: 1794950000, last_error: null, retry_at: 0,
+    product: { name: 'Synthetic UI offer', region: eligible ? 'Global' : 'United States', market: 'DE', activation: eligible ? 'confirmed' : 'blocked', availability: 'in_stock' },
+    quotes: [{ id: String(id), seller: null, base_cents: eligible ? 2499 : 1299, estimated_total_cents: null }],
+  });
+  await page.route('**/api/v1/wishlist/*/offers', route => route.request().method() === 'GET' ? route.fulfill({
+    json: { links: [link(1, true), link(2, false)], history: [], best_base: 2499, best_estimate: null,
+      target_country: 'DE', discovery_running: false, searches: [{ source: 'eneba', status: 'complete', checked_at: 1794950000, result_count: 2, last_error: null }], sources: [] },
+  }) : route.continue());
+  await page.reload();
+  await expect(page.locator('.offer-table-row')).toHaveCount(2);
+  await page.getByLabel('Nur passende Angebote').check();
+  await expect(page.locator('.offer-table-row')).toHaveCount(1);
+  await expect(page.locator('.offer-table-row')).toContainText('24,99');
+  await page.getByRole('button', { name: 'Editionen vergleichen', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Premium Edition.*Eigenständige Edition/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Preisverlauf', exact: true }).click();
+  await expect(page.getByText('Die erste passende Messung legt den Verlauf an.')).toBeVisible();
+  await page.getByRole('button', { name: 'Spielinfos', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Spielinformationen' })).toBeVisible();
+  await page.getByRole('button', { name: 'Angebote & Preise', exact: true }).click();
+  await page.getByRole('button', { name: 'Auf der Wunschliste' }).click();
+  await page.getByRole('button', { name: 'Entfernen bestätigen' }).click();
 });

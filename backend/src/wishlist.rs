@@ -165,6 +165,7 @@ pub(crate) async fn add(
     let item = decode(row)?;
     let created = inserted.rows_affected() == 1;
     tx.commit().await?;
+    crate::jobs::schedule_wish(&state.pool, &item.id).await?;
     Ok((
         if created {
             StatusCode::CREATED

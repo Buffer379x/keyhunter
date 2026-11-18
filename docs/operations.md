@@ -2,7 +2,7 @@
 
 ## Unraid im LAN
 
-1. Lade das [Unraid-Template](https://raw.githubusercontent.com/Buffer379x/keyhunter/main/deploy/unraid/keyhunter.xml) und lege es im Ordner `/boot/config/plugins/dockerMan/templates-user` ab. Wähle in der Docker-Ansicht **Add Container** und das KEYHUNTER-Template.
+1. Lade das [Unraid-Template](https://raw.githubusercontent.com/Buffer379x/keyhunter/main/deploy/unraid/keyhunter.xml) und lege es im Ordner `/boot/config/plugins/dockerMan/templates-user` ab. Wähle in der Docker-Ansicht **Add Container** und das KeyHunter-Template.
 2. Das Feld **Repository** enthält `ghcr.io/buffer379x/keyhunter:latest`. Unraid lädt das Image beim Anwenden aus dem [GitHub-Package](https://github.com/users/Buffer379x/packages/container/package/keyhunter).
 3. Wähle ein eigenes lokales Appdata-Verzeichnis für `/data`. Das aktuelle Unraid-Template bereitet diesen Ordner beim Start vor. Nutze für SQLite ein lokales Dateisystem. Optional bindest du ein Verzeichnis für die ntfy-Datei als `/config` schreibgeschützt ein.
 4. Öffne die WebUI in Unraid. Bei eigener LAN-IP erreichst du sie direkt unter `http://<Container-IP>:3000`. Im Bridge-Modus verwendest du die IP des Unraid-Hosts und den veröffentlichten Port.
@@ -30,7 +30,7 @@ Die Veröffentlichung wurde unter Linux/amd64 mit Docker geprüft. Das XML ist f
 
 ## Zugangsdaten
 
-Melde dich als Eigentümer an und öffne **Einstellungen → IGDB-Zugang**. Gib Client-ID und Client Secret deiner Twitch-Anwendung ein. KEYHUNTER prüft das Paar bei Twitch und übernimmt es direkt. Um den Zugang zu ersetzen, gib beide Werte erneut ein.
+Melde dich als Eigentümer an und öffne **Einstellungen → IGDB-Zugang**. Gib Client-ID und Client Secret deiner Twitch-Anwendung ein. KeyHunter prüft das Paar bei Twitch und übernimmt es direkt. Um den Zugang zu ersetzen, gib beide Werte erneut ein.
 
 Beim Upgrade von 0.2.0 verwende das bestehende Datenvolume und hinterlege den IGDB-Zugang einmal in der App. Die alte Variable `KEYHUNTER_IGDB_ENV_FILE` und deren separater IGDB-Dateimount können aus der Containerkonfiguration entfernt werden. Gespeicherte Wünsche, Zuordnungen und Preisalarme bleiben im Datenvolume erhalten.
 
@@ -55,3 +55,8 @@ Die GitHub-Releases enthalten zugehörige Image-Archive mit Prüfsumme. Importie
 ## GitHub-Veröffentlichung
 
 Verwende als GitHub-Release-Titel die Versionsnummer, zum Beispiel `0.2.2`. Die Veröffentlichungs-Action veröffentlicht den numerischen Tag und `latest` als Image-Index für `linux/amd64`. So kann auch Unraids Updateprüfung vor 7.4.0 den Image-Digest abrufen. Das Package benötigt die Sichtbarkeit **Public** für Abrufe ohne Anmeldung und unter **Manage Actions access** Schreibzugriff für das zugehörige Repository.
+
+
+## Upgrade auf 0.3.0
+
+Behalte das bestehende Datenvolume. Nach dem Update werden für gespeicherte Wünsche automatisch Suchjobs angelegt. Neue Produkte werden mit Titel, Edition und Plattform abgeglichen und eindeutige Katalogzuordnungen automatisch freigegeben. Die Wunschliste enthält weiterhin die bisherigen Spiele und Einstellungen. Falls ein gespeichertes Cover noch kein Hero-Bild hat, lädt eine erneute Katalogsuche die aktuellen IGDB-Metadaten.

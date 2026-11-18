@@ -39,6 +39,7 @@ fn fixture(id: i64, name: &str, kind: &str, platforms: &[i64]) -> CatalogGame {
             .collect(),
         aliases: vec!["Alternativer Testtitel".into()],
         cover_url: None,
+        artwork_url: None,
         version_parent: (kind == "edition").then_some(1001),
         edition_name: (kind == "edition").then_some("Premium Edition".into()),
         kind: kind.into(),
@@ -93,6 +94,17 @@ impl CatalogProvider for FixtureProvider {
             1008 => Some(fixture(id, "Neuer Treffer", "base_game", &[169])),
             _ => None,
         })
+    }
+    async fn editions(&self, _parent: i64) -> Result<Vec<CatalogGame>, CatalogError> {
+        Ok(vec![
+            fixture(1001, "Forza Horizon 5", "base_game", &[169, 49]),
+            fixture(
+                1002,
+                "Forza Horizon 5: Premium Edition",
+                "edition",
+                &[169, 49],
+            ),
+        ])
     }
     async fn status(&self) -> ProviderStatus {
         ProviderStatus {

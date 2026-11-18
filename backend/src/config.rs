@@ -50,7 +50,7 @@ impl Config {
             }
         }
         if !self.frontend_dir.join("index.html").is_file() {
-            bail!("Frontend build missing: build frontend/dist before starting KEYHUNTER");
+            bail!("Frontend build missing: build frontend/dist before starting KeyHunter");
         }
         Ok(())
     }
