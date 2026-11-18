@@ -27,10 +27,10 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Check backend and frontend
         run: sh deploy/check.sh
-      - name: Install Chromium
-        working-directory: frontend
-        run: npx playwright install --with-deps chromium
       - name: Run browser tests with the synthetic catalog
+        env:
+          KEYHUNTER_TEST_BROWSER_CHANNEL: chrome
+        timeout-minutes: 5
         run: sh deploy/browser-check.sh
       - name: Check Unraid template and Compose configuration
         run: |
