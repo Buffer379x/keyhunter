@@ -4,9 +4,15 @@
 
 1. Lade das [Unraid-Template](https://raw.githubusercontent.com/Buffer379x/keyhunter/main/deploy/unraid/keyhunter.xml) und lege es im Ordner `/boot/config/plugins/dockerMan/templates-user` ab. Wähle in der Docker-Ansicht **Add Container** und das KEYHUNTER-Template.
 2. Das Feld **Repository** enthält `ghcr.io/buffer379x/keyhunter:latest`. Unraid lädt das Image beim Anwenden aus dem [GitHub-Package](https://github.com/users/Buffer379x/packages/container/package/keyhunter).
-3. Wähle ein lokales Appdata-Verzeichnis für `/data` mit Schreibzugriff für UID/GID `10001:10001`. Nutze für SQLite ein lokales Dateisystem. Optional bindest du ein Verzeichnis für die ntfy-Datei als `/config` schreibgeschützt ein.
+3. Wähle ein eigenes lokales Appdata-Verzeichnis für `/data`. Das aktuelle Unraid-Template bereitet diesen Ordner beim Start vor. Nutze für SQLite ein lokales Dateisystem. Optional bindest du ein Verzeichnis für die ntfy-Datei als `/config` schreibgeschützt ein.
 4. Öffne die WebUI in Unraid. Bei eigener LAN-IP erreichst du sie direkt unter `http://<Container-IP>:3000`. Im Bridge-Modus verwendest du die IP des Unraid-Hosts und den veröffentlichten Port.
 5. Verwende den Code aus der Datei `bootstrap-token` im gemounteten Datenverzeichnis, um deinen Eigentümerzugang einzurichten.
+
+### Rechte am Datenordner
+
+Das Unraid-Template ab 0.2.3 richtet nach dem Start die Rechte am eingebundenen `/data` und den bekannten Datenbank- und Zugangsdateien ein. Danach läuft der Webdienst als UID/GID `10001:10001` ohne Linux-Capabilities. Andere Dateien und der optionale `/config`-Mount behalten ihre Rechte. Für einen vorhandenen Unraid-Container muss das aktualisierte Template einmal angewendet werden. Ein reines Image-Update behält die bisherigen Startparameter. Verwende dabei dasselbe Datenvolume.
+
+Bei Compose oder einem eigenen `docker run` läuft das Image standardmäßig direkt als Nicht-Root-Benutzer. Stelle für manuelle Bind-Mounts sicher, dass der konfigurierte Benutzer schreiben kann. Alternativ initialisiert Docker ein benanntes Volume mit dem passenden Eigentümer.
 
 ### Webadresse und HTTPS
 
@@ -43,7 +49,7 @@ Stoppe den Container vor dem Kopieren des vollständigen Datenverzeichnisses, ei
 
 ## Offline-Installation
 
-Die GitHub-Releases enthalten zugehörige Image-Archive mit Prüfsumme. Importiere das gewünschte Archiv mit `docker load -i DATEI.tar.gz` und verwende die darin enthaltene lokale Image-Referenz, zum Beispiel `keyhunter:0.2.2`. Für reguläre Updates über GitHub verwende die GHCR-Referenz im Template.
+Die GitHub-Releases enthalten zugehörige Image-Archive mit Prüfsumme. Importiere das gewünschte Archiv mit `docker load -i DATEI.tar.gz` und verwende die darin enthaltene lokale Image-Referenz, zum Beispiel `keyhunter:0.2.3`. Für reguläre Updates über GitHub verwende die GHCR-Referenz im Template.
 
 
 ## GitHub-Veröffentlichung

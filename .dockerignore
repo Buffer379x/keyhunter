@@ -6,6 +6,7 @@
 !frontend/**
 !deploy/
 !deploy/Dockerfile.tools
+!deploy/docker-entrypoint.sh
 backend/target/
 backend/data/
 backend/tests/

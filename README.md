@@ -6,9 +6,9 @@ Selbst gehostete Xbox-Wunschliste für Docker und Unraid. KEYHUNTER sucht über 
 
 1. Lade das [Unraid-Template](https://raw.githubusercontent.com/Buffer379x/keyhunter/main/deploy/unraid/keyhunter.xml) und importiere es in Unraid.
 2. Starte den Container mit `ghcr.io/buffer379x/keyhunter:latest`. Unraid lädt das Image direkt aus der GitHub Container Registry.
-3. Richte das Datenverzeichnis ein und öffne die WebUI über die LAN-IP. HTTPS über einen Reverse Proxy ist optional. [Unraid und Betrieb](docs/operations.md)
+3. Wähle das Datenverzeichnis und öffne die WebUI über die LAN-IP. Das aktuelle Template bereitet die Ordnerrechte beim Start vor. HTTPS über einen Reverse Proxy ist optional. [Unraid und Betrieb](docs/operations.md)
 
-Das [GitHub-Package](https://github.com/users/Buffer379x/packages/container/package/keyhunter) liefert auch feste Versions-Tags wie `0.2.1` und `0.2.2`. Die [Releases](https://github.com/Buffer379x/keyhunter/releases) enthalten zusätzlich Archive für die Offline-Installation.
+Das [GitHub-Package](https://github.com/users/Buffer379x/packages/container/package/keyhunter) liefert auch feste Versions-Tags wie `0.2.2` und `0.2.3`. Die [Releases](https://github.com/Buffer379x/keyhunter/releases) enthalten zusätzlich Archive für die Offline-Installation.
 
 ## Lokal mit Compose
 

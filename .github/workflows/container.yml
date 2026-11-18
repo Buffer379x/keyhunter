@@ -68,6 +68,7 @@ jobs:
             docker build --platform linux/amd64 \
               --label "org.opencontainers.image.revision=$(git rev-parse HEAD)" \
               --tag "$version_ref" .
+            python3 deploy/check-unraid-data.py "$version_ref"
             docker push --platform linux/amd64 "$version_ref"
             docker buildx imagetools create --prefer-index=true --tag "$version_ref" "$version_ref"
           else

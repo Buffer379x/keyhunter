@@ -12,10 +12,10 @@
   <WebUI>http://[IP]:[PORT:3000]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/Buffer379x/keyhunter/main/deploy/unraid/keyhunter.xml</TemplateURL>
   <Icon/>
-  <ExtraParams>--security-opt=no-new-privileges:true --cap-drop=ALL --read-only --tmpfs /tmp:size=16m,mode=1777 --memory=512m</ExtraParams>
-  <PostArgs/>
+  <ExtraParams>--user=0:0 --security-opt=no-new-privileges:true --cap-drop=ALL --cap-add=CHOWN --cap-add=DAC_OVERRIDE --cap-add=FOWNER --cap-add=SETGID --cap-add=SETUID --cap-add=SETPCAP --read-only --tmpfs /tmp:size=16m,mode=1777 --memory=512m</ExtraParams>
+  <PostArgs>--init-unraid-data</PostArgs>
   <Config Name="Web port" Target="3000" Default="3000" Mode="tcp" Description="HTTP for a private LAN IP. For HTTPS use a reverse proxy." Type="Port" Display="always" Required="true" Mask="false">3000</Config>
-  <Config Name="App data" Target="/data" Default="" Mode="rw" Description="Local appdata directory; owner UID/GID must match the container (default 10001:10001). SQLite must not use SMB/NFS. Choose the local pool." Type="Path" Display="always" Required="true" Mask="false"/>
+  <Config Name="App data" Target="/data" Default="" Mode="rw" Description="Dedicated local appdata directory. The template prepares the data directory at startup. SQLite must not use SMB/NFS." Type="Path" Display="always" Required="true" Mask="false"/>
   <Config Name="Configuration" Target="/config" Default="" Mode="ro" Description="Optional protected config directory containing ntfy.env. Restrict file access to the container UID. Never paste secrets into template variables." Type="Path" Display="always" Required="false" Mask="false"/>
   <Config Name="ntfy configuration file" Target="KEYHUNTER_NTFY_ENV_FILE" Default="/config/ntfy.env" Description="Optional owner-readable file containing NTFY_URL and NTFY_TOKEN." Type="Variable" Display="advanced" Required="false" Mask="false">/config/ntfy.env</Config>
   <Config Name="Daily jobs per shop" Target="KEYHUNTER_SHOP_DAILY_JOBS" Default="120" Description="Daily cap for product and discovery jobs per shop. One job makes up to three public requests." Type="Variable" Display="advanced" Required="false" Mask="false">120</Config>
