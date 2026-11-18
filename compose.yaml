@@ -1,7 +1,6 @@
 services:
   keyhunter:
-    image: keyhunter:local
-    build: .
+    image: "${KEYHUNTER_IMAGE:-ghcr.io/buffer379x/keyhunter:latest}"
     user: "${KEYHUNTER_UID:-1000}:${KEYHUNTER_GID:-1000}"
     environment:
       KEYHUNTER_ORIGIN: "${KEYHUNTER_ORIGIN:-http://localhost:3000}"

@@ -2,7 +2,7 @@
 
 ## Unraid und HTTPS
 
-1. Lade das [Unraid-Template](https://github.com/Buffer379x/keyhunter/releases/latest/download/keyhunter-unraid.xml) und lege es im Ordner `/boot/config/plugins/dockerMan/templates-user` ab. Wähle in der Docker-Ansicht **Add Container** und das KEYHUNTER-Template.
+1. Lade das [Unraid-Template](https://raw.githubusercontent.com/Buffer379x/keyhunter/main/deploy/unraid/keyhunter.xml) und lege es im Ordner `/boot/config/plugins/dockerMan/templates-user` ab. Wähle in der Docker-Ansicht **Add Container** und das KEYHUNTER-Template.
 2. Das Feld **Repository** enthält `ghcr.io/buffer379x/keyhunter:latest`. Unraid lädt das Image beim Anwenden aus dem [GitHub-Package](https://github.com/users/Buffer379x/packages/container/package/keyhunter).
 3. Wähle ein lokales Appdata-Verzeichnis für `/data` mit Schreibzugriff für UID/GID `10001:10001`. Nutze für SQLite ein lokales Dateisystem. Optional bindest du ein Verzeichnis für die ntfy-Datei als `/config` schreibgeschützt ein.
 4. Richte einen HTTPS-Reverse-Proxy (etwa Nginx Proxy Manager) für den internen App-Port 3000 ein. Setze `KEYHUNTER_ORIGIN` exakt auf die HTTPS-Adresse ohne Pfad oder abschließenden Schrägstrich und verwende dieselbe Adresse für die WebUI. Beschränke den Zugriff auf LAN oder VPN.
@@ -34,3 +34,8 @@ Stoppe den Container vor dem Kopieren des vollständigen Datenverzeichnisses, ei
 ## Offline-Installation
 
 Die GitHub-Releases enthalten zugehörige Image-Archive mit Prüfsumme. Importiere das gewünschte Archiv mit `docker load -i DATEI.tar.gz` und verwende die darin enthaltene lokale Image-Referenz, zum Beispiel `keyhunter:0.2.1`. Für reguläre Updates über GitHub verwende die GHCR-Referenz im Template.
+
+
+## GitHub-Veröffentlichung
+
+Verwende als GitHub-Release-Titel die Versionsnummer, zum Beispiel `0.2.1`. Die Veröffentlichungs-Action erstellt den numerischen OCI-Tag und aktualisiert `latest` für den aktuellen stabilen Release. Das Package benötigt die Sichtbarkeit **Public** für Abrufe ohne Anmeldung und unter **Manage Actions access** Schreibzugriff für das zugehörige Repository.
