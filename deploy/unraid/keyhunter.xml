@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Container version="2">
   <Name>keyhunter</Name>
-  <Repository>keyhunter:0.2.1</Repository>
-  <Registry/>
+  <Repository>ghcr.io/buffer379x/keyhunter:latest</Repository>
+  <Registry>https://github.com/users/Buffer379x/packages/container/package/keyhunter</Registry>
   <Network>bridge</Network>
   <Privileged>false</Privileged>
   <Support/>
   <Project>https://github.com/Buffer379x/keyhunter</Project>
-  <Overview>Private Xbox wishlist with IGDB search, Eneba and Driffle offers, price history and ntfy alerts. Import the linux/amd64 image from the GitHub v0.2.1 release. See the repository installation guide.</Overview>
+  <Overview>Private Xbox wishlist with IGDB search, Eneba and Driffle offers, price history and ntfy alerts. Pull the linux/amd64 image from GitHub Container Registry. See the repository installation guide.</Overview>
   <Category>GameServers: Other:</Category>
   <WebUI/>
-  <TemplateURL/>
+  <TemplateURL>https://raw.githubusercontent.com/Buffer379x/keyhunter/main/deploy/unraid/keyhunter.xml</TemplateURL>
   <Icon/>
   <ExtraParams>--security-opt=no-new-privileges:true --cap-drop=ALL --read-only --tmpfs /tmp:size=16m,mode=1777 --memory=512m</ExtraParams>
   <PostArgs/>

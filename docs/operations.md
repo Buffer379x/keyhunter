@@ -2,12 +2,13 @@
 
 ## Unraid und HTTPS
 
-1. Lade `keyhunter-0.2.1-amd64.tar.gz`, die Prüfsumme und `keyhunter-unraid.xml` aus dem [Release](https://github.com/Buffer379x/keyhunter/releases/tag/v0.2.1).
-2. Lade das Archiv auf dem Zielhost mit `docker load -i keyhunter-0.2.1-amd64.tar.gz`. Das Image heißt im Template `keyhunter:0.2.1`.
-3. Lege die XML-Datei im Ordner `/boot/config/plugins/dockerMan/templates-user` ab. Wähle in der Docker-Ansicht **Add Container** und das KEYHUNTER-Template.
-4. Wähle ein lokales Appdata-Verzeichnis für `/data` mit Schreibzugriff für UID/GID `10001:10001`. Nutze für SQLite ein lokales Dateisystem. Optional bindest du ein Verzeichnis für Secret-Dateien als `/config` schreibgeschützt ein.
-5. Richte einen HTTPS-Reverse-Proxy (etwa Nginx Proxy Manager) für den internen App-Port 3000 ein. Setze `KEYHUNTER_ORIGIN` exakt auf die HTTPS-Adresse ohne Pfad oder abschließenden Schrägstrich und verwende dieselbe Adresse für die WebUI. Beschränke den Zugriff auf LAN oder VPN.
-6. Starte den Container. Verwende den Code aus dem gemounteten Datenverzeichnis `bootstrap-token`, um deinen Eigentümerzugang einzurichten. In der App lässt sich anschließend ein Zielland für Angebote wählen.
+1. Lade das [Unraid-Template](https://github.com/Buffer379x/keyhunter/releases/latest/download/keyhunter-unraid.xml) und lege es im Ordner `/boot/config/plugins/dockerMan/templates-user` ab. Wähle in der Docker-Ansicht **Add Container** und das KEYHUNTER-Template.
+2. Das Feld **Repository** enthält `ghcr.io/buffer379x/keyhunter:latest`. Unraid lädt das Image beim Anwenden aus dem [GitHub-Package](https://github.com/users/Buffer379x/packages/container/package/keyhunter).
+3. Wähle ein lokales Appdata-Verzeichnis für `/data` mit Schreibzugriff für UID/GID `10001:10001`. Nutze für SQLite ein lokales Dateisystem. Optional bindest du ein Verzeichnis für die ntfy-Datei als `/config` schreibgeschützt ein.
+4. Richte einen HTTPS-Reverse-Proxy (etwa Nginx Proxy Manager) für den internen App-Port 3000 ein. Setze `KEYHUNTER_ORIGIN` exakt auf die HTTPS-Adresse ohne Pfad oder abschließenden Schrägstrich und verwende dieselbe Adresse für die WebUI. Beschränke den Zugriff auf LAN oder VPN.
+5. Starte den Container. Verwende den Code aus dem gemounteten Datenverzeichnis `bootstrap-token`, um deinen Eigentümerzugang einzurichten. In der App lässt sich anschließend ein Zielland für Angebote wählen.
+
+Bei einem bereits eingerichteten Container kannst du das Feld **Repository** direkt auf `ghcr.io/buffer379x/keyhunter:latest` ändern. Behalte das Datenvolume und die lokale Konfiguration. Unraids Funktion **Check for Updates** erkennt neue Images unter diesem Tag. Für eine feste Version lässt sich `latest` durch eine Versionsnummer ersetzen.
 
 Die Veröffentlichung wurde unter Linux/amd64 mit Docker geprüft. Das XML ist für die manuelle Installation vorbereitet. Der Test auf einer Unraid-Installation steht aus.
 
@@ -28,3 +29,8 @@ Bekannte Produkte werden ungefähr alle acht Stunden eingeplant. Die Discovery l
 ## Backup und Update
 
 Stoppe den Container vor dem Kopieren des vollständigen Datenverzeichnisses, einschließlich vorhandener SQLite-WAL- und SHM-Dateien. Bewahre Backups auf einem getrennten Datenträger auf. Das Datenbackup enthält den IGDB-Zugang. Sichere die getrennte ntfy-Datei ebenfalls geschützt. Starte nach einem Update mit einer konsistenten Kopie der Daten. Für einen Rollback verwende das vorherige Image zusammen mit dem Stand vor der Migration. Wiederherstellung auf eine frische Instanz lässt sich über `/health/ready`, die Anmeldung und die vorhandenen Wunschlisten, Zuordnungen und Regeln prüfen.
+
+
+## Offline-Installation
+
+Die GitHub-Releases enthalten zugehörige Image-Archive mit Prüfsumme. Importiere das gewünschte Archiv mit `docker load -i DATEI.tar.gz` und verwende die darin enthaltene lokale Image-Referenz, zum Beispiel `keyhunter:0.2.1`. Für reguläre Updates über GitHub verwende die GHCR-Referenz im Template.

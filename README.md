@@ -4,14 +4,11 @@ Selbst gehostete Xbox-Wunschliste für Docker und Unraid. KEYHUNTER sucht über 
 
 ## Installation auf Unraid
 
-1. Lade das Image-Archiv und das Unraid-Template aus dem [Release v0.2.1](https://github.com/Buffer379x/keyhunter/releases/tag/v0.2.1).
-2. Prüfe optional den SHA-256-Wert mit `sha256sum -c keyhunter-0.2.1-amd64.tar.gz.sha256` und importiere das Archiv auf dem Unraid-Host:
+1. Lade das [Unraid-Template](https://github.com/Buffer379x/keyhunter/releases/latest/download/keyhunter-unraid.xml) und importiere es in Unraid.
+2. Starte den Container mit `ghcr.io/buffer379x/keyhunter:latest`. Unraid lädt das Image direkt aus der GitHub Container Registry.
+3. Richte das Datenverzeichnis und die HTTPS-Adresse ein. [Unraid und Betrieb](docs/operations.md)
 
-   ```bash
-   docker load -i keyhunter-0.2.1-amd64.tar.gz
-   ```
-
-3. Importiere das Template und richte das Datenverzeichnis, die HTTPS-Adresse und bei Bedarf IGDB und ntfy ein. Die Anleitung enthält die Zuordnung der Mounts und die Schritte für die erste Anmeldung. [Unraid und Betrieb](docs/operations.md)
+Das [GitHub-Package](https://github.com/users/Buffer379x/packages/container/package/keyhunter) liefert auch feste Versions-Tags wie `0.2.0` und `0.2.1`. Die [Releases](https://github.com/Buffer379x/keyhunter/releases) enthalten zusätzlich Archive für die Offline-Installation.
 
 ## Lokal mit Compose
 
