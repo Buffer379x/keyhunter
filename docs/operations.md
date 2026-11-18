@@ -60,3 +60,7 @@ Verwende als GitHub-Release-Titel die Versionsnummer, zum Beispiel `0.2.2`. Die 
 ## Upgrade auf 0.3.0
 
 Behalte das bestehende Datenvolume. Nach dem Update werden für gespeicherte Wünsche automatisch Suchjobs angelegt. Neue Produkte werden mit Titel, Edition und Plattform abgeglichen und eindeutige Katalogzuordnungen automatisch freigegeben. Die Wunschliste enthält weiterhin die bisherigen Spiele und Einstellungen. Falls ein gespeichertes Cover noch kein Hero-Bild hat, lädt eine erneute Katalogsuche die aktuellen IGDB-Metadaten.
+
+## Upgrade auf 0.3.1
+
+Behalte das Datenvolume und aktualisiere `ghcr.io/buffer379x/keyhunter:latest`. Die Migration stößt für bestehende Wünsche die Suche nach weiteren regionalen Varianten an. Die Abrufe erfolgen schrittweise innerhalb des eingestellten Tagesbudgets. Deine Länderpräferenz hebt passende Landesvarianten hervor; alle gefundenen Regionen bleiben sichtbar. Suche direkt im Eingabefeld der Kopfzeile, auch von Einstellungen und Preisalarmen aus. `Ctrl K` bzw. `Cmd K` fokussiert dieses Feld. Das Plus in der Wunschliste öffnet weiterhin den separaten Hinzufügen-Dialog.

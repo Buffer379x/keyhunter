@@ -59,8 +59,8 @@ impl PublicClient {
             || url.port().is_some()
             || !url.username().is_empty()
             || url.password().is_some()
-            || url.query().is_some()
-            || !self.robots.allows(url.path())
+            || !allowed_query(url)
+            || !self.robots.allows(&url[url::Position::BeforePath..])
         {
             return Err(ShopError::Denied);
         }
@@ -69,6 +69,26 @@ impl PublicClient {
         self.next = Instant::now() + Duration::from_secs(self.robots.delay);
         result
     }
+}
+
+// Only the public catalog's pagination and title/platform filters accept a query.
+// Product links and all other endpoints remain query-free.
+fn allowed_query(url: &Url) -> bool {
+    url.query().is_none()
+        || (url.host_str() == Some("www.eneba.com")
+            && url.path() == "/de/store/all"
+            && url.query().is_some_and(|q| q.len() <= 1500)
+            && url.query_pairs().all(|(key, value)| match key.as_ref() {
+                "text" => {
+                    !value.is_empty()
+                        && value.chars().count() <= 300
+                        && !value.chars().any(char::is_control)
+                }
+                "types[]" => value == "game",
+                "drms[]" => value == "xbox",
+                "page" => value.parse::<u16>().is_ok_and(|n| (1..=500).contains(&n)),
+                _ => false,
+            }))
 }
 
 async fn fetch(
@@ -259,6 +279,28 @@ fn path_matches(path: &str, rule: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn public_catalog_query_is_narrow_and_product_urls_remain_query_free() {
+        for raw in [
+            "https://www.eneba.com/de/store/all?text=Forza+Horizon+5&types%5B%5D=game&drms%5B%5D=xbox&page=2",
+            "https://www.eneba.com/de/xbox-game-xbox-live-key-global",
+        ] {
+            assert!(allowed_query(&Url::parse(raw).unwrap()));
+        }
+        for raw in [
+            "https://www.eneba.com/de/store/all?text=game&regions%5B%5D=global",
+            "https://www.eneba.com/de/store/all?text=game&redirect=https://example.com",
+            "https://www.eneba.com/de/store/all?text=game&page=0",
+            "https://www.eneba.com/de/store/all?text=game&page=501",
+            "https://www.eneba.com/de/store/all?text=game&srsltid=tracking",
+            "https://www.eneba.com/de/xbox-game-xbox-live-key-global?text=game",
+            "https://driffle.com/de/store/all?text=game",
+        ] {
+            assert!(!allowed_query(&Url::parse(raw).unwrap()), "{raw}");
+        }
+        let robots = Robots::parse("User-agent: *\nDisallow: /*?*srsltid").unwrap();
+        assert!(!robots.allows("/de/store/all?text=game&srsltid=tracking"));
+    }
     #[test]
     fn robots_paths_and_public_resolution() {
         let rules = Robots::parse("User-agent: *\nDisallow: /*/search\nDisallow: /de/private*\nAllow: /de/private-game$\nCrawl-delay: 3").unwrap();

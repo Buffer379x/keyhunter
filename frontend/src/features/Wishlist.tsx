@@ -6,9 +6,9 @@ import CatalogSearch from './CatalogSearch';
 import Offers, { money } from './Offers';
 import { Cover, itemName, kindName, platformName, releaseYear } from './catalog-ui';
 
-interface Props { searchSignal: number; csrf: string; targetCountry: string | null; targetLabel: string; onSettings: () => void; onCountChange: (count: number) => void; onError: (error: unknown) => void }
+interface Props { csrf: string; targetCountry: string | null; targetLabel: string; onSettings: () => void; onCountChange: (count: number) => void; onError: (error: unknown) => void }
 const routeSelection = () => new URL(window.location.href).searchParams.get('item');
-export default function Wishlist({ searchSignal, csrf, targetCountry, targetLabel, onSettings, onCountChange, onError }: Props) {
+export default function Wishlist({ csrf, targetCountry, targetLabel, onSettings, onCountChange, onError }: Props) {
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState('');
@@ -21,7 +21,6 @@ export default function Wishlist({ searchSignal, csrf, targetCountry, targetLabe
   const [editions, setEditions] = useState<CatalogGame[]>([]);
   const [editionBusy, setEditionBusy] = useState(false);
   const [editionError, setEditionError] = useState('');
-  useEffect(() => { if (searchSignal) setSearchOpen(true); }, [searchSignal]);
   const [removeItem, setRemoveItem] = useState<WishlistItem | null>(null);
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState('');

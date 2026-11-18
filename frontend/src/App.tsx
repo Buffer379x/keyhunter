@@ -3,6 +3,8 @@ import type { FormEvent } from 'react';
 import { api, HttpError } from './api';
 import type { Settings, SourceStatuses } from './api';
 import Wishlist from './features/Wishlist';
+import CatalogSearch from './features/CatalogSearch';
+import type { WishlistItem } from './api';
 import PriceAlerts from './features/PriceAlerts';
 import IgdbAccess from './features/IgdbAccess';
 import { shopNames } from './features/Offers';
@@ -27,7 +29,8 @@ const errorText = (error: unknown) => error instanceof Error ? error.message : '
 export default function App() {
   const [screen, setScreen] = useState<Screen>('loading');
   const [csrf, setCsrf] = useState('');
-  const [searchSignal, setSearchSignal] = useState(0);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [wishlistRevision, setWishlistRevision] = useState(0);
   const [page, setPage] = useState<Page>(routePage);
   const [wishlistCount, setWishlistCount] = useState<number | null>(null);
   const [sourceStatus, setSourceStatus] = useState<SourceStatuses | null>(null);
@@ -78,14 +81,14 @@ export default function App() {
     setBusy(true); setError('');
     try {
       await api('/session', 'DELETE', undefined, csrf);
-      setCsrf(''); setSettings(null); setWishlistCount(null); setMessage(''); setPage('wishlist'); setScreen('login');
+      setCsrf(''); setSettings(null); setWishlistCount(null); setMessage(''); setSearchOpen(false); setPage('wishlist'); setScreen('login');
       window.history.replaceState(null, '', window.location.pathname);
     } catch (e) { handleProtectedError(e); }
     finally { setBusy(false); }
   }
   const handleProtectedError = useCallback((e: unknown) => {
     setError(errorText(e));
-    if (e instanceof HttpError && e.status === 401) { setCsrf(''); setSettings(null); setWishlistCount(null); setScreen('login'); }
+    if (e instanceof HttpError && e.status === 401) { setCsrf(''); setSettings(null); setWishlistCount(null); setSearchOpen(false); setScreen('login'); }
   }, []);
   async function saveSettings(event: FormEvent) {
     event.preventDefault();
@@ -108,6 +111,7 @@ export default function App() {
     finally { setBusy(false); }
   }
   const navigate = useCallback((next: Page) => {
+    setSearchOpen(false);
     setPage(next); setMessage(''); setError('');
     const url = new URL(window.location.href);
     if (next === 'settings') { url.searchParams.set('view', 'settings'); refreshSources(); }
@@ -116,14 +120,22 @@ export default function App() {
     if (url.href !== window.location.href) window.history.pushState(null, '', url);
   }, [refreshSources]);
   useEffect(() => {
-    const restore = () => setPage(routePage());
+    const restore = () => { setPage(routePage()); setSearchOpen(false); };
     window.addEventListener('popstate', restore); return () => window.removeEventListener('popstate', restore);
   }, []);
-  const openSearch = useCallback(() => { navigate('wishlist'); setSearchSignal(n => n + 1); }, [navigate]);
+  const openSearch = useCallback(() => setSearchOpen(true), []);
+  const closeSearch = useCallback(() => setSearchOpen(false), []);
+  const selectSearchResult = useCallback((item: WishlistItem) => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('view'); url.searchParams.delete('filter'); url.searchParams.set('item', item.id);
+    if (url.href !== window.location.href) window.history.pushState(null, '', url);
+    setPage('wishlist'); setMessage(''); setError(''); setWishlistRevision(n => n + 1);
+  }, []);
   useEffect(() => {
     function keyboard(event: KeyboardEvent) {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault(); openSearch();
+        const input = document.getElementById('global-query');
+        if (input) { event.preventDefault(); input.focus(); openSearch(); }
       }
     }
     window.addEventListener('keydown', keyboard);
@@ -154,14 +166,14 @@ export default function App() {
         <button className={`nav-item ${page === 'settings' ? 'active' : ''}`} aria-current={page === 'settings' ? 'page' : undefined} onClick={() => navigate('settings')}><Icon name="settings" />Einstellungen</button>
       </nav>
       <div className="sidebar-platform"><p>Plattformen</p><div className="platform-selected"><Icon name="game" /><span>Xbox</span><span>✓</span></div><small>Series X|S · Xbox One</small></div>
-      <div className="sidebar-bottom"><span className="status-dot" /><small>KeyHunter <span className="version">0.3.0</span></small><Button secondary className="logout" aria-label="Abmelden" title="Abmelden" onClick={() => void logout()} disabled={busy}><Icon name="logout" /></Button></div>
+      <div className="sidebar-bottom"><span className="status-dot" /><small>KeyHunter <span className="version">0.3.1</span></small><Button secondary className="logout" aria-label="Abmelden" title="Abmelden" onClick={() => void logout()} disabled={busy}><Icon name="logout" /></Button></div>
     </aside>
     <div className="workspace">
-      <header className="topbar"><button className="global-search" onClick={openSearch}><Icon name="search" /><span>Nach Spielen suchen …</span><kbd>Ctrl K</kbd></button><div className="topbar-right"><span className="target-pill"><Icon name="globe" />{savedCountry ? targetLabel : 'Zielland wählen'}</span><button className="avatar" aria-label="Einstellungen öffnen" onClick={openSettings}>K</button></div></header>
+      <header className="topbar"><CatalogSearch inline csrf={csrf} open={searchOpen} onOpen={openSearch} onClose={closeSearch} onAdded={selectSearchResult} onError={handleProtectedError} /><div className="topbar-right"><span className="target-pill"><Icon name="globe" />{savedCountry ? targetLabel : 'Zielland wählen'}</span><button className="avatar" aria-label="Einstellungen öffnen" onClick={openSettings}>K</button></div></header>
       <main id="main-content" tabIndex={-1}>
         {error && <Notice error>{error}</Notice>}
         {message && <Notice>{message}</Notice>}
-        {page === 'wishlist' ? <Wishlist searchSignal={searchSignal} csrf={csrf} targetCountry={savedCountry} targetLabel={targetLabel ?? 'Noch nicht gewählt'} onSettings={openSettings} onCountChange={setWishlistCount} onError={handleProtectedError} /> : page === 'alerts' ? <PriceAlerts csrf={csrf} onError={handleProtectedError} /> : <>
+        {page === 'wishlist' ? <Wishlist key={wishlistRevision} csrf={csrf} targetCountry={savedCountry} targetLabel={targetLabel ?? 'Noch nicht gewählt'} onSettings={openSettings} onCountChange={setWishlistCount} onError={handleProtectedError} /> : page === 'alerts' ? <PriceAlerts csrf={csrf} onError={handleProtectedError} /> : <>
           <div className="page-heading"><div><p className="eyebrow">DEINE EINSTELLUNGEN</p><h1>Einstellungen<span className="accent-dot">.</span></h1><p>Dein Zielland, deine Quellen und deine Preisgrundlage.</p></div></div>
           {settings && <form onSubmit={saveSettings} className="settings-form">
             <section className="settings-card" aria-labelledby="general-title"><div className="section-number">01</div><div className="section-content"><h2 id="general-title">Region & Anzeige</h2><p>Das Zielland bestimmt die Aktivierungseignung. Angebote aus anderen Ländern bleiben sichtbar.</p><div className="field-grid"><div className="field"><label htmlFor="target-country">Zielland</label><select id="target-country" value={settings.target_country ?? ''} onChange={e => { setSettings({ ...settings, target_country: e.target.value || null }); setMessage(''); }}><option value="">Bitte wählen</option>{countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}</select></div><div className="field"><label htmlFor="currency">Vergleichswährung</label><input id="currency" readOnly value="EUR · Euro" /><span className="field-help">Preise werden in Euro verglichen.</span></div></div></div></section>

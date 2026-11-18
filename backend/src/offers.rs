@@ -303,7 +303,7 @@ pub(crate) async fn add_link(
     let mut tx = state.pool.begin().await?;
     let link: Option<i64> = sqlx::query_scalar(
         "INSERT INTO offer_link(wish_id,source,url)
-        SELECT ?,?,? WHERE (SELECT count(*) FROM offer_link WHERE wish_id=?)<16
+        SELECT ?,?,? WHERE (SELECT count(*) FROM offer_link WHERE wish_id=? AND auto_discovered=0)<16
         ON CONFLICT(wish_id,source,url) DO NOTHING RETURNING id",
     )
     .bind(&id)
@@ -329,7 +329,7 @@ pub(crate) async fn add_link(
         if !exists {
             return Err(ApiError(
                 StatusCode::CONFLICT,
-                "Pro Wunsch sind bis zu 16 Produktlinks möglich.",
+                "Pro Wunsch sind bis zu 16 manuell ergänzte Produktlinks möglich.",
             ));
         }
     }
@@ -396,7 +396,7 @@ pub(crate) async fn refresh(
     wish(&state.pool, &id).await?;
     let t = now();
     crate::jobs::schedule_wish(&state.pool, &id).await?;
-    sqlx::query("UPDATE shop_job SET due=MIN(due,?) WHERE wish_id=? AND lease_until<=? AND COALESCE(checked_at,0)<=?")
+    sqlx::query("UPDATE shop_job SET due=MIN(due,?),search_page=1,result_count=0 WHERE wish_id=? AND lease_until<=? AND COALESCE(checked_at,0)<=?")
         .bind(t).bind(&id).bind(t).bind(t-900).execute(&state.pool).await?;
     sqlx::query("UPDATE shop_job SET due=MIN(due,?) WHERE lease_until<=? AND failures=0
         AND link_id IN (SELECT id FROM offer_link WHERE wish_id=? AND review!='rejected' AND last_error IS NULL AND COALESCE(attempted_at,0)<=?)")

@@ -10,6 +10,13 @@ export const money = (cents: number) => new Intl.NumberFormat('de-DE', { style: 
 export const dateTime = (seconds: number) => new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(seconds * 1000);
 const sourceErrors: Record<string, string> = { network: 'Verbindung fehlgeschlagen', rate_limited: 'Abruflimit erreicht', access_denied: 'Abruf abgelehnt', invalid_response: 'Antwort konnte nicht gelesen werden' };
 const activations: Record<string, string> = { confirmed: 'Aktivierung bestätigt', blocked: 'Aktivierung im Zielland gesperrt', unknown: 'Aktivierung ungeklärt' };
+const countryNames = [new Intl.DisplayNames(['de'], { type: 'region' }), new Intl.DisplayNames(['en'], { type: 'region' })];
+function preferredRegion(region: string | null | undefined, country: string | undefined) {
+  if (!region || !country) return false;
+  const name = region.trim().toLocaleLowerCase('de');
+  return [country, ...countryNames.map(names => names.of(country)), ...(country === 'US' ? ['USA', 'United States of America'] : country === 'GB' ? ['UK', 'Great Britain'] : country === 'TR' ? ['Türkiye'] : [])]
+    .some(value => value?.toLocaleLowerCase('de') === name);
+}
 
 type Quote = { id: string; seller: string | null; base_cents: number; estimated_total_cents: number | null };
 type Link = {
@@ -93,11 +100,12 @@ export default function Offers({ id, csrf, targetLabel, onError, tab, editionPan
   const quotes = allQuotes.filter(({link}) => !onlyTarget || link.eligible)
     .sort((a,b) => Number(b.link.eligible)-Number(a.link.eligible) ||
       (basis === 'estimate' ? (a.quote.estimated_total_cents ?? Infinity)-(b.quote.estimated_total_cents ?? Infinity) : a.quote.base_cents-b.quote.base_cents));
-  const regions = new Map<string, { cents: number; eligible: boolean }>();
-  for (const { link, quote } of allQuotes) {
+  const regions = new Map<string, { cents: number | null; activation: string; preferred: boolean }>();
+  for (const link of visibleLinks.filter(link => link.product)) {
     const region = link.product?.region ?? 'Region ungeklärt';
     const before = regions.get(region);
-    if (!before || quote.base_cents < before.cents) regions.set(region, { cents: quote.base_cents, eligible: link.eligible });
+    const cents = link.quotes.length ? Math.min(...link.quotes.map(quote => quote.base_cents)) : null;
+    if (!before || (cents !== null && (before.cents === null || cents < before.cents))) regions.set(region, { cents, activation: link.product?.activation ?? 'unknown', preferred: preferredRegion(region, view?.target_country) });
   }
   const statusNames: Record<string,string> = { queued: 'Suche eingeplant', searching: 'Angebote werden gesucht', complete: 'Suche abgeschlossen', no_match: 'Keine passenden Produkte gefunden', error: 'Suche fehlgeschlagen', disabled: 'Deaktiviert', paused: 'Abrufe pausiert' };
   const historyPanel = <section className="dashboard-card history-card" aria-labelledby="history-title">
@@ -112,18 +120,18 @@ export default function Offers({ id, csrf, targetLabel, onError, tab, editionPan
       <div className="detail-grid">
         {editionPanel}
         <section className="dashboard-card region-card">
-          <div className="card-heading"><Icon name="globe" /><h3>Preise nach Aktivierungsregion</h3></div>
-          {[...regions.entries()].sort((a,b) => a[1].cents - b[1].cents).map(([region, price]) => <div className="region-row" key={region}><span className="region-symbol"><Icon name="globe" size={15} /></span><span>{region}</span><strong>{money(price.cents)}</strong><span className={price.eligible ? 'good-label' : 'muted-label'}>{price.eligible ? `Für ${view?.target_country}` : 'Zu prüfen'}</span></div>)}
+          <div className="card-heading"><Icon name="globe" /><h3>Preise nach Aktivierungsregion</h3><span>{regions.size} Regionen</span></div>
+          {regions.size > 0 && <div className="region-list" role="list" aria-label="Aktivierungsregionen" tabIndex={0}>{[...regions.entries()].sort((a,b) => Number(b[1].preferred) - Number(a[1].preferred) || (a[1].cents ?? Infinity) - (b[1].cents ?? Infinity)).map(([region, price]) => <div role="listitem" className={`region-row ${price.preferred ? 'preferred-region' : ''}`} key={region}><span className="region-symbol"><Icon name="globe" size={15} /></span><span>{region}{price.preferred && <small className="preference-badge">Deine Präferenz</small>}</span><strong>{price.cents === null ? 'Kein Preis' : money(price.cents)}</strong><span className={price.activation === 'confirmed' ? 'good-label' : 'muted-label'}>{price.activation === 'confirmed' ? `Für ${view?.target_country}` : price.activation === 'blocked' ? `Nicht für ${view?.target_country}` : 'Zu prüfen'}</span></div>)}</div>}
           {regions.size === 0 && <div className="card-empty"><Icon name="globe" size={30} /><p>{searching ? 'Regionen erscheinen, sobald die ersten Angebote gefunden wurden.' : 'Noch keine regionalen Preise verfügbar.'}</p></div>}
-          <div className="card-footnote">Zielland {targetLabel} · Zusatzkosten je Shop</div>
+          <div className="card-footnote">Alle Regionen · Deine Präferenz: {targetLabel} · Zusatzkosten je Shop</div>
         </section>
         {tab !== 'editions' && <section className="dashboard-card offer-card" aria-labelledby="offers-title">
           <div className="card-heading"><Icon name="tag" /><h3 id="offers-title">Aktuelle Angebote</h3><span>{quotes.length} Angebote</span><button className="icon-action" aria-label="Preise prüfen" title="Angebote suchen und Preise prüfen" disabled={busy || searching} onClick={() => void write('/refresh','POST',undefined,'Angebotssuche angefragt.')}><Icon name="refresh" size={16} /></button></div>
-          {view?.best_base !== null && view?.best_base !== undefined && <div className="comparison-summary"><span>Niedrigster Grundpreis <strong>{money(view.best_base)}</strong></span>{view.best_estimate !== null && <span>Gesamtpreis geschätzt <strong>{money(view.best_estimate)}</strong></span>}</div>}
+          {view?.best_base !== null && view?.best_base !== undefined && <div className="comparison-summary"><span>Niedrigster passender Grundpreis <strong>{money(view.best_base)}</strong></span>{view.best_estimate !== null && <span>Gesamtpreis geschätzt <strong>{money(view.best_estimate)}</strong></span>}</div>}
           <div className="offer-filters"><label className="check-label"><input type="checkbox" checked={onlyTarget} onChange={event => setOnlyTarget(event.target.checked)} />Nur passende Angebote</label><label>Sortierung<select aria-label="Preisgrundlage für Sortierung" value={basis} onChange={event => setBasis(event.target.value)}><option value="base">Grundpreis</option><option value="estimate">Gesamtpreis geschätzt</option></select></label></div>
-          {quotes.length > 0 ? <div className="offer-table"><div className="offer-table-head"><span>Händler / Verkäufer</span><span>Land / Region</span><span>Preis</span><span /></div>{quotes.map(({link,quote}, i) => <div className={`offer-table-row ${link.eligible && quote.base_cents === view?.best_base ? 'best' : ''}`} key={`${link.id}-${quote.id}`}>
+          {quotes.length > 0 ? <div className="offer-table"><div className="offer-table-head"><span>Händler / Verkäufer</span><span>Land / Region</span><span>Preis</span><span /></div>{quotes.map(({link,quote}, i) => <div className={`offer-table-row ${link.eligible && quote.base_cents === view?.best_base ? 'best' : ''} ${preferredRegion(link.product?.region, view?.target_country) ? 'preferred-region' : ''}`} key={`${link.id}-${quote.id}`}>
             <div className="seller-cell"><span className={`shop-logo ${link.source}`}>{shopNames[link.source]?.[0]}</span><div><strong>{shopNames[link.source]}</strong><small>{quote.seller ?? 'Verkäufer nicht angegeben'}</small></div></div>
-            <div className="offer-region"><span>{link.product?.region ?? 'Unbekannt'}</span><small>{activations[link.product?.activation ?? 'unknown']}{!link.enabled ? ' · Deaktiviert' : link.last_error ? ' · Abruffehler' : link.stale ? ' · Veraltet' : link.review !== 'confirmed' ? ' · Zuordnung prüfen' : ''}</small></div>
+            <div className="offer-region"><span>{link.product?.region ?? 'Unbekannt'}</span>{preferredRegion(link.product?.region, view?.target_country) && <span className="preference-badge">Deine Präferenz</span>}<small>{activations[link.product?.activation ?? 'unknown']}{!link.enabled ? ' · Deaktiviert' : link.last_error ? ' · Abruffehler' : link.stale ? ' · Veraltet' : link.review !== 'confirmed' ? ' · Zuordnung prüfen' : ''}</small></div>
             <div className="quote-price"><strong>{money(quote.base_cents)}</strong><small>{quote.estimated_total_cents === null ? 'Gebühren unbekannt' : `${money(quote.estimated_total_cents)} geschätzt`}</small></div>
             <a className="offer-open" title="Zum Angebot" aria-label={`Angebot bei ${shopNames[link.source]} öffnen ${i+1}`} href={link.url} target="_blank" rel="noopener noreferrer"><Icon name="external" size={16} /></a>
           </div>)}</div> : <div className="card-empty"><Icon name="search" size={30} /><p>{!view ? 'Angebote werden geladen …' : searching ? 'KeyHunter sucht passende Produkte für dieses Spiel.' : 'Für diese Auswahl liegen noch keine passenden Angebote vor.'}</p>{view && !searching && <Button secondary disabled={busy} onClick={() => void write('/refresh','POST',undefined)}>Angebote automatisch suchen</Button>}</div>}

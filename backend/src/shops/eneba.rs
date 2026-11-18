@@ -277,73 +277,80 @@ pub(crate) fn search_urls(keys: &[String]) -> Vec<Url> {
     .collect()
 }
 
-pub(crate) async fn search_products(
+/// One public search page per durable job; country preference never filters discovery.
+pub(crate) struct SearchPage {
+    pub urls: Vec<String>,
+    pub next_page: Option<i64>,
+}
+
+pub(crate) async fn search_page(
     keys: &[String],
     known: &[String],
-) -> Result<Vec<(String, Product)>, ShopError> {
+    page: i64,
+) -> Result<SearchPage, ShopError> {
+    let Some(key) = keys.first().filter(|key| !key.is_empty()) else {
+        return Ok(SearchPage {
+            urls: vec![],
+            next_page: None,
+        });
+    };
+    let mut url = Url::parse("https://www.eneba.com/de/store/all").unwrap();
+    url.query_pairs_mut()
+        .append_pair("text", key)
+        .append_pair("types[]", "game")
+        .append_pair("drms[]", "xbox")
+        .append_pair("page", &page.to_string());
     let mut client = PublicClient::new(Shop::Eneba.host()).await?;
-    let mut urls: Vec<_> = known
-        .iter()
-        .filter_map(|url| Shop::Eneba.product_url(url))
-        .take(2)
+    let mut result = match client.get(&url, 2 * 1024 * 1024, false).await {
+        Ok(body) => parse_search_page(&body, keys, page)?,
+        Err(ShopError::NotFound) if page == 1 => SearchPage {
+            urls: search_urls(keys).into_iter().map(String::from).collect(),
+            next_page: None,
+        },
+        Err(error) => return Err(error),
+    };
+    if page == 1 {
+        for url in known.iter().filter_map(|raw| Shop::Eneba.product_url(raw)) {
+            if !result.urls.contains(&url.to_string()) {
+                result.urls.push(url.to_string());
+            }
+        }
+    }
+    Ok(result)
+}
+
+fn parse_search_page(body: &str, keys: &[String], page: i64) -> Result<SearchPage, ShopError> {
+    let document = Html::parse_document(body);
+    let selector = Selector::parse("script#__ALGOLIA_STATE__").expect("static selector");
+    let script = document
+        .select(&selector)
+        .next()
+        .ok_or(ShopError::Parse)?
+        .inner_html();
+    let state: Value = serde_json::from_str(&script).map_err(|_| ShopError::Parse)?;
+    let result = state["responses"]
+        .as_object()
+        .into_iter()
+        .flatten()
+        .flat_map(|(_, response)| response["results"].as_array().into_iter().flatten())
+        .find(|result| result["hits"].is_array() && result["nbHits"].is_u64())
+        .ok_or(ShopError::Parse)?;
+    let count = result["nbHits"]
+        .as_u64()
+        .filter(|n| *n <= 10000)
+        .ok_or(ShopError::Parse)?;
+    if !(1..=500).contains(&page) {
+        return Err(ShopError::Parse);
+    }
+    // Extract the public product links rather than using the search service's API.
+    let urls = collection_products(body, keys)
+        .into_iter()
+        .map(String::from)
         .collect();
-    if let Some(key) = keys.first() {
-        let slug = collection_slug(key);
-        if !slug.is_empty()
-            && slug.len() <= 160
-            && slug
-                .bytes()
-                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-')
-        {
-            let collection = Url::parse(&format!("https://www.eneba.com/de/store/{slug}-games"))
-                .map_err(|_| ShopError::Parse)?;
-            match client.get(&collection, 2 * 1024 * 1024, false).await {
-                Ok(body) => {
-                    for url in collection_products(&body, keys) {
-                        if !urls.contains(&url) {
-                            urls.push(url);
-                        }
-                    }
-                }
-                Err(ShopError::NotFound) => {}
-                Err(error) => return Err(error),
-            }
-        }
-    }
-    for url in search_urls(keys) {
-        if !urls.contains(&url) {
-            urls.push(url);
-        }
-    }
-    urls.sort_by_key(|url| {
-        if url.path().ends_with("-global") {
-            0
-        } else if url.path().ends_with("-europe") {
-            1
-        } else {
-            2
-        }
-    });
-    let mut products = Vec::new();
-    for url in urls.into_iter().take(4) {
-        match client.get(&url, 2 * 1024 * 1024, false).await {
-            Ok(body) => {
-                let product = parse(&url, &body)?;
-                if keys.iter().any(|key| {
-                    *key == title_key(&product.title)
-                        || collection_slug(key) == collection_slug(&title_key(&product.title))
-                }) {
-                    products.push((url.to_string(), product));
-                    if products.len() >= 2 {
-                        break;
-                    }
-                }
-            }
-            Err(ShopError::NotFound) => {}
-            Err(error) => return Err(error),
-        }
-    }
-    Ok(products)
+    Ok(SearchPage {
+        urls,
+        next_page: ((page as u64) * 20 < count).then_some(page + 1),
+    })
 }
 
 fn collection_slug(key: &str) -> String {
@@ -387,13 +394,53 @@ fn collection_products(body: &str, keys: &[String]) -> Vec<Url> {
                 .any(|k| *k == title || collection_slug(k) == collection_slug(title))
                 .then_some(url)
         })
-        .take(30)
+        .map(String::from)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .filter_map(|raw| Url::parse(&raw).ok())
         .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn public_search_pages_continue_until_every_region_is_processed() {
+        let state =
+            serde_json::json!({"responses":{"fixture":{"results":[{"nbHits":41,"hits":[]}]}}});
+        let html = format!(
+            r#"<script id="__ALGOLIA_STATE__">{state}</script>
+            <a href="/de/xbox-forza-horizon-5-pc-xbox-live-key-argentina">Argentina</a>
+            <a href="/de/xbox-forza-horizon-5-pc-xbox-live-key-turkey">Turkey</a>
+            <a href="/de/xbox-forza-horizon-5-premium-edition-pc-xbox-live-key-global">Different edition</a>"#
+        );
+        let keys = ["forza horizon 5".into()];
+        for (page, next) in [(1, Some(2)), (2, Some(3)), (3, None)] {
+            let result = parse_search_page(&html, &keys, page).unwrap();
+            assert_eq!(result.next_page, next);
+            assert_eq!(result.urls.len(), 2);
+            assert!(result.urls.iter().any(|url| url.ends_with("-argentina")));
+        }
+        assert!(parse_search_page("<html>Changed source response</html>", &keys, 1).is_err());
+        assert!(parse_search_page(&html, &keys, 0).is_err());
+    }
+    #[test]
+    fn collection_keeps_all_distinct_regional_variants() {
+        let mut html = String::new();
+        for region in 0..40 {
+            let link = format!(
+                "<a href='/xbox-forza-horizon-5-pc-xbox-live-key-country-{region}'>Game</a>"
+            );
+            html.push_str(&link);
+            html.push_str(&link);
+        }
+        let urls = collection_products(&html, &["forza horizon 5".into()]);
+        assert_eq!(
+            urls.len(),
+            40,
+            "duplicates must not crowd out regional variants"
+        );
+    }
     #[test]
     fn public_collection_extracts_matching_game_across_platform_spellings() {
         let html = r#"<a href="/xbox-starfield-pc-xbox-series-x-s-xbox-live-key-global">Starfield</a>

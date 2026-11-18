@@ -196,6 +196,68 @@ async fn request(
 }
 
 #[tokio::test]
+async fn regional_discovery_preserves_all_countries_and_leaves_room_for_manual_links() {
+    let f = Fixture::new().await;
+    let (_, result) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":1,"platform_id":169}),
+        )
+        .await;
+    let id = result["item"]["id"].as_str().unwrap();
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(
+            sqlx::sqlite::SqliteConnectOptions::new()
+                .filename(f.config.data_dir.join("keyhunter.db")),
+        )
+        .await
+        .unwrap();
+    for i in 0..21 {
+        let region = ["Germany", "Global", "Europe", "United States", "Argentina"][i % 5];
+        let product = json!({"id":format!("fixture{i}"),"name":"Example","title":"Example","platform_ids":[169],
+            "key_game":true,"region":region,"allowed":[],"blocked":[],"purchase_country":"DE",
+            "offers":[{"id":format!("quote{i}"),"cents":1000+i,"seller":null}],"availability":"in_stock"});
+        sqlx::query("INSERT INTO offer_link(wish_id,source,url,latest,auto_discovered) VALUES(?,'eneba',?,?,1)")
+            .bind(id).bind(format!("https://www.eneba.com/de/xbox-example-xbox-live-key-country-{i}"))
+            .bind(product.to_string()).execute(&pool).await.unwrap();
+    }
+    let path = format!("/api/v1/wishlist/{id}/offers");
+    for country in ["DE", "US"] {
+        let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
+        settings["target_country"] = json!(country);
+        assert_eq!(
+            f.call("PUT", "/api/v1/settings", settings).await.0,
+            StatusCode::OK
+        );
+        let (status, offers) = f.call("GET", &path, Value::Null).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(offers["links"].as_array().unwrap().len(), 21);
+        assert_eq!(
+            offers["links"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|l| l["quotes"].as_array().unwrap().len())
+                .sum::<usize>(),
+            21
+        );
+        assert_eq!(offers["target_country"], country);
+    }
+    assert_eq!(
+        f.call(
+            "POST",
+            &path,
+            json!({"url":"https://www.eneba.com/de/xbox-example-xbox-live-key-japan"})
+        )
+        .await
+        .0,
+        StatusCode::ACCEPTED
+    );
+}
+
+#[tokio::test]
 async fn catalog_errors_do_not_become_empty_results_and_fresh_cache_works_offline() {
     let f = Fixture::new().await;
     let (status, _, _) = request(
