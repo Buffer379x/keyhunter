@@ -9,16 +9,16 @@
   <Project>https://github.com/Buffer379x/keyhunter</Project>
   <Overview>Private Xbox wishlist with IGDB search, Eneba and Driffle offers, price history and ntfy alerts. Pull the linux/amd64 image from GitHub Container Registry. See the repository installation guide.</Overview>
   <Category>GameServers: Other:</Category>
-  <WebUI/>
+  <WebUI>http://[IP]:[PORT:3000]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/Buffer379x/keyhunter/main/deploy/unraid/keyhunter.xml</TemplateURL>
   <Icon/>
   <ExtraParams>--security-opt=no-new-privileges:true --cap-drop=ALL --read-only --tmpfs /tmp:size=16m,mode=1777 --memory=512m</ExtraParams>
   <PostArgs/>
-  <Config Name="Web port" Target="3000" Default="3000" Mode="tcp" Description="Internal HTTP. Use a private HTTPS NPM origin in production; no public port forwarding." Type="Port" Display="always" Required="true" Mask="false">3000</Config>
+  <Config Name="Web port" Target="3000" Default="3000" Mode="tcp" Description="HTTP for a private LAN IP. For HTTPS use a reverse proxy." Type="Port" Display="always" Required="true" Mask="false">3000</Config>
   <Config Name="App data" Target="/data" Default="" Mode="rw" Description="Local appdata directory; owner UID/GID must match the container (default 10001:10001). SQLite must not use SMB/NFS. Choose the local pool." Type="Path" Display="always" Required="true" Mask="false"/>
   <Config Name="Configuration" Target="/config" Default="" Mode="ro" Description="Optional protected config directory containing ntfy.env. Restrict file access to the container UID. Never paste secrets into template variables." Type="Path" Display="always" Required="false" Mask="false"/>
   <Config Name="ntfy configuration file" Target="KEYHUNTER_NTFY_ENV_FILE" Default="/config/ntfy.env" Description="Optional owner-readable file containing NTFY_URL and NTFY_TOKEN." Type="Variable" Display="advanced" Required="false" Mask="false">/config/ntfy.env</Config>
   <Config Name="Daily jobs per shop" Target="KEYHUNTER_SHOP_DAILY_JOBS" Default="120" Description="Daily cap for product and discovery jobs per shop. One job makes up to three public requests." Type="Variable" Display="advanced" Required="false" Mask="false">120</Config>
-  <Config Name="Private HTTPS origin" Target="KEYHUNTER_ORIGIN" Default="" Description="Exact HTTPS origin of your reverse proxy, without a trailing slash or path." Type="Variable" Display="always" Required="true" Mask="false"/>
-  <Config Name="Allow loopback HTTP" Target="KEYHUNTER_ALLOW_INSECURE_HTTP" Default="false" Description="Keep false behind an HTTPS proxy. HTTP is supported only for explicitly allowed loopback development." Type="Variable" Display="advanced" Required="true" Mask="false">false</Config>
+  <Config Name="Web origin (optional)" Target="KEYHUNTER_ORIGIN" Default="" Description="Leave blank to use the browser host. Set a complete HTTP(S) URL to pin one origin." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Allow LAN HTTP" Target="KEYHUNTER_ALLOW_INSECURE_HTTP" Default="true" Description="Allows sign-in and changes over HTTP on private IP addresses when no origin is pinned. Set false for HTTPS only." Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
 </Container>

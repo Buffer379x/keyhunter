@@ -1,10 +1,11 @@
 use anyhow::{Context, Result, bail};
 use std::{env, net::SocketAddr, path::PathBuf};
+use url::{Host, Url};
 
 #[derive(Clone)]
 pub struct Config {
     pub bind: SocketAddr,
-    pub origin: String,
+    pub origin: Option<String>,
     pub data_dir: PathBuf,
     pub frontend_dir: PathBuf,
     pub bootstrap_file: Option<PathBuf>,
@@ -19,9 +20,9 @@ impl Config {
                 .parse()
                 .context("Invalid KEYHUNTER_BIND")?,
             origin: env::var("KEYHUNTER_ORIGIN")
-                .unwrap_or_else(|_| "http://localhost:3000".into())
-                .trim_end_matches('/')
-                .to_string(),
+                .ok()
+                .filter(|origin| !origin.is_empty())
+                .map(|origin| origin.trim_end_matches('/').to_string()),
             data_dir: env::var_os("KEYHUNTER_DATA_DIR")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| "data".into()),
@@ -30,8 +31,8 @@ impl Config {
                 .unwrap_or_else(|| "../frontend/dist".into()),
             bootstrap_file: env::var_os("KEYHUNTER_BOOTSTRAP_FILE").map(PathBuf::from),
             allow_insecure_http: match env::var("KEYHUNTER_ALLOW_INSECURE_HTTP").as_deref() {
-                Ok("true") => true,
-                Ok("false") | Err(_) => false,
+                Ok("true") | Err(_) => true,
+                Ok("false") => false,
                 _ => bail!("KEYHUNTER_ALLOW_INSECURE_HTTP must be true or false"),
             },
         };
@@ -40,34 +41,32 @@ impl Config {
     }
 
     pub fn validate(&self) -> Result<()> {
-        let url = url::Url::parse(&self.origin).context("Invalid KEYHUNTER_ORIGIN")?;
-        if !url.username().is_empty()
-            || url.password().is_some()
-            || url.query().is_some()
-            || url.fragment().is_some()
-            || url.path() != "/"
-            || url.host_str().is_none()
-            || url.origin().ascii_serialization() != self.origin
-        {
-            bail!("KEYHUNTER_ORIGIN must be an exact origin without path or credentials");
-        }
-        match url.scheme() {
-            "https" => {}
-            "http"
-                if self.allow_insecure_http
-                    && matches!(
-                        url.host_str(),
-                        Some("localhost" | "127.0.0.1" | "[::1]" | "::1")
-                    ) => {}
-            _ => bail!("Use HTTPS, or explicitly allow HTTP for loopback development"),
+        if let Some(origin) = &self.origin {
+            let url = parse_origin(origin).context(
+                "KEYHUNTER_ORIGIN must be an exact HTTP(S) origin without a path or credentials",
+            )?;
+            if url.scheme() == "http" && !self.allow_insecure_http {
+                bail!("KEYHUNTER_ORIGIN uses HTTP but KEYHUNTER_ALLOW_INSECURE_HTTP is false");
+            }
         }
         if !self.frontend_dir.join("index.html").is_file() {
             bail!("Frontend build missing: build frontend/dist before starting KEYHUNTER");
         }
         Ok(())
     }
+}
 
-    pub fn secure_cookie(&self) -> bool {
-        self.origin.starts_with("https://")
+pub(crate) fn parse_origin(origin: &str) -> Option<Url> {
+    let url = Url::parse(origin).ok()?;
+    (matches!(url.scheme(), "http" | "https") && url.origin().ascii_serialization() == origin)
+        .then_some(url)
+}
+
+pub(crate) fn is_local_http_origin(origin: &Url) -> bool {
+    match origin.host() {
+        Some(Host::Domain("localhost")) => true,
+        Some(Host::Ipv4(ip)) => ip.is_private() || ip.is_loopback(),
+        Some(Host::Ipv6(ip)) => ip.is_unique_local() || ip.is_loopback(),
+        _ => false,
     }
 }

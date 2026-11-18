@@ -1,12 +1,20 @@
 # Installation und Betrieb
 
-## Unraid und HTTPS
+## Unraid im LAN
 
 1. Lade das [Unraid-Template](https://raw.githubusercontent.com/Buffer379x/keyhunter/main/deploy/unraid/keyhunter.xml) und lege es im Ordner `/boot/config/plugins/dockerMan/templates-user` ab. Wähle in der Docker-Ansicht **Add Container** und das KEYHUNTER-Template.
 2. Das Feld **Repository** enthält `ghcr.io/buffer379x/keyhunter:latest`. Unraid lädt das Image beim Anwenden aus dem [GitHub-Package](https://github.com/users/Buffer379x/packages/container/package/keyhunter).
 3. Wähle ein lokales Appdata-Verzeichnis für `/data` mit Schreibzugriff für UID/GID `10001:10001`. Nutze für SQLite ein lokales Dateisystem. Optional bindest du ein Verzeichnis für die ntfy-Datei als `/config` schreibgeschützt ein.
-4. Richte einen HTTPS-Reverse-Proxy (etwa Nginx Proxy Manager) für den internen App-Port 3000 ein. Setze `KEYHUNTER_ORIGIN` exakt auf die HTTPS-Adresse ohne Pfad oder abschließenden Schrägstrich und verwende dieselbe Adresse für die WebUI. Beschränke den Zugriff auf LAN oder VPN.
-5. Starte den Container. Verwende den Code aus dem gemounteten Datenverzeichnis `bootstrap-token`, um deinen Eigentümerzugang einzurichten. In der App lässt sich anschließend ein Zielland für Angebote wählen.
+4. Öffne die WebUI in Unraid. Bei eigener LAN-IP erreichst du sie direkt unter `http://<Container-IP>:3000`. Im Bridge-Modus verwendest du die IP des Unraid-Hosts und den veröffentlichten Port.
+5. Verwende den Code aus der Datei `bootstrap-token` im gemounteten Datenverzeichnis, um deinen Eigentümerzugang einzurichten.
+
+### Webadresse und HTTPS
+
+`KEYHUNTER_ORIGIN` ist optional. Leer oder weggelassen funktioniert HTTP auf privaten IPv4- und IPv6-Adressen sowie auf Loopback. Verwende HTTP nur in einem vertrauenswürdigen LAN oder VPN. Passphrase, Sitzung und Zugangsdaten werden dabei ohne TLS übertragen.
+
+Für HTTPS leite mit einem Reverse Proxy an Port 3000 weiter. Der Proxy muss den ursprünglichen Host einschließlich eines nicht standardmäßigen Ports weiterreichen. Falls der Proxy den Host umschreibt oder du genau eine Adresse erlauben möchtest, setze `KEYHUNTER_ORIGIN` auf die vollständige Browser-URL ohne Pfad. Wenn HTTP-Anmeldung und Änderungen gesperrt bleiben sollen, setze `KEYHUNTER_ALLOW_INSECURE_HTTP=false`.
+
+Bei einem Upgrade auf 0.2.2 kannst du für den direkten Zugriff per LAN-IP eine alte `KEYHUNTER_ORIGIN` entfernen oder leeren. Falls `KEYHUNTER_ALLOW_INSECURE_HTTP` auf `false` steht, setze es auf `true` oder entferne es. Das Datenvolume bleibt erhalten.
 
 Bei einem bereits eingerichteten Container kannst du das Feld **Repository** direkt auf `ghcr.io/buffer379x/keyhunter:latest` ändern. Behalte das Datenvolume und die lokale Konfiguration. Unraids Funktion **Check for Updates** erkennt neue Images unter diesem Tag. Für eine feste Version lässt sich `latest` durch eine Versionsnummer ersetzen.
 
@@ -33,9 +41,9 @@ Stoppe den Container vor dem Kopieren des vollständigen Datenverzeichnisses, ei
 
 ## Offline-Installation
 
-Die GitHub-Releases enthalten zugehörige Image-Archive mit Prüfsumme. Importiere das gewünschte Archiv mit `docker load -i DATEI.tar.gz` und verwende die darin enthaltene lokale Image-Referenz, zum Beispiel `keyhunter:0.2.1`. Für reguläre Updates über GitHub verwende die GHCR-Referenz im Template.
+Die GitHub-Releases enthalten zugehörige Image-Archive mit Prüfsumme. Importiere das gewünschte Archiv mit `docker load -i DATEI.tar.gz` und verwende die darin enthaltene lokale Image-Referenz, zum Beispiel `keyhunter:0.2.2`. Für reguläre Updates über GitHub verwende die GHCR-Referenz im Template.
 
 
 ## GitHub-Veröffentlichung
 
-Verwende als GitHub-Release-Titel die Versionsnummer, zum Beispiel `0.2.1`. Die Veröffentlichungs-Action erstellt den numerischen OCI-Tag und aktualisiert `latest` für den aktuellen stabilen Release. Das Package benötigt die Sichtbarkeit **Public** für Abrufe ohne Anmeldung und unter **Manage Actions access** Schreibzugriff für das zugehörige Repository.
+Verwende als GitHub-Release-Titel die Versionsnummer, zum Beispiel `0.2.2`. Die Veröffentlichungs-Action erstellt den numerischen OCI-Tag und aktualisiert `latest` für den aktuellen stabilen Release. Das Package benötigt die Sichtbarkeit **Public** für Abrufe ohne Anmeldung und unter **Manage Actions access** Schreibzugriff für das zugehörige Repository.

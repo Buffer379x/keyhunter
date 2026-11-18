@@ -3,7 +3,7 @@ services:
     image: "${KEYHUNTER_IMAGE:-ghcr.io/buffer379x/keyhunter:latest}"
     user: "${KEYHUNTER_UID:-1000}:${KEYHUNTER_GID:-1000}"
     environment:
-      KEYHUNTER_ORIGIN: "${KEYHUNTER_ORIGIN:-http://localhost:3000}"
+      KEYHUNTER_ORIGIN: "${KEYHUNTER_ORIGIN:-}"
       KEYHUNTER_ALLOW_INSECURE_HTTP: "${KEYHUNTER_ALLOW_INSECURE_HTTP:-true}"
       KEYHUNTER_NTFY_ENV_FILE: /config/ntfy.env
       KEYHUNTER_SHOP_DAILY_JOBS: "${KEYHUNTER_SHOP_DAILY_JOBS:-120}"

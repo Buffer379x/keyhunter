@@ -105,7 +105,7 @@ impl Fixture {
         std::fs::write(frontend.join("index.html"), "<title>fixture</title>").unwrap();
         let config = Config {
             bind: "127.0.0.1:3000".parse().unwrap(),
-            origin: "http://localhost:3000".into(),
+            origin: Some("http://localhost:3000".into()),
             data_dir: dir.path().join("data"),
             frontend_dir: frontend,
             bootstrap_file: None,

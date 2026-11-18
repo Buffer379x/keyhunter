@@ -27,7 +27,7 @@ impl Fixture {
         .unwrap();
         let config = Config {
             bind: "127.0.0.1:3000".parse().unwrap(),
-            origin: "http://localhost:3000".into(),
+            origin: Some("http://localhost:3000".into()),
             data_dir: dir.path().join("data"),
             frontend_dir: frontend,
             bootstrap_file: None,
@@ -406,7 +406,7 @@ async fn unknown_api_paths_are_not_spa_successes_and_health_is_available() {
 async fn https_sessions_are_secure_and_forwarded_headers_cannot_bypass_origin() {
     let f = Fixture::new().await;
     let mut config = f.config.clone();
-    config.origin = "https://keyhunter.example".into();
+    config.origin = Some("https://keyhunter.example".into());
     config.allow_insecure_http = false;
     let app = create_app(config).await.unwrap();
     let body = json!({"token":f.token.trim(),"password":"correct horse battery staple"});
@@ -496,16 +496,16 @@ async fn database_contains_hashes_and_current_sqlite_not_passwords_or_session_co
 }
 
 #[tokio::test]
-async fn insecure_nonloopback_or_path_origins_are_rejected() {
+async fn origin_pins_require_a_complete_url_without_path_or_credentials() {
     let f = Fixture::new().await;
     for origin in [
-        "http://keyhunter.example",
+        "192.168.50.9",
         "https://keyhunter.example/path",
         "https://user:pass@keyhunter.example",
         "https://keyhunter.example?x=1",
     ] {
         let mut config = f.config.clone();
-        config.origin = origin.into();
+        config.origin = Some(origin.into());
         assert!(config.validate().is_err());
     }
 }
@@ -599,4 +599,133 @@ async fn igdb_credentials_are_write_only_and_protected() {
     .await;
     assert_eq!(data["igdb"]["configured"], false);
     assert!(data["igdb"].get("client_id").is_none() && data["igdb"].get("client_secret").is_none());
+}
+
+#[tokio::test]
+async fn automatic_origin_supports_lan_http_and_proxy_https() {
+    const LAN: &str = "192.168.50.9:3000";
+    const WEB: &str = "keyhunter.example";
+    let f = Fixture::new().await;
+    let mut config = f.config.clone();
+    config.origin = None;
+    let app = create_app(config.clone()).await.unwrap();
+    let setup = json!({"token":f.token.trim(),"password":"correct horse battery staple"});
+    let setup_request = |host: &str, origin: &str| {
+        Request::builder()
+            .method("POST")
+            .uri("/api/v1/setup")
+            .header("Host", host)
+            .header("Origin", origin)
+            .header("Content-Type", "application/json")
+    };
+
+    for (host, origin) in [
+        (LAN, "https://different.example"),
+        (LAN, "http://192.168.50.9:4000"),
+        (LAN, "null"),
+        ("different.example", "http://different.example"),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                setup_request(host, origin)
+                    .header("X-Forwarded-Host", LAN)
+                    .header("X-Forwarded-Proto", "https")
+                    .body(Body::from(setup.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+    let response = app
+        .clone()
+        .oneshot(
+            setup_request(LAN, "http://192.168.50.9:3000")
+                .body(Body::from(setup.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let cookie = response.headers()["set-cookie"]
+        .to_str()
+        .unwrap()
+        .to_owned();
+    assert!(
+        cookie.contains("HttpOnly")
+            && cookie.contains("SameSite=Strict")
+            && !cookie.contains("; Secure")
+    );
+    let cookie = cookie.split(';').next().unwrap();
+    let bytes = to_bytes(response.into_body(), 1024).await.unwrap();
+    let session: Value = serde_json::from_slice(&bytes).unwrap();
+    let csrf = session["csrf_token"].as_str().unwrap();
+
+    for (csrf, status) in [
+        ("invalid", StatusCode::FORBIDDEN),
+        (csrf, StatusCode::NO_CONTENT),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/api/v1/session")
+                    .header("Host", LAN)
+                    .header("Origin", "http://192.168.50.9:3000")
+                    .header("Cookie", cookie)
+                    .header("X-CSRF-Token", csrf)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), status);
+    }
+    let login = r#"{"password":"correct horse battery staple"}"#;
+    let secure_login = |site: &str| {
+        Request::builder()
+            .method("POST")
+            .uri("/api/v1/session")
+            .header("Host", WEB)
+            .header("Origin", "https://keyhunter.example")
+            .header("Sec-Fetch-Site", site)
+            .header("Content-Type", "application/json")
+            .body(Body::from(login))
+            .unwrap()
+    };
+    assert_eq!(
+        app.clone()
+            .oneshot(secure_login("same-site"))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::FORBIDDEN
+    );
+    let response = app.oneshot(secure_login("same-origin")).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(
+        response.headers()["set-cookie"]
+            .to_str()
+            .unwrap()
+            .contains("; Secure")
+    );
+
+    config.allow_insecure_http = false;
+    let https_only = create_app(config).await.unwrap();
+    let response = https_only
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/session")
+                .header("Host", LAN)
+                .header("Origin", "http://192.168.50.9:3000")
+                .header("Content-Type", "application/json")
+                .body(Body::from(login))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }

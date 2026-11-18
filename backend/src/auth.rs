@@ -3,7 +3,7 @@ use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier, password_ha
 use axum::{
     Json,
     extract::State,
-    http::{HeaderMap, HeaderValue, StatusCode, header},
+    http::{HeaderMap, HeaderValue, StatusCode, header, uri::Authority},
     response::{IntoResponse, Response},
 };
 use serde::Deserialize;
@@ -15,16 +15,49 @@ pub(crate) struct Session {
     pub csrf_token: String,
 }
 
-pub(crate) fn require_origin(state: &Shared, headers: &HeaderMap) -> ApiResult<()> {
-    if headers.get(header::ORIGIN).and_then(|h| h.to_str().ok())
-        != Some(state.config.origin.as_str())
+pub(crate) fn require_origin(state: &Shared, headers: &HeaderMap) -> ApiResult<bool> {
+    checked_transport(&state.config, headers).ok_or(ApiError(
+        StatusCode::FORBIDDEN,
+        "Anfrage von einer fremden oder fehlenden Origin abgewiesen.",
+    ))
+}
+
+// Returns whether the browser's validated origin uses HTTPS.
+fn checked_transport(config: &crate::config::Config, headers: &HeaderMap) -> Option<bool> {
+    use crate::config::{is_local_http_origin, parse_origin};
+
+    if headers
+        .get_all("sec-fetch-site")
+        .iter()
+        .any(|site| site != "same-origin")
     {
-        return Err(ApiError(
-            StatusCode::FORBIDDEN,
-            "Anfrage von einer fremden oder fehlenden Origin abgewiesen.",
-        ));
+        return None;
     }
-    Ok(())
+    let mut origins = headers.get_all(header::ORIGIN).iter();
+    let raw_origin = origins.next()?.to_str().ok()?;
+    if origins.next().is_some() {
+        return None;
+    }
+    let origin = parse_origin(raw_origin)?;
+    let secure = origin.scheme() == "https";
+    if !secure && !config.allow_insecure_http {
+        return None;
+    }
+    if let Some(pinned) = &config.origin {
+        return (pinned == raw_origin).then_some(secure);
+    }
+
+    let mut hosts = headers.get_all(header::HOST).iter();
+    let host = hosts.next()?.to_str().ok()?.parse::<Authority>().ok()?;
+    if hosts.next().is_some() || host.as_str().contains('@') {
+        return None;
+    }
+    // Use the incoming Host, never forwarded headers. Reverse proxies must preserve it.
+    let incoming = url::Url::parse(&format!("{}://{}", origin.scheme(), host)).ok()?;
+    if incoming.origin() != origin.origin() || (!secure && !is_local_http_origin(&origin)) {
+        return None;
+    }
+    Some(secure)
 }
 
 pub(crate) async fn authenticate(state: &Shared, headers: &HeaderMap) -> ApiResult<Session> {
@@ -58,8 +91,8 @@ pub(crate) fn require_csrf(
     state: &Shared,
     headers: &HeaderMap,
     session: &Session,
-) -> ApiResult<()> {
-    require_origin(state, headers)?;
+) -> ApiResult<bool> {
+    let secure = require_origin(state, headers)?;
     let supplied = headers
         .get("X-CSRF-Token")
         .and_then(|h| h.to_str().ok())
@@ -70,7 +103,7 @@ pub(crate) fn require_csrf(
             "Sicherheitsprüfung fehlgeschlagen. Seite neu laden.",
         ));
     }
-    Ok(())
+    Ok(secure)
 }
 
 async fn reserve_attempt(state: &Shared) -> ApiResult<()> {
@@ -85,7 +118,7 @@ async fn reserve_attempt(state: &Shared) -> ApiResult<()> {
     Ok(())
 }
 
-async fn issue_session(state: &Shared, status: StatusCode) -> ApiResult<Response> {
+async fn issue_session(state: &Shared, status: StatusCode, secure: bool) -> ApiResult<Response> {
     let token = random_token().map_err(|_| internal())?;
     let csrf = random_token().map_err(|_| internal())?;
     let mut tx = state.pool.begin().await?;
@@ -102,11 +135,7 @@ async fn issue_session(state: &Shared, status: StatusCode) -> ApiResult<Response
     tx.commit().await?;
     let cookie = format!(
         "keyhunter_session={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200{}",
-        if state.config.secure_cookie() {
-            "; Secure"
-        } else {
-            ""
-        }
+        if secure { "; Secure" } else { "" }
     );
     let mut response = (status, Json(json!({"csrf_token":csrf}))).into_response();
     response.headers_mut().insert(
@@ -133,7 +162,7 @@ pub(crate) async fn setup(
     headers: HeaderMap,
     Json(input): Json<SetupInput>,
 ) -> ApiResult<Response> {
-    require_origin(&state, &headers)?;
+    let secure = require_origin(&state, &headers)?;
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM owner")
         .fetch_one(&state.pool)
         .await?;
@@ -186,7 +215,7 @@ pub(crate) async fn setup(
             "Einrichtung bereits abgeschlossen.",
         ));
     }
-    issue_session(&state, StatusCode::CREATED).await
+    issue_session(&state, StatusCode::CREATED, secure).await
 }
 
 #[derive(Deserialize)]
@@ -198,7 +227,7 @@ pub(crate) async fn login(
     headers: HeaderMap,
     Json(input): Json<LoginInput>,
 ) -> ApiResult<Response> {
-    require_origin(&state, &headers)?;
+    let secure = require_origin(&state, &headers)?;
     reserve_attempt(&state).await?;
     if input.password.chars().count() > 128 {
         return Err(ApiError(
@@ -235,7 +264,7 @@ pub(crate) async fn login(
             "Anmeldung fehlgeschlagen.",
         ));
     }
-    issue_session(&state, StatusCode::OK).await
+    issue_session(&state, StatusCode::OK, secure).await
 }
 
 pub(crate) async fn me(State(state): State<Shared>, headers: HeaderMap) -> ApiResult<Json<Value>> {
@@ -245,7 +274,7 @@ pub(crate) async fn me(State(state): State<Shared>, headers: HeaderMap) -> ApiRe
 
 pub(crate) async fn logout(State(state): State<Shared>, headers: HeaderMap) -> ApiResult<Response> {
     let session = authenticate(&state, &headers).await?;
-    require_csrf(&state, &headers, &session)?;
+    let secure = require_csrf(&state, &headers, &session)?;
     sqlx::query("DELETE FROM session WHERE token_hash = ?")
         .bind(session.token_hash)
         .execute(&state.pool)
@@ -255,11 +284,7 @@ pub(crate) async fn logout(State(state): State<Shared>, headers: HeaderMap) -> A
         header::SET_COOKIE,
         HeaderValue::from_str(&format!(
             "keyhunter_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0{}",
-            if state.config.secure_cookie() {
-                "; Secure"
-            } else {
-                ""
-            }
+            if secure { "; Secure" } else { "" }
         ))
         .map_err(|_| internal())?,
     );
