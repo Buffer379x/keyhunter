@@ -64,3 +64,9 @@ Behalte das bestehende Datenvolume. Nach dem Update werden für gespeicherte Wü
 ## Upgrade auf 0.3.1
 
 Behalte das Datenvolume und aktualisiere `ghcr.io/buffer379x/keyhunter:latest`. Die Migration stößt für bestehende Wünsche die Suche nach weiteren regionalen Varianten an. Die Abrufe erfolgen schrittweise innerhalb des eingestellten Tagesbudgets. Deine Länderpräferenz hebt passende Landesvarianten hervor; alle gefundenen Regionen bleiben sichtbar. Suche direkt im Eingabefeld der Kopfzeile, auch von Einstellungen und Preisalarmen aus. `Ctrl K` bzw. `Cmd K` fokussiert dieses Feld. Das Plus in der Wunschliste öffnet weiterhin den separaten Hinzufügen-Dialog.
+
+## Upgrade auf 0.4.0
+
+Datenvolume beibehalten und `ghcr.io/buffer379x/keyhunter:latest` aktualisieren. Die Migration ergänzt Dienstintervalle, die Quellenregistrierung, einen Cache für offizielle Editionsinhalte und getrennte Vorschau-Markierungen. Vorhandene Wünsche, Preise, Regeln und Zugangsdaten bleiben erhalten. Produktintervalle starten mit dem bisherigen Wert von 8 Stunden; sie lassen sich unter **Einstellungen → Key-Shops** ändern. IGDB befindet sich unter **Einstellungen → Spieleindex**.
+
+Die Wunschliste lässt sich nach Hinzufügedatum, passendem Grundpreis und Alphabet sortieren; die Auswahl wird im Browser gespeichert. Unbekannte Preise stehen am Ende. Ein Klick auf eine andere Edition verändert keinen Wunschlisteneintrag. Die gespeicherte Edition bleibt gekennzeichnet und über „Zur gemerkten Edition“ erreichbar. Preisangebote werden über die Länderzeilen geöffnet; der Verlauf hat einen eigenen Schalter für Zielland bzw. alle Länder.

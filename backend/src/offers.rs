@@ -138,7 +138,7 @@ pub(crate) async fn links<'e>(
     id: &str,
     ts: i64,
 ) -> sqlx::Result<Vec<Link>> {
-    sqlx::query_as("SELECT l.*, s.enabled, s.fee_estimation_enabled, s.fee_basis_points, p.retry_at,
+    sqlx::query_as("SELECT l.*, (s.enabled AND s.configured) AS enabled, s.fee_estimation_enabled, s.fee_basis_points, p.retry_at,
         COALESCE(j.lease_until>?,0) OR COALESCE(j.due<=? AND s.enabled AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<?),0) AS queued
         FROM offer_link l JOIN source_settings s ON s.id=l.source JOIN shop_state p ON p.source=l.source
         LEFT JOIN shop_job j ON j.link_id=l.id WHERE l.wish_id=? ORDER BY l.id")
@@ -172,12 +172,18 @@ struct History {
 pub(crate) struct OffersView {
     links: Vec<Value>,
     history: Vec<History>,
+    histories: HistoryScopes,
     best_base: Option<i64>,
     best_estimate: Option<i64>,
     target_country: String,
     discovery_running: bool,
     searches: Vec<Value>,
     sources: Vec<Value>,
+}
+#[derive(Serialize)]
+struct HistoryScopes {
+    preferred: Vec<crate::history::Point>,
+    all: Vec<crate::history::Point>,
 }
 
 pub(crate) async fn list(
@@ -189,8 +195,17 @@ pub(crate) async fn list(
     let wish = wish(&state.pool, &id).await?;
     let target = target(&state.pool).await?;
     let t = now();
+    // Refresh the activity window of a currently viewed preview; saved wishes are unaffected.
+    sqlx::query("UPDATE edition_preview SET viewed_at=? WHERE track_id=? AND viewed_at<?")
+        .bind(t)
+        .bind(&id)
+        .bind(t - 300)
+        .execute(&state.pool)
+        .await?;
     let mut rows = Vec::new();
     let mut history = Vec::new();
+    let mut all_samples = Vec::new();
+    let mut preferred_samples = Vec::new();
     let mut best_base = None;
     let mut best_estimate = None;
     for link in links(&state.pool, &id, t).await? {
@@ -220,18 +235,36 @@ pub(crate) async fn list(
             })
             .collect();
         if confirmed && let Some(p) = &product {
-            let samples: Vec<(i64,String,String)> = sqlx::query_as("SELECT observed_at,offers,availability FROM price_observation
-                WHERE link_id=? AND market=? AND fingerprint=? AND activation='confirmed' ORDER BY observed_at DESC LIMIT 60")
-                .bind(link.id).bind(&target).bind(p.fingerprint()).fetch_all(&state.pool).await?;
-            for (observed_at, offers, availability) in samples {
+            let samples: Vec<(i64, String, String, String, String)> = sqlx::query_as(
+                "SELECT observed_at,offers,availability,market,activation FROM price_observation
+                WHERE link_id=? AND fingerprint=? ORDER BY observed_at DESC LIMIT 180",
+            )
+            .bind(link.id)
+            .bind(p.fingerprint())
+            .fetch_all(&state.pool)
+            .await?;
+            for (observed_at, offers, availability, market, activation) in samples {
                 let offers: Vec<shops::Quote> =
                     serde_json::from_str(&offers).map_err(|_| internal())?;
-                history.push(History {
+                let cents = offers.into_iter().map(|q| q.cents).min();
+                let sample = crate::history::Sample {
                     link_id: link.id,
                     observed_at,
-                    base_cents: offers.into_iter().map(|q| q.cents).min(),
-                    availability,
-                });
+                    base_cents: cents,
+                    availability: availability.clone(),
+                    region: p.region.clone(),
+                    source: link.source.clone(),
+                };
+                if market == target && activation == "confirmed" {
+                    preferred_samples.push(sample.clone());
+                    history.push(History {
+                        link_id: link.id,
+                        observed_at,
+                        base_cents: cents,
+                        availability,
+                    });
+                }
+                all_samples.push(sample);
             }
         }
         rows.push(json!({"id":link.id,"source":link.source,"url":link.url,
@@ -245,7 +278,7 @@ pub(crate) async fn list(
     }
     history.sort_unstable_by_key(|a| std::cmp::Reverse(a.observed_at));
     let discovery_running: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM shop_job j JOIN shop_state p ON p.source=j.source JOIN source_settings s ON s.id=j.source
-        WHERE j.link_id IS NULL AND j.wish_id IS NULL AND s.enabled AND p.retry_at<=? AND j.due<=? AND (p.budget_day!=? OR p.jobs_today<?))").bind(t).bind(t).bind(t/86400).bind(crate::jobs::daily_budget()).fetch_one(&state.pool).await?;
+        WHERE j.link_id IS NULL AND j.wish_id IS NULL AND s.enabled AND s.configured AND p.retry_at<=? AND j.due<=? AND (p.budget_day!=? OR p.jobs_today<?))").bind(t).bind(t).bind(t/86400).bind(crate::jobs::daily_budget()).fetch_one(&state.pool).await?;
     type SearchRow = (
         String,
         bool,
@@ -269,6 +302,10 @@ pub(crate) async fn list(
     Ok(Json(OffersView {
         links: rows,
         history,
+        histories: HistoryScopes {
+            preferred: crate::history::minimum_series(&preferred_samples),
+            all: crate::history::minimum_series(&all_samples),
+        },
         best_base,
         best_estimate,
         target_country: target,
@@ -299,6 +336,16 @@ pub(crate) async fn add_link(
     let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     let (shop, url) = shops::product_link(input.url.trim()).ok_or(BAD_URL)?;
+    let configured: bool = sqlx::query_scalar("SELECT configured FROM source_settings WHERE id=?")
+        .bind(shop.id())
+        .fetch_one(&state.pool)
+        .await?;
+    if !configured {
+        return Err(ApiError(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "Füge diesen Key-Shop zuerst in den Einstellungen hinzu.",
+        ));
+    }
     wish(&state.pool, &id).await?;
     let mut tx = state.pool.begin().await?;
     let link: Option<i64> = sqlx::query_scalar(
@@ -407,7 +454,7 @@ pub(crate) async fn refresh(
 pub(crate) async fn source_rows(pool: &SqlitePool) -> ApiResult<Vec<(String, Value)>> {
     type ShopStatus = (String, bool, Option<i64>, Option<String>, i64);
     let rows: Vec<ShopStatus> = sqlx::query_as(
-        "SELECT s.id,s.enabled,p.last_success,p.last_error,p.retry_at FROM shop_state p JOIN source_settings s ON s.id=p.source")
+        "SELECT s.id,(s.enabled AND s.configured),p.last_success,p.last_error,p.retry_at FROM shop_state p JOIN source_settings s ON s.id=p.source WHERE s.configured=1")
         .fetch_all(pool).await?;
     Ok(rows.into_iter().filter(|(id,..)| Shop::from_id(id).is_some()).map(|(id,enabled,success,error,retry)| {
         let status = if !enabled {"disabled"} else if retry > now() {"paused"} else if error.is_some() {"error"} else if success.is_some() {"ready"} else {"idle"};
@@ -421,7 +468,7 @@ pub(crate) async fn wishlist_prices(
 ) -> ApiResult<Json<Value>> {
     auth::authenticate(&state, &headers).await?;
     let target = target(&state.pool).await?;
-    let ids: Vec<String> = sqlx::query_scalar("SELECT id FROM wishlist_item")
+    let ids: Vec<String> = sqlx::query_scalar("SELECT id FROM wishlist_item w WHERE NOT EXISTS(SELECT 1 FROM edition_preview p WHERE p.track_id=w.id)")
         .fetch_all(&state.pool)
         .await?;
     let mut prices = serde_json::Map::new();

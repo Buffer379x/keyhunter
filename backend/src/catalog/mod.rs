@@ -1,3 +1,4 @@
+pub mod contents;
 pub mod provider;
 use crate::{ApiError, ApiResult, Shared, auth, internal, now};
 use axum::{
@@ -246,5 +247,73 @@ pub(crate) async fn editions(
                 g.selection_allowed() && g.platforms.iter().any(|p| p.id == 169 || p.id == 49)
             })
             .collect(),
+    ))
+}
+
+pub(crate) async fn edition_comparison(
+    State(state): State<Shared>,
+    Path(id): Path<i64>,
+    headers: HeaderMap,
+    Query(query): Query<PlatformQuery>,
+) -> ApiResult<Json<Value>> {
+    auth::authenticate(&state, &headers).await?;
+    if !platform_valid(query.platform) {
+        return Err(ApiError(
+            StatusCode::BAD_REQUEST,
+            "Nicht unterstützte Plattform.",
+        ));
+    }
+    let game = load_game(&state, id).await?;
+    let parent = game.version_parent.unwrap_or(id);
+    if let Some((payload, at)) = sqlx::query_as::<_, (String, i64)>(
+        "SELECT payload,fetched_at FROM edition_contents_cache WHERE parent_id=? AND platform_id=?",
+    )
+    .bind(parent)
+    .bind(query.platform)
+    .fetch_optional(&state.pool)
+    .await?
+        && let Ok(entries) = serde_json::from_str::<Vec<contents::EditionContent>>(&payload)
+    {
+        let ttl = if entries.iter().all(|e| e.status == "verified") {
+            86400
+        } else {
+            900
+        };
+        if at > now() - ttl {
+            return Ok(Json(
+                json!({"editions":entries,"fetched_at":at,"cached":true}),
+            ));
+        }
+    }
+    let games = state
+        .catalog
+        .editions(parent)
+        .await
+        .map_err(provider_error)?;
+    let mut games: Vec<_> = games
+        .into_iter()
+        .filter(|g| g.selection_allowed() && g.platforms.iter().any(|p| p.id == query.platform))
+        .take(30)
+        .collect();
+    if !games.iter().any(|g| g.igdb_id == game.igdb_id)
+        && game.platforms.iter().any(|p| p.id == query.platform)
+    {
+        games.push(game);
+    }
+    save_games(&state, &games).await?;
+    let mut content_games = games.clone();
+    for game in &mut content_games {
+        game.platforms.retain(|p| p.id == query.platform);
+    }
+    let entries = state
+        .catalog
+        .edition_contents(&content_games)
+        .await
+        .unwrap_or_else(|_| contents::unknown(&games, "unavailable"));
+    let at = now();
+    sqlx::query("INSERT INTO edition_contents_cache VALUES(?,?,?,?) ON CONFLICT(parent_id,platform_id) DO UPDATE SET payload=excluded.payload,fetched_at=excluded.fetched_at")
+        .bind(parent).bind(query.platform).bind(serde_json::to_string(&entries).map_err(|_|internal())?).bind(at).execute(&state.pool).await?;
+    Ok(Json(
+        json!({"editions":entries,"fetched_at":at,"cached":false}),
     ))
 }

@@ -14,6 +14,7 @@ test('owner can set up, save service fees, use keyboard dialog, and log in again
   await expect(page.locator('.target-pill')).toHaveText(savedCountryLabel);
   await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
   await page.getByLabel('Zielland', { exact: true }).selectOption('DE');
+  await page.getByRole('tab', { name: 'Key-Shops', exact:true }).click();
   const eneba = page.getByRole('article', { name: 'Eneba' });
   await eneba.getByLabel('Geschätzte Gebühren berücksichtigen').check();
   await eneba.getByLabel('Geschätzte Gebühren (%)', { exact: true }).fill('2,50');
@@ -21,7 +22,9 @@ test('owner can set up, save service fees, use keyboard dialog, and log in again
   await expect(page.getByRole('status')).toHaveText('Einstellungen gespeichert.');
   await page.reload();
   await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
+  await page.getByRole('tab', { name: 'Allgemein', exact:true }).click();
   await expect(page.getByLabel('Zielland', { exact: true })).toHaveValue('DE');
+  await page.getByRole('tab', { name: 'Key-Shops', exact:true }).click();
   await expect(eneba.getByLabel('Geschätzte Gebühren (%)', { exact: true })).toHaveValue('2,50');
   const help = page.getByRole('button', { name: 'Wie werden Gebühren behandelt?' });
   await help.focus(); await page.keyboard.press('Enter');
@@ -48,6 +51,7 @@ test('owner can set up, save service fees, use keyboard dialog, and log in again
 test('owner replaces and removes the IGDB credentials from settings', async ({ page }) => {
   await signInToFixture(page);
   await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
+  await page.getByRole('tab', { name: 'Spieleindex', exact:true }).click();
   const igdb = page.getByRole('region', { name: 'IGDB-Zugang' });
   await igdb.getByLabel('Client-ID', { exact: true }).fill('browser-fixture-client');
   await igdb.getByLabel('Client Secret', { exact: true }).fill('browser-fixture-secret');

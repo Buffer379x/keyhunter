@@ -6,7 +6,7 @@ import Wishlist from './features/Wishlist';
 import CatalogSearch from './features/CatalogSearch';
 import type { WishlistItem } from './api';
 import PriceAlerts from './features/PriceAlerts';
-import IgdbAccess from './features/IgdbAccess';
+import SettingsPage from './features/SettingsPage';
 import { shopNames } from './features/Offers';
 import { Brand, Button, Icon, InfoDialog, Notice } from './components';
 import { formatFeePercent, parseFeePercent } from './fees';
@@ -16,12 +16,6 @@ function routePage(): Page {
   const view = new URL(window.location.href).searchParams.get('view');
   return view === 'settings' || view === 'alerts' ? view : 'wishlist';
 }
-const sourceStates: Record<string, string> = {
-  ready: 'Abruf erfolgreich', idle: 'Bereit für die Angebotssuche', paused: 'Abrufe pausiert', error: 'Letzter Abruf fehlgeschlagen',
-  configured: 'Zugang konfiguriert', not_configured: 'IGDB-Zugang noch nicht eingerichtet',
-  invalid_credentials: 'Zugangsdaten abgewiesen',
-  disabled: 'Deaktiviert', rate_limited: 'Abruf pausiert · Limit', unavailable: 'Quelle vorübergehend nicht verfügbar',
-};
 
 type Screen = 'loading' | 'setup' | 'login' | 'ready' | 'offline';
 const errorText = (error: unknown) => error instanceof Error ? error.message : 'Ein Fehler ist aufgetreten.';
@@ -117,6 +111,7 @@ export default function App() {
     if (next === 'settings') { url.searchParams.set('view', 'settings'); refreshSources(); }
     else if (next === 'alerts') url.searchParams.set('view', 'alerts');
     else url.searchParams.delete('view');
+    if (next !== 'settings') url.searchParams.delete('section');
     if (url.href !== window.location.href) window.history.pushState(null, '', url);
   }, [refreshSources]);
   useEffect(() => {
@@ -166,29 +161,18 @@ export default function App() {
         <button className={`nav-item ${page === 'settings' ? 'active' : ''}`} aria-current={page === 'settings' ? 'page' : undefined} onClick={() => navigate('settings')}><Icon name="settings" />Einstellungen</button>
       </nav>
       <div className="sidebar-platform"><p>Plattformen</p><div className="platform-selected"><Icon name="game" /><span>Xbox</span><span>✓</span></div><small>Series X|S · Xbox One</small></div>
-      <div className="sidebar-bottom"><span className="status-dot" /><small>KeyHunter <span className="version">0.3.1</span></small><Button secondary className="logout" aria-label="Abmelden" title="Abmelden" onClick={() => void logout()} disabled={busy}><Icon name="logout" /></Button></div>
+      <div className="sidebar-bottom"><span className="status-dot" /><small>KeyHunter <span className="version">0.4.0</span></small><Button secondary className="logout" aria-label="Abmelden" title="Abmelden" onClick={() => void logout()} disabled={busy}><Icon name="logout" /></Button></div>
     </aside>
     <div className="workspace">
       <header className="topbar"><CatalogSearch inline csrf={csrf} open={searchOpen} onOpen={openSearch} onClose={closeSearch} onAdded={selectSearchResult} onError={handleProtectedError} /><div className="topbar-right"><span className="target-pill"><Icon name="globe" />{savedCountry ? targetLabel : 'Zielland wählen'}</span><button className="avatar" aria-label="Einstellungen öffnen" onClick={openSettings}>K</button></div></header>
       <main id="main-content" tabIndex={-1}>
         {error && <Notice error>{error}</Notice>}
         {message && <Notice>{message}</Notice>}
-        {page === 'wishlist' ? <Wishlist key={wishlistRevision} csrf={csrf} targetCountry={savedCountry} targetLabel={targetLabel ?? 'Noch nicht gewählt'} onSettings={openSettings} onCountChange={setWishlistCount} onError={handleProtectedError} /> : page === 'alerts' ? <PriceAlerts csrf={csrf} onError={handleProtectedError} /> : <>
-          <div className="page-heading"><div><p className="eyebrow">DEINE EINSTELLUNGEN</p><h1>Einstellungen<span className="accent-dot">.</span></h1><p>Dein Zielland, deine Quellen und deine Preisgrundlage.</p></div></div>
-          {settings && <form onSubmit={saveSettings} className="settings-form">
-            <section className="settings-card" aria-labelledby="general-title"><div className="section-number">01</div><div className="section-content"><h2 id="general-title">Region & Anzeige</h2><p>Das Zielland bestimmt die Aktivierungseignung. Angebote aus anderen Ländern bleiben sichtbar.</p><div className="field-grid"><div className="field"><label htmlFor="target-country">Zielland</label><select id="target-country" value={settings.target_country ?? ''} onChange={e => { setSettings({ ...settings, target_country: e.target.value || null }); setMessage(''); }}><option value="">Bitte wählen</option>{countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}</select></div><div className="field"><label htmlFor="currency">Vergleichswährung</label><input id="currency" readOnly value="EUR · Euro" /><span className="field-help">Preise werden in Euro verglichen.</span></div></div></div></section>
-            <section className="settings-card" aria-labelledby="sources-title"><div className="section-number">02</div><div className="section-content"><h2 id="sources-title">Datenquellen</h2><p>Metadaten und Shopangebote erfüllen unterschiedliche Aufgaben.</p><div className="source-list">{settings.sources.map(source => <article className="source-card" key={source.id} aria-label={shopNames[source.id]}>
-              <div className="source-heading"><div className={`source-logo ${source.id}`}>{source.kind === 'catalog' ? 'IG' : shopNames[source.id]?.[0]}</div><div><h3>{shopNames[source.id]}</h3><span>{source.kind === 'shop' ? 'Key-Angebote · öffentliche Produktdaten' : 'Spielekatalog · offizielle API'}</span></div><label className="source-toggle"><input type="checkbox" aria-label={`${shopNames[source.id]} aktivieren`} checked={source.enabled} onChange={e => { setSettings({ ...settings, sources: settings.sources.map(s => s.id === source.id ? { ...s, enabled: e.target.checked } : s) }); setMessage(''); }} /><span>Aktiv</span></label></div>
-              <span className="source-state">{sourceStates[sourceStatus?.[source.id]?.state ?? ''] ?? 'Status wird gelesen …'}</span>
-              {source.kind === 'shop' && <div className="fee-options"><label className="check-label"><input type="checkbox" checked={source.fee_estimation_enabled} disabled={!source.enabled} onChange={e => { setSettings({ ...settings, sources: settings.sources.map(s => s.id === source.id ? { ...s, fee_estimation_enabled: e.target.checked } : s) }); setMessage(''); }} />Geschätzte Gebühren berücksichtigen</label><div className="fee-row"><div className="field"><label htmlFor={`${source.id}-fee`}>Geschätzte Gebühren (%)</label><input id={`${source.id}-fee`} inputMode="decimal" value={feeDraft[source.id] ?? ''} disabled={!source.enabled || !source.fee_estimation_enabled} onChange={e => { setFeeDraft({ ...feeDraft, [source.id]: e.target.value }); setMessage(''); }} aria-describedby={`${source.id}-fee-help`} /></div><p id={`${source.id}-fee-help`}>Optionaler Aufschlag. Daraus berechnete Gesamtpreise bleiben als Schätzung gekennzeichnet.</p></div></div>}
-            </article>)}</div><button className="text-button" type="button" onClick={() => setDialogOpen(true)}>Wie werden Gebühren behandelt?</button></div></section>
-            <div className="settings-actions"><p>Änderungen gelten nach dem Speichern.</p><Button type="submit" disabled={busy}>{busy ? 'Wird gespeichert …' : 'Änderungen speichern'}</Button></div>
-          </form>}
-          {settings && <div className="settings-form"><IgdbAccess
-            configured={sourceStatus?.igdb?.configured} csrf={csrf}
-            onChanged={refreshSources} onError={handleProtectedError}
-          /></div>}
-        </>}
+        {page === 'wishlist' ? <Wishlist key={wishlistRevision} csrf={csrf} targetCountry={savedCountry} targetLabel={targetLabel ?? 'Noch nicht gewählt'} onSettings={openSettings} onCountChange={setWishlistCount} onError={handleProtectedError} /> : page === 'alerts' ? <PriceAlerts csrf={csrf} onError={handleProtectedError} /> : settings && <SettingsPage settings={settings} setSettings={next=>{setSettings(next);setMessage('');}} csrf={csrf} busy={busy} countries={countries} feeDraft={feeDraft} setFeeDraft={next=>{setFeeDraft(next);setMessage('');}} status={sourceStatus} onSave={saveSettings} onChanged={refreshSources} onError={handleProtectedError} onHelp={()=>setDialogOpen(true)} onShopChanged={next=>{
+          const changed=next.sources.filter(source=>settings.sources.find(old=>old.id===source.id)?.configured!==source.configured);
+          setSettings({...settings,sources:settings.sources.map(source=>changed.find(row=>row.id===source.id)??source)});
+          setFeeDraft({...feeDraft,...Object.fromEntries(changed.map(source=>[source.id,formatFeePercent(source.fee_basis_points)]))});
+        }}/>}
       </main>
       <footer className="app-footer"><span>KeyHunter</span><span>Deine Auswahl. Dein Überblick.</span></footer>
     </div>

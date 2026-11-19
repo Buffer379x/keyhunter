@@ -1,6 +1,6 @@
 # KeyHunter
 
-Selbst gehostete Xbox-Wunschliste für Docker und Unraid. KeyHunter sucht über IGDB nach Xbox-Spielen und vergleicht bestätigte Angebote von Eneba und Driffle in EUR. Die WebUI ist ohne voreingestellte Adresse per LAN-IP erreichbar. Den IGDB-Zugang hinterlegst du in den App-Einstellungen.
+Selbst gehostete Xbox-Wunschliste für Docker und Unraid. KeyHunter sucht über IGDB nach Xbox-Spielen und vergleicht bestätigte Angebote von Eneba und Driffle in EUR. Die WebUI ist ohne voreingestellte Adresse per LAN-IP erreichbar. Den IGDB-Zugang hinterlegst du unter Einstellungen → Spieleindex. Key-Shops mit Abfrageintervall und optionalen Gebühren verwaltest du auf einer eigenen Einstellungsseite.
 
 ## Installation auf Unraid
 
@@ -8,7 +8,7 @@ Selbst gehostete Xbox-Wunschliste für Docker und Unraid. KeyHunter sucht über 
 2. Starte den Container mit `ghcr.io/buffer379x/keyhunter:latest`. Unraid lädt das Image direkt aus der GitHub Container Registry.
 3. Wähle das Datenverzeichnis und öffne die WebUI über die LAN-IP. Das aktuelle Template bereitet die Ordnerrechte beim Start vor. HTTPS über einen Reverse Proxy ist optional. [Unraid und Betrieb](docs/operations.md)
 
-Das [GitHub-Package](https://github.com/users/Buffer379x/packages/container/package/keyhunter) liefert auch feste Versions-Tags wie `0.3.0` und `0.3.1`. Die [Releases](https://github.com/Buffer379x/keyhunter/releases) enthalten zusätzlich Archive für die Offline-Installation.
+Das [GitHub-Package](https://github.com/users/Buffer379x/packages/container/package/keyhunter) liefert auch feste Versions-Tags wie `0.3.1` und `0.4.0`. Die [Releases](https://github.com/Buffer379x/keyhunter/releases) enthalten zusätzlich Archive für die Offline-Installation.
 
 ## Lokal mit Compose
 
@@ -35,3 +35,5 @@ sh deploy/browser-check.sh
 ```
 
 GitHub Actions führt die Prüfungen mit synthetischen Daten aus. [Architektur](docs/architecture.md) · [Abhängigkeiten](docs/dependencies.md)
+
+Ab **0.4.0** ist das Wechseln einer Edition eine Vorschau: Deine gemerkte Version bleibt bestehen. Offizielle Xbox-Bundle-Inhalte bilden eine separate Vergleichstabelle. Die Preisübersicht gruppiert Angebote nach Land mit Flagge und Abfragestand; alle Händlerangebote öffnest du über die jeweilige Länderzeile. Der verbundene Preisverlauf lässt sich zwischen Zielland und allen Ländern umschalten. Die Wunschliste ist nach Datum, Preis und Alphabet sortierbar.

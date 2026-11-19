@@ -61,9 +61,10 @@ async fn claim(
     let pending: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM shop_job j JOIN source_settings s ON s.id=j.source
         JOIN shop_state p ON p.source=j.source LEFT JOIN offer_link l ON l.id=j.link_id
-        WHERE j.source=? AND s.enabled AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<?)
+        WHERE j.source=? AND s.enabled AND s.configured AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<?)
         AND j.due<=? AND j.lease_until<=? AND (j.link_id IS NULL OR l.review!='rejected')
-        AND EXISTS(SELECT 1 FROM wishlist_item))",
+        AND NOT EXISTS(SELECT 1 FROM edition_preview ep WHERE ep.track_id=COALESCE(j.wish_id,l.wish_id) AND ep.viewed_at<unixepoch()-86400)
+        AND EXISTS(SELECT 1 FROM wishlist_item w WHERE NOT EXISTS(SELECT 1 FROM edition_preview ep WHERE ep.track_id=w.id)))",
     )
     .bind(shop.id())
     .bind(t)
@@ -81,11 +82,12 @@ async fn claim(
     let claimed = sqlx::query_as("UPDATE shop_job SET lease_until=?,lease_token=?
         WHERE id=(SELECT j.id FROM shop_job j JOIN source_settings s ON s.id=j.source
         JOIN shop_state p ON p.source=j.source LEFT JOIN offer_link l ON l.id=j.link_id
-        WHERE j.source=? AND s.enabled AND p.retry_at<=? AND j.due<=? AND j.lease_until<=?
+        WHERE j.source=? AND s.enabled AND s.configured AND p.retry_at<=? AND j.due<=? AND j.lease_until<=?
         AND (p.budget_day!=? OR p.jobs_today<?)
         AND (j.link_id IS NULL OR l.review!='rejected')
         AND NOT EXISTS(SELECT 1 FROM shop_job running WHERE running.source=j.source AND running.lease_until>?)
-        AND EXISTS(SELECT 1 FROM wishlist_item)
+        AND NOT EXISTS(SELECT 1 FROM edition_preview ep WHERE ep.track_id=COALESCE(j.wish_id,l.wish_id) AND ep.viewed_at<unixepoch()-86400)
+        AND EXISTS(SELECT 1 FROM wishlist_item w WHERE NOT EXISTS(SELECT 1 FROM edition_preview ep WHERE ep.track_id=w.id))
         ORDER BY (j.wish_id IS NOT NULL) DESC,j.due,(j.link_id IS NULL),j.id LIMIT 1)
         RETURNING id,link_id,failures,wish_id,search_page")
         .bind(t+180).bind(token).bind(shop.id()).bind(t).bind(t).bind(t).bind(day).bind(budget).bind(t)
@@ -142,8 +144,13 @@ async fn run_one(pool: &SqlitePool, shop: Shop, budget: i64) -> anyhow::Result<b
     };
 
     let t = now();
+    let interval: i64 =
+        sqlx::query_scalar("SELECT poll_interval_seconds FROM source_settings WHERE id=?")
+            .bind(shop.id())
+            .fetch_one(pool)
+            .await?;
     let (due, failures) = match &result {
-        Ok(Work::Product(_)) => (t + INTERVAL, 0),
+        Ok(Work::Product(_)) => (t + interval, 0),
         Ok(Work::Search(page)) if page.next_page.is_some() => (t, 0),
         Ok(Work::Discovery(_) | Work::Search(_)) => (t + DAY, 0),
         Err(error) => {
@@ -189,7 +196,7 @@ async fn run_one(pool: &SqlitePool, shop: Shop, budget: i64) -> anyhow::Result<b
             let link = job.link_id.expect("product job");
             let json = serde_json::to_string(&product)?;
             let wish: Option<String> = sqlx::query_scalar("UPDATE offer_link SET latest=?,observed_at=?,attempted_at=?,last_error=NULL
-                WHERE id=? AND review!='rejected' AND EXISTS(SELECT 1 FROM source_settings s WHERE s.id=source AND s.enabled)
+                WHERE id=? AND review!='rejected' AND EXISTS(SELECT 1 FROM source_settings s WHERE s.id=source AND s.enabled AND s.configured)
                 RETURNING wish_id").bind(json).bind(t).bind(t).bind(link).fetch_optional(&mut *tx).await?;
             if let Some(id) = wish {
                 confirm_discovered(&mut tx, link, &product).await?;
@@ -323,6 +330,14 @@ async fn confirm_discovered(
 }
 
 async fn attach(pool: &SqlitePool, shop: Shop) -> anyhow::Result<()> {
+    let active: bool =
+        sqlx::query_scalar("SELECT configured AND enabled FROM source_settings WHERE id=?")
+            .bind(shop.id())
+            .fetch_one(pool)
+            .await?;
+    if !active {
+        return Ok(());
+    }
     let ids: Vec<String> = sqlx::query_scalar("SELECT id FROM wishlist_item")
         .fetch_all(pool)
         .await?;
@@ -360,6 +375,53 @@ pub(crate) async fn schedule_wish(pool: &SqlitePool, id: &str) -> sqlx::Result<(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn expired_edition_previews_do_not_use_background_shop_jobs() {
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        sqlx::query(
+            "INSERT INTO game(id,manual_title,manual_key,created_at) VALUES('g','Game','game',0)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO wishlist_item VALUES('saved','g',169,0),('preview','g',49,0)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO edition_preview VALUES('preview',?)")
+            .bind(now() - 2 * DAY)
+            .execute(&pool)
+            .await
+            .unwrap();
+        schedule_wish(&pool, "preview").await.unwrap();
+        let job = claim(&pool, Shop::Eneba, "expired", now(), 120)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_ne!(job.wish_id.as_deref(), Some("preview"));
+        sqlx::query(
+            "UPDATE shop_job SET lease_until=0,lease_token=NULL,due=? WHERE wish_id IS NULL",
+        )
+        .bind(now() + DAY)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("UPDATE edition_preview SET viewed_at=?")
+            .bind(now())
+            .execute(&pool)
+            .await
+            .unwrap();
+        let job = claim(&pool, Shop::Eneba, "active", now(), 120)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(job.wish_id.as_deref(), Some("preview"));
+    }
     #[tokio::test]
     async fn automatic_products_confirm_only_matching_discovered_links_and_preserve_reviews() {
         let pool = sqlx::sqlite::SqlitePoolOptions::new()
@@ -543,6 +605,10 @@ mod tests {
         .await
         .unwrap();
         sqlx::query("INSERT INTO wishlist_item VALUES('wish','g',169,0)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE source_settings SET configured=1 WHERE id='driffle'")
             .execute(&pool)
             .await
             .unwrap();

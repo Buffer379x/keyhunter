@@ -40,6 +40,7 @@ fn fixture(id: i64, name: &str, kind: &str, platforms: &[i64]) -> CatalogGame {
         aliases: vec!["Alternativer Testtitel".into()],
         cover_url: None,
         artwork_url: None,
+        store_product_id: None,
         version_parent: (kind == "edition").then_some(1001),
         edition_name: (kind == "edition").then_some("Premium Edition".into()),
         kind: kind.into(),
@@ -48,6 +49,39 @@ fn fixture(id: i64, name: &str, kind: &str, platforms: &[i64]) -> CatalogGame {
 }
 #[async_trait]
 impl CatalogProvider for FixtureProvider {
+    async fn edition_contents(
+        &self,
+        games: &[CatalogGame],
+    ) -> Result<Vec<keyhunter::catalog::contents::EditionContent>, CatalogError> {
+        use keyhunter::catalog::contents::{ContentItem, EditionContent};
+        Ok(games
+            .iter()
+            .map(|game| EditionContent {
+                igdb_id: game.igdb_id,
+                status: "verified".into(),
+                source_url: None,
+                observed_at: 1795107000,
+                description: Some("Synthetische Editionsinhalte für den Browser-Test.".into()),
+                items: if game.kind == "edition" {
+                    vec![
+                        ContentItem {
+                            id: "fixture-base".into(),
+                            name: "Grundspiel".into(),
+                        },
+                        ContentItem {
+                            id: "fixture-extra".into(),
+                            name: "Zusatzpaket".into(),
+                        },
+                    ]
+                } else {
+                    vec![ContentItem {
+                        id: "fixture-base".into(),
+                        name: "Grundspiel".into(),
+                    }]
+                },
+            })
+            .collect())
+    }
     async fn search(&self, query: &str, _platform: i64) -> Result<Vec<CatalogGame>, CatalogError> {
         let query = query.to_lowercase();
         if query.contains("ausfall") {

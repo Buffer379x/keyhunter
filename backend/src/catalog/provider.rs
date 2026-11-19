@@ -14,7 +14,7 @@ use std::{
 };
 use tokio::sync::Mutex;
 
-const FIELDS: &str = "id,name,slug,summary,first_release_date,platforms.name,cover.image_id,artworks.image_id,screenshots.image_id,alternative_names.name,version_parent,version_title,game_type.type";
+const FIELDS: &str = "id,name,slug,summary,first_release_date,platforms.name,cover.image_id,artworks.image_id,screenshots.image_id,alternative_names.name,version_parent,version_title,game_type.type,websites.url";
 const MAX_RESPONSE: usize = 2 * 1024 * 1024;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -35,6 +35,8 @@ pub struct CatalogGame {
     pub cover_url: Option<String>,
     #[serde(default)]
     pub artwork_url: Option<String>,
+    #[serde(default)]
+    pub store_product_id: Option<String>,
     pub version_parent: Option<i64>,
     pub edition_name: Option<String>,
     pub kind: String,
@@ -76,6 +78,12 @@ pub trait CatalogProvider: Send + Sync {
         Ok(vec![])
     }
     async fn status(&self) -> ProviderStatus;
+    async fn edition_contents(
+        &self,
+        games: &[CatalogGame],
+    ) -> Result<Vec<super::contents::EditionContent>, CatalogError> {
+        Ok(super::contents::unknown(games, "not_linked"))
+    }
     async fn update_credentials(
         &self,
         _credentials: Option<IgdbCredentials>,
@@ -314,6 +322,12 @@ impl IgdbProvider {
 
 #[async_trait]
 impl CatalogProvider for IgdbProvider {
+    async fn edition_contents(
+        &self,
+        games: &[CatalogGame],
+    ) -> Result<Vec<super::contents::EditionContent>, CatalogError> {
+        super::contents::load(&self.client, games).await
+    }
     async fn search(&self, query: &str, platform: i64) -> Result<Vec<CatalogGame>, CatalogError> {
         let literal = serde_json::to_string(query).map_err(|_| CatalogError::InvalidResponse)?;
         self.query(format!(
@@ -419,7 +433,9 @@ fn write_credentials(path: &Path, credentials: &IgdbCredentials) -> anyhow::Resu
     result
 }
 
-async fn decode<T: serde::de::DeserializeOwned>(mut response: Response) -> Result<T, CatalogError> {
+pub(super) async fn decode<T: serde::de::DeserializeOwned>(
+    mut response: Response,
+) -> Result<T, CatalogError> {
     if response
         .content_length()
         .is_some_and(|size| size > MAX_RESPONSE as u64)
@@ -456,6 +472,8 @@ struct RawGame {
     artworks: Vec<Cover>,
     #[serde(default)]
     screenshots: Vec<Cover>,
+    #[serde(default)]
+    websites: Vec<Website>,
     version_parent: Option<i64>,
     version_title: Option<String>,
     game_type: Option<GameType>,
@@ -463,6 +481,10 @@ struct RawGame {
 #[derive(Deserialize)]
 struct Alias {
     name: String,
+}
+#[derive(Deserialize)]
+struct Website {
+    url: String,
 }
 #[derive(Deserialize)]
 struct Cover {
@@ -510,6 +532,10 @@ fn normalize(raw: RawGame) -> Result<CatalogGame, CatalogError> {
         .take(10)
         .collect();
     Ok(CatalogGame {
+        store_product_id: raw
+            .websites
+            .iter()
+            .find_map(|w| super::contents::store_id(&w.url)),
         igdb_id: raw.id,
         name: raw.name.trim().into(),
         slug,

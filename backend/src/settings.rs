@@ -1,7 +1,7 @@
 use crate::{ApiError, ApiResult, Shared, auth};
 use axum::{
     Json,
-    extract::State,
+    extract::{Path, State},
     http::{HeaderMap, StatusCode},
 };
 use serde::{Deserialize, Serialize};
@@ -17,6 +17,16 @@ pub(crate) struct SourceSettings {
     enabled: bool,
     fee_estimation_enabled: bool,
     fee_basis_points: i64,
+    #[serde(default = "default_configured")]
+    configured: bool,
+    #[serde(default = "default_interval")]
+    poll_interval_seconds: i64,
+}
+fn default_configured() -> bool {
+    true
+}
+fn default_interval() -> i64 {
+    28800
 }
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Settings {
@@ -31,7 +41,7 @@ async fn load(state: &Shared) -> ApiResult<Settings> {
     let row = sqlx::query("SELECT target_country, currency FROM app_settings WHERE id = 1")
         .fetch_one(&state.pool)
         .await?;
-    let rows = sqlx::query("SELECT id, kind, enabled, fee_estimation_enabled, fee_basis_points FROM source_settings ORDER BY CASE id WHEN 'eneba' THEN 0 WHEN 'igdb' THEN 1 ELSE 2 END,id").fetch_all(&state.pool).await?;
+    let rows = sqlx::query("SELECT * FROM source_settings ORDER BY CASE id WHEN 'eneba' THEN 0 WHEN 'igdb' THEN 1 ELSE 2 END,id").fetch_all(&state.pool).await?;
     Ok(Settings {
         target_country: row.get("target_country"),
         currency: row.get("currency"),
@@ -43,6 +53,8 @@ async fn load(state: &Shared) -> ApiResult<Settings> {
                 enabled: r.get("enabled"),
                 fee_estimation_enabled: r.get("fee_estimation_enabled"),
                 fee_basis_points: r.get("fee_basis_points"),
+                configured: r.get("configured"),
+                poll_interval_seconds: r.get("poll_interval_seconds"),
             })
             .collect(),
         countries: COUNTRY_CODES
@@ -95,6 +107,7 @@ pub(crate) async fn put_settings(
         let s = matches[0];
         if s.kind != kind
             || !(0..=10000).contains(&s.fee_basis_points)
+            || !(900..=604800).contains(&s.poll_interval_seconds)
             || (kind == "catalog" && (s.fee_estimation_enabled || s.fee_basis_points != 0))
         {
             return Err(bad());
@@ -106,10 +119,83 @@ pub(crate) async fn put_settings(
         .execute(&mut *tx)
         .await?;
     for source in input.sources {
-        sqlx::query("UPDATE source_settings SET enabled = ?, fee_estimation_enabled = ?, fee_basis_points = ? WHERE id = ?")
-            .bind(source.enabled).bind(source.fee_estimation_enabled).bind(source.fee_basis_points).bind(source.id).execute(&mut *tx).await?;
+        sqlx::query("UPDATE source_settings SET enabled=?,fee_estimation_enabled=?,fee_basis_points=?,configured=?,poll_interval_seconds=? WHERE id=?")
+            .bind(source.enabled).bind(source.fee_estimation_enabled).bind(source.fee_basis_points)
+            .bind(source.configured).bind(source.poll_interval_seconds).bind(&source.id).execute(&mut *tx).await?;
+        sqlx::query(
+            "UPDATE shop_job SET due=MAX(?,(SELECT observed_at FROM offer_link WHERE id=link_id)+?)
+            WHERE source=? AND link_id IS NOT NULL AND failures=0 AND lease_until<=?
+            AND (SELECT observed_at FROM offer_link WHERE id=link_id) IS NOT NULL",
+        )
+        .bind(crate::now())
+        .bind(source.poll_interval_seconds)
+        .bind(&source.id)
+        .bind(crate::now())
+        .execute(&mut *tx)
+        .await?;
     }
     tx.commit().await?;
+    Ok(Json(load(&state).await?))
+}
+
+#[derive(Deserialize)]
+pub(crate) struct RegisterShop {
+    url: String,
+}
+
+pub(crate) async fn shop_readers(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> ApiResult<Json<serde_json::Value>> {
+    auth::authenticate(&state, &headers).await?;
+    Ok(Json(serde_json::json!([
+        {"id":"eneba","name":"Eneba","url":"https://www.eneba.com","recommended_interval_seconds":28800},
+        {"id":"driffle","name":"Driffle","url":"https://driffle.com","recommended_interval_seconds":28800}
+    ])))
+}
+
+pub(crate) async fn register_shop(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Json(input): Json<RegisterShop>,
+) -> ApiResult<Json<Settings>> {
+    let session = auth::authenticate(&state, &headers).await?;
+    auth::require_csrf(&state, &headers, &session)?;
+    let url = url::Url::parse(input.url.trim()).ok();
+    let shop=url.filter(|u|u.scheme()=="https" && u.username().is_empty() && u.password().is_none()
+        && u.port().is_none() && u.query().is_none() && u.fragment().is_none() && u.path()=="/")
+        .and_then(|u|match u.host_str()? { "www.eneba.com"|"eneba.com"=>Some("eneba"),"driffle.com"=>Some("driffle"),_=>None })
+        .ok_or(ApiError(StatusCode::UNPROCESSABLE_ENTITY,"Für diese Shop-URL ist kein geprüfter Reader verfügbar. Unterstützt werden Eneba und Driffle (HTTPS)."))?;
+    let added = sqlx::query(
+        "UPDATE source_settings SET configured=1,enabled=1 WHERE id=? AND configured=0",
+    )
+    .bind(shop)
+    .execute(&state.pool)
+    .await?
+    .rows_affected();
+    if added == 0 {
+        return Err(ApiError(
+            StatusCode::CONFLICT,
+            "Dieser Dienst ist bereits hinzugefügt.",
+        ));
+    }
+    Ok(Json(load(&state).await?))
+}
+
+pub(crate) async fn unregister_shop(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> ApiResult<Json<Settings>> {
+    let session = auth::authenticate(&state, &headers).await?;
+    auth::require_csrf(&state, &headers, &session)?;
+    if crate::shops::Shop::from_id(&id).is_none() {
+        return Err(ApiError(StatusCode::NOT_FOUND, "Key-Shop nicht gefunden."));
+    }
+    sqlx::query("UPDATE source_settings SET configured=0,enabled=0 WHERE id=?")
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
     Ok(Json(load(&state).await?))
 }
 

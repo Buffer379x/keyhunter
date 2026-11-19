@@ -1,60 +1,27 @@
-import { useEffect, useRef } from 'react';
-
-type Point = { observed_at: number; base_cents: number | null; link_id: number };
-type Sample = Point & { base_cents: number };
-const colors = ['#41e1d1', '#ffae6b', '#b0a1ff', '#ff9cc1', '#e6df87'];
-
-export default function PriceHistoryPlot({ history }: { history: Point[] }) {
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const points = history.filter((row): row is Sample => row.base_cents !== null);
-  useEffect(() => {
-    const element = canvas.current;
-    if (!element || !points.length) return;
-    const plot = element.getContext('2d');
-    if (!plot) return;
-    function draw() {
-      if (!element || !plot) return;
-      const width = element.clientWidth;
-      const height = element.clientHeight;
-      const scale = window.devicePixelRatio || 1;
-      element.width = Math.round(width * scale);
-      element.height = Math.round(height * scale);
-      plot.scale(scale, scale);
-      plot.font = '11px system-ui';
-      const left = 49, right = width - 16, top = 17, bottom = height - 26;
-      const prices = points.map(row => row.base_cents);
-      const min = Math.min(...prices), max = Math.max(...prices);
-      const step = Math.max(100, Math.ceil((max - min) / 400) * 100);
-      const low = Math.max(0, Math.floor((min - step / 2) / step) * step);
-      const high = Math.ceil((max + step / 2) / step) * step;
-      const timestamps = history.map(row => row.observed_at);
-      const start = Math.min(...timestamps), end = Math.max(...timestamps);
-      const links = [...new Set(points.map(point => point.link_id))];
-      plot.fillStyle = '#b2b9c7';
-      plot.strokeStyle = '#3b4957';
-      plot.textAlign = 'right';
-      plot.textBaseline = 'middle';
-      for (let price = low; price <= high; price += step) {
-        const y = bottom - (price - low) / (high - low) * (bottom - top);
-        plot.beginPath(); plot.moveTo(left, y); plot.lineTo(right, y); plot.stroke();
-        plot.fillText(`${price / 100} €`, left - 7, y);
-      }
-      for (const point of points) {
-        const x = start === end ? (left + right) / 2 : left + (point.observed_at - start) / (end - start) * (right - left);
-        const y = bottom - (point.base_cents - low) / (high - low) * (bottom - top);
-        plot.fillStyle = colors[links.indexOf(point.link_id) % colors.length];
-        plot.beginPath(); plot.arc(x, y, 4, 0, 2 * Math.PI); plot.fill();
-      }
-      const date = (value: number) => new Date(value * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
-      plot.fillStyle = '#b2b9c7';
-      plot.textAlign = start === end ? 'center' : 'left';
-      plot.fillText(date(start), start === end ? (left + right) / 2 : left, height - 10);
-      if (start !== end) { plot.textAlign = 'right'; plot.fillText(date(end), right, height - 10); }
-    }
-    const observer = new ResizeObserver(draw);
-    observer.observe(element);
-    draw();
-    return () => observer.disconnect();
-  }, [history, points]);
-  return points.length > 0 && <canvas className="history-plot" ref={canvas} aria-hidden="true" />;
+import { useEffect, useRef, useState } from 'react';
+import { countryData } from './Country';
+export type HistoryPoint = { observed_at:number; base_cents:number|null; link_id:number|null; region?:string|null; source?:string|null };
+export default function PriceHistoryPlot({ history }: { history:HistoryPoint[] }) {
+  const box=useRef<HTMLDivElement>(null);const [width,setWidth]=useState(600);
+  const populated=history.some(row=>row.base_cents!==null);
+  useEffect(()=>{const el=box.current;if(!el)return;const observer=new ResizeObserver(()=>setWidth(Math.max(240,el.clientWidth)));observer.observe(el);return()=>observer.disconnect();},[populated]);
+  const rows=[...history].sort((a,b)=>a.observed_at-b.observed_at);
+  const valid=rows.filter(row=>row.base_cents!==null);
+  if(!valid.length)return null;
+  const height=245,left=50,right=width-15,top=18,bottom=height-34;
+  const values=valid.map(row=>row.base_cents!);const min=Math.min(...values),max=Math.max(...values);
+  const step=Math.max(100,Math.ceil((max-min)/400)*100);const low=Math.max(0,Math.floor((min-step/2)/step)*step),high=Math.ceil((max+step/2)/step)*step;
+  const start=rows[0].observed_at,end=rows[rows.length-1].observed_at;
+  const x=(at:number)=>start===end?(left+right)/2:left+(at-start)/(end-start)*(right-left);
+  const y=(cents:number)=>bottom-(cents-low)/(high-low)*(bottom-top);
+  const ticks=[];for(let cents=low;cents<=high;cents+=step)ticks.push(cents);
+  let active=false;let previousY=0;const commands:string[]=[];
+  for(const row of rows){if(row.base_cents===null){active=false;continue;}const px=x(row.observed_at),py=y(row.base_cents);commands.push(active?`L ${px} ${previousY} L ${px} ${py}`:`M ${px} ${py}`);active=true;previousY=py;}
+  const date=(at:number)=>new Date(at*1000).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});
+  return <div className="history-chart" ref={box}><svg className="history-plot" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Verbundener Verlauf des günstigsten beobachteten Preises">
+    {ticks.map(cents=><g key={cents}><line className="history-grid" x1={left} x2={right} y1={y(cents)} y2={y(cents)}/><text x={left-8} y={y(cents)+4} textAnchor="end">{(cents/100).toLocaleString('de-DE')} €</text></g>)}
+    <path className="history-line" d={commands.join(' ')} fill="none"/>
+    {valid.map((row,i)=><circle className="history-point" key={`${row.observed_at}-${i}`} cx={x(row.observed_at)} cy={y(row.base_cents!)} r="4" tabIndex={0}><title>{new Date(row.observed_at*1000).toLocaleString('de-DE')} · {countryData(row.region).name} · {(row.base_cents!/100).toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</title></circle>)}
+    <text x={start===end?(left+right)/2:left} y={height-9} textAnchor={start===end?'middle':'start'}>{date(start)}</text>{start!==end&&<text x={right} y={height-9} textAnchor="end">{date(end)}</text>}
+  </svg></div>;
 }

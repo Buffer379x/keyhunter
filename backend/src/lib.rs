@@ -2,6 +2,7 @@ mod alerts;
 mod auth;
 pub mod catalog;
 pub mod config;
+mod history;
 mod jobs;
 mod offers;
 mod settings;
@@ -179,9 +180,20 @@ async fn create_app_inner(
         .route("/catalog/search", get(catalog::search))
         .route("/catalog/games/{id}", get(catalog::game_detail))
         .route("/catalog/games/{id}/editions", get(catalog::editions))
+        .route(
+            "/catalog/games/{id}/edition-comparison",
+            get(catalog::edition_comparison),
+        )
         .route("/sources/status", get(catalog::source_status))
         .route("/wishlist", get(wishlist::list).post(wishlist::add))
         .route("/wishlist/prices", get(offers::wishlist_prices))
+        .route("/wishlist/{id}/preview", post(wishlist::preview))
+        .route("/settings/shop-readers", get(settings::shop_readers))
+        .route("/settings/shops", post(settings::register_shop))
+        .route(
+            "/settings/shops/{id}",
+            axum::routing::delete(settings::unregister_shop),
+        )
         .route(
             "/wishlist/{id}/offers",
             get(offers::list).post(offers::add_link),

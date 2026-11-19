@@ -4,6 +4,8 @@ export interface SourceSettings {
   enabled: boolean;
   fee_estimation_enabled: boolean;
   fee_basis_points: number;
+  configured: boolean;
+  poll_interval_seconds: number;
 }
 export interface Settings {
   target_country: string | null;
@@ -25,6 +27,7 @@ export interface CatalogGame {
   aliases: string[];
   cover_url: string | null;
   artwork_url?: string | null;
+  store_product_id?: string | null;
   version_parent: number | null;
   edition_name: string | null;
   kind: string;

@@ -77,7 +77,7 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
   await signInToFixture(page);
   await page.getByRole('searchbox', { name: 'Nach Spielen suchen', exact: true }).fill('forza');
   await page.getByRole('region', { name: 'Suchergebnisse' }).getByRole('button', { name: 'Forza Horizon 5 vormerken', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Aktuelle Angebote', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Preise nach Land & Region', exact: true })).toBeVisible();
   await expect(page.getByText('Suche eingeplant', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Produktlink von Eneba oder Driffle')).not.toBeVisible();
 
@@ -95,18 +95,16 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
       target_country: target, discovery_running: false, searches: [{ source: 'eneba', status: 'complete', checked_at: 1794950000, result_count: 4, last_error: null }], sources: [] },
   }) : route.continue());
   await page.reload();
-  await expect(page.locator('.offer-table-row')).toHaveCount(4);
+  await expect(page.locator('.offer-table-row')).toHaveCount(0);
   await expect(page.locator('.region-row')).toHaveCount(4);
   await expect(page.locator('.region-row.preferred-region')).toContainText('Deutschland');
-  await expect(page.locator('.offer-table-row.preferred-region')).toContainText('Deutschland');
-  await expect(page.locator('.region-row').filter({ hasText: 'United States' })).toContainText('Nicht für DE');
-  await page.getByLabel('Nur passende Angebote').check();
-  await expect(page.locator('.offer-table-row')).toHaveCount(2);
-  await expect(page.locator('.offer-table-row').first()).toContainText('24,99');
-  await page.getByLabel('Nur passende Angebote').uncheck();
-  await expect(page.locator('.offer-table-row')).toHaveCount(4);
+  await page.locator('.region-row').filter({hasText:'Vereinigte Staaten'}).click();
+  const offers=page.getByRole('dialog',{name:/Angebote.*Vereinigte Staaten/});
+  await expect(offers.locator('.offer-table-row')).toHaveCount(1);
+  await expect(offers).toContainText('Aktivierung im Zielland gesperrt');
+  await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Editionen vergleichen', exact: true }).click();
-  await expect(page.getByRole('button', { name: /Premium Edition.*Eigenständige Edition/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Premium Edition ansehen', exact:true })).toBeVisible();
   await page.getByRole('button', { name: 'Preisverlauf', exact: true }).click();
   await expect(page.getByText('Die erste passende Messung legt den Verlauf an.')).toBeVisible();
   await page.getByRole('button', { name: 'Spielinfos', exact: true }).click();
@@ -118,9 +116,9 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
   await expect(page.getByText('Einstellungen gespeichert.', { exact: true })).toBeVisible();
   target = 'US';
   await page.getByRole('button', { name: /^Wunschliste/ }).click();
-  await expect(page.locator('.offer-table-row')).toHaveCount(4);
+  await expect(page.locator('.offer-table-row')).toHaveCount(0);
   await expect(page.locator('.region-row')).toHaveCount(4);
-  await expect(page.locator('.region-row.preferred-region')).toContainText('United States');
+  await expect(page.locator('.region-row.preferred-region')).toContainText('Vereinigte Staaten');
   await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
   await page.getByLabel('Zielland', { exact: true }).selectOption('DE');
   await page.getByRole('button', { name: 'Änderungen speichern' }).click();
