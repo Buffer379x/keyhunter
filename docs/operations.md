@@ -78,3 +78,9 @@ Datenvolume beibehalten und `latest` aktualisieren. Die Migration ergänzt die B
 Das Intervall gilt pro Produktseite, nicht als gleichzeitiger Komplett-Sync: erste Messungen, neu entdeckte Ländervarianten und Suchseiten können nacheinander erscheinen. Manuelles Aktualisieren bleibt mit 15 Minuten Abstand möglich. Die häufigeren Aktualisierungen der Oberfläche lesen ausschließlich lokale Daten. Bibliothekseinträge werden nicht weiter abgefragt; laufende Produktaufträge werden beim Kauf verworfen und offene Preisalarme abgebrochen. Beim Zurückverschieben bleiben Alarme deaktiviert, bis du sie bewusst wieder aktivierst. Bei mehr als 100 aktiven Wünschen ist zunächst Platz zu schaffen.
 
 Erneutes bestätigtes Vormerken genau derselben vorhandenen Edition verschiebt sie zurück in die Wunschliste. Bei einer anderen Edition bleibt das ursprüngliche Spiel in der Bibliothek. Die Zuordnung verwendet die bei IGDB belegte Editionsfamilie; Fortsetzungen und Remaster werden nicht allein anhand ähnlicher Namen zusammengefasst.
+
+## Upgrade auf 0.4.2
+
+Datenvolume beibehalten und `latest` aktualisieren. Die additive Migration ergänzt Zuordnungen zwischen gemerkten Spielen und vorbereiteten Editionen sowie den Planungsstand der Editionssuche. Wünsche, Bibliothek, Preisbeobachtungen und Einstellungen bleiben bestehen. API-Zugangsdaten werden weiterhin ausschließlich im Datenvolume gespeichert.
+
+Die Bibliothek zeigt das System unter dem Titel. Der Systemfilter enthält nur vorhandene Systeme; Filter und Sortierung bleiben im Browser erhalten. „Hinzugefügt am“ bezieht sich auf den gespeicherten Zeitpunkt der Übernahme in die Bibliothek, unabhängig vom früheren Wunschlistendatum.

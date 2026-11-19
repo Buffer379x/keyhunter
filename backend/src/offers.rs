@@ -96,7 +96,7 @@ pub(crate) struct Link {
     pub id: i64,
     pub source: String,
     url: String,
-    review: String,
+    pub(crate) review: String,
     fingerprint: Option<String>,
     latest: Option<String>,
     pub observed_at: Option<i64>,
@@ -176,6 +176,7 @@ pub(crate) struct OffersView {
     links: Vec<Value>,
     history: Vec<History>,
     histories: HistoryScopes,
+    price_badge: crate::price_badges::PriceBadge,
     best_base: Option<i64>,
     best_estimate: Option<i64>,
     target_country: String,
@@ -302,7 +303,10 @@ pub(crate) async fn list(
             else if error.is_some() {"error"} else if checked.is_none() || due<=t {"queued"} else if count==Some(0) {"no_match"} else {"complete"};
         json!({"source":source,"status":status,"checked_at":checked,"last_error":error,"result_count":count})
     }).collect();
+    let (_, scope) = crate::price_badges::context(&state.pool).await?;
+    let price_badge = crate::price_badges::load(&state.pool, &id, &target, &scope).await?;
     Ok(Json(OffersView {
+        price_badge,
         links: rows,
         history,
         histories: HistoryScopes {

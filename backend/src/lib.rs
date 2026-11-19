@@ -2,9 +2,11 @@ mod alerts;
 mod auth;
 pub mod catalog;
 pub mod config;
+mod edition_tracking;
 mod history;
 mod jobs;
 mod offers;
+mod price_badges;
 mod settings;
 mod shops;
 mod wishlist;
@@ -169,6 +171,7 @@ async fn create_app_inner(
     });
     if run_background {
         jobs::start(&state.pool);
+        edition_tracking::start(&state);
         if let Some(ntfy) = ntfy {
             alerts::start(&state.pool, ntfy);
         }
@@ -189,6 +192,11 @@ async fn create_app_inner(
         .route("/library", get(wishlist::library))
         .route("/wishlist/{id}/purchase", post(wishlist::purchase))
         .route("/library/{id}/restore", post(wishlist::restore))
+        .route("/wishlist/price-badges", get(price_badges::list))
+        .route(
+            "/wishlist/{id}/editions",
+            get(edition_tracking::get).post(edition_tracking::prepare),
+        )
         .route("/wishlist/prices", get(offers::wishlist_prices))
         .route("/wishlist/{id}/preview", post(wishlist::preview))
         .route("/settings/shop-readers", get(settings::shop_readers))

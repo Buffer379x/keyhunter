@@ -34,7 +34,16 @@ export interface CatalogGame {
   kind: string;
   fetched_at: number;
 }
+export interface PriceBadgeData {
+  cents:number|null;
+  state:'price'|'unknown'|'no_offer'|'review'|'error';
+  observed_at:number|null;
+  checked_at:number|null;
+  stale:boolean;
+  pending:boolean;
+}
 export interface WishlistItem {
+  price_badge?:PriceBadgeData;
   id: string;
   game_id: string;
   platform_id: number;
@@ -43,6 +52,7 @@ export interface WishlistItem {
   game: CatalogGame | null;
   manual_title: string | null;
 }
+export interface LibraryItem extends WishlistItem { acquired_at:number; }
 export type SourceStatuses = Record<string, { state: string; enabled: boolean; configured?: boolean; last_success_at: number | null; retry_at: number | null }>;
 export async function api<T>(path: string, method = 'GET', body?: unknown, csrf?: string, signal?: AbortSignal): Promise<T> {
   let response: Response;

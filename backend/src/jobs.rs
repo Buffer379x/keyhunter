@@ -64,7 +64,7 @@ async fn claim(
         WHERE j.source=? AND s.enabled AND s.configured AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<?)
         AND j.due<=? AND j.lease_until<=? AND (j.link_id IS NULL OR l.review!='rejected')
         AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=COALESCE(j.wish_id,l.wish_id))
-        AND NOT EXISTS(SELECT 1 FROM edition_preview ep WHERE ep.track_id=COALESCE(j.wish_id,l.wish_id) AND ep.viewed_at<unixepoch()-86400)
+        AND NOT EXISTS(SELECT 1 FROM edition_preview ep WHERE ep.track_id=COALESCE(j.wish_id,l.wish_id) AND NOT EXISTS(SELECT 1 FROM edition_watch ew JOIN wishlist_item aw ON aw.id=ew.wish_id WHERE ew.track_id=ep.track_id AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=aw.id) AND NOT EXISTS(SELECT 1 FROM edition_preview ap WHERE ap.track_id=aw.id)))
         AND EXISTS(SELECT 1 FROM wishlist_item w WHERE NOT EXISTS(SELECT 1 FROM edition_preview ep WHERE ep.track_id=w.id) AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id)))",
     )
     .bind(shop.id())
@@ -88,9 +88,9 @@ async fn claim(
         AND (j.link_id IS NULL OR l.review!='rejected')
         AND NOT EXISTS(SELECT 1 FROM shop_job running WHERE running.source=j.source AND running.lease_until>?)
         AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=COALESCE(j.wish_id,l.wish_id))
-        AND NOT EXISTS(SELECT 1 FROM edition_preview ep WHERE ep.track_id=COALESCE(j.wish_id,l.wish_id) AND ep.viewed_at<unixepoch()-86400)
+        AND NOT EXISTS(SELECT 1 FROM edition_preview ep WHERE ep.track_id=COALESCE(j.wish_id,l.wish_id) AND NOT EXISTS(SELECT 1 FROM edition_watch ew JOIN wishlist_item aw ON aw.id=ew.wish_id WHERE ew.track_id=ep.track_id AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=aw.id) AND NOT EXISTS(SELECT 1 FROM edition_preview ap WHERE ap.track_id=aw.id)))
         AND EXISTS(SELECT 1 FROM wishlist_item w WHERE NOT EXISTS(SELECT 1 FROM edition_preview ep WHERE ep.track_id=w.id) AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id))
-        ORDER BY (j.wish_id IS NOT NULL) DESC,j.due,(j.link_id IS NULL),j.id LIMIT 1)
+        ORDER BY (j.link_id IS NOT NULL) DESC,(j.wish_id IS NOT NULL) DESC,j.due,j.id LIMIT 1)
         RETURNING id,link_id,failures,wish_id,search_page")
         .bind(t+180).bind(token).bind(shop.id()).bind(t).bind(t).bind(t).bind(day).bind(budget).bind(t)
         .fetch_optional(&mut *tx).await?;
@@ -387,6 +387,106 @@ pub(crate) async fn schedule_wish(pool: &SqlitePool, id: &str) -> sqlx::Result<(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn discovered_product_prices_run_before_more_search_pages() {
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        sqlx::query(
+            "INSERT INTO game(id,manual_title,manual_key,created_at) VALUES('g','Game','game',0)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO wishlist_item VALUES('saved','g',169,0)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        schedule_wish(&pool, "saved").await.unwrap();
+        let link:i64=sqlx::query_scalar("INSERT INTO offer_link(wish_id,source,url) VALUES('saved','eneba','https://www.eneba.com/test') RETURNING id").fetch_one(&pool).await.unwrap();
+        sqlx::query("INSERT INTO shop_job(source,link_id,due) VALUES('eneba',?,0)")
+            .bind(link)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let job = claim(&pool, Shop::Eneba, "price", now(), 120)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(job.link_id, Some(link));
+    }
+    #[tokio::test]
+    async fn prepared_editions_follow_only_their_active_saved_anchor() {
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        sqlx::query(
+            "INSERT INTO game(id,manual_title,manual_key,created_at) VALUES('g','Game','game',0)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO game(id,manual_title,manual_key,created_at) VALUES('g2','Other','other',0)").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO wishlist_item VALUES('anchor','g',169,0),('preview','g',49,0),('other','g2',169,0)").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO edition_preview VALUES('preview',0)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO edition_watch VALUES('anchor','preview')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        schedule_wish(&pool, "preview").await.unwrap();
+        sqlx::query("UPDATE shop_job SET due=? WHERE wish_id IS NULL")
+            .bind(now() + DAY)
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            claim(&pool, Shop::Eneba, "active", now(), 120)
+                .await
+                .unwrap()
+                .unwrap()
+                .wish_id
+                .as_deref(),
+            Some("preview")
+        );
+        sqlx::query("UPDATE shop_job SET lease_until=0,lease_token=NULL")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE edition_preview SET viewed_at=?")
+            .bind(now())
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO library_item VALUES('anchor',0)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert!(
+            claim(&pool, Shop::Eneba, "owned", now(), 120)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        sqlx::query("DELETE FROM wishlist_item WHERE id='anchor'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert!(
+            claim(&pool, Shop::Eneba, "removed", now(), 120)
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
     #[test]
     fn source_intervals_bound_automatic_retries_but_allow_initial_search_pages() {
         for interval in [900, 28800, 604800] {
@@ -444,7 +544,7 @@ mod tests {
         );
     }
     #[tokio::test]
-    async fn expired_edition_previews_do_not_use_background_shop_jobs() {
+    async fn unwatched_edition_previews_do_not_use_background_shop_jobs() {
         let pool = sqlx::sqlite::SqlitePoolOptions::new()
             .max_connections(1)
             .connect("sqlite::memory:")
@@ -479,6 +579,10 @@ mod tests {
         .execute(&pool)
         .await
         .unwrap();
+        sqlx::query("INSERT INTO edition_watch VALUES('saved','preview')")
+            .execute(&pool)
+            .await
+            .unwrap();
         sqlx::query("UPDATE edition_preview SET viewed_at=?")
             .bind(now())
             .execute(&pool)

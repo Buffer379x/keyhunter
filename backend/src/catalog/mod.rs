@@ -40,7 +40,7 @@ pub(crate) fn provider_error(error: CatalogError) -> ApiError {
     }
 }
 
-async fn enabled(state: &Shared) -> ApiResult<()> {
+pub(crate) async fn enabled(state: &Shared) -> ApiResult<()> {
     let enabled: bool = sqlx::query_scalar("SELECT enabled FROM source_settings WHERE id = 'igdb'")
         .fetch_one(&state.pool)
         .await?;
@@ -53,7 +53,7 @@ async fn enabled(state: &Shared) -> ApiResult<()> {
     Ok(())
 }
 
-async fn save_games(state: &Shared, games: &[CatalogGame]) -> ApiResult<()> {
+pub(crate) async fn save_games(state: &Shared, games: &[CatalogGame]) -> ApiResult<()> {
     let mut tx = state.pool.begin().await?;
     for game in games {
         if game.igdb_id <= 0 || game.name.trim().is_empty() {

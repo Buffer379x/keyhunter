@@ -8,7 +8,7 @@ Selbst gehostete Xbox-Wunschliste für Docker und Unraid. KeyHunter sucht über 
 2. Starte den Container mit `ghcr.io/buffer379x/keyhunter:latest`. Unraid lädt das Image direkt aus der GitHub Container Registry.
 3. Wähle das Datenverzeichnis und öffne die WebUI über die LAN-IP. Das aktuelle Template bereitet die Ordnerrechte beim Start vor. HTTPS über einen Reverse Proxy ist optional. [Unraid und Betrieb](docs/operations.md)
 
-Das [GitHub-Package](https://github.com/users/Buffer379x/packages/container/package/keyhunter) liefert auch feste Versions-Tags wie `0.4.0` und `0.4.1`. Die [Releases](https://github.com/Buffer379x/keyhunter/releases) enthalten zusätzlich Archive für die Offline-Installation.
+Das [GitHub-Package](https://github.com/users/Buffer379x/packages/container/package/keyhunter) liefert auch feste Versions-Tags wie `0.4.1` und `0.4.2`. Die [Releases](https://github.com/Buffer379x/keyhunter/releases) enthalten zusätzlich Archive für die Offline-Installation.
 
 ## Lokal mit Compose
 
@@ -39,3 +39,5 @@ GitHub Actions führt die Prüfungen mit synthetischen Daten aus. [Architektur](
 Ab **0.4.0** ist das Wechseln einer Edition eine Vorschau: Deine gemerkte Version bleibt bestehen. Offizielle Xbox-Bundle-Inhalte bilden eine separate Vergleichstabelle. Die Preisübersicht gruppiert Angebote nach Land mit Flagge und Abfragestand; alle Händlerangebote öffnest du über die jeweilige Länderzeile. Der verbundene Preisverlauf lässt sich zwischen Zielland und allen Ländern umschalten. Die Wunschliste ist nach Datum, Preis und Alphabet sortierbar.
 
 Ab **0.4.1** besitzt jeder Wunsch einen dauerhaften Preis-Badge, bei fehlendem gültigem Preis mit „Unbekannt“. Unter **Einstellungen → Allgemein** wählst du den tiefsten Grundpreis für dein aktivierbares Zielland oder über alle Regionen. „Als gekauft markieren“ verschiebt die gemerkte Edition in die **Bibliothek** mit Cover und Titel. Rückverschieben und erneutes Hinzufügen bereits vorhandener Spiele bzw. anderer Editionen verlangen eine Bestätigung. Preisbeobachtungen bleiben beim Verschieben erhalten; Preisalarme werden beim Kauf deaktiviert.
+
+Ab **0.4.2** verwendet das Preis-Badge bereits gespeicherte Messungen beim Laden. Ältere Preise bleiben mit Abfragestand erkennbar; „Unbekannt“ bedeutet ausschließlich, dass noch keine Preisabfrage vorliegt. Vorbereitete Editionen erhalten eigene Preis-Tags und Abfragen, ohne die gemerkte Edition zu ändern. Die Länderübersicht sortiert nach Preis und hebt das Zielland optisch hervor. In der Bibliothek stehen Systemfilter und Sortierung nach Übernahmezeitpunkt oder Alphabet bereit.

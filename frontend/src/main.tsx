@@ -7,5 +7,6 @@ import './styles/catalog.css';
 import './styles/dashboard.css';
 import './styles/release040.css';
 import './styles/release041.css';
+import './styles/release042.css';
 
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);

@@ -164,7 +164,7 @@ export default function App() {
         <button className={`nav-item ${page === 'settings' ? 'active' : ''}`} aria-current={page === 'settings' ? 'page' : undefined} onClick={() => navigate('settings')}><Icon name="settings" />Einstellungen</button>
       </nav>
       <div className="sidebar-platform"><p>Plattformen</p><div className="platform-selected"><Icon name="game" /><span>Xbox</span><span>✓</span></div><small>Series X|S · Xbox One</small></div>
-      <div className="sidebar-bottom"><span className="status-dot" /><small>KeyHunter <span className="version">0.4.1</span></small><Button secondary className="logout" aria-label="Abmelden" title="Abmelden" onClick={() => void logout()} disabled={busy}><Icon name="logout" /></Button></div>
+      <div className="sidebar-bottom"><span className="status-dot" /><small>KeyHunter <span className="version">0.4.2</span></small><Button secondary className="logout" aria-label="Abmelden" title="Abmelden" onClick={() => void logout()} disabled={busy}><Icon name="logout" /></Button></div>
     </aside>
     <div className="workspace">
       <header className="topbar"><CatalogSearch inline csrf={csrf} open={searchOpen} onOpen={openSearch} onClose={closeSearch} onAdded={selectSearchResult} onError={handleProtectedError} /><div className="topbar-right"><span className="target-pill"><Icon name="globe" />{savedCountry ? targetLabel : 'Zielland wählen'}</span><button className="avatar" aria-label="Einstellungen öffnen" onClick={openSettings}>K</button></div></header>

@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { api } from '../api';
+import type {PriceBadgeData} from '../api';
+import {money,dateTime} from './price-format';
+export {money,dateTime} from './price-format';
 import { Button, Icon, Notice } from '../components';
 import { AlertEditor } from './PriceAlerts';
 import PriceHistoryPlot from './PriceHistoryPlot';
@@ -8,17 +11,15 @@ import type { HistoryPoint } from './PriceHistoryPlot';
 import { CountryFlag, countryData } from './Country';
 
 export const shopNames:Record<string,string>={eneba:'Eneba',driffle:'Driffle',igdb:'IGDB'};
-export const money=(cents:number)=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(cents/100);
-export const dateTime=(seconds:number)=>new Intl.DateTimeFormat('de-DE',{dateStyle:'medium',timeStyle:'short'}).format(seconds*1000);
 const sourceErrors:Record<string,string>={network:'Verbindung fehlgeschlagen',rate_limited:'Abruflimit erreicht',access_denied:'Abruf abgelehnt',invalid_response:'Antwort konnte nicht gelesen werden'};
 const activationNames:Record<string,string>={confirmed:'Aktivierung bestätigt',blocked:'Aktivierung im Zielland gesperrt',unknown:'Aktivierung ungeklärt'};
 type Quote={id:string;seller:string|null;base_cents:number;estimated_total_cents:number|null};
 type Link={id:number;source:string;url:string;review:string;can_confirm:boolean;eligible:boolean;queued:boolean;enabled:boolean;stale:boolean;observed_at:number|null;attempted_at:number|null;last_error:string|null;retry_at:number;product:{name:string;region:string|null;market:string|null;activation:string;availability:string}|null;quotes:Quote[]};
-type View={links:Link[];history:HistoryPoint[];histories?:{preferred:HistoryPoint[];all:HistoryPoint[]};best_base:number|null;best_estimate:number|null;target_country:string;discovery_running:boolean;sources:{source:string;status:{enabled:boolean;state:string;last_error:string|null}}[];searches:{source:string;status:string;checked_at:number|null;last_error:string|null;result_count:number|null}[]};
+type View={price_badge?:PriceBadgeData;links:Link[];history:HistoryPoint[];histories?:{preferred:HistoryPoint[];all:HistoryPoint[]};best_base:number|null;best_estimate:number|null;target_country:string;discovery_running:boolean;sources:{source:string;status:{enabled:boolean;state:string;last_error:string|null}}[];searches:{source:string;status:string;checked_at:number|null;last_error:string|null;result_count:number|null}[]};
 type Priced={link:Link;quote:Quote};
 type RegionGroup={region:ReturnType<typeof countryData>;links:Link[];quotes:Priced[]};
 
-export default function Offers({id,csrf,targetLabel,onError,tab,editionPanel,comparisonPanel,infoPanel}:{id:string;csrf:string;targetLabel:string;onError:(error:unknown)=>void;tab:string;editionPanel:ReactNode;comparisonPanel:ReactNode;infoPanel:ReactNode}) {
+export default function Offers({id,csrf,targetLabel,onError,onBadge,tab,editionPanel,comparisonPanel,infoPanel}:{id:string;csrf:string;targetLabel:string;onError:(error:unknown)=>void;onBadge?:(id:string,badge:PriceBadgeData)=>void;tab:string;editionPanel:ReactNode;comparisonPanel:ReactNode;infoPanel:ReactNode}) {
   const path=`/wishlist/${encodeURIComponent(id)}/offers`;
   const [view,setView]=useState<View|null>(null);const [error,setError]=useState('');const [message,setMessage]=useState('');
   const [url,setUrl]=useState('');const [busy,setBusy]=useState(false);const [reload,setReload]=useState(0);const [basis,setBasis]=useState('base');
@@ -28,13 +29,13 @@ export default function Offers({id,csrf,targetLabel,onError,tab,editionPanel,com
   useEffect(()=>{
     const controller=new AbortController();const generation=++latest.current;let timer:number;
     async function load(){
-      try{const data=await api<View>(path,'GET',undefined,undefined,controller.signal);if(controller.signal.aborted||generation!==latest.current)return;setView(data);setError('');
+      try{const data=await api<View>(path,'GET',undefined,undefined,controller.signal);if(controller.signal.aborted||generation!==latest.current)return;setView(data);if(data.price_badge)onBadge?.(id,data.price_badge);setError('');
         const pending=data.searches?.some(s=>['queued','searching'].includes(s.status))||data.discovery_running||data.links.some(l=>l.queued&&l.review!=='rejected');
         timer=window.setTimeout(()=>void load(),pending?3000:60000);
       }catch(error){if(!controller.signal.aborted){setError(error instanceof Error?error.message:'Angebote konnten nicht geladen werden.');onError(error);}}
     }
     void load();return()=>{controller.abort();clearTimeout(timer);};
-  },[path,reload,onError]);
+  },[path,reload,onError,onBadge,id]);
   async function write(endpoint:string,method:string,body:unknown,success=''){
     setBusy(true);setError('');setMessage('');try{await api(path+endpoint,method,body,csrf);setMessage(success);setReload(n=>n+1);return true;}
     catch(error){setError(error instanceof Error?error.message:'Angebotsänderung fehlgeschlagen.');onError(error);return false;}finally{setBusy(false);}
@@ -47,7 +48,7 @@ export default function Offers({id,csrf,targetLabel,onError,tab,editionPanel,com
   const price=(row:Priced)=>basis==='estimate'?(row.quote.estimated_total_cents??Infinity):row.quote.base_cents;
   for(const link of visibleLinks){if(!link.product)continue;const region=countryData(link.product.region);const group=groups.get(region.key)??{region,links:[],quotes:[]};group.links.push(link);group.quotes.push(...(link.can_confirm?link.quotes:[]).map(quote=>({link,quote})));groups.set(region.key,group);}
   for(const group of groups.values())group.quotes.sort((a,b)=>price(a)-price(b)||a.link.id-b.link.id);
-  const regions=[...groups.values()].sort((a,b)=>Number(b.region.key===view?.target_country)-Number(a.region.key===view?.target_country)||(a.quotes[0]?price(a.quotes[0]):Infinity)-(b.quotes[0]?price(b.quotes[0]):Infinity)||a.region.name.localeCompare(b.region.name,'de'));
+  const regions=[...groups.values()].sort((a,b)=>(a.quotes[0]?price(a.quotes[0]):Infinity)-(b.quotes[0]?price(b.quotes[0]):Infinity)||a.region.name.localeCompare(b.region.name,'de'));
   const selectedGroup=openCountry?groups.get(openCountry):undefined;
   const history=view?.histories?.[scope]??view?.history??[];const measured=history.filter(p=>p.base_cents!==null);
   const pending=visibleLinks.filter(l=>!l.product).length;
