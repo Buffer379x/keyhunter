@@ -3,6 +3,8 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 export function Icon({ name, size = 18 }: { name: string; size?: number }) {
   const paths: Record<string, string> = {
+    home: 'm3 10 9-7 9 7v11H3V10Zm6 11v-7h6v7',
+    library: 'M4 3h5v18H4V3Zm5 0h5v18H9m8-17 4 16-4 1-4-16 4-1Z',
     heart: 'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z',
     bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4',
     settings: 'm10 3 .5 3h3L14 3m7 7-3 .5v3L21 14m-7 7-.5-3h-3L10 21M3 14l3-.5v-3L3 10M6 5l2 2m9 0 2-2M5 19l2-2m10 0 2 2M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0',
@@ -50,5 +52,14 @@ export function InfoDialog({ open, onClose }: { open: boolean; onClose: () => vo
     <p>Du kannst pro Shop einen prozentualen Aufschlag einstellen. Daraus berechnete Preise werden als <strong>geschätzt</strong> gekennzeichnet. Der tatsächliche Kaufpreis kann abweichen.</p>
     <p>Ein Schätzwert ersetzt weder die Aktivierungsprüfung noch die Angaben des Shops.</p>
     <Button onClick={onClose}>Verstanden</Button>
+  </dialog>;
+}
+
+export function ConfirmDialog({open,title,confirmLabel,busy=false,onCancel,onConfirm,children}:{open:boolean;title:string;confirmLabel:string;busy?:boolean;onCancel:()=>void;onConfirm:()=>void;children:ReactNode}) {
+  const dialog=useRef<HTMLDialogElement>(null);
+  const titleId=useId();
+  useEffect(()=>{if(open&&!dialog.current?.open)dialog.current?.showModal();else if(!open)dialog.current?.close();},[open]);
+  return <dialog ref={dialog} aria-labelledby={titleId} onKeyDown={event=>{if(event.key==='Escape')event.stopPropagation();}} onCancel={event=>{event.preventDefault();event.stopPropagation();if(!busy)onCancel();}}>
+    <h2 id={titleId}>{title}</h2>{children}<div className="dialog-actions"><Button secondary disabled={busy} onClick={onCancel}>Abbrechen</Button><Button disabled={busy} onClick={onConfirm}>{busy?'Wird gespeichert …':confirmLabel}</Button></div>
   </dialog>;
 }

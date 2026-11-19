@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { api, HttpError } from './api';
 import type { Settings, SourceStatuses } from './api';
 import Wishlist from './features/Wishlist';
+import Library from './features/Library';
 import CatalogSearch from './features/CatalogSearch';
 import type { WishlistItem } from './api';
 import PriceAlerts from './features/PriceAlerts';
@@ -11,10 +12,10 @@ import { shopNames } from './features/Offers';
 import { Brand, Button, Icon, InfoDialog, Notice } from './components';
 import { formatFeePercent, parseFeePercent } from './fees';
 
-type Page = 'wishlist' | 'settings' | 'alerts';
+type Page = 'wishlist' | 'settings' | 'alerts' | 'library';
 function routePage(): Page {
   const view = new URL(window.location.href).searchParams.get('view');
-  return view === 'settings' || view === 'alerts' ? view : 'wishlist';
+  return view === 'settings' || view === 'alerts' || view === 'library' ? view : 'wishlist';
 }
 
 type Screen = 'loading' | 'setup' | 'login' | 'ready' | 'offline';
@@ -30,6 +31,7 @@ export default function App() {
   const [sourceStatus, setSourceStatus] = useState<SourceStatuses | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [savedCountry, setSavedCountry] = useState<string | null>(null);
+  const [savedPriceScope,setSavedPriceScope]=useState<Settings['wishlist_price_scope']>('preferred');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -44,7 +46,7 @@ export default function App() {
     const data = await api<Settings>('/settings');
     setSettings(data);
     refreshSources();
-    setSavedCountry(data.target_country);
+    setSavedCountry(data.target_country); setSavedPriceScope(data.wishlist_price_scope);
     setFeeDraft(Object.fromEntries(data.sources.map(source => [source.id, formatFeePercent(source.fee_basis_points)])));
   }
   async function initialize() {
@@ -99,7 +101,7 @@ export default function App() {
       const saved = await api<Settings>('/settings', 'PUT', {
         ...settings, sources,
       }, csrf);
-      setSettings(saved); setSavedCountry(saved.target_country); setFeeDraft(Object.fromEntries(saved.sources.map(s => [s.id, formatFeePercent(s.fee_basis_points)]))); setMessage('Einstellungen gespeichert.');
+      setSettings(saved); setSavedCountry(saved.target_country); setSavedPriceScope(saved.wishlist_price_scope); setFeeDraft(Object.fromEntries(saved.sources.map(s => [s.id, formatFeePercent(s.fee_basis_points)]))); setMessage('Einstellungen gespeichert.');
       refreshSources();
     } catch (e) { handleProtectedError(e); }
     finally { setBusy(false); }
@@ -109,7 +111,7 @@ export default function App() {
     setPage(next); setMessage(''); setError('');
     const url = new URL(window.location.href);
     if (next === 'settings') { url.searchParams.set('view', 'settings'); refreshSources(); }
-    else if (next === 'alerts') url.searchParams.set('view', 'alerts');
+    else if (next === 'alerts' || next === 'library') url.searchParams.set('view', next);
     else url.searchParams.delete('view');
     if (next !== 'settings') url.searchParams.delete('section');
     if (url.href !== window.location.href) window.history.pushState(null, '', url);
@@ -157,18 +159,19 @@ export default function App() {
 
       <nav aria-label="Hauptnavigation">
         <button className={`nav-item ${page === 'wishlist' ? 'active' : ''}`} aria-current={page === 'wishlist' ? 'page' : undefined} onClick={() => navigate('wishlist')}><Icon name="heart" />Wunschliste<span className="count">{wishlistCount ?? '–'}</span></button>
+        <button className={`nav-item ${page === 'library' ? 'active' : ''}`} aria-current={page === 'library' ? 'page' : undefined} onClick={() => navigate('library')}><Icon name="library" />Bibliothek</button>
         <button className={`nav-item ${page === 'alerts' ? 'active' : ''}`} aria-current={page === 'alerts' ? 'page' : undefined} onClick={() => navigate('alerts')}><Icon name="bell" />Preisalarme</button>
         <button className={`nav-item ${page === 'settings' ? 'active' : ''}`} aria-current={page === 'settings' ? 'page' : undefined} onClick={() => navigate('settings')}><Icon name="settings" />Einstellungen</button>
       </nav>
       <div className="sidebar-platform"><p>Plattformen</p><div className="platform-selected"><Icon name="game" /><span>Xbox</span><span>✓</span></div><small>Series X|S · Xbox One</small></div>
-      <div className="sidebar-bottom"><span className="status-dot" /><small>KeyHunter <span className="version">0.4.0</span></small><Button secondary className="logout" aria-label="Abmelden" title="Abmelden" onClick={() => void logout()} disabled={busy}><Icon name="logout" /></Button></div>
+      <div className="sidebar-bottom"><span className="status-dot" /><small>KeyHunter <span className="version">0.4.1</span></small><Button secondary className="logout" aria-label="Abmelden" title="Abmelden" onClick={() => void logout()} disabled={busy}><Icon name="logout" /></Button></div>
     </aside>
     <div className="workspace">
       <header className="topbar"><CatalogSearch inline csrf={csrf} open={searchOpen} onOpen={openSearch} onClose={closeSearch} onAdded={selectSearchResult} onError={handleProtectedError} /><div className="topbar-right"><span className="target-pill"><Icon name="globe" />{savedCountry ? targetLabel : 'Zielland wählen'}</span><button className="avatar" aria-label="Einstellungen öffnen" onClick={openSettings}>K</button></div></header>
       <main id="main-content" tabIndex={-1}>
         {error && <Notice error>{error}</Notice>}
         {message && <Notice>{message}</Notice>}
-        {page === 'wishlist' ? <Wishlist key={wishlistRevision} csrf={csrf} targetCountry={savedCountry} targetLabel={targetLabel ?? 'Noch nicht gewählt'} onSettings={openSettings} onCountChange={setWishlistCount} onError={handleProtectedError} /> : page === 'alerts' ? <PriceAlerts csrf={csrf} onError={handleProtectedError} /> : settings && <SettingsPage settings={settings} setSettings={next=>{setSettings(next);setMessage('');}} csrf={csrf} busy={busy} countries={countries} feeDraft={feeDraft} setFeeDraft={next=>{setFeeDraft(next);setMessage('');}} status={sourceStatus} onSave={saveSettings} onChanged={refreshSources} onError={handleProtectedError} onHelp={()=>setDialogOpen(true)} onShopChanged={next=>{
+        {page === 'wishlist' ? <Wishlist key={wishlistRevision} csrf={csrf} targetCountry={savedCountry} priceScope={savedPriceScope} targetLabel={targetLabel ?? 'Noch nicht gewählt'} onSettings={openSettings} onCountChange={setWishlistCount} onError={handleProtectedError} /> : page === 'library' ? <Library csrf={csrf} onRestored={selectSearchResult} onError={handleProtectedError}/> : page === 'alerts' ? <PriceAlerts csrf={csrf} onError={handleProtectedError} /> : settings && <SettingsPage settings={settings} setSettings={next=>{setSettings(next);setMessage('');}} csrf={csrf} busy={busy} countries={countries} feeDraft={feeDraft} setFeeDraft={next=>{setFeeDraft(next);setMessage('');}} status={sourceStatus} onSave={saveSettings} onChanged={refreshSources} onError={handleProtectedError} onHelp={()=>setDialogOpen(true)} onShopChanged={next=>{
           const changed=next.sources.filter(source=>settings.sources.find(old=>old.id===source.id)?.configured!==source.configured);
           setSettings({...settings,sources:settings.sources.map(source=>changed.find(row=>row.id===source.id)??source)});
           setFeeDraft({...feeDraft,...Object.fromEntries(changed.map(source=>[source.id,formatFeePercent(source.fee_basis_points)]))});

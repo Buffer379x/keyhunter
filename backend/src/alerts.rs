@@ -36,7 +36,7 @@ struct StoredRule {
 }
 
 async fn rule(conn: &mut SqliteConnection, id: &str) -> sqlx::Result<Option<StoredRule>> {
-    sqlx::query_as("SELECT * FROM alert_rule WHERE wish_id=?")
+    sqlx::query_as("SELECT * FROM alert_rule WHERE wish_id=? AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=alert_rule.wish_id)")
         .bind(id)
         .fetch_optional(conn)
         .await
@@ -69,6 +69,7 @@ pub(crate) async fn put_rule(
 ) -> ApiResult<StatusCode> {
     let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
+    crate::wishlist::require_unowned(&state.pool, &id).await?;
     offers::wish(&state.pool, &id).await?;
     if !matches!(input.basis.as_str(), "base" | "estimate")
         || !(input.mode == "target"
@@ -143,7 +144,7 @@ pub(crate) async fn list(
     let rules: Vec<RuleView> = sqlx::query_as("SELECT r.*, COALESCE(g.manual_title,json_extract(c.payload,'$.name')) AS title,
         (SELECT state FROM alert_outbox o WHERE o.wish_id=r.wish_id ORDER BY o.id DESC LIMIT 1) AS delivery
         FROM alert_rule r JOIN wishlist_item w ON w.id=r.wish_id JOIN game g ON g.id=w.game_id
-        LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id ORDER BY title").fetch_all(&state.pool).await?;
+        LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id WHERE NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id) ORDER BY title").fetch_all(&state.pool).await?;
     let events: Vec<EventView> = sqlx::query_as(
         "SELECT id,wish_id,state,observed_at,sent_at,cents,attempts FROM alert_outbox
         ORDER BY id DESC LIMIT 30",

@@ -32,6 +32,7 @@ test('edition previews keep the saved version, country dialogs group offers and 
   await page.getByRole('searchbox', { name: 'Nach Spielen suchen', exact: true }).fill('forza');
   await page.getByRole('region', { name: 'Suchergebnisse' }).getByRole('button', { name: 'Forza Horizon 5 vormerken', exact: true }).click();
   await expect(page.getByRole('heading', { name:'Forza Horizon 5',exact:true })).toBeVisible();
+  await expect(page).toHaveURL(/[?&]item=[a-f0-9]{32}/);
   const originalUrl = page.url();
   const link = (id: number, region: string, cents: number) => ({ id,source:'eneba',url:'https://www.eneba.com/de/xbox-fixture-key-global',review:'confirmed',can_confirm:true,eligible:region==='Global',queued:false,enabled:true,stale:false,observed_at:1795107000,attempted_at:1795107000,last_error:null,retry_at:0,product:{name:'Synthetic offer',region,market:'DE',activation:region==='Global'?'confirmed':'unknown',availability:'in_stock'},quotes:[{id:String(id),seller:'Synthetic seller',base_cents:cents,estimated_total_cents:null}] });
   const point = (at: number,cents: number,region: string) => ({ observed_at:at,base_cents:cents,link_id:1,region,source:'eneba' });
@@ -53,7 +54,7 @@ test('edition previews keep the saved version, country dialogs group offers and 
   await expect(page.locator('.edition-row').filter({hasText:'Premium Edition'})).toContainText('Vorschau');
   await page.getByRole('button', { name:'Preisverlauf',exact:true }).click();
   await expect(page.locator('path.history-line')).toHaveAttribute('d',/L/);
-  await page.getByLabel('Preisverlauf für', { exact:true }).selectOption('all');
+  await page.getByRole('button',{name:'Preisverlauf für alle Länder',exact:true}).click();
   await expect(page.locator('.history-caption')).toContainText('9,00');
   await expect(page.locator('circle.history-point title').first()).toContainText('Indien');
   await page.getByRole('button', { name:'Editionen vergleichen',exact:true }).click();

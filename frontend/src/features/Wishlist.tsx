@@ -9,9 +9,9 @@ import { sortWishlist } from './wishlist-sort';
 import type { SortMode } from './wishlist-sort';
 import { Cover, itemName, kindName, platformName, releaseYear } from './catalog-ui';
 
-interface Props { csrf: string; targetCountry: string | null; targetLabel: string; onSettings: () => void; onCountChange: (count: number) => void; onError: (error: unknown) => void }
+interface Props { csrf: string; targetCountry: string | null; targetLabel: string; priceScope: 'preferred'|'all'; onSettings: () => void; onCountChange: (count: number) => void; onError: (error: unknown) => void }
 const routeSelection = () => new URL(window.location.href).searchParams.get('item');
-export default function Wishlist({ csrf, targetCountry, targetLabel, onSettings, onCountChange, onError }: Props) {
+export default function Wishlist({ csrf, targetCountry, targetLabel, priceScope, onSettings, onCountChange, onError }: Props) {
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState('');
@@ -28,6 +28,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, onSettings,
   const [editionBusy, setEditionBusy] = useState(false);
   const [editionError, setEditionError] = useState('');
   const [removeItem, setRemoveItem] = useState<WishlistItem | null>(null);
+  const [purchasing,setPurchasing]=useState(false);
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState('');
   const listScroll = useRef(0);
@@ -71,7 +72,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, onSettings,
     void readPrices();
     const timer=window.setInterval(() => void readPrices(),30000);
     return () => { controller.abort(); window.clearInterval(timer); };
-  }, [items]);
+  }, [items,priceScope,targetCountry]);
   const closeSearch = useCallback(() => setSearchOpen(false), []);
 
   const load = useCallback(async () => {
@@ -133,6 +134,16 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, onSettings,
     } catch (e) { setRemoveError(e instanceof Error ? e.message : 'Entfernen fehlgeschlagen.'); onError(e); }
     finally { setRemoving(false); }
   }
+  async function purchase(){
+    if(!selected||preview||purchasing)return;
+    setPurchasing(true);setMessage('');
+    try{await api(`/wishlist/${selected.id}/purchase`,'POST',{},csrf);
+      ++loadGeneration.current;
+      const rows=items.filter(item=>item.id!==selected.id);setItems(rows);onCountChange(rows.length);select(null);
+      setMessage(`${itemName(selected)} wurde in die Bibliothek verschoben.`);
+      listHeading.current?.focus();
+    }catch(error){onError(error);}finally{setPurchasing(false);}
+  }
   function exportList() {
     const data = { version: 1, exported_at: new Date().toISOString(), items: items.map(item => ({
       title: itemName(item), platform: platformName(item.platform_id), igdb_id: item.game?.igdb_id ?? null,
@@ -160,7 +171,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, onSettings,
       <label className="search-label" htmlFor="wishlist-filter">Wunschliste filtern</label><div className="list-search"><Icon name="search" size={15} /><input id="wishlist-filter" placeholder="Liste filtern …" value={filter} maxLength={200} onChange={event => filterList(event.target.value)} disabled={loading || items.length === 0} /></div>
       <div className="wishlist-sort"><label htmlFor="wishlist-sort">Sortieren</label><select id="wishlist-sort" aria-label="Wunschliste sortieren" value={sort} onChange={e=>{const value=e.target.value as SortMode;setSort(value);try{localStorage.setItem('keyhunter.wishlist.sort',value);}catch{/* Keep in memory. */}}}><option value="added">Hinzugefügt am · neueste zuerst</option><option value="price">Preis · günstigste zuerst</option><option value="name">Alphabetisch · A–Z</option></select></div>
       {listError && <Notice error>{listError}<Button secondary onClick={() => void load()}>Liste erneut laden</Button></Notice>}
-      {loading ? <p className="list-loading" role="status">Wunschliste wird geladen …</p> : items.length === 0 ? <div className="list-empty"><Icon name="heart" size={32} /><p>{listError ? 'Die Liste ist derzeit nicht abrufbar.' : 'Deine Liste ist noch leer.'}</p></div> : visible.length === 0 ? <p className="list-loading">Kein Titel passt zu deinem Listenfilter.</p> : <ul className="wishlist-items" aria-label="Vorgemerkte Spiele">{visible.map(item => <li key={item.id}><button className={`wishlist-entry ${selectedId === item.id ? 'selected' : ''}`} onClick={() => select(item.id)} aria-current={selectedId === item.id ? 'true' : undefined}><Cover src={item.game?.cover_url ?? null} /><div><strong>{itemName(item)}</strong><span><Icon name="game" size={13} />{platformName(item.platform_id)}</span><span className={item.verification === 'catalog' ? 'entry-kind' : 'entry-unverified'}>{item.game ? `${item.verification === 'needs_review' ? 'Zu prüfen · ' : ''}${kindName(item.game)}` : 'Manuell · ungeprüft'}</span></div>{prices[item.id] != null && <span className="list-price">ab {money(prices[item.id]!)}</span>}</button></li>)}</ul>}
+      {loading ? <p className="list-loading" role="status">Wunschliste wird geladen …</p> : items.length === 0 ? <div className="list-empty"><Icon name="heart" size={32} /><p>{listError ? 'Die Liste ist derzeit nicht abrufbar.' : 'Deine Liste ist noch leer.'}</p></div> : visible.length === 0 ? <p className="list-loading">Kein Titel passt zu deinem Listenfilter.</p> : <ul className="wishlist-items" aria-label="Vorgemerkte Spiele">{visible.map(item => <li key={item.id}><button className={`wishlist-entry ${selectedId === item.id ? 'selected' : ''}`} onClick={() => select(item.id)} aria-current={selectedId === item.id ? 'true' : undefined}><Cover src={item.game?.cover_url ?? null} /><div><strong>{itemName(item)}</strong><span><Icon name="game" size={13} />{platformName(item.platform_id)}</span><span className={item.verification === 'catalog' ? 'entry-kind' : 'entry-unverified'}>{item.game ? `${item.verification === 'needs_review' ? 'Zu prüfen · ' : ''}${kindName(item.game)}` : 'Manuell · ungeprüft'}</span></div><span className={`list-price ${prices[item.id]==null?'unknown':''}`} title={priceScope==='all'?'Tiefster beobachteter Grundpreis · alle Regionen':`Tiefster aktivierbarer Grundpreis · ${targetLabel}`}>{prices[item.id]==null?'Unbekannt':`ab ${money(prices[item.id]!)}`}</span></button></li>)}</ul>}
       <div className="list-footer"><span><Icon name="refresh" size={14} /> Angebote werden automatisch gesucht</span><Button secondary disabled={loading || !!listError || !items.length} onClick={exportList}><Icon name="download" size={14} />Liste exportieren</Button></div>
     </section>
     {selected ? <section className="game-detail" aria-labelledby="game-title">
@@ -169,7 +180,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, onSettings,
         <div className="hero-shade" />
         <div className="breadcrumbs"><Button secondary className="mobile-back" onClick={() => select(null)}>‹ Zur Wunschliste</Button><span className="desktop-breadcrumb">Wunschliste <Icon name="arrow" size={13} /> {itemName(selected)}</span></div>
         <div className="hero-inner"><Cover src={viewed?.game?.cover_url ?? null} large /><div className="game-hero-copy"><p className="game-kicker">XBOX GAME PRICE TRACKER <span /></p><h2 id="game-title">{viewed?itemName(viewed):itemName(selected)}</h2><div className="hero-chips"><span className="platform-chip"><Icon name="game" size={13} />{platformName(selected.platform_id)}</span><span className="chip">{viewed?.game ? kindName(viewed.game) : 'Manuell · ungeprüft'}</span><span className="chip">{releaseYear(viewed?.game?.first_release_date ?? null)}</span></div><p className="hero-description">{heroGame?.summary ?? 'Für diesen Titel liegen noch keine Kataloginformationen vor.'}</p></div></div>
-        <div className="hero-actions">{preview?<><span className="preview-label">Vorschau · gemerkt: {itemName(selected)}</span><Button secondary disabled={editionBusy} onClick={()=>setPreview(null)}>Zur gemerkten Edition</Button></>:<><Button secondary onClick={()=>{setRemoveError('');setRemoveItem(selected);}}><Icon name="heart"/>Auf der Wunschliste <span>✓</span></Button><Button secondary onClick={()=>setTab('alert')}><Icon name="bell"/>Preisalarm</Button></>}</div>
+        <div className="hero-actions">{preview?<><span className="preview-label">Vorschau · gemerkt: {itemName(selected)}</span><Button secondary disabled={editionBusy} onClick={()=>setPreview(null)}>Zur gemerkten Edition</Button></>:<><Button secondary onClick={()=>{setRemoveError('');setRemoveItem(selected);}}><Icon name="heart"/>Auf der Wunschliste <span>✓</span></Button><Button secondary onClick={()=>setTab('alert')}><Icon name="bell"/>Preisalarm</Button><Button secondary disabled={purchasing} onClick={()=>void purchase()}><Icon name="library"/>{purchasing?'Wird verschoben …':'Als gekauft markieren'}</Button></>}</div>
       </div>
       <nav className="content-tabs" aria-label="Spieldetails">{[['offers','tag','Angebote & Preise'],['editions','layers','Editionen vergleichen'],['history','chart','Preisverlauf'],['info','info','Spielinfos']].map(([value,icon,label]) => <button key={value} className={tab === value ? 'active' : ''} aria-current={tab === value ? 'page' : undefined} onClick={() => setTab(value)}><Icon name={icon} /><span>{label}</span></button>)}</nav>
       {message && <Notice>{message}</Notice>}

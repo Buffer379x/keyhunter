@@ -277,6 +277,32 @@ async fn preferred_and_global_history_follow_the_actual_lowest_country_and_withd
             global_fingerprint = fingerprint;
         }
     }
+    // Current badge scope remains independent from the selected history scope.
+    assert_eq!(
+        f.call("GET", "/api/v1/wishlist/prices", Value::Null)
+            .await
+            .1[id],
+        900
+    );
+    sqlx::query("UPDATE offer_link SET latest=json_set(latest,'$.offers[0].cents',500) WHERE json_extract(latest,'$.region')='India'").execute(&pool).await.unwrap();
+    let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
+    settings["wishlist_price_scope"] = json!("all");
+    f.call("PUT", "/api/v1/settings", settings.clone()).await;
+    assert_eq!(
+        f.call("GET", "/api/v1/wishlist/prices", Value::Null)
+            .await
+            .1[id],
+        500
+    );
+    settings["wishlist_price_scope"] = json!("preferred");
+    f.call("PUT", "/api/v1/settings", settings).await;
+    assert_eq!(
+        f.call("GET", "/api/v1/wishlist/prices", Value::Null)
+            .await
+            .1[id],
+        900
+    );
+    sqlx::query("UPDATE offer_link SET latest=json_set(latest,'$.offers[0].cents',1000) WHERE json_extract(latest,'$.region')='India'").execute(&pool).await.unwrap();
     let path = format!("/api/v1/wishlist/{id}/offers");
     let (_, view) = f.call("GET", &path, Value::Null).await;
     assert_eq!(
@@ -893,4 +919,364 @@ async fn changed_provider_platform_marks_saved_selection_for_review() {
     );
     let (_, items) = f.call("GET", "/api/v1/wishlist", Value::Null).await;
     assert_eq!(items[0]["verification"], "needs_review");
+}
+
+#[tokio::test]
+async fn library_moves_preserve_identity_and_require_confirmation() {
+    let f = Fixture::new().await;
+    let (_, saved) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":1,"platform_id":169}),
+        )
+        .await;
+    let id = saved["item"]["id"].as_str().unwrap();
+    let pool = sqlx::SqlitePool::connect_with(
+        sqlx::sqlite::SqliteConnectOptions::new().filename(f.config.data_dir.join("keyhunter.db")),
+    )
+    .await
+    .unwrap();
+    let link:i64=sqlx::query_scalar("INSERT INTO offer_link(wish_id,source,url) VALUES(?,'eneba','https://www.eneba.com/test') RETURNING id").bind(id).fetch_one(&pool).await.unwrap();
+    sqlx::query("INSERT INTO price_observation(link_id,product_id,observed_at,market,fingerprint,offers,activation,availability) VALUES(?,'fixture',1,'DE','test','[]','confirmed','in_stock')").bind(link).execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO alert_rule(wish_id,mode,basis,enabled) VALUES(?,'low','base',1)")
+        .bind(id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO alert_outbox(wish_id,observed_at,message,due) VALUES(?,1,'fixture',1)",
+    )
+    .bind(id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO shop_job(source,link_id,due,lease_until,lease_token) VALUES('eneba',?,0,9999999999,'inflight')").bind(link).execute(&pool).await.unwrap();
+    assert_eq!(
+        f.call(
+            "POST",
+            &format!("/api/v1/wishlist/{id}/purchase"),
+            json!({})
+        )
+        .await
+        .0,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        f.call("GET", "/api/v1/wishlist", Value::Null).await.1,
+        json!([])
+    );
+    assert_eq!(
+        f.call("GET", "/api/v1/wishlist/prices", Value::Null)
+            .await
+            .1,
+        json!({})
+    );
+    let (_, owned) = f.call("GET", "/api/v1/library", Value::Null).await;
+    assert_eq!(owned[0]["id"], id);
+    assert!(
+        !sqlx::query_scalar::<_, bool>("SELECT enabled FROM alert_rule WHERE wish_id=?")
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, String>("SELECT state FROM alert_outbox WHERE wish_id=?")
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+        "cancelled"
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT lease_until FROM shop_job WHERE link_id=?")
+            .bind(link)
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        f.call(
+            "POST",
+            &format!("/api/v1/wishlist/{id}/offers/refresh"),
+            json!({})
+        )
+        .await
+        .0,
+        StatusCode::CONFLICT
+    );
+    let restore = format!("/api/v1/library/{id}/restore");
+    assert_eq!(
+        f.call("POST", &restore, json!({"confirm":false})).await.0,
+        StatusCode::CONFLICT
+    );
+    let (s, warning) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":1,"platform_id":169}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT);
+    assert_eq!(warning["code"], "owned_game");
+    let (s, warning) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":2,"platform_id":169}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT);
+    assert_eq!(warning["code"], "owned_game");
+    assert_eq!(
+        f.call("GET", "/api/v1/wishlist", Value::Null).await.1,
+        json!([])
+    );
+    assert_eq!(
+        f.call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":2,"platform_id":169,"confirm_owned":true})
+        )
+        .await
+        .0,
+        StatusCode::CREATED
+    );
+    assert_eq!(
+        f.call("GET", "/api/v1/library", Value::Null)
+            .await
+            .1
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        f.call("POST", &restore, json!({"confirm":true})).await.0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, items) = f.call("GET", "/api/v1/wishlist", Value::Null).await;
+    assert_eq!(items.as_array().unwrap().len(), 2);
+    assert!(
+        items
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["id"] == id)
+    );
+    assert_eq!(
+        f.call("GET", "/api/v1/library", Value::Null).await.1,
+        json!([])
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM price_observation WHERE link_id=?")
+            .bind(link)
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn owned_exact_manual_and_catalog_readd_is_confirmed_and_atomic() {
+    let f = Fixture::new().await;
+    for input in [
+        json!({"igdb_id":1,"platform_id":169}),
+        json!({"manual_title":"Manual Game","platform_id":169}),
+    ] {
+        let (_, saved) = f.call("POST", "/api/v1/wishlist", input.clone()).await;
+        let id = saved["item"]["id"].as_str().unwrap();
+        f.call(
+            "POST",
+            &format!("/api/v1/wishlist/{id}/purchase"),
+            json!({}),
+        )
+        .await;
+        assert_eq!(
+            f.call("POST", "/api/v1/wishlist", input.clone()).await.0,
+            StatusCode::CONFLICT
+        );
+        let mut confirmed = input;
+        confirmed["confirm_owned"] = json!(true);
+        let (status, restored) = f.call("POST", "/api/v1/wishlist", confirmed).await;
+        assert_eq!(status, StatusCode::CREATED);
+        assert_eq!(restored["item"]["id"], id);
+        assert_eq!(
+            f.call("GET", "/api/v1/library", Value::Null).await.1,
+            json!([])
+        );
+    }
+}
+
+#[tokio::test]
+async fn wishlist_price_scope_defaults_and_validates() {
+    let f = Fixture::new().await;
+    let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
+    assert_eq!(settings["wishlist_price_scope"], "preferred");
+    assert!(
+        settings["sources"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|s| s["poll_interval_seconds"] == 28800)
+    );
+    settings["wishlist_price_scope"] = json!("all");
+    assert_eq!(
+        f.call("PUT", "/api/v1/settings", settings.clone()).await.1["wishlist_price_scope"],
+        "all"
+    );
+    settings["wishlist_price_scope"] = json!("invalid");
+    assert_eq!(
+        f.call("PUT", "/api/v1/settings", settings).await.0,
+        StatusCode::BAD_REQUEST
+    );
+}
+
+#[tokio::test]
+async fn saving_unchanged_interval_preserves_schedule_and_edited_interval_reschedules() {
+    let f = Fixture::new().await;
+    let (_, item) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":1,"platform_id":169}),
+        )
+        .await;
+    let pool = sqlx::SqlitePool::connect_with(
+        sqlx::sqlite::SqliteConnectOptions::new().filename(f.config.data_dir.join("keyhunter.db")),
+    )
+    .await
+    .unwrap();
+    let t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    let link:i64=sqlx::query_scalar("INSERT INTO offer_link(wish_id,source,url,observed_at) VALUES(?,'eneba','https://www.eneba.com/test',?) RETURNING id")
+        .bind(item["item"]["id"].as_str().unwrap()).bind(t).fetch_one(&pool).await.unwrap();
+    sqlx::query("INSERT INTO shop_job(source,link_id,due) VALUES('eneba',?,?)")
+        .bind(link)
+        .bind(t + 40000)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
+    f.call("PUT", "/api/v1/settings", settings.clone()).await;
+    let due: i64 = sqlx::query_scalar("SELECT due FROM shop_job WHERE link_id=?")
+        .bind(link)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(due, t + 40000);
+    settings["sources"][0]["poll_interval_seconds"] = json!(36000);
+    assert_eq!(
+        f.call("PUT", "/api/v1/settings", settings).await.0,
+        StatusCode::OK
+    );
+    let due: i64 = sqlx::query_scalar("SELECT due FROM shop_job WHERE link_id=?")
+        .bind(link)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(due, t + 36000);
+}
+
+#[tokio::test]
+async fn library_restore_at_capacity_keeps_ownership_until_space_is_available() {
+    let f = Fixture::new().await;
+    let (_, saved) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":1,"platform_id":169}),
+        )
+        .await;
+    let id = saved["item"]["id"].as_str().unwrap();
+    assert_eq!(
+        request(&f.app, "GET", "/api/v1/library", Value::Null, None, None)
+            .await
+            .0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        request(
+            &f.app,
+            "POST",
+            &format!("/api/v1/wishlist/{id}/purchase"),
+            json!({}),
+            Some(&f.cookie),
+            None
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    f.call(
+        "POST",
+        &format!("/api/v1/wishlist/{id}/purchase"),
+        json!({}),
+    )
+    .await;
+    for other in [5, 6] {
+        assert_eq!(
+            f.call(
+                "POST",
+                "/api/v1/wishlist",
+                json!({"igdb_id":other,"platform_id":169})
+            )
+            .await
+            .0,
+            StatusCode::CREATED,
+            "Remasters and sequels are not the owned edition family"
+        );
+    }
+    let pool = sqlx::SqlitePool::connect_with(
+        sqlx::sqlite::SqliteConnectOptions::new().filename(f.config.data_dir.join("keyhunter.db")),
+    )
+    .await
+    .unwrap();
+    for n in 0..98 {
+        let key = format!("capacity-{n}");
+        sqlx::query("INSERT INTO game(id,manual_title,manual_key,created_at) VALUES(?,?,?,1)")
+            .bind(&key)
+            .bind(&key)
+            .bind(&key)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO wishlist_item VALUES(?,?,169,1)")
+            .bind(&key)
+            .bind(&key)
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+    let path = format!("/api/v1/library/{id}/restore");
+    assert_eq!(
+        f.call("POST", &path, json!({"confirm":true})).await.0,
+        StatusCode::CONFLICT
+    );
+    assert_eq!(
+        f.call("GET", "/api/v1/library", Value::Null).await.1[0]["id"],
+        id
+    );
+    sqlx::query("DELETE FROM wishlist_item WHERE id='capacity-0'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        f.call("POST", &path, json!({"confirm":true})).await.0,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        f.call("GET", "/api/v1/wishlist", Value::Null)
+            .await
+            .1
+            .as_array()
+            .unwrap()
+            .len(),
+        100
+    );
 }

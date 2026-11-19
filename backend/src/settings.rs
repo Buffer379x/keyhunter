@@ -32,19 +32,28 @@ fn default_interval() -> i64 {
 pub(crate) struct Settings {
     target_country: Option<String>,
     currency: String,
+    #[serde(default = "default_price_scope")]
+    wishlist_price_scope: String,
     sources: Vec<SourceSettings>,
     #[serde(default)]
     countries: Vec<String>,
 }
 
+fn default_price_scope() -> String {
+    "preferred".into()
+}
+
 async fn load(state: &Shared) -> ApiResult<Settings> {
-    let row = sqlx::query("SELECT target_country, currency FROM app_settings WHERE id = 1")
-        .fetch_one(&state.pool)
-        .await?;
+    let row = sqlx::query(
+        "SELECT target_country, currency, wishlist_price_scope FROM app_settings WHERE id = 1",
+    )
+    .fetch_one(&state.pool)
+    .await?;
     let rows = sqlx::query("SELECT * FROM source_settings ORDER BY CASE id WHEN 'eneba' THEN 0 WHEN 'igdb' THEN 1 ELSE 2 END,id").fetch_all(&state.pool).await?;
     Ok(Settings {
         target_country: row.get("target_country"),
         currency: row.get("currency"),
+        wishlist_price_scope: row.get("wishlist_price_scope"),
         sources: rows
             .into_iter()
             .map(|r| SourceSettings {
@@ -85,7 +94,8 @@ pub(crate) async fn put_settings(
             "Ungültige Einstellungen. Land und Gebühren (0–100 %) prüfen.",
         )
     };
-    if input.currency != "EUR"
+    if !matches!(input.wishlist_price_scope.as_str(), "preferred" | "all")
+        || input.currency != "EUR"
         || input
             .target_country
             .as_ref()
@@ -114,18 +124,27 @@ pub(crate) async fn put_settings(
         }
     }
     let mut tx = state.pool.begin().await?;
-    sqlx::query("UPDATE app_settings SET target_country = ? WHERE id = 1")
-        .bind(input.target_country)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "UPDATE app_settings SET target_country = ?, wishlist_price_scope = ? WHERE id = 1",
+    )
+    .bind(input.target_country)
+    .bind(input.wishlist_price_scope)
+    .execute(&mut *tx)
+    .await?;
     for source in input.sources {
+        let previous: i64 =
+            sqlx::query_scalar("SELECT poll_interval_seconds FROM source_settings WHERE id=?")
+                .bind(&source.id)
+                .fetch_one(&mut *tx)
+                .await?;
         sqlx::query("UPDATE source_settings SET enabled=?,fee_estimation_enabled=?,fee_basis_points=?,configured=?,poll_interval_seconds=? WHERE id=?")
             .bind(source.enabled).bind(source.fee_estimation_enabled).bind(source.fee_basis_points)
             .bind(source.configured).bind(source.poll_interval_seconds).bind(&source.id).execute(&mut *tx).await?;
-        sqlx::query(
+        if previous != source.poll_interval_seconds {
+            sqlx::query(
             "UPDATE shop_job SET due=MAX(?,(SELECT observed_at FROM offer_link WHERE id=link_id)+?)
             WHERE source=? AND link_id IS NOT NULL AND failures=0 AND lease_until<=?
-            AND (SELECT observed_at FROM offer_link WHERE id=link_id) IS NOT NULL",
+            AND last_error IS NULL AND (SELECT observed_at FROM offer_link WHERE id=link_id) IS NOT NULL",
         )
         .bind(crate::now())
         .bind(source.poll_interval_seconds)
@@ -133,6 +152,7 @@ pub(crate) async fn put_settings(
         .bind(crate::now())
         .execute(&mut *tx)
         .await?;
+        }
     }
     tx.commit().await?;
     Ok(Json(load(&state).await?))

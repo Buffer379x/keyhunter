@@ -63,8 +63,9 @@ async fn claim(
         JOIN shop_state p ON p.source=j.source LEFT JOIN offer_link l ON l.id=j.link_id
         WHERE j.source=? AND s.enabled AND s.configured AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<?)
         AND j.due<=? AND j.lease_until<=? AND (j.link_id IS NULL OR l.review!='rejected')
+        AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=COALESCE(j.wish_id,l.wish_id))
         AND NOT EXISTS(SELECT 1 FROM edition_preview ep WHERE ep.track_id=COALESCE(j.wish_id,l.wish_id) AND ep.viewed_at<unixepoch()-86400)
-        AND EXISTS(SELECT 1 FROM wishlist_item w WHERE NOT EXISTS(SELECT 1 FROM edition_preview ep WHERE ep.track_id=w.id)))",
+        AND EXISTS(SELECT 1 FROM wishlist_item w WHERE NOT EXISTS(SELECT 1 FROM edition_preview ep WHERE ep.track_id=w.id) AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id)))",
     )
     .bind(shop.id())
     .bind(t)
@@ -86,8 +87,9 @@ async fn claim(
         AND (p.budget_day!=? OR p.jobs_today<?)
         AND (j.link_id IS NULL OR l.review!='rejected')
         AND NOT EXISTS(SELECT 1 FROM shop_job running WHERE running.source=j.source AND running.lease_until>?)
+        AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=COALESCE(j.wish_id,l.wish_id))
         AND NOT EXISTS(SELECT 1 FROM edition_preview ep WHERE ep.track_id=COALESCE(j.wish_id,l.wish_id) AND ep.viewed_at<unixepoch()-86400)
-        AND EXISTS(SELECT 1 FROM wishlist_item w WHERE NOT EXISTS(SELECT 1 FROM edition_preview ep WHERE ep.track_id=w.id))
+        AND EXISTS(SELECT 1 FROM wishlist_item w WHERE NOT EXISTS(SELECT 1 FROM edition_preview ep WHERE ep.track_id=w.id) AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id))
         ORDER BY (j.wish_id IS NOT NULL) DESC,j.due,(j.link_id IS NULL),j.id LIMIT 1)
         RETURNING id,link_id,failures,wish_id,search_page")
         .bind(t+180).bind(token).bind(shop.id()).bind(t).bind(t).bind(t).bind(day).bind(budget).bind(t)
@@ -104,6 +106,32 @@ enum Work {
     Product(Box<Product>),
     Discovery(Vec<(String, String)>),
     Search(crate::shops::eneba::SearchPage),
+}
+
+fn next_schedule(
+    result: &Result<Work, ShopError>,
+    previous_failures: i64,
+    t: i64,
+    interval: i64,
+    jitter: i64,
+) -> (i64, i64) {
+    match result {
+        Ok(Work::Product(_)) => (t + interval, 0),
+        Ok(Work::Search(page)) if page.next_page.is_some() => (t, 0),
+        Ok(Work::Discovery(_) | Work::Search(_)) => (t + DAY.max(interval), 0),
+        Err(error) => {
+            let failures = previous_failures + 1;
+            let ordinary = if failures == 3 {
+                INTERVAL
+            } else {
+                120 * (1 << previous_failures)
+            };
+            (
+                t + error.source_pause().max(interval).max(ordinary + jitter),
+                if failures == 3 { 0 } else { failures },
+            )
+        }
+    }
 }
 
 async fn run_one(pool: &SqlitePool, shop: Shop, budget: i64) -> anyhow::Result<bool> {
@@ -149,24 +177,8 @@ async fn run_one(pool: &SqlitePool, shop: Shop, budget: i64) -> anyhow::Result<b
             .bind(shop.id())
             .fetch_one(pool)
             .await?;
-    let (due, failures) = match &result {
-        Ok(Work::Product(_)) => (t + interval, 0),
-        Ok(Work::Search(page)) if page.next_page.is_some() => (t, 0),
-        Ok(Work::Discovery(_) | Work::Search(_)) => (t + DAY, 0),
-        Err(error) => {
-            let failures = job.failures + 1;
-            let ordinary = if failures == 3 {
-                INTERVAL
-            } else {
-                120 * (1 << job.failures)
-            };
-            let jitter = i64::from(u8::from_str_radix(&token[..2], 16).unwrap_or(0) % 31);
-            (
-                t + error.source_pause().max(ordinary + jitter),
-                if failures == 3 { 0 } else { failures },
-            )
-        }
-    };
+    let jitter = i64::from(u8::from_str_radix(&token[..2], 16).unwrap_or(0) % 31);
+    let (due, failures) = next_schedule(&result, job.failures, t, interval, jitter);
     let mut tx = pool.begin().await?;
     let count = sqlx::query(
         "UPDATE shop_job SET due=?,failures=?,lease_until=0,lease_token=NULL
@@ -338,7 +350,7 @@ async fn attach(pool: &SqlitePool, shop: Shop) -> anyhow::Result<()> {
     if !active {
         return Ok(());
     }
-    let ids: Vec<String> = sqlx::query_scalar("SELECT id FROM wishlist_item")
+    let ids: Vec<String> = sqlx::query_scalar("SELECT id FROM wishlist_item w WHERE NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id)")
         .fetch_all(pool)
         .await?;
     for id in ids {
@@ -367,7 +379,7 @@ async fn attach(pool: &SqlitePool, shop: Shop) -> anyhow::Result<()> {
 }
 
 pub(crate) async fn schedule_wish(pool: &SqlitePool, id: &str) -> sqlx::Result<()> {
-    sqlx::query("INSERT OR IGNORE INTO shop_job(source,wish_id,due) SELECT 'eneba',id,? FROM wishlist_item WHERE id=?")
+    sqlx::query("INSERT OR IGNORE INTO shop_job(source,wish_id,due) SELECT 'eneba',id,? FROM wishlist_item w WHERE id=? AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id)")
         .bind(now()).bind(id).execute(pool).await?;
     Ok(())
 }
@@ -375,6 +387,62 @@ pub(crate) async fn schedule_wish(pool: &SqlitePool, id: &str) -> sqlx::Result<(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn source_intervals_bound_automatic_retries_but_allow_initial_search_pages() {
+        for interval in [900, 28800, 604800] {
+            let (due, failures) = next_schedule(&Err(ShopError::Network), 0, 100, interval, 0);
+            assert!(due >= 100 + interval);
+            assert_eq!(failures, 1);
+            assert_eq!(
+                next_schedule(&Ok(Work::Discovery(vec![])), 0, 100, interval, 0),
+                (100 + DAY.max(interval), 0)
+            );
+            let page = crate::shops::eneba::SearchPage {
+                urls: vec![],
+                next_page: Some(2),
+            };
+            assert_eq!(
+                next_schedule(&Ok(Work::Search(page)), 0, 100, interval, 0),
+                (100, 0)
+            );
+        }
+        assert!(next_schedule(&Err(ShopError::Throttled(90000)), 0, 100, 28800, 0).0 >= 90100);
+    }
+    #[tokio::test]
+    async fn owned_jobs_are_never_claimed_even_with_other_active_wishes() {
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        sqlx::query(
+            "INSERT INTO game(id,manual_title,manual_key,created_at) VALUES('g','Game','game',0)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO wishlist_item VALUES('owned','g',169,0),('active','g',49,0)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        schedule_wish(&pool, "owned").await.unwrap();
+        sqlx::query("INSERT INTO library_item VALUES('owned',0)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE shop_job SET due=? WHERE wish_id IS NULL")
+            .bind(now() + DAY)
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert!(
+            claim(&pool, Shop::Eneba, "test", now(), 120)
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
     #[tokio::test]
     async fn expired_edition_previews_do_not_use_background_shop_jobs() {
         let pool = sqlx::sqlite::SqlitePoolOptions::new()

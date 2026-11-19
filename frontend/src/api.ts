@@ -10,12 +10,13 @@ export interface SourceSettings {
 export interface Settings {
   target_country: string | null;
   currency: string;
+  wishlist_price_scope: 'preferred' | 'all';
   sources: SourceSettings[];
   countries: string[];
 }
 export class HttpError extends Error {
   status: number;
-  constructor(status: number, message: string) { super(message); this.status = status; }
+  constructor(status: number, message: string, public code?: string) { super(message); this.status = status; }
 }
 export interface CatalogGame {
   igdb_id: number;
@@ -57,6 +58,6 @@ export async function api<T>(path: string, method = 'GET', body?: unknown, csrf?
     throw new HttpError(0, 'Verbindung unterbrochen. Bitte erneut versuchen.');
   }
   const data = response.status === 204 ? null : await response.json().catch(() => null);
-  if (!response.ok) throw new HttpError(response.status, data?.error ?? 'Die Anfrage konnte nicht abgeschlossen werden.');
+  if (!response.ok) throw new HttpError(response.status, data?.error ?? 'Die Anfrage konnte nicht abgeschlossen werden.', data?.code);
   return data as T;
 }

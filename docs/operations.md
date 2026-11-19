@@ -30,7 +30,7 @@ Die Veröffentlichung wurde unter Linux/amd64 mit Docker geprüft. Das XML ist f
 
 ## Zugangsdaten
 
-Melde dich als Eigentümer an und öffne **Einstellungen → IGDB-Zugang**. Gib Client-ID und Client Secret deiner Twitch-Anwendung ein. KeyHunter prüft das Paar bei Twitch und übernimmt es direkt. Um den Zugang zu ersetzen, gib beide Werte erneut ein.
+Melde dich als Eigentümer an und öffne **Einstellungen → Spieleindex → IGDB-Zugang**. Gib Client-ID und Client Secret deiner Twitch-Anwendung ein. KeyHunter prüft das Paar bei Twitch und übernimmt es direkt. Um den Zugang zu ersetzen, gib beide Werte erneut ein.
 
 Beim Upgrade von 0.2.0 verwende das bestehende Datenvolume und hinterlege den IGDB-Zugang einmal in der App. Die alte Variable `KEYHUNTER_IGDB_ENV_FILE` und deren separater IGDB-Dateimount können aus der Containerkonfiguration entfernt werden. Gespeicherte Wünsche, Zuordnungen und Preisalarme bleiben im Datenvolume erhalten.
 
@@ -40,7 +40,7 @@ Für ntfy verwende optional die [ntfy.env.example](../deploy/ntfy.env.example) a
 
 ## Jobs und Speicher
 
-Bekannte Produkte werden ungefähr alle acht Stunden eingeplant. Die Discovery läuft täglich mit begrenzter Abdeckung. Der Standard deckelt jeden Shop auf 120 Jobs pro UTC-Tag. Der Betreiber kann `KEYHUNTER_SHOP_DAILY_JOBS` anpassen. Manuelle Prüfungen halten 15 Minuten Abstand zum letzten Abruf. Compose und Unraid begrenzen den App-Speicher auf 512 MiB.
+Bekannte Produktseiten werden standardmäßig alle acht Stunden eingeplant; pro Shop ist das Intervall einstellbar. Die Discovery läuft frühestens täglich (bei längeren Produktintervallen entsprechend später) mit begrenzter Abdeckung. Der Standard deckelt jeden Shop auf 120 Jobs pro UTC-Tag. Der Betreiber kann `KEYHUNTER_SHOP_DAILY_JOBS` anpassen. Manuelle Prüfungen halten 15 Minuten Abstand zum letzten Abruf. Compose und Unraid begrenzen den App-Speicher auf 512 MiB.
 
 ## Backup und Update
 
@@ -70,3 +70,11 @@ Behalte das Datenvolume und aktualisiere `ghcr.io/buffer379x/keyhunter:latest`. 
 Datenvolume beibehalten und `ghcr.io/buffer379x/keyhunter:latest` aktualisieren. Die Migration ergänzt Dienstintervalle, die Quellenregistrierung, einen Cache für offizielle Editionsinhalte und getrennte Vorschau-Markierungen. Vorhandene Wünsche, Preise, Regeln und Zugangsdaten bleiben erhalten. Produktintervalle starten mit dem bisherigen Wert von 8 Stunden; sie lassen sich unter **Einstellungen → Key-Shops** ändern. IGDB befindet sich unter **Einstellungen → Spieleindex**.
 
 Die Wunschliste lässt sich nach Hinzufügedatum, passendem Grundpreis und Alphabet sortieren; die Auswahl wird im Browser gespeichert. Unbekannte Preise stehen am Ende. Ein Klick auf eine andere Edition verändert keinen Wunschlisteneintrag. Die gespeicherte Edition bleibt gekennzeichnet und über „Zur gemerkten Edition“ erreichbar. Preisangebote werden über die Länderzeilen geöffnet; der Verlauf hat einen eigenen Schalter für Zielland bzw. alle Länder.
+
+## Upgrade auf 0.4.1
+
+Datenvolume beibehalten und `latest` aktualisieren. Die Migration ergänzt die Bibliothekszugehörigkeit und die Preisbasis für Wunschlisten-Badges. Bereits konfigurierte Intervalle werden erhalten, nicht auf acht Stunden zurückgesetzt. Unverändertes Speichern der Einstellungen ändert keine geplanten Abrufzeiten. Nach Shopfehlern wartet ein automatischer Wiederholungsversuch mindestens das konfigurierte Intervall und gegebenenfalls eine längere Shop-Pause.
+
+Das Intervall gilt pro Produktseite, nicht als gleichzeitiger Komplett-Sync: erste Messungen, neu entdeckte Ländervarianten und Suchseiten können nacheinander erscheinen. Manuelles Aktualisieren bleibt mit 15 Minuten Abstand möglich. Die häufigeren Aktualisierungen der Oberfläche lesen ausschließlich lokale Daten. Bibliothekseinträge werden nicht weiter abgefragt; laufende Produktaufträge werden beim Kauf verworfen und offene Preisalarme abgebrochen. Beim Zurückverschieben bleiben Alarme deaktiviert, bis du sie bewusst wieder aktivierst. Bei mehr als 100 aktiven Wünschen ist zunächst Platz zu schaffen.
+
+Erneutes bestätigtes Vormerken genau derselben vorhandenen Edition verschiebt sie zurück in die Wunschliste. Bei einer anderen Edition bleibt das ursprüngliche Spiel in der Bibliothek. Die Zuordnung verwendet die bei IGDB belegte Editionsfamilie; Fortsetzungen und Remaster werden nicht allein anhand ähnlicher Namen zusammengefasst.

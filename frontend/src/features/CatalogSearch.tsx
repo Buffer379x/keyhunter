@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, HttpError } from '../api';
 import type { CatalogGame, WishlistItem } from '../api';
-import { Button, Icon, Notice } from '../components';
+import { Button, ConfirmDialog, Icon, Notice } from '../components';
 import { Cover, kindName, platformName, releaseYear, selectionAllowed } from './catalog-ui';
 
 interface Props { csrf: string; open: boolean; inline?: boolean; items?: WishlistItem[]; onOpen?: () => void; onClose: () => void; onAdded: (item: WishlistItem, created: boolean) => void; onError: (error: unknown) => void }
@@ -16,6 +16,7 @@ export default function CatalogSearch({ csrf, open, inline = false, items, onOpe
   const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [error, setError] = useState('');
   const [addError, setAddError] = useState('');
+  const [ownedWarning,setOwnedWarning]=useState<{game:CatalogGame|null;message:string}|null>(null);
   const [busy, setBusy] = useState(false);
   const [cached, setCached] = useState(false);
   const [savedItems, setSavedItems] = useState<WishlistItem[]>([]);
@@ -34,11 +35,11 @@ export default function CatalogSearch({ csrf, open, inline = false, items, onOpe
       .then(rows => { if (!controller.signal.aborted) setSavedItems(rows); })
       .catch(e => { if (!controller.signal.aborted) onError(e); });
     function outside(event: PointerEvent) {
-      if (!busy && event.target instanceof Node && !container.current?.contains(event.target)) onClose();
+      if (!busy && !ownedWarning && event.target instanceof Node && !container.current?.contains(event.target)) onClose();
     }
     document.addEventListener('pointerdown', outside);
     return () => { controller.abort(); document.removeEventListener('pointerdown', outside); };
-  }, [inline, open, busy, onClose, onError]);
+  }, [inline, open, busy, ownedWarning, onClose, onError]);
   useEffect(() => {
     if (!open) return;
     const controller = new AbortController();
@@ -58,16 +59,17 @@ export default function CatalogSearch({ csrf, open, inline = false, items, onOpe
     return () => { clearTimeout(timer); controller.abort(); };
   }, [query, platform, open, onError, onClose]);
 
-  async function add(game: CatalogGame | null) {
+  async function add(game: CatalogGame | null, confirmOwned=false) {
     if (busy) return;
     const saved = inline && game ? savedItems.find(item => item.game?.igdb_id === game.igdb_id && item.platform_id === platform) : undefined;
     if (saved) { onAdded(saved, false); onClose(); setQuery(''); return; }
     setBusy(true); setAddError('');
     try {
-      const result = await api<{ item: WishlistItem; created: boolean }>('/wishlist', 'POST', game ? { igdb_id: game.igdb_id, platform_id: platform } : { manual_title: query.trim(), platform_id: platform }, csrf);
-      onAdded(result.item, result.created); onClose(); setQuery('');
+      const result = await api<{ item: WishlistItem; created: boolean }>('/wishlist', 'POST', game ? { igdb_id: game.igdb_id, platform_id: platform, confirm_owned:confirmOwned } : { manual_title: query.trim(), platform_id: platform, confirm_owned:confirmOwned }, csrf);
+      setOwnedWarning(null); onAdded(result.item, result.created); onClose(); setQuery('');
     } catch (e) {
-      if (e instanceof HttpError && e.status === 401) { onError(e); onClose(); }
+      if (e instanceof HttpError && e.code === 'owned_game') setOwnedWarning({game,message:e.message});
+      else if (e instanceof HttpError && e.status === 401) { onError(e); onClose(); }
       else setAddError(e instanceof Error ? e.message : 'Speichern fehlgeschlagen.');
     } finally { setBusy(false); }
   }
@@ -76,6 +78,9 @@ export default function CatalogSearch({ csrf, open, inline = false, items, onOpe
   const platformField = <div className="field"><label htmlFor={platformId}>Plattform wählen</label><select id={platformId} value={platform} onChange={event => setPlatform(Number(event.target.value))} disabled={busy}><option value={169}>Xbox Series X|S</option><option value={49}>Xbox One</option></select></div>;
   const searchInput = <input ref={input} id={queryId} type={inline ? 'search' : 'text'} aria-label={inline ? 'Nach Spielen suchen' : undefined} aria-controls={inline && open ? 'global-results' : undefined} aria-expanded={inline ? open : undefined} autoComplete="off" maxLength={100} placeholder={inline ? 'Nach Spielen suchen …' : 'Zum Beispiel Forza Horizon …'} value={query} onFocus={inline ? onOpen : undefined} onChange={event => { setQuery(event.target.value); if (inline) onOpen?.(); }} disabled={busy} />;
   const resultsPanel = <>
+    <ConfirmDialog open={ownedWarning!==null} title="Bereits in der Bibliothek" confirmLabel="Trotzdem vormerken" busy={busy} onCancel={()=>{setOwnedWarning(null);setAddError('');}} onConfirm={()=>void add(ownedWarning?.game??null,true)}>
+      <p>{ownedWarning?.message}</p><p>Die gleiche Edition wird in die Wunschliste zurückverschoben. Bei einer anderen Edition bleibt dein vorhandenes Spiel in der Bibliothek.</p>{addError&&<Notice error>{addError}</Notice>}
+    </ConfirmDialog>
     {addError && <Notice error>{addError}</Notice>}
     {state === 'idle' && <p className="search-hint">Mindestens zwei Zeichen eingeben. Quelle: IGDB.</p>}
     {state === 'loading' && <p className="search-hint" role="status">Katalog wird durchsucht …</p>}
@@ -91,7 +96,7 @@ export default function CatalogSearch({ csrf, open, inline = false, items, onOpe
   if (inline) return <div className="global-search-wrap" ref={container} onKeyDown={event => {
     if (event.key === 'Escape' && !busy) { event.preventDefault(); input.current?.focus(); onClose(); }
     if (event.key === 'ArrowDown' && event.target === input.current) { event.preventDefault(); container.current?.querySelector<HTMLButtonElement>('.catalog-result button:not(:disabled)')?.focus(); }
-  }} onBlur={event => { if (!busy && event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) onClose(); }}>
+  }} onBlur={event => { if (!busy && !ownedWarning && event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) onClose(); }}>
     <div className="global-search" role="search"><Icon name="search" />{searchInput}<kbd>Ctrl K</kbd></div>
     {open && <section className="global-results" id="global-results" aria-label="Suchergebnisse"><div className="inline-search-heading"><span>Spiele suchen · IGDB</span><button className="icon-action" type="button" aria-label="Suche schließen" disabled={busy} onClick={onClose}><Icon name="close" /></button></div>{platformField}{resultsPanel}</section>}
   </div>;

@@ -118,12 +118,15 @@ impl Link {
             && self.fingerprint.as_deref() == Some(product.fingerprint().as_str())
     }
     pub(crate) fn available(&self, wish: &Wish, product: &Product, target: &str, ts: i64) -> bool {
+        self.available_globally(wish, product, ts)
+            && product.activation(target) == "confirmed"
+            && product.purchase_country.as_deref() == Some(target)
+    }
+    pub(crate) fn available_globally(&self, wish: &Wish, product: &Product, ts: i64) -> bool {
         self.enabled
             && self.retry_at <= ts
             && self.last_error.is_none()
             && self.observed_at.is_some_and(|t| t <= ts && ts - t <= FRESH)
-            && product.activation(target) == "confirmed"
-            && product.purchase_country.as_deref() == Some(target)
             && product.availability == Availability::InStock
             && self.confirmed(wish, product)
     }
@@ -346,6 +349,7 @@ pub(crate) async fn add_link(
             "Füge diesen Key-Shop zuerst in den Einstellungen hinzu.",
         ));
     }
+    crate::wishlist::require_unowned(&state.pool, &id).await?;
     wish(&state.pool, &id).await?;
     let mut tx = state.pool.begin().await?;
     let link: Option<i64> = sqlx::query_scalar(
@@ -396,6 +400,7 @@ pub(crate) async fn review(
 ) -> ApiResult<StatusCode> {
     let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
+    crate::wishlist::require_unowned(&state.pool, &id).await?;
     let wish = wish(&state.pool, &id).await?;
     let link = links(&state.pool, &id, now())
         .await?
@@ -440,6 +445,7 @@ pub(crate) async fn refresh(
 ) -> ApiResult<StatusCode> {
     let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
+    crate::wishlist::require_unowned(&state.pool, &id).await?;
     wish(&state.pool, &id).await?;
     let t = now();
     crate::jobs::schedule_wish(&state.pool, &id).await?;
@@ -468,7 +474,11 @@ pub(crate) async fn wishlist_prices(
 ) -> ApiResult<Json<Value>> {
     auth::authenticate(&state, &headers).await?;
     let target = target(&state.pool).await?;
-    let ids: Vec<String> = sqlx::query_scalar("SELECT id FROM wishlist_item w WHERE NOT EXISTS(SELECT 1 FROM edition_preview p WHERE p.track_id=w.id)")
+    let scope: String =
+        sqlx::query_scalar("SELECT wishlist_price_scope FROM app_settings WHERE id=1")
+            .fetch_one(&state.pool)
+            .await?;
+    let ids: Vec<String> = sqlx::query_scalar("SELECT id FROM wishlist_item w WHERE NOT EXISTS(SELECT 1 FROM edition_preview p WHERE p.track_id=w.id) AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id)")
         .fetch_all(&state.pool)
         .await?;
     let mut prices = serde_json::Map::new();
@@ -477,10 +487,13 @@ pub(crate) async fn wishlist_prices(
         let wish = wish(&state.pool, &id).await?;
         let mut best = None;
         for link in links(&state.pool, &id, time).await? {
-            if let Some(p) = link
-                .product()
-                .filter(|p| link.available(&wish, p, &target, time))
-            {
+            if let Some(p) = link.product().filter(|p| {
+                if scope == "all" {
+                    link.available_globally(&wish, p, time)
+                } else {
+                    link.available(&wish, p, &target, time)
+                }
+            }) {
                 for quote in p.offers {
                     update_min(&mut best, quote.cents);
                 }
@@ -574,6 +587,8 @@ mod tests {
         link.fee_estimation_enabled = false;
         assert_eq!(link.estimate(2392), None);
         assert!(!link.available(&wish, &product, "AT", 201));
+        assert!(link.available_globally(&wish, &product, 201));
+        assert!(!link.available_globally(&wish, &product, 201 + FRESH));
         assert!(!link.available(&wish, &product, "DE", 201 + FRESH));
         product.blocked.push("DE".into());
         assert!(!link.available(&wish, &product, "DE", 201));
