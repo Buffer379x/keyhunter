@@ -3,10 +3,10 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import './styles/tokens.css';
 import './styles/app.css';
+import './styles/shell.css';
 import './styles/catalog.css';
-import './styles/dashboard.css';
-import './styles/release040.css';
-import './styles/release041.css';
-import './styles/release042.css';
+import './styles/pages.css';
+import './styles/wishlist.css';
+import './styles/offers.css';
 
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);

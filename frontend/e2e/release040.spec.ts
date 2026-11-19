@@ -78,7 +78,7 @@ test('wishlist sorting uses date, price and alphabet and survives reload', async
   await expect(page.getByRole('heading',{name:'Neuer Treffer',exact:true})).toBeVisible();
   const rows=await (await page.request.get('/api/v1/wishlist')).json();
   const prices=Object.fromEntries(rows.map((item:{id:string;game:{igdb_id:number}})=>[item.id,item.game.igdb_id===1001?1299:999]));
-  await page.route('**/api/v1/wishlist/price-badges',route=>route.fulfill({json:Object.fromEntries(Object.entries(prices).map(([id,cents])=>[id,{state:'price',cents,observed_at:1795107000,checked_at:1795107000,stale:false,pending:false}]))}));
+  await page.route(/\/api\/v1\/wishlist\/price-badges(?:\?.*)?$/,route=>route.fulfill({json:Object.fromEntries(Object.entries(prices).map(([id,cents])=>[id,{state:'price',cents,observed_at:1795107000,checked_at:1795107000,stale:false,pending:false}]))}));
   await page.reload();
   const list=page.getByRole('list',{name:'Vorgemerkte Spiele'});
   const sort=page.getByLabel('Wunschliste sortieren',{exact:true});

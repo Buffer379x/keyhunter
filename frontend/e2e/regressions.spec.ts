@@ -16,7 +16,7 @@ test('header search accepts text directly and selects a game from settings', asy
   await page.getByRole('button', { name: 'Preisalarme', exact: true }).click();
   await page.keyboard.press('Control+k');
   await expect(input).toBeFocused();
-  await expect(page.getByRole('heading', { name: 'Preisalarme.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Preisalarme', exact: true })).toBeVisible();
   await input.fill('forza');
   await expect(results.getByRole('button', { name: 'Forza Horizon 5 öffnen', exact: true })).toBeVisible();
   await input.press('ArrowDown');

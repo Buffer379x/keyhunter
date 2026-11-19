@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { api } from '../api';
-import { Button, Notice } from '../components';
+import { api, HttpError } from '../api';
+import { Button, Notice, PageHeading } from '../components';
 
 type Rule = { mode: 'target' | 'low'; basis: 'base' | 'estimate'; target_cents: number | null; enabled: boolean };
 type RuleView = Rule & { wish_id: string; title: string; delivery: string | null };
@@ -73,6 +73,7 @@ export function AlertEditor({ id, csrf, targetLabel, onError }: { id: string; cs
 }
 
 export default function PriceAlerts({ csrf, onError }: { csrf: string; onError: (error: unknown) => void }) {
+  const [loadError, setLoadError] = useState('');
   const [data, setData] = useState<Overview | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -85,8 +86,13 @@ export default function PriceAlerts({ csrf, onError }: { csrf: string; onError: 
         const current = await api<Overview>('/alerts', 'GET', undefined, undefined, controller.signal);
         if (controller.signal.aborted) return;
         setData(current);
+        setLoadError('');
         if (current.configured && current.events.some(row => row.state === 'pending')) timer = window.setTimeout(() => void load(), 5000);
-      } catch (error) { if (!controller.signal.aborted) onError(error); }
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        if (error instanceof HttpError && error.status === 401) onError(error);
+        else setLoadError(error instanceof Error ? error.message : 'Preisalarme konnten nicht geladen werden.');
+      }
     }
     void load();
     return () => { controller.abort(); window.clearTimeout(timer); };
@@ -98,7 +104,8 @@ export default function PriceAlerts({ csrf, onError }: { csrf: string; onError: 
     finally { setBusy(false); }
   }
   return <>
-    <div className="page-heading"><div><h1>Preisalarme<span className="accent-dot">.</span></h1><p>Regeln und Zustellungen für deine Wunschspiele.</p></div></div>
+    <PageHeading title="Preisalarme" />
+    {loadError && <Notice error>{loadError} <Button secondary onClick={() => setReload(n => n + 1)}>Erneut laden</Button></Notice>}
     <section className="offer-section" aria-labelledby="channel-title"><h2 id="channel-title">ntfy</h2>
       <p>{data?.configured ? 'Kanal eingerichtet' : data ? 'Kanal noch nicht eingerichtet' : 'Kanalstatus wird geladen …'}</p>
       <Button secondary disabled={!data?.configured || busy} onClick={() => void testChannel()}>Testnachricht senden</Button>
@@ -115,7 +122,7 @@ export default function PriceAlerts({ csrf, onError }: { csrf: string; onError: 
     <section className="offer-section" aria-labelledby="deliveries-title"><h2 id="deliveries-title">Letzte Zustellungen</h2>
       {data && data.events.length === 0 && <p>Es liegt noch kein Zustellversuch vor.</p>}
       <ul className="alert-list">{data?.events.map(event => <li key={event.id}>
-        <strong>{event.wish_id ? data.rules.find(rule => rule.wish_id === event.wish_id)?.title : 'Testnachricht'}</strong>
+        <strong>{event.wish_id ? data.rules.find(rule => rule.wish_id === event.wish_id)?.title  ?? 'Ehemaliger Wunschlisteneintrag' : 'Testnachricht'}</strong>
         <span>{new Date((event.sent_at ?? event.observed_at) * 1000).toLocaleString('de-DE')} · {deliveryNames[event.state]}{event.attempts > 0 && ` · ${event.attempts} Versuch(e)`}</span>
       </li>)}</ul>
     </section>

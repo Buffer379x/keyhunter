@@ -76,7 +76,7 @@ export default function CatalogSearch({ csrf, open, inline = false, items, onOpe
   function submit(event: FormEvent) { event.preventDefault(); }
 
   const platformField = <div className="field"><label htmlFor={platformId}>Plattform wählen</label><select id={platformId} value={platform} onChange={event => setPlatform(Number(event.target.value))} disabled={busy}><option value={169}>Xbox Series X|S</option><option value={49}>Xbox One</option></select></div>;
-  const searchInput = <input ref={input} id={queryId} type={inline ? 'search' : 'text'} aria-label={inline ? 'Nach Spielen suchen' : undefined} aria-controls={inline && open ? 'global-results' : undefined} aria-expanded={inline ? open : undefined} autoComplete="off" maxLength={100} placeholder={inline ? 'Nach Spielen suchen …' : 'Zum Beispiel Forza Horizon …'} value={query} onFocus={inline ? onOpen : undefined} onChange={event => { setQuery(event.target.value); if (inline) onOpen?.(); }} disabled={busy} />;
+  const searchInput = <input ref={input} id={queryId} type={inline ? 'search' : 'text'} aria-label={inline ? 'Nach Spielen suchen' : undefined} aria-controls={inline && open ? 'global-results' : undefined} autoComplete="off" maxLength={100} placeholder={inline ? 'Nach Spielen suchen …' : 'Zum Beispiel Forza Horizon …'} value={query} onFocus={inline ? onOpen : undefined} onChange={event => { setQuery(event.target.value); if (inline) onOpen?.(); }} disabled={busy} />;
   const resultsPanel = <>
     <ConfirmDialog open={ownedWarning!==null} title="Bereits in der Bibliothek" confirmLabel="Trotzdem vormerken" busy={busy} onCancel={()=>{setOwnedWarning(null);setAddError('');}} onConfirm={()=>void add(ownedWarning?.game??null,true)}>
       <p>{ownedWarning?.message}</p><p>Die gleiche Edition wird in die Wunschliste zurückverschoben. Bei einer anderen Edition bleibt dein vorhandenes Spiel in der Bibliothek.</p>{addError&&<Notice error>{addError}</Notice>}
@@ -90,7 +90,7 @@ export default function CatalogSearch({ csrf, open, inline = false, items, onOpe
       const saved = (items ?? savedItems).some(item => item.game?.igdb_id === game.igdb_id && item.platform_id === platform);
       return <li className="catalog-result" key={game.igdb_id}><Cover src={game.cover_url} /><div className="result-info"><h3>{game.name}</h3><p><span title="Jahr der Erstveröffentlichung">{releaseYear(game.first_release_date)}</span> · {platformName(platform)}</p><span className={`kind-badge ${selectionAllowed(game) ? '' : 'unverified'}`}>{kindName(game)}</span>{game.kind === 'edition' && <p className="edition-note">Edition separat erfasst · Händlerinhalt noch ungeprüft</p>}{!selectionAllowed(game) && <p className="edition-note">Kein belegtes eigenständiges Spiel bzw. keine zuordenbare Edition.</p>}</div><Button secondary disabled={busy || (saved && !inline) || !selectionAllowed(game)} onClick={() => void add(game)} aria-label={`${game.name} ${saved && inline ? 'öffnen' : 'vormerken'}`}>{busy ? '…' : saved ? inline ? 'Öffnen' : 'Vorgemerkt' : 'Vormerken'}</Button></li>;
     })}</ul>}
-    {(state === 'error' || (state === 'ready' && results.length === 0)) && query.trim().length >= 2 && <div className="manual-fallback"><h3>Titel trotzdem vormerken?</h3><p>„{query.trim()}“ wird manuell gespeichert. Plattform, Edition und Inhalte bleiben ungeprüft; daraus entstehen keine bestätigten Angebote.</p><Button secondary disabled={busy} onClick={() => void add(null)}>{busy ? 'Wird gespeichert …' : 'Ungeprüft vormerken'}</Button></div>}
+    {(state === 'error' || (state === 'ready' && results.length === 0)) && query.trim().length >= 2 && <div className="manual-fallback"><h3>Manuell vormerken</h3><p>„{query.trim()}“ wird manuell gespeichert. Plattform, Edition und Inhalte bleiben ungeprüft; daraus entstehen keine bestätigten Angebote.</p><Button secondary disabled={busy} onClick={() => void add(null)}>{busy ? 'Wird gespeichert …' : 'Ungeprüft vormerken'}</Button></div>}
     <div className="catalog-attribution">Spieledaten von IGDB · Erstveröffentlichung ist nicht zwingend das Xbox-Veröffentlichungsdatum.</div>
   </>;
   if (inline) return <div className="global-search-wrap" ref={container} onKeyDown={event => {
@@ -101,8 +101,7 @@ export default function CatalogSearch({ csrf, open, inline = false, items, onOpe
     {open && <section className="global-results" id="global-results" aria-label="Suchergebnisse"><div className="inline-search-heading"><span>Spiele suchen · IGDB</span><button className="icon-action" type="button" aria-label="Suche schließen" disabled={busy} onClick={onClose}><Icon name="close" /></button></div>{platformField}{resultsPanel}</section>}
   </div>;
   return <dialog ref={dialog} className="catalog-dialog" aria-labelledby="catalog-title" onCancel={event => { if (busy) event.preventDefault(); else onClose(); }}>
-    <div className="dialog-heading"><div><p className="eyebrow">DEIN NÄCHSTES SPIEL</p><h2 id="catalog-title">Spiel hinzufügen</h2></div><Button secondary type="button" aria-label="Suche schließen" onClick={onClose} disabled={busy}>×</Button></div>
-    <p>Suche im IGDB-Katalog und bestätige Titel, Edition und Xbox-Plattform.</p>
+    <div className="dialog-heading"><h2 id="catalog-title">Spiel hinzufügen</h2><Button secondary type="button" aria-label="Suche schließen" onClick={onClose} disabled={busy}>×</Button></div>
     <form className="catalog-form" onSubmit={submit}><div className="field"><label htmlFor={queryId}>Spiel im Katalog suchen</label>{searchInput}</div>{platformField}</form>{resultsPanel}
   </dialog>;
 }

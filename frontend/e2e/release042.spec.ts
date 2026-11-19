@@ -10,7 +10,7 @@ test('saved prices appear on the first list response and edition tags are prepar
   const badge={state:'price',cents:1234,observed_at:1795107000,checked_at:1795107000,stale:true,pending:false};
   await page.route('**/api/v1/wishlist',route=>route.request().method()==='GET'?route.fulfill({json:rows.map((item:object)=>({...item,price_badge:badge}))}):route.continue());
   // A slow follow-up read must not replace an already known price by Unknown.
-  await page.route('**/api/v1/wishlist/price-badges',async route=>{await new Promise(resolve=>setTimeout(resolve,500));await route.fulfill({json:Object.fromEntries(rows.map((item:{id:string})=>[item.id,badge]))});});
+  await page.route(/\/api\/v1\/wishlist\/price-badges(?:\?.*)?$/,async route=>{await new Promise(resolve=>setTimeout(resolve,500));await route.fulfill({json:Object.fromEntries(rows.map((item:{id:string})=>[item.id,badge]))});});
   await page.route('**/api/v1/wishlist/*/editions',async route=>{
     const response=await route.fetch();const data=await response.json();
     await route.fulfill({json:{...data,items:data.items.map((item:{game?:{kind:string}})=>({...item,price_badge:{...badge,cents:item.game?.kind==='edition'?2000:1234}}))}});

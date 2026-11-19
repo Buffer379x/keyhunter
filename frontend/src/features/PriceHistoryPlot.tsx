@@ -21,7 +21,7 @@ export default function PriceHistoryPlot({ history }: { history:HistoryPoint[] }
   return <div className="history-chart" ref={box}><svg className="history-plot" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Verbundener Verlauf des günstigsten beobachteten Preises">
     {ticks.map(cents=><g key={cents}><line className="history-grid" x1={left} x2={right} y1={y(cents)} y2={y(cents)}/><text x={left-8} y={y(cents)+4} textAnchor="end">{(cents/100).toLocaleString('de-DE')} €</text></g>)}
     <path className="history-line" d={commands.join(' ')} fill="none"/>
-    {valid.map((row,i)=><circle className="history-point" key={`${row.observed_at}-${i}`} cx={x(row.observed_at)} cy={y(row.base_cents!)} r="4" tabIndex={0}><title>{new Date(row.observed_at*1000).toLocaleString('de-DE')} · {countryData(row.region).name} · {(row.base_cents!/100).toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</title></circle>)}
+    {valid.map((row,i)=><circle className="history-point" key={`${row.observed_at}-${i}`} cx={x(row.observed_at)} cy={y(row.base_cents!)} r="4"><title>{new Date(row.observed_at*1000).toLocaleString('de-DE')} · {countryData(row.region).name} · {(row.base_cents!/100).toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</title></circle>)}
     <text x={start===end?(left+right)/2:left} y={height-9} textAnchor={start===end?'middle':'start'}>{date(start)}</text>{start!==end&&<text x={right} y={height-9} textAnchor="end">{date(end)}</text>}
   </svg></div>;
 }

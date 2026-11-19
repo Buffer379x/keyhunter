@@ -31,7 +31,7 @@ test('catalog choice persists, editions stay distinct, filters and removal work 
   await page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('button', { name: /Premium Edition/ }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: 'test-results/wishlist-fixture-mobile.png', fullPage: true });
-  await expect(page.getByRole('button', { name: '‹ Zur Wunschliste' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Zur Wunschliste', exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.setViewportSize({ width: 320, height: 800 });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -106,7 +106,7 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
   await page.getByRole('button', { name: 'Editionen vergleichen', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Premium Edition ansehen', exact:true })).toBeVisible();
   await page.getByRole('button', { name: 'Preisverlauf', exact: true }).click();
-  await expect(page.getByText('Die erste passende Messung legt den Verlauf an.')).toBeVisible();
+  await expect(page.getByText('Noch keine Preismessung vorhanden.')).toBeVisible();
   await page.getByRole('button', { name: 'Spielinfos', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Spielinformationen' })).toBeVisible();
   await page.getByRole('button', { name: 'Angebote & Preise', exact: true }).click();

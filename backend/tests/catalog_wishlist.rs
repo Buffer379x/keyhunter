@@ -1390,6 +1390,32 @@ async fn saved_badges_distinguish_unqueried_empty_error_and_retained_observation
         f.call("GET", badges, Value::Null).await.1[id]["cents"].is_null(),
         "a known withdrawal must not retain a sold-out price"
     );
+
+    sqlx::query("UPDATE shop_state SET retry_at=0 WHERE source='eneba'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE shop_job SET due=? WHERE wish_id=?")
+        .bind(t + 3600)
+        .bind(id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE offer_link SET review='rejected' WHERE id=?")
+        .bind(link)
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT OR REPLACE INTO shop_job(source,link_id,due) VALUES('eneba',?,0)")
+        .bind(link)
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        f.call("GET", badges, Value::Null).await.1[id]["pending"],
+        false,
+        "a rejected product must not permanently trigger fast polling",
+    );
 }
 
 #[tokio::test]
@@ -1476,6 +1502,18 @@ async fn preparing_all_editions_preserves_the_saved_selection_and_exposes_previe
             .await
             .unwrap(),
         1
+    );
+    let scoped = format!("/api/v1/wishlist/price-badges?anchor={id}");
+    assert_eq!(
+        f.call("GET", &scoped, Value::Null).await.1[preview_id]["cents"],
+        2345
+    );
+    assert!(
+        f.call("GET", "/api/v1/wishlist/price-badges?anchor=", Value::Null)
+            .await
+            .1
+            .get(preview_id)
+            .is_none()
     );
     let (_, again) = f.call("POST", &path, json!({})).await;
     assert_eq!(again["items"].as_array().unwrap().len(), 2);

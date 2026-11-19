@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, HttpError } from '../api';
-import { Button, Notice } from '../components';
+import { Button, ConfirmDialog, Notice } from '../components';
 
 interface Props {
   configured: boolean | undefined;
@@ -45,7 +45,6 @@ export default function IgdbAccess({ configured, csrf, onChanged, onError }: Pro
   }
 
   return <section className="settings-card" aria-labelledby="igdb-access-title">
-    <div className="section-number">03</div>
     <div className="section-content">
       <h2 id="igdb-access-title">IGDB-Zugang</h2>
       <p>Hinterlege die Client-ID und das Client Secret deiner Twitch-Anwendung für die IGDB-Suche.</p>
@@ -62,13 +61,18 @@ export default function IgdbAccess({ configured, csrf, onChanged, onError }: Pro
           {configured && !confirmRemoval && <Button type="button" secondary disabled={busy} onClick={() => setConfirmRemoval(true)}>IGDB-Zugang entfernen</Button>}
         </div>
       </form>
-      {confirmRemoval && <div>
-        <p>Den gespeicherten Zugang entfernen? Deine Wunschliste bleibt verfügbar.</p>
-        <div className="offer-actions">
-          <Button secondary disabled={busy} onClick={() => setConfirmRemoval(false)}>Zugang behalten</Button>
-          <Button disabled={busy} onClick={() => void change('DELETE')}>Entfernen bestätigen</Button>
-        </div>
-      </div>}
+      <ConfirmDialog
+        open={confirmRemoval}
+        title="IGDB-Zugang entfernen?"
+        cancelLabel="Zugang behalten"
+        confirmLabel="Entfernen bestätigen"
+        busy={busy}
+        onCancel={() => setConfirmRemoval(false)}
+        onConfirm={() => void change('DELETE')}
+      >
+        <p>Für neue Katalogabfragen sind anschließend wieder Zugangsdaten nötig.</p>
+        {error && <Notice error>{error}</Notice>}
+      </ConfirmDialog>
     </div>
   </section>;
 }
