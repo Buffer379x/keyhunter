@@ -2,6 +2,7 @@
  * Self-hosted fonts, latin subset only (covers German umlauts, sharp s, euro sign).
  * The files come from the pinned npm packages @fontsource-variable/inter and @fontsource/jetbrains-mono
  * and are bundled by Vite. The server sends CSP default-src 'self', so no CDN is used.
+ * Inter is the variable font (weights 400, 500 and 600 are used); JetBrains Mono ships 400 and 500.
  * The Archivo wordmark is drawn as outlined SVG paths (src/brand.tsx) and needs no font file.
  */
 @font-face {
@@ -9,7 +10,14 @@
   font-style: normal;
   font-display: swap;
   font-weight: 100 900;
-  src: url('../../node_modules/@fontsource-variable/inter/files/inter-latin-opsz-normal.woff2') format('woff2');
+  src: url('../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('../../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2') format('woff2');
 }
 @font-face {
   font-family: 'JetBrains Mono';
@@ -17,11 +25,4 @@
   font-display: swap;
   font-weight: 500;
   src: url('../../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'JetBrains Mono';
-  font-style: normal;
-  font-display: swap;
-  font-weight: 600;
-  src: url('../../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-600-normal.woff2') format('woff2');
 }
