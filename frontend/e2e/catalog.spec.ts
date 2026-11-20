@@ -32,7 +32,7 @@ test('catalog choice persists, editions stay distinct, filters and removal work 
   await page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('button', { name: /Premium Edition/ }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: 'test-results/wishlist-fixture-mobile.png', fullPage: true });
-  await expect(page.getByRole('button', { name: 'Zur Wunschliste', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Forza Horizon 5: Premium Edition', level: 1 })).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.setViewportSize({ width: 320, height: 800 });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -76,7 +76,7 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
   await signInToFixture(page);
   await page.getByRole('searchbox', { name: 'Nach Spielen suchen', exact: true }).fill('forza');
   await page.getByRole('region', { name: 'Suchergebnisse' }).getByRole('button', { name: 'Forza Horizon 5 vormerken', exact: true }).click();
-  await expect(page.getByRole('heading', { name: /^Bester gültiger Preis/ })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Preisvergleich' })).toContainText('Bester Preis');
   await openTab(page, 'Angebote');
   await expect(page.getByText('Suche eingeplant', { exact: true })).toBeVisible();
   await openTab(page, 'Preis');
@@ -96,13 +96,14 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
       target_country: target, discovery_running: false, searches: [{ source: 'eneba', status: 'complete', checked_at: 1794950000, result_count: 4, last_error: null }], sources: [] },
   }) : route.continue());
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Bester gültiger Preis · DE' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Preisvergleich' })).toContainText('Bester Preis · DE');
   await openTab(page, 'Angebote');
   const rows = page.getByRole('table', { name: 'Angebote nach Preis' }).locator('tbody tr');
   await expect(rows).toHaveCount(4);
   // Cheaper foreign offers stay visible, ordered by price, each with the reason why it does not count.
   await expect(rows.first()).toContainText('Vereinigte Staaten');
-  await expect(rows.first()).toContainText('In DE nicht aktivierbar');
+  await expect(rows.first()).toContainText('in DE nicht aktivierbar');
+  await expect(rows.first().getByRole('link', { name: /^Zum Shop/ })).toHaveAttribute('rel', 'noopener noreferrer');
   await expect(rows.filter({ hasText: 'Deutschland' })).toContainText('in DE aktivierbar');
   await expect(page.getByRole('tab', { name: /^Angebote/ })).toContainText('4');
   await openTab(page, 'Editionen');
@@ -110,7 +111,7 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
   await openTab(page, 'Verlauf');
   await expect(page.getByText('Noch keine Preismessung vorhanden.')).toBeVisible();
   await openTab(page, 'Infos');
-  await expect(page.getByRole('heading', { name: 'Über das Spiel' })).toBeVisible();
+  await expect(page.getByText('Erscheinungsjahr', { exact: true })).toBeVisible();
   await expect(page).toHaveURL(/[?&]tab=infos/);
   await page.goBack();
   await expect(page).toHaveURL(/[?&]tab=verlauf/);
@@ -126,7 +127,7 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
   await expect(page.getByRole('tab', { name: /^Angebote/ })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('table', { name: 'Angebote nach Preis' }).locator('tbody tr')).toHaveCount(4);
   await openTab(page, 'Preis');
-  await expect(page.getByRole('heading', { name: 'Bester gültiger Preis · US' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Preisvergleich' })).toContainText('Bester Preis · US');
   await navTo(page, 'Allgemein');
   await settingsCountry(page).selectOption('DE');
   await expectSettingsSaved(page);

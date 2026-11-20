@@ -11,7 +11,7 @@ const ROWS = 20, AXIS = 40, GAP = 2;
 /**
  * Dot-matrix price chart of the design v4 prototype (drawMatrix): per column of whole days a pair of cell stacks, the
  * target country (orange) next to the cheapest region worldwide (warm white). 30 columns, 15 below 520 px; 20 rows up to
- * the next 10 € above the highest price or the alarm target. A column without a valid measurement stays empty.
+ * the next 20 € above the highest price or the alarm target. A column without a valid measurement stays empty.
  * Hover, tap or the arrow keys highlight a column and show its prices; a visually hidden table carries the same data.
  */
 export default function PriceMatrix({ home, world, days, target, now, country, label }: {
@@ -34,7 +34,8 @@ export default function PriceMatrix({ home, world, days, target, now, country, l
   const width = Math.max(280, (boxWidth || 640) - 24);
   const cols = columns(home, world, days, width < 520 ? 15 : 30, now);
   const values = cols.flatMap(c => [c.home?.cents, c.world?.cents]).filter((v): v is number => v !== undefined);
-  const top = Math.max(1000, Math.ceil(Math.max(...values, target ?? 0) / 1000) * 1000);
+  // Up to the next 20 € so that the labels every 5 rows fall on whole euros (5, 10, 15, 20 …).
+  const top = Math.max(2000, Math.ceil(Math.max(...values, target ?? 0) / 2000) * 2000);
   const step = top / ROWS;
   const colW = (width - AXIS) / cols.length;
   const cell = Math.max(3, Math.min(12, (colW - 4) / 2 - GAP));

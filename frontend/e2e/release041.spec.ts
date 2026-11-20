@@ -60,7 +60,7 @@ test('purchase and restore move the saved edition; owned family additions requir
   await catalog.getByRole('button',{name:'Forza Horizon 5: Premium Edition vormerken',exact:true}).click();
   await expect(warning).toBeVisible();await warning.getByRole('button',{name:'Trotzdem vormerken',exact:true}).click();
   await expect(catalog).not.toBeVisible();await expect(warning).not.toBeVisible();
-  await expect(page.getByRole('heading',{name:'Forza Horizon 5: Premium Edition',level:2,exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Forza Horizon 5: Premium Edition',level:1,exact:true})).toBeVisible();
   await navTo(page, 'Bibliothek');
   await expect(library.getByRole('listitem')).toHaveCount(1);
   await library.getByRole('button',{name:'Forza Horizon 5 zurück in die Wunschliste',exact:true}).click();
@@ -78,9 +78,9 @@ test('library navigation and confirmation fit a 320 pixel screen',async({page})=
   await signInToFixture(page);
   await page.getByRole('searchbox',{name:'Nach Spielen suchen',exact:true}).fill('forza');
   await page.getByRole('region',{name:'Suchergebnisse'}).getByRole('button',{name:'Forza Horizon 5 vormerken',exact:true}).click();
-  // On a narrow screen the buttons float over the artwork and never cover the cover or the title.
+  // On a narrow screen the actions wrap below the cover and the title instead of covering them.
   await expect(page.getByRole('button',{name:'Weitere Aktionen'})).toBeVisible();
-  await expect.poll(()=>page.locator('.gd-actions').evaluate(el=>el.getBoundingClientRect().bottom<=document.querySelector('.gd-cover')!.getBoundingClientRect().top)).toBe(true);
+  await expect.poll(()=>page.locator('.game-actions').evaluate(el=>el.getBoundingClientRect().top>=document.querySelector('.game-head h1')!.getBoundingClientRect().bottom)).toBe(true);
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await removeCurrent(page);
   await navTo(page, 'Bibliothek');

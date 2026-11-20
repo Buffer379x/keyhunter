@@ -104,7 +104,7 @@ export default function PriceTab({ view, rows, summary, basis, onBasis, hasEstim
             <div className="actions">
               {targetRow && <a className="btn primary" href={targetRow.link.url} target="_blank" rel="noopener noreferrer">Angebot {code} öffnen<Icon name="ext" /></a>}
               {world && !same && <a className="btn" href={world.link.url} target="_blank" rel="noopener noreferrer">Angebot {regionName(world)}<Icon name="ext" /></a>}
-              {summary.pricedCount > 0 && <Button variant="ghost" onClick={() => onTab('angebote')}>Alle {summary.pricedCount} {summary.pricedCount === 1 ? 'Angebot' : 'Angebote'}</Button>}
+              {summary.pricedCount > 0 && <Button variant="ghost" onClick={() => onTab('angebote')}>{summary.pricedCount === 1 ? 'Angebot ansehen' : `Alle ${summary.pricedCount} Angebote`}</Button>}
               {view && !rows.length && !searching && <Button variant="ghost" onClick={() => onTab('infos')}>Produktlink ergänzen</Button>}
             </div>
           </div>

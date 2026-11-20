@@ -15,6 +15,7 @@ import PriceTab from './PriceTab';
 import Popover from './Popover';
 import { money } from './price-format';
 import { itemName, platformName } from './catalog-ui';
+import { countryData } from './regions';
 import { useOffersView } from './useOffersView';
 
 export const tabIds = ['preis', 'angebote', 'verlauf', 'editionen', 'alarm', 'infos'] as const;
@@ -61,6 +62,8 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
   const { view } = state;
   const [basis, setBasis] = useState<Basis>('base');
   const code = (targetCountry ?? view?.target_country ?? '').toUpperCase();
+  // Country name for sentences ("Deutschland ist gerade weltweit am günstigsten"), also while the setting is still loading.
+  const land = code ? countryData(code).name : targetLabel;
   const rows = offerRows(view, basis);
   const summary = summarize(view, rows, basis, code);
   const searching = !!view?.searches.some(s => ['queued', 'searching'].includes(s.status)) || !!view?.discovery_running;
@@ -114,13 +117,13 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
     {state.error && <Notice error>{state.error}<Button size="sm" onClick={state.refetch}>Erneut laden</Button></Notice>}
     {state.message && <Notice>{state.message}</Notice>}
     <TabPanel id="gd" tab="preis" value={tab}>
-      {loading ?? <PriceTab view={view} rows={rows} summary={summary} basis={basis} onBasis={setBasis} hasEstimates={hasEstimates} code={code || 'Zielland'} land={targetLabel} rule={rule} searching={searching} onTab={go} />}
+      {loading ?? <PriceTab view={view} rows={rows} summary={summary} basis={basis} onBasis={setBasis} hasEstimates={hasEstimates} code={code || 'Zielland'} land={land} rule={rule} searching={searching} onTab={go} />}
     </TabPanel>
     <TabPanel id="gd" tab="angebote" value={tab}>
       {loading ?? <OffersTab state={state} rows={rows} summary={summary} basis={basis} onBasis={setBasis} hasEstimates={hasEstimates} code={code || 'Zielland'} searching={searching} reviewCount={reviews} onTab={go} />}
     </TabPanel>
     <TabPanel id="gd" tab="verlauf" value={tab}>
-      {view ? <HistoryTab view={view} summary={summary} code={code || 'Zielland'} land={targetLabel} target={rule?.basis === 'base' ? target : null} /> : loading}
+      {view ? <HistoryTab view={view} summary={summary} code={code || 'Zielland'} land={land} target={rule?.basis === 'base' ? target : null} /> : loading}
     </TabPanel>
     <TabPanel id="gd" tab="editionen" value={tab}>
       {item.game ? <EditionComparison gameId={item.game.igdb_id} platformId={item.platform_id} games={variants} savedId={item.game.igdb_id} viewedId={game?.igdb_id} code={code || 'Zielland'}

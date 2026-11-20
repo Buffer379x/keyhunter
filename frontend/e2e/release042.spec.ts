@@ -1,6 +1,6 @@
 import { test,expect } from '@playwright/test';
 import { signInToFixture, navTo } from './helpers';
-import { openEditionPicker, openTab, removeCurrent } from './detail-helpers';
+import { editionSelect, openTab, removeCurrent } from './detail-helpers';
 
 test('saved prices appear on the first list response and edition tags are prepared before switching',async({page})=>{
   await signInToFixture(page);
@@ -18,27 +18,23 @@ test('saved prices appear on the first list response and edition tags are prepar
   });
   await page.reload();
   await expect(page.locator('.wishlist-entry .list-price')).toContainText('12,34');
-  // The edition picker lists both editions with their saved prices before the owner switches.
-  await openEditionPicker(page);
-  await expect(page.locator('.edition-row')).toHaveCount(2);
-  await expect(page.locator('.edition-row .price-badge')).toHaveCount(2);
+  // The Editionen tab lists both editions with their saved prices before the owner switches.
+  await openTab(page,'Editionen');
+  const editions=page.locator('.ed-row');
+  await expect(editions).toHaveCount(2);
+  await expect(editions.filter({hasText:'Standard Edition'})).toContainText('12,34');
+  await expect(editions.filter({hasText:'Standard Edition'})).toContainText('gemerkt');
   await expect(page.locator('.wishlist-entry .list-price')).toContainText('12,34');
-  const premium=page.locator('.edition-row').filter({hasText:'Premium Edition'});
-  await expect(premium.locator('.price-badge')).toContainText('20,00');
+  const premium=editions.filter({hasText:'Premium Edition'});
+  await expect(premium).toContainText('20,00');
   await page.getByRole('button',{name:'Premium Edition ansehen',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Forza Horizon 5: Premium Edition',level:2,exact:true})).toBeVisible();
-  await openEditionPicker(page);
+  await expect(page.getByRole('heading',{name:'Forza Horizon 5: Premium Edition',level:1,exact:true})).toBeVisible();
+  await expect(editionSelect(page).locator('option:checked')).toHaveText('Premium Edition · Vorschau');
+  await expect(premium).toContainText('Vorschau · wird angezeigt');
   await expect(page.getByRole('list',{name:'Vorgemerkte Spiele'}).getByRole('listitem')).toHaveCount(1);
-  for(const width of [320,1320]) {
-  await page.setViewportSize({width,height:844});
-  await expect.poll(()=>page.locator('.edition-row').evaluateAll(rows=>rows.every(row=>{
-    const title=row.querySelector('strong'),badge=row.querySelector('.selection-badge');if(!title||!badge)return true;
-    const range=document.createRange();range.selectNodeContents(title);const b=badge.getBoundingClientRect();
-    return [...range.getClientRects()].every(t=>t.right<=b.left||t.left>=b.right||t.bottom<=b.top||t.top>=b.bottom);
-  }))).toBe(true);
-  }
+  await page.setViewportSize({width:320,height:844});
+  await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.setViewportSize({width:1280,height:720});
-  await page.keyboard.press('Escape');
   await page.getByRole('button',{name:'Zur gemerkten Edition',exact:true}).click();
   await removeCurrent(page);
 });
@@ -70,16 +66,21 @@ test('offers are ordered by price and the cheapest region is compared with the t
   const link=(id:number,region:string,cents:number)=>({id,source:'eneba',url:'https://www.eneba.com/de/xbox-fixture-key-global',review:'confirmed',can_confirm:true,eligible:region==='DE',queued:false,enabled:true,stale:false,observed_at:Math.floor(Date.now()/1000)-3600,attempted_at:1795107000,last_error:null,retry_at:0,reasons:region==='DE'?[]:['activation_unknown','purchase_context_mismatch'],product:{name:'Synthetic',region,market:'DE',activation:region==='DE'?'confirmed':'unknown',availability:'in_stock'},quotes:[{id:String(id),seller:null,base_cents:cents,estimated_total_cents:region==='India'?null:cents+100}]});
   await page.route('**/api/v1/wishlist/*/offers',route=>route.request().method()==='GET'?route.fulfill({json:{links:[link(1,'DE',3000),link(2,'USA',1000),link(3,'India',500)],histories:{preferred:[],all:[]},history:[],best_base:3000,best_estimate:3100,target_country:'DE',searches:[],sources:[],discovery_running:false}}):route.continue());
   await page.reload();
-  // The Preis tab always shows the target country next to the cheapest region, with the difference.
-  const compare=page.getByLabel('Preisvergleich',{exact:true});
-  await expect(compare.locator('.compare-tile.target')).toContainText('30,00');
-  await expect(compare.locator('.compare-tile.world')).toContainText('5,00');
-  await expect(compare.locator('.compare-tile.world')).toContainText('Indien');
-  await expect(compare.locator('.compare-tile.world')).toContainText('Aktivierung in DE ungeklärt');
-  await expect(page.locator('.compare-delta')).toContainText('25,00 € günstiger');
-  await expect(page.locator('.compare-delta')).toContainText('83 %');
-  await expect(page.locator('#why-summary')).toContainText('2 günstigere Angebote zählen nicht');
-  await expect(page.locator('#why-summary')).toContainText('z. B. Indien 5,00 €');
+  // The Preis tab always shows the target country next to the cheapest region, with the difference and the verdict.
+  const compare=page.getByRole('group',{name:'Preisvergleich',exact:true});
+  await expect(compare.locator('.compare-side.home')).toContainText('30,00');
+  await expect(compare.locator('.compare-side.world')).toContainText('5,00');
+  await expect(compare.locator('.compare-side.world')).toContainText('Indien');
+  await expect(compare.locator('.compare-side.world .reg')).toHaveText('IN');
+  await expect(compare.locator('.compare-side.world')).toContainText('Aktivierung in DE ungeklärt');
+  await expect(compare.locator('.delta')).toContainText('−25,00');
+  await expect(compare.locator('.delta')).toContainText('−83 %');
+  await expect(page.locator('.verdict p')).toContainText(/Indien spart 25,00\s€ \(83 %\)\./);
+  await expect(page.locator('.verdict p')).toContainText('meist braucht es eine Regionsumstellung im Konto. Der Unterschied ist groß.');
+  await expect(page.getByRole('link',{name:/^Angebot DE öffnen/})).toHaveAttribute('target','_blank');
+  await expect(page.getByRole('link',{name:/^Angebot Indien/})).toHaveAttribute('rel','noopener noreferrer');
+  await expect(page.locator('#why-list')).toContainText('Indien ist günstiger, Aktivierung in DE ungeklärt');
+  await expect(page.locator('#why-list')).toContainText('Vereinigte Staaten ist günstiger');
   // The offer table: the cheapest region comes first wherever it is, and says why it does not count for DE.
   await openTab(page,'Angebote');
   const rows=page.getByRole('table',{name:'Angebote nach Preis'}).locator('tbody tr');
@@ -94,6 +95,8 @@ test('offers are ordered by price and the cheapest region is compared with the t
   await expect(page.getByRole('switch',{name:'Nur in DE aktivierbar'})).not.toBeChecked();
   await page.getByRole('switch',{name:'Nur in DE aktivierbar'}).click();
   await expect(rows).toHaveCount(1);
+  await expect(page.locator('.panel-head .count')).toHaveText('1 von 3');
+  await expect(rows.first().locator('.price')).toHaveClass(/hot/);
   await expect(page.getByRole('button',{name:/2 Angebote in DE nicht aktivierbar.*Indien/})).toBeVisible();
   await page.getByRole('button',{name:/2 Angebote in DE nicht aktivierbar/}).click();
   await expect(rows).toHaveCount(3);
@@ -103,7 +106,7 @@ test('offers are ordered by price and the cheapest region is compared with the t
   await expect(rows.nth(1)).toContainText('Deutschland');
   await expect(rows.last()).toContainText('Indien');
   await openTab(page,'Preis');
-  await expect(compare.locator('.compare-tile.target')).toContainText('31,00');
-  await expect(compare.locator('.compare-tile.world')).toContainText('11,00');
+  await expect(compare.locator('.compare-side.home')).toContainText('31,00');
+  await expect(compare.locator('.compare-side.world')).toContainText('11,00');
   await removeCurrent(page);
 });

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { signInToFixture, navTo } from './helpers';
-import { removeCurrent } from './detail-helpers';
+import { backToList, removeCurrent } from './detail-helpers';
 
 test('tablet opens the labeled navigation as a drawer and gives the selected game its own view in portrait', async ({ page }) => {
   await page.setViewportSize({ width: 820, height: 1180 });
@@ -22,9 +22,9 @@ test('tablet opens the labeled navigation as a drawer and gives the selected gam
 
   await page.getByRole('searchbox').fill('forza');
   await page.getByRole('button', { name: 'Forza Horizon 5 vormerken', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Forza Horizon 5', exact: true, level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Forza Horizon 5', exact: true, level: 1 })).toBeVisible();
   await expect(page.getByRole('list', { name: 'Vorgemerkte Spiele' })).toBeHidden();
-  await page.getByRole('button', { name: 'Zur Wunschliste', exact: true }).click();
+  await backToList(page);
   await expect(page.getByRole('list', { name: 'Vorgemerkte Spiele' })).toBeVisible();
   await page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('button').click();
   await removeCurrent(page);
@@ -36,14 +36,15 @@ test('an alarm rule opens the editor and offers recover after a temporary read f
   await page.getByRole('searchbox').fill('forza');
   await page.getByRole('button', { name: 'Forza Horizon 5 vormerken', exact: true }).click();
   await expect(page).toHaveURL(/[?&]item=/);
-  await page.getByRole('button', { name: 'Preisalarm', exact: true }).click();
+  await page.getByRole('button', { name: 'Ziel setzen', exact: true }).click();
   await expect(page.getByLabel('Zielpreis',{exact:true})).toBeVisible();
   await page.getByLabel('Zielpreis',{exact:true}).fill('15,00');
-  await page.getByRole('button', { name: 'Alarm anlegen' }).click();
+  await page.getByRole('button', { name: 'Speichern', exact: true }).click();
   await expect(page.getByText('Alarmregel gespeichert.')).toBeVisible();
   await navTo(page, 'Preisalarme');
   await page.getByRole('link', { name: 'Forza Horizon 5', exact: true }).click();
   await expect(page.getByLabel('Zielpreis',{exact:true})).toHaveValue('15,00');
+  await expect(page.getByRole('button', { name: 'Ziel 15,00 €', exact: true })).toBeVisible();
 
   let failed = false;
   await page.route('**/api/v1/wishlist/*/offers', route => {
