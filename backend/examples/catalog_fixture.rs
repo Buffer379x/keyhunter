@@ -162,12 +162,116 @@ impl CatalogProvider for FixtureProvider {
     }
 }
 
+/// With `KEYHUNTER_FIXTURE_PRICES=1`: one confirmed Eneba link for "Forza Horizon 5" (Xbox
+/// Series X|S) with 16 days of synthetic DE prices, so badges show a 14-day trend. Target
+/// country becomes DE. Off by default because the browser suite expects an empty wishlist.
+async fn seed_prices(data_dir: &std::path::Path) -> anyhow::Result<()> {
+    use sha2::{Digest, Sha256};
+    const WISH: &str = "f1c7000000000000000000000000a001";
+    let pool = sqlx::SqlitePool::connect_with(
+        sqlx::sqlite::SqliteConnectOptions::new()
+            .filename(data_dir.join("keyhunter.db"))
+            .foreign_keys(true),
+    )
+    .await?;
+    let seeded: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM wishlist_item WHERE id=?)")
+        .bind(WISH)
+        .fetch_one(&pool)
+        .await?;
+    if seeded {
+        return Ok(());
+    }
+    let t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs() as i64;
+    let day = 86400;
+    let today = t - t % day;
+    let game = fixture(1001, "Forza Horizon 5", "base_game", &[169, 49]);
+    // Same identity as `Product::fingerprint` in the library.
+    let fingerprint = hex::encode(Sha256::digest(
+        serde_json::json!([2, "fixture-fh5", true, [169]]).to_string(),
+    ));
+    let product = |cents: i64, availability: &str| {
+        serde_json::json!({"id":"fixture-fh5","name":"Forza Horizon 5 (Xbox Series X|S) Xbox Live Key EUROPE",
+            "title":"Forza Horizon 5","platform_ids":[169],"key_game":true,"region":"Europe","allowed":["DE"],
+            "blocked":[],"purchase_country":"DE","offers":[{"id":"fixture-offer","cents":cents,"seller":"Fixture-Händler"}],
+            "availability":availability})
+    };
+    let mut tx = pool.begin().await?;
+    sqlx::query("UPDATE app_settings SET target_country='DE' WHERE id=1")
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("INSERT OR IGNORE INTO catalog_game(igdb_id,payload,fetched_at) VALUES(1001,?,?)")
+        .bind(serde_json::to_string(&game)?)
+        .bind(t)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("INSERT OR IGNORE INTO game(id,igdb_id,created_at) VALUES('fixture-fh5',1001,?)")
+        .bind(t)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES(?,'fixture-fh5',169,?)")
+        .bind(WISH)
+        .bind(t - 20 * day)
+        .execute(&mut *tx)
+        .await?;
+    let link: i64 = sqlx::query_scalar(
+        "INSERT INTO offer_link(wish_id,source,url,review,fingerprint,latest,observed_at,attempted_at,confirmed_name)
+        VALUES(?,'eneba','https://www.eneba.com/de/xbox-forza-horizon-5-xbox-series-x-s-xbox-live-key-europe','confirmed',?,?,?,?,?) RETURNING id",
+    )
+    .bind(WISH)
+    .bind(&fingerprint)
+    .bind(product(2399, "in_stock").to_string())
+    .bind(t - 600)
+    .bind(t - 600)
+    .bind("Forza Horizon 5 (Xbox Series X|S) Xbox Live Key EUROPE")
+    .fetch_one(&mut *tx)
+    .await?;
+    // Days ago and price; `None` is a sold-out day, which shows as a gap.
+    let history = [
+        (16, Some(3199)),
+        (13, Some(2999)),
+        (11, Some(3099)),
+        (9, Some(2799)),
+        (7, None),
+        (6, Some(2899)),
+        (4, Some(2549)),
+        (2, Some(2649)),
+        (0, Some(2399)),
+    ];
+    for (ago, cents) in history {
+        let at = if ago == 0 {
+            t - 600
+        } else {
+            today - ago * day + 10 * 3600
+        };
+        let observed = product(
+            cents.unwrap_or(0),
+            if cents.is_some() {
+                "in_stock"
+            } else {
+                "sold_out"
+            },
+        );
+        sqlx::query("INSERT INTO price_observation(link_id,product_id,observed_at,market,fingerprint,offers,activation,availability) VALUES(?,'fixture-fh5',?,'DE',?,?,'confirmed',?)")
+            .bind(link).bind(at).bind(&fingerprint)
+            .bind(if cents.is_some() { observed["offers"].to_string() } else { "[]".into() })
+            .bind(observed["availability"].as_str()).execute(&mut *tx).await?;
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let config = Config::from_env()?;
     let bind = config.bind;
+    let data_dir = config.data_dir.clone();
     let app =
         create_app_with_catalog(config, Arc::new(FixtureProvider(AtomicBool::new(true)))).await?;
+    if std::env::var("KEYHUNTER_FIXTURE_PRICES").as_deref() == Ok("1") {
+        seed_prices(&data_dir).await?;
+    }
     let listener = tokio::net::TcpListener::bind(bind).await?;
     axum::serve(listener, app).await?;
     Ok(())
