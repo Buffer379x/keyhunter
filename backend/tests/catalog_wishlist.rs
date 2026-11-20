@@ -1791,6 +1791,12 @@ async fn badges_always_compare_the_target_country_with_the_cheapest_region() {
     );
     assert_eq!(badges[&id]["world"]["cents"], 1290);
     assert_eq!(badges[&id]["world"]["region"], "India");
+    assert_eq!(badges[&id]["world"]["source"], "eneba");
+    assert_eq!(
+        badges[&id]["source"], "eneba",
+        "the badge names the shop of its price"
+    );
+    assert!(badges[&id]["region"].is_string() || badges[&id]["region"].is_null());
     let (_, items) = f.call("GET", "/api/v1/wishlist", Value::Null).await;
     assert_eq!(items[0]["price_badge"]["world"]["cents"], 1290);
 }

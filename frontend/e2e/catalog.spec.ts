@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { expectSettingsSaved, signInToFixture, navTo, settingsCountry } from './helpers';
-import { openTab, removeCurrent, wishlistHeading } from './detail-helpers';
+import { openTab, openWishlistRow, removeCurrent, wishlistHeading, wishlistRows } from './detail-helpers';
 
 test('catalog choice persists, editions stay distinct, filters and removal work on mobile', async ({ page }) => {
   const errors: string[] = [];
@@ -21,15 +21,18 @@ test('catalog choice persists, editions stay distinct, filters and removal work 
   await dialog.getByLabel('Spiel im Katalog suchen').fill('forza');
   await expect(dialog.getByRole('button', { name: 'Forza Horizon 5: Premium Edition vormerken', exact: true })).toBeDisabled();
   await dialog.getByRole('button', { name: 'Forza Horizon 5 vormerken', exact: true }).click();
-  await expect(page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('listitem')).toHaveCount(2);
-  await page.getByLabel('Wunschliste filtern').fill('Alternativer Testtitel');
-  await expect(page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('listitem')).toHaveCount(2);
-  await page.getByLabel('Wunschliste filtern').fill('Premium');
-  await expect(page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('listitem')).toHaveCount(1);
-  await page.getByLabel('Wunschliste filtern').fill('');
+  await expect(page.getByRole('heading', { name: 'Forza Horizon 5', exact: true })).toBeVisible();
+  // The game is a page of its own: "Wunschliste" in the breadcrumb leads back to the list.
+  await page.getByRole('navigation', { name: 'Pfad' }).getByRole('button', { name: 'Wunschliste', exact: true }).click();
+  await expect(wishlistRows(page)).toHaveCount(2);
+  await page.getByLabel('Liste filtern').fill('Alternativer Testtitel');
+  await expect(wishlistRows(page)).toHaveCount(2);
+  await page.getByLabel('Liste filtern').fill('Premium');
+  await expect(wishlistRows(page)).toHaveCount(1);
+  await page.getByLabel('Liste filtern').fill('');
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'test-results/wishlist-fixture-desktop.png', fullPage: true });
-  await page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('button', { name: /Premium Edition/ }).click();
+  await openWishlistRow(page, /Premium Edition/);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: 'test-results/wishlist-fixture-mobile.png', fullPage: true });
   await expect(page.getByRole('heading', { name: 'Forza Horizon 5: Premium Edition', level: 1 })).toBeVisible();
@@ -37,10 +40,10 @@ test('catalog choice persists, editions stay distinct, filters and removal work 
   await page.setViewportSize({ width: 320, height: 800 });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await removeCurrent(page);
-  await expect(page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('listitem')).toHaveCount(1);
-  await page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('button', { name: /Forza Horizon 5/ }).click();
+  await expect(wishlistRows(page)).toHaveCount(1);
+  await openWishlistRow(page, /Forza Horizon 5/);
   await removeCurrent(page);
-  await expect(page.getByText('0 von 100 Spielen', { exact: true })).toBeVisible();
+  await expect(page.getByText(/^0 von 100 Plätzen/)).toBeVisible();
   await expect(wishlistHeading(page)).toBeFocused();
   expect(errors).toEqual([]);
 });
@@ -67,7 +70,7 @@ test('old search cannot replace newer results, outage differs from empty and man
   await expect(page.getByRole('heading', { name: 'ausfall', exact: true })).toBeVisible();
   await expect(page.getByText('Manueller Titel · Zuordnungen werden vor dem Preisvergleich geprüft.', { exact: true })).toBeVisible();
   await removeCurrent(page);
-  await expect(page.getByText('0 von 100 Spielen', { exact: true })).toBeVisible();
+  await expect(page.getByText(/^0 von 100 Plätzen/)).toBeVisible();
   await expect(wishlistHeading(page)).toBeFocused();
 });
 
@@ -123,7 +126,8 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
   await settingsCountry(page).selectOption('US');
   await expectSettingsSaved(page);
   target = 'US';
-  await navTo(page, 'Wunschliste');
+  // The sidebar always opens the list; browser back returns to the game and its tab.
+  await page.goBack();
   await expect(page.getByRole('tab', { name: /^Angebote/ })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('table', { name: 'Angebote nach Preis' }).locator('tbody tr')).toHaveCount(4);
   await openTab(page, 'Preis');
@@ -132,6 +136,6 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
   await settingsCountry(page).selectOption('DE');
   await expectSettingsSaved(page);
   target = 'DE';
-  await navTo(page, 'Wunschliste');
+  await page.goBack();
   await removeCurrent(page);
 });

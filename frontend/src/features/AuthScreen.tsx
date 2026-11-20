@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Brand, Button, Notice } from '../components';
-import { countryCodes } from './Country';
+import { countryCodes } from './regions';
 
 type Screen = 'loading' | 'setup' | 'login' | 'offline';
 

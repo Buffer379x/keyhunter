@@ -12,8 +12,3 @@ table.offers .seen.stale { color: var(--warn); }
 .hidden-strip:hover { background: var(--panel-3); }
 .hidden-strip b { color: var(--text); font-weight: 500; }
 
-/* Country flags: only the wishlist row's world line (PriceBadge.tsx) still shows one; the detail uses Reg code badges. */
-.flag-wrap { display: inline-flex; vertical-align: middle; }
-.country-flag { display: inline-grid; place-items: center; width: 24px; height: 18px; margin-right: 8px; overflow: hidden; border-radius: 3px; }
-.country-flag img { width: 100%; height: 100%; object-fit: cover; }
-.country-flag svg { color: var(--muted); }

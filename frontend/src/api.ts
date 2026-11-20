@@ -50,7 +50,15 @@ export interface PriceBadgeData {
   stale:boolean;
   pending:boolean;
   /** Cheapest current offer of any region (valid in the target country or not). */
-  world?:{cents:number;region:string|null;observed_at:number|null}|null;
+  world?:{cents:number;source?:string;region:string|null;observed_at:number|null}|null;
+  /**
+   * Best price valid in the target country at the end of each of the last 14 UTC days (cents, oldest → newest, today = now);
+   * null for a day without a valid price. Comes with 0.6.1; optional so older servers keep working.
+   */
+  trend?:(number|null)[];
+  /** Shop and region of the target-country price, when the server reports them . */
+  source?:string|null;
+  region?:string|null;
 }
 export interface WishlistItem {
   price_badge?:PriceBadgeData;

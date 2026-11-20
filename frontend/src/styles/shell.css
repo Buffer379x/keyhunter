@@ -69,10 +69,6 @@
 }
 .content:focus { outline: none; }
 .content > .notice { max-width: 1320px; margin: 0 auto 16px; }
-/* Transitional: the 0.6.0 wishlist lays out its own list and detail panes. Remove with the wishlist rebuild. */
-.content.fill { padding: 0; }
-.content.fill > .notice { margin: 12px 20px 0; }
-@media (min-width: 960px) { .content.fill { display: flex; flex-direction: column; overflow: hidden; } }
 
 /* Page layout helpers for the content area */
 .page { max-width: 1320px; margin: 0 auto; display: grid; gap: 16px; }

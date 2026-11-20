@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { expectSettingsSaved, signInToFixture, navTo, navItem } from './helpers';
-import { editionSelect, openTab, removeCurrent } from './detail-helpers';
+import { editionSelect, openTab, openWishlistRow, removeCurrent, wishlistRows } from './detail-helpers';
 
 test('settings separate key shops from games index and persist source intervals', async ({ page }) => {
   await signInToFixture(page);
@@ -57,7 +57,7 @@ test('edition previews keep the saved version, offers keep price order and histo
   await expect(rows.first().locator('time')).toHaveAttribute('title', new RegExp(stamp.replace(/\./g, '\\.')));
   await editionSelect(page).selectOption({ label: 'Premium Edition' });
   await expect(page.getByRole('heading', { name:'Forza Horizon 5: Premium Edition',exact:true })).toBeVisible();
-  await expect(page.getByRole('list', { name:'Vorgemerkte Spiele' }).getByRole('listitem')).toHaveCount(1);
+  expect(await (await page.request.get('/api/v1/wishlist')).json()).toHaveLength(1);
   expect(new URL(page.url()).searchParams.get('item')).toBe(new URL(originalUrl).searchParams.get('item'));
   await expect(editionSelect(page).locator('option')).toHaveText(['Standard Edition · gemerkt', 'Premium Edition · Vorschau']);
   await expect(page.getByRole('status').filter({ hasText: 'Vorschau: Premium Edition' })).toBeVisible();
@@ -112,7 +112,7 @@ test('edition previews keep the saved version, offers keep price order and histo
   await removeCurrent(page);
 });
 
-test('wishlist sorting uses date, price and alphabet and survives reload', async ({ page }) => {
+test('wishlist sorting uses date, price, saving and target distance and survives reload', async ({ page }) => {
   await signInToFixture(page);
   const input=page.getByRole('searchbox',{name:'Nach Spielen suchen',exact:true});
   await input.fill('forza');
@@ -122,19 +122,29 @@ test('wishlist sorting uses date, price and alphabet and survives reload', async
   await page.getByRole('region',{name:'Suchergebnisse'}).getByRole('button',{name:'Neuer Treffer vormerken',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Neuer Treffer',exact:true})).toBeVisible();
   const rows=await (await page.request.get('/api/v1/wishlist')).json();
-  const prices=Object.fromEntries(rows.map((item:{id:string;game:{igdb_id:number}})=>[item.id,item.game.igdb_id===1001?1299:999]));
-  await page.route(/\/api\/v1\/wishlist\/price-badges(?:\?.*)?$/,route=>route.fulfill({json:Object.fromEntries(Object.entries(prices).map(([id,cents])=>[id,{state:'price',cents,observed_at:1795107000,checked_at:1795107000,stale:false,pending:false}]))}));
-  await page.reload();
-  const list=page.getByRole('list',{name:'Vorgemerkte Spiele'});
-  const sort=page.getByLabel('Wunschliste sortieren',{exact:true});
-  await sort.selectOption('name');
-  await expect(list.getByRole('listitem').first()).toContainText('Forza Horizon 5');
-  await page.reload();await expect(sort).toHaveValue('name');
-  await sort.selectOption('added');await expect(list.getByRole('listitem').first()).toContainText('Neuer Treffer');
-  await sort.selectOption('price');await expect(list.getByRole('listitem').first()).toContainText('Neuer Treffer');
-  await expect(list.getByRole('listitem').first()).toContainText('9,99');
+  const forza=(item:{game:{igdb_id:number}})=>item.game.igdb_id===1001;
+  // Forza: 12,99 € with India at 5,99 € (saving 7,00 €) and a target of 13,00 € (reached). Neuer Treffer: 9,99 €, no saving, target 5,00 €.
+  const badge=(item:{game:{igdb_id:number}})=>({state:'price',cents:forza(item)?1299:999,observed_at:1795107000,checked_at:1795107000,stale:false,pending:false,world:forza(item)?{cents:599,region:'India',observed_at:1795107000}:{cents:999,region:'Global',observed_at:1795107000}});
+  await page.route(/\/api\/v1\/wishlist\/price-badges(?:\?.*)?$/,route=>route.fulfill({json:Object.fromEntries(rows.map((item:{id:string;game:{igdb_id:number}})=>[item.id,badge(item)]))}));
+  await page.route('**/api/v1/alerts',route=>route.request().method()==='GET'?route.fulfill({json:{configured:true,events:[],rules:rows.map((item:{id:string;game:{igdb_id:number}})=>({wish_id:item.id,mode:'target',basis:'base',target_cents:forza(item)?1300:500,enabled:true}))}}):route.continue());
+  await navTo(page,'Wunschliste');
+  const first=()=>wishlistRows(page).first();
+  const sort=page.getByLabel('Sortieren',{exact:true});
+  await expect(sort.locator('option')).toHaveText(['Zuletzt hinzugefügt',/^Preis [A-Z]{2}$/,'Größte Ersparnis','Nächster am Ziel']);
+  await expect(first()).toContainText('Neuer Treffer');
+  await sort.selectOption('save');
+  await expect(first()).toContainText('Forza Horizon 5');
+  await expect(first().locator('.c-save')).toContainText('−7,00 €');
+  await page.reload();await expect(sort).toHaveValue('save');
+  await sort.selectOption('price');await expect(first()).toContainText('Neuer Treffer');
+  await expect(first().locator('.c-de')).toContainText('9,99');
+  await expect(first().locator('.c-world')).toContainText(/[A-Z]{2} ist weltweit am günstigsten/);
+  await sort.selectOption('target');await expect(first()).toContainText('Forza Horizon 5');
+  await expect(first().locator('.c-status')).toContainText('Ziel erreicht');
+  await expect(wishlistRows(page).nth(1).locator('.c-status')).toContainText('4,99 € über Ziel');
+  await sort.selectOption('added');await expect(first()).toContainText('Neuer Treffer');
   for(const name of ['Neuer Treffer','Forza Horizon 5']) {
-    await list.getByRole('button',{name:new RegExp(name)}).click();
+    await openWishlistRow(page,name);
     await removeCurrent(page);
   }
 });
