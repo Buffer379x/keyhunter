@@ -10,6 +10,7 @@ import EditionComparison from './EditionComparison';
 import { sortWishlist } from './wishlist-sort';
 import type { SortMode } from './wishlist-sort';
 import { Cover, itemName, kindName, platformName, releaseYear } from './catalog-ui';
+import { whenVisible } from '../poll';
 
 interface Props { csrf: string; targetCountry: string | null; targetLabel: string; priceScope: 'preferred'|'all'; onSettings: () => void; onCountChange: (count: number) => void; onError: (error: unknown) => void }
 const compactLayout = '(max-width: 959px)';
@@ -47,17 +48,17 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, priceScope,
     setPreview(null);
     setTab(routeTab());setEditionItems([]);setEditionError('');
     if(!selected?.game)return;
-    const controller=new AbortController();let timer:number;
+    const controller=new AbortController();let cancel=()=>{};
     async function prepare(method='POST') {
       try {
         const data=await api<{items:WishlistItem[];preparing:boolean;error:string|null}>(`/wishlist/${selected!.id}/editions`,method,method==='POST'?{}:undefined,csrf,controller.signal);
         if(controller.signal.aborted)return;
         setEditionItems(data.items);setEditionError(data.error??(data.preparing?'Editionen werden vorbereitet …':''));
         updateBadges(Object.fromEntries(data.items.flatMap(item=>item.price_badge?[[item.id,item.price_badge]]:[])));
-        if(data.preparing)timer=window.setTimeout(()=>void prepare('GET'),3000);
+        if(data.preparing)cancel=whenVisible(()=>void prepare('GET'),3000);
       }catch(error){if(!controller.signal.aborted)setEditionError(error instanceof Error?error.message:'Editionen konnten nicht geladen werden.');}
     }
-    void prepare();return()=>{controller.abort();clearTimeout(timer);};
+    void prepare();return()=>{controller.abort();cancel();};
   },[selected?.id,selected?.game?.igdb_id,selected?.platform_id,csrf,updateBadges]);
   function chooseEdition(game: CatalogGame) {
     if (!selected) return;
@@ -71,15 +72,15 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, priceScope,
 
   useEffect(() => {
     if(!items.length)return;
-    const controller=new AbortController();let timer:number;
+    const controller=new AbortController();let cancel=()=>{};
     async function readPrices(){
       let pending=false;
       try{const data=await api<Record<string,PriceBadgeData>>(`/wishlist/price-badges?anchor=${selected?.id ?? ''}`,'GET',undefined,undefined,controller.signal);
         if(!controller.signal.aborted){updateBadges(data);pending=Object.values(data).some(badge=>badge.pending);}
       }catch{/* Retain saved badges during a failed local read. */}
-      if(!controller.signal.aborted)timer=window.setTimeout(()=>void readPrices(),pending?3000:30000);
+      if(!controller.signal.aborted)cancel=whenVisible(()=>void readPrices(),pending?3000:30000);
     }
-    void readPrices();return()=>{controller.abort();clearTimeout(timer);};
+    void readPrices();return()=>{controller.abort();cancel();};
   },[items,priceScope,targetCountry,updateBadges,selected?.id]);
   const closeSearch = useCallback(() => setSearchOpen(false), []);
 

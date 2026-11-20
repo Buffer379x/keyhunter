@@ -9,6 +9,7 @@ import { AlertEditor } from './PriceAlerts';
 import PriceHistoryPlot from './PriceHistoryPlot';
 import type { HistoryPoint, HistorySeries } from './PriceHistoryPlot';
 import { CountryFlag, countryData } from './Country';
+import { whenVisible } from '../poll';
 
 export const shopNames:Record<string,string>={eneba:'Eneba',driffle:'Driffle',igdb:'IGDB'};
 const sourceErrors:Record<string,string>={network:'Verbindung fehlgeschlagen',rate_limited:'Abruflimit erreicht',access_denied:'Abruf abgelehnt',invalid_response:'Antwort konnte nicht gelesen werden'};
@@ -29,7 +30,7 @@ export default function Offers({id,csrf,targetLabel,onError,onBadge,tab,editionP
   const [openCountry,setOpenCountry]=useState<string|null>(null);const dialog=useRef<HTMLDialogElement>(null);const latest=useRef(0);
   useEffect(()=>{if(openCountry)dialog.current?.showModal();else dialog.current?.close();},[openCountry]);
   useEffect(()=>{
-    const controller=new AbortController();const generation=++latest.current;let timer:number;
+    const controller=new AbortController();const generation=++latest.current;let cancel=()=>{};
     async function load() {
       try {
         const data = await api<View>(path, 'GET', undefined, undefined, controller.signal);
@@ -40,7 +41,7 @@ export default function Offers({id,csrf,targetLabel,onError,onBadge,tab,editionP
         const pending =
           data.searches?.some(search => ['queued', 'searching'].includes(search.status)) ||
           data.discovery_running || data.links.some(link => link.queued && link.review !== 'rejected');
-        timer = window.setTimeout(() => void load(), pending ? 3000 : 60000);
+        cancel = whenVisible(() => void load(), pending ? 3000 : 60000);
       } catch (error) {
         if (controller.signal.aborted) return;
         if (error instanceof HttpError && error.status === 401) {
@@ -48,10 +49,10 @@ export default function Offers({id,csrf,targetLabel,onError,onBadge,tab,editionP
           return;
         }
         setError(error instanceof Error ? error.message : 'Angebote konnten nicht geladen werden.');
-        timer = window.setTimeout(() => void load(), 10000);
+        cancel = whenVisible(() => void load(), 10000);
       }
     }
-    void load();return()=>{controller.abort();clearTimeout(timer);};
+    void load();return()=>{controller.abort();cancel();};
   },[path,reload,onError,onBadge,id]);
   async function write(endpoint:string,method:string,body:unknown,success=''){
     setBusy(true);setError('');setMessage('');try{await api(path+endpoint,method,body,csrf);setMessage(success);setReload(n=>n+1);return true;}

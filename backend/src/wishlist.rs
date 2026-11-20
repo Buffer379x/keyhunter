@@ -69,9 +69,10 @@ pub(crate) async fn list(
         .map(decode)
         .collect::<ApiResult<Vec<_>>>()?;
     let (target, scope) = crate::price_badges::context(&state.pool).await?;
+    let ids: Vec<String> = items.iter().map(|item| item.id.clone()).collect();
+    let mut badges = crate::price_badges::load_many(&state.pool, &ids, &target, &scope).await?;
     for item in &mut items {
-        item.price_badge =
-            Some(crate::price_badges::load(&state.pool, &item.id, &target, &scope).await?);
+        item.price_badge = badges.remove(&item.id);
     }
     Ok(Json(items))
 }

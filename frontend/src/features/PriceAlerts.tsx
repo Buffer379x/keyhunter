@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, HttpError } from '../api';
 import { Button, Notice, PageHeading } from '../components';
+import { whenVisible } from '../poll';
 
 type Rule = { mode: 'target' | 'low'; basis: 'base' | 'estimate'; target_cents: number | null; enabled: boolean };
 type RuleView = Rule & { wish_id: string; title: string; delivery: string | null };
@@ -80,14 +81,14 @@ export default function PriceAlerts({ csrf, onError }: { csrf: string; onError: 
   const [reload, setReload] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
-    let timer: number;
+    let cancel = () => {};
     async function load() {
       try {
         const current = await api<Overview>('/alerts', 'GET', undefined, undefined, controller.signal);
         if (controller.signal.aborted) return;
         setData(current);
         setLoadError('');
-        if (current.configured && current.events.some(row => row.state === 'pending')) timer = window.setTimeout(() => void load(), 5000);
+        if (current.configured && current.events.some(row => row.state === 'pending')) cancel = whenVisible(() => void load(), 5000);
       } catch (error) {
         if (controller.signal.aborted) return;
         if (error instanceof HttpError && error.status === 401) onError(error);
@@ -95,7 +96,7 @@ export default function PriceAlerts({ csrf, onError }: { csrf: string; onError: 
       }
     }
     void load();
-    return () => { controller.abort(); window.clearTimeout(timer); };
+    return () => { controller.abort(); cancel(); };
   }, [reload, onError]);
   async function testChannel() {
     setBusy(true); setMessage('');

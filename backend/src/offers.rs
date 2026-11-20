@@ -10,6 +10,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::{FromRow, SqlitePool};
+use std::collections::BTreeMap;
 
 pub(crate) use crate::pricing::FRESH;
 const BAD_URL: ApiError = ApiError(
@@ -86,9 +87,33 @@ impl Wish {
     }
 }
 
+#[derive(FromRow)]
+struct ItemWish {
+    id: String,
+    #[sqlx(flatten)]
+    wish: Wish,
+}
+
+/// Wishes of many items, keyed by item id (`ids_json` is a JSON array of ids).
+pub(crate) async fn wishes(
+    pool: &SqlitePool,
+    ids_json: &str,
+) -> sqlx::Result<BTreeMap<String, Wish>> {
+    let rows: Vec<ItemWish> = sqlx::query_as("SELECT w.id,w.platform_id,g.manual_title,c.payload FROM wishlist_item w JOIN game g ON g.id=w.game_id LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id WHERE w.id IN (SELECT value FROM json_each(?))")
+        .bind(ids_json).fetch_all(pool).await?;
+    Ok(rows.into_iter().map(|row| (row.id, row.wish)).collect())
+}
+
 pub(crate) async fn wish(pool: &SqlitePool, id: &str) -> ApiResult<Wish> {
     sqlx::query_as("SELECT w.platform_id,g.manual_title,c.payload FROM wishlist_item w JOIN game g ON g.id=w.game_id LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id WHERE w.id=?")
         .bind(id).fetch_optional(pool).await?.ok_or(NOT_FOUND)
+}
+
+#[derive(FromRow)]
+struct ItemLink {
+    wish_id: String,
+    #[sqlx(flatten)]
+    link: Link,
 }
 
 #[derive(FromRow)]
@@ -157,6 +182,24 @@ pub(crate) async fn links<'e>(
         FROM offer_link l JOIN source_settings s ON s.id=l.source JOIN shop_state p ON p.source=l.source
         LEFT JOIN shop_job j ON j.link_id=l.id WHERE l.wish_id=? ORDER BY l.id")
         .bind(ts).bind(ts).bind(ts).bind(ts/86400).bind(crate::jobs::daily_budget()).bind(id).fetch_all(executor).await
+}
+
+/// Links of many items in one query, keyed by item id.
+pub(crate) async fn links_of_items(
+    pool: &SqlitePool,
+    ids_json: &str,
+    ts: i64,
+) -> sqlx::Result<BTreeMap<String, Vec<Link>>> {
+    let rows: Vec<ItemLink> = sqlx::query_as("SELECT l.*, (s.enabled AND s.configured) AS enabled, s.fee_estimation_enabled, s.fee_basis_points, p.retry_at,
+        COALESCE(j.lease_until>?,0) OR COALESCE(j.due<=? AND s.enabled AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<?),0) AS queued
+        FROM offer_link l JOIN source_settings s ON s.id=l.source JOIN shop_state p ON p.source=l.source
+        LEFT JOIN shop_job j ON j.link_id=l.id WHERE l.wish_id IN (SELECT value FROM json_each(?)) ORDER BY l.id")
+        .bind(ts).bind(ts).bind(ts).bind(ts/86400).bind(crate::jobs::daily_budget()).bind(ids_json).fetch_all(pool).await?;
+    let mut map: BTreeMap<String, Vec<Link>> = BTreeMap::new();
+    for row in rows {
+        map.entry(row.wish_id).or_default().push(row.link);
+    }
+    Ok(map)
 }
 
 pub(crate) async fn target(pool: &SqlitePool) -> ApiResult<String> {

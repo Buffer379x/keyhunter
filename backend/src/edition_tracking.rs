@@ -50,9 +50,10 @@ async fn snapshot(state: &Shared, id: &str) -> ApiResult<Prepared> {
         items.push(wishlist::item(&state.pool, &track).await?);
     }
     let (target, scope) = crate::price_badges::context(&state.pool).await?;
+    let ids: Vec<String> = items.iter().map(|item| item.id.clone()).collect();
+    let mut badges = crate::price_badges::load_many(&state.pool, &ids, &target, &scope).await?;
     for item in &mut items {
-        item.price_badge =
-            Some(crate::price_badges::load(&state.pool, &item.id, &target, &scope).await?);
+        item.price_badge = badges.remove(&item.id);
     }
     let scan: Option<(i64, Option<String>)> =
         sqlx::query_as("SELECT lease_until,last_error FROM edition_scan WHERE wish_id=?")
