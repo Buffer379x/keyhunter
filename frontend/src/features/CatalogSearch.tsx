@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, HttpError } from '../api';
 import type { CatalogGame, WishlistItem } from '../api';
-import { Button, ConfirmDialog, Icon, Notice } from '../components';
+import { Button, ConfirmDialog, Field, Icon, IconButton, Notice } from '../components';
 import { Cover, kindName, platformName, releaseYear, selectionAllowed } from './catalog-ui';
 
 interface Props { csrf: string; open: boolean; inline?: boolean; items?: WishlistItem[]; onOpen?: () => void; onClose: () => void; onAdded: (item: WishlistItem, created: boolean) => void; onError: (error: unknown) => void }
@@ -75,8 +75,10 @@ export default function CatalogSearch({ csrf, open, inline = false, items, onOpe
   }
   function submit(event: FormEvent) { event.preventDefault(); }
 
-  const platformField = <div className="field"><label htmlFor={platformId}>Plattform wählen</label><select id={platformId} value={platform} onChange={event => setPlatform(Number(event.target.value))} disabled={busy}><option value={169}>Xbox Series X|S</option><option value={49}>Xbox One</option></select></div>;
-  const searchInput = <input ref={input} id={queryId} type={inline ? 'search' : 'text'} aria-label={inline ? 'Nach Spielen suchen' : undefined} aria-controls={inline && open ? 'global-results' : undefined} autoComplete="off" maxLength={100} placeholder={inline ? 'Suchen …' : 'Zum Beispiel Forza Horizon …'} value={query} onFocus={inline ? onOpen : undefined} onChange={event => { setQuery(event.target.value); if (inline) onOpen?.(); }} disabled={busy} />;
+  const platformSelect = <select id={platformId} value={platform} onChange={event => setPlatform(Number(event.target.value))} disabled={busy} aria-label={inline ? 'Plattform wählen' : undefined}><option value={169}>Xbox Series X|S</option><option value={49}>Xbox One</option></select>;
+  const platformField = inline ? <Field className="search-platform"><span className="muted">Plattform</span>{platformSelect}</Field>
+    : <div className="form-row"><label htmlFor={platformId}>Plattform wählen</label>{platformSelect}</div>;
+  const searchInput = <input ref={input} id={queryId} type={inline ? 'search' : 'text'} aria-label={inline ? 'Nach Spielen suchen' : undefined} aria-controls={inline && open ? 'global-results' : undefined} autoComplete="off" maxLength={100} placeholder={inline ? 'Spiele suchen …' : 'Zum Beispiel Forza Horizon …'} value={query} onFocus={inline ? onOpen : undefined} onChange={event => { setQuery(event.target.value); if (inline) onOpen?.(); }} disabled={busy} />;
   const resultsPanel = <>
     <ConfirmDialog open={ownedWarning!==null} title="Bereits in der Bibliothek" confirmLabel="Trotzdem vormerken" busy={busy} onCancel={()=>{setOwnedWarning(null);setAddError('');}} onConfirm={()=>void add(ownedWarning?.game??null,true)}>
       <p>{ownedWarning?.message}</p><p>Die gleiche Edition wird in die Wunschliste zurückverschoben. Bei einer anderen Edition bleibt dein vorhandenes Spiel in der Bibliothek.</p>{addError&&<Notice error>{addError}</Notice>}
@@ -88,20 +90,23 @@ export default function CatalogSearch({ csrf, open, inline = false, items, onOpe
     {state === 'ready' && <p className="search-hint" role="status">{results.length ? `${results.length === 20 ? 'Bis zu 20' : results.length} Treffer für ${platformName(platform)}` : 'Keine passenden Katalogtreffer.'}{cached && results.length > 0 ? ' · aus dem Zwischenspeicher' : ''}</p>}
     {results.length > 0 && <ul className="catalog-results" aria-label="Katalogtreffer">{results.map(game => {
       const saved = (items ?? savedItems).some(item => item.game?.igdb_id === game.igdb_id && item.platform_id === platform);
-      return <li className="catalog-result" key={game.igdb_id}><Cover src={game.cover_url} /><div className="result-info"><h3>{game.name}</h3><p><span title="Jahr der Erstveröffentlichung">{releaseYear(game.first_release_date)}</span> · {platformName(platform)}</p><span className={`kind-badge ${selectionAllowed(game) ? '' : 'unverified'}`}>{kindName(game)}</span>{game.kind === 'edition' && <p className="edition-note">Edition separat erfasst · Händlerinhalt noch ungeprüft</p>}{!selectionAllowed(game) && <p className="edition-note">Kein belegtes eigenständiges Spiel bzw. keine zuordenbare Edition.</p>}</div><Button secondary disabled={busy || (saved && !inline) || !selectionAllowed(game)} onClick={() => void add(game)} aria-label={`${game.name} ${saved && inline ? 'öffnen' : 'vormerken'}`}>{busy ? '…' : saved ? inline ? 'Öffnen' : 'Vorgemerkt' : 'Vormerken'}</Button></li>;
+      return <li className="catalog-result" key={game.igdb_id}><Cover src={game.cover_url} /><div className="result-info"><h3>{game.name}</h3><p><span title="Jahr der Erstveröffentlichung">{releaseYear(game.first_release_date)}</span> · {platformName(platform)}</p><span className={`kind-badge ${selectionAllowed(game) ? '' : 'unverified'}`}>{kindName(game)}</span>{game.kind === 'edition' && <p className="edition-note">Edition separat erfasst · Händlerinhalt noch ungeprüft</p>}{!selectionAllowed(game) && <p className="edition-note">Kein belegtes eigenständiges Spiel bzw. keine zuordenbare Edition.</p>}</div><Button size={inline ? 'sm' : 'md'} disabled={busy || (saved && !inline) || !selectionAllowed(game)} onClick={() => void add(game)} aria-label={`${game.name} ${saved && inline ? 'öffnen' : 'vormerken'}`}>{busy ? '…' : saved ? inline ? 'Öffnen' : 'Vorgemerkt' : 'Vormerken'}</Button></li>;
     })}</ul>}
-    {(state === 'error' || (state === 'ready' && results.length === 0)) && query.trim().length >= 2 && <div className="manual-fallback"><h3>Manuell vormerken</h3><p>„{query.trim()}“ wird manuell gespeichert. Plattform, Edition und Inhalte bleiben ungeprüft; daraus entstehen keine bestätigten Angebote.</p><Button secondary disabled={busy} onClick={() => void add(null)}>{busy ? 'Wird gespeichert …' : 'Ungeprüft vormerken'}</Button></div>}
+    {(state === 'error' || (state === 'ready' && results.length === 0)) && query.trim().length >= 2 && <div className="manual-fallback"><h3>Manuell vormerken</h3><p>„{query.trim()}“ wird manuell gespeichert. Plattform, Edition und Inhalte bleiben ungeprüft; daraus entstehen keine bestätigten Angebote.</p><Button disabled={busy} onClick={() => void add(null)}>{busy ? 'Wird gespeichert …' : 'Ungeprüft vormerken'}</Button></div>}
     <div className="catalog-attribution">Spieledaten von IGDB · Erstveröffentlichung ist nicht zwingend das Xbox-Veröffentlichungsdatum.</div>
   </>;
-  if (inline) return <div className="global-search-wrap" ref={container} onKeyDown={event => {
+  if (inline) return <div className="search" ref={container} onKeyDown={event => {
     if (event.key === 'Escape' && !busy) { event.preventDefault(); input.current?.focus(); onClose(); }
     if (event.key === 'ArrowDown' && event.target === input.current) { event.preventDefault(); container.current?.querySelector<HTMLButtonElement>('.catalog-result button:not(:disabled)')?.focus(); }
   }} onBlur={event => { if (!busy && !ownedWarning && event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) onClose(); }}>
-    <div className="global-search" role="search"><Icon name="search" />{searchInput}<kbd>Ctrl K</kbd></div>
-    {open && <section className="global-results" id="global-results" aria-label="Suchergebnisse"><div className="inline-search-heading"><span>Spiele suchen · IGDB</span><button className="icon-action" type="button" aria-label="Suche schließen" disabled={busy} onClick={onClose}><Icon name="close" /></button></div>{platformField}{resultsPanel}</section>}
+    <div className="search-box" role="search"><Icon name="search" size={15} />{searchInput}<span className="kbd" aria-hidden="true">Ctrl K</span></div>
+    {open && <section className="search-pop" id="global-results" aria-label="Suchergebnisse">
+      <div className="search-pop-head"><span className="label">Spiele suchen · IGDB</span><span className="spacer" />{platformField}<IconButton variant="ghost" label="Suche schließen" disabled={busy} onClick={onClose}><Icon name="x" /></IconButton></div>
+      {resultsPanel}
+    </section>}
   </div>;
   return <dialog ref={dialog} className="catalog-dialog" aria-labelledby="catalog-title" onCancel={event => { if (busy) event.preventDefault(); else onClose(); }}>
-    <div className="dialog-heading"><h2 id="catalog-title">Spiel hinzufügen</h2><Button secondary type="button" aria-label="Suche schließen" onClick={onClose} disabled={busy}>×</Button></div>
-    <form className="catalog-form" onSubmit={submit}><div className="field"><label htmlFor={queryId}>Spiel im Katalog suchen</label>{searchInput}</div>{platformField}</form>{resultsPanel}
+    <div className="dialog-heading"><h2 id="catalog-title">Spiel hinzufügen</h2><IconButton variant="ghost" label="Suche schließen" onClick={onClose} disabled={busy}><Icon name="x" /></IconButton></div>
+    <form className="catalog-form" onSubmit={submit}><div className="form-row"><label htmlFor={queryId}>Spiel im Katalog suchen</label>{searchInput}</div>{platformField}</form>{resultsPanel}
   </dialog>;
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import type { CatalogGame, PriceBadgeData, WishlistItem } from '../api';
-import { Button, ConfirmDialog, EmptyState, Icon, IconButton, MonoLabel, Notice } from '../components';
+import { Button, ConfirmDialog, EmptyState, Icon, Label, Notice } from '../components';
 import CatalogSearch from './CatalogSearch';
 import GameDetail, { isTab } from './GameDetail';
 import type { TabId } from './GameDetail';
@@ -15,7 +15,13 @@ import { itemName, platformName } from './catalog-ui';
 import { whenVisible } from '../poll';
 import { downloadJson, wishlistExport } from './wishlist-export';
 
-interface Props { csrf: string; targetCountry: string | null; targetLabel: string; priceScope: 'preferred' | 'all'; onSettings: () => void; onCountChange: (count: number) => void; onError: (error: unknown) => void }
+interface Props {
+  csrf: string; targetCountry: string | null; targetLabel: string; priceScope: 'preferred' | 'all';
+  /** The add dialog; the top bar's "Spiel hinzufügen" opens it, so the state lives in the shell. */
+  addOpen: boolean; onAddOpen: (open: boolean) => void;
+  /** Title of the open game for the breadcrumb (null without a selection). */
+  onTitle: (title: string | null) => void;
+  onSettings: () => void; onCountChange: (count: number) => void; onError: (error: unknown) => void }
 // List and detail are separate views below 1024 px.
 const compactLayout = '(max-width: 1023px)';
 const routeTab = (): TabId => {
@@ -27,7 +33,7 @@ const routeTab = (): TabId => {
 const routeSelection = () => new URL(window.location.href).searchParams.get('item');
 type AlertRules = Record<string, Rule>;
 
-export default function Wishlist({ csrf, targetCountry, targetLabel, priceScope, onSettings, onCountChange, onError }: Props) {
+export default function Wishlist({ csrf, targetCountry, targetLabel, priceScope, addOpen, onAddOpen, onTitle, onSettings, onCountChange, onError }: Props) {
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState('');
@@ -35,7 +41,6 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, priceScope,
   const [filter, setFilter] = useState(() => new URL(window.location.href).searchParams.get('filter') ?? '');
   const [onlyReview, setOnlyReview] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(routeSelection);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [preview, setPreview] = useState<WishlistItem | null>(null);
   const [sort, setSort] = useState<SortMode>(() => { try { const value = localStorage.getItem('keyhunter.wishlist.sort'); return value === 'price' || value === 'name' ? value : 'added'; } catch { return 'added'; } });
   const [badges, setBadges] = useState<Record<string, PriceBadgeData>>({});
@@ -104,7 +109,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, priceScope,
       .then(data => { if (!controller.signal.aborted) setAlerts(Object.fromEntries(data.rules.map(rule => [rule.wish_id, rule]))); }).catch(() => {});
     return () => controller.abort();
   }, []);
-  const closeSearch = useCallback(() => setSearchOpen(false), []);
+  const closeSearch = useCallback(() => onAddOpen(false), [onAddOpen]);
 
   const load = useCallback(async () => {
     const generation = ++loadGeneration.current;
@@ -128,9 +133,9 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, priceScope,
     if (!removeItem && focusListAfterRemove.current) { focusListAfterRemove.current = false; listHeading.current?.focus({ preventScroll: true }); }
   }, [removeItem]);
 
-  function scrollTop(to: number) { window.scrollTo(0, to); if (root.current) root.current.scrollTop = to; }
+  function scrollTop(to: number) { document.getElementById('main-content')?.scrollTo?.(0, to); if (root.current) root.current.scrollTop = to; }
   function select(id: string | null) {
-    if (id) listScroll.current = Math.max(window.scrollY, root.current?.scrollTop ?? 0);
+    if (id) listScroll.current = Math.max(document.getElementById('main-content')?.scrollTop ?? 0, root.current?.scrollTop ?? 0);
     setSelectedId(id); setMessage('');
     const url = new URL(window.location.href);
     url.hash = '';
@@ -203,14 +208,16 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, priceScope,
   if (selected?.game && !variants.some(g => g.igdb_id === selected.game?.igdb_id)) variants.unshift(selected.game);
   variants.sort((a, b) => (a.version_parent ? 1 : 0) - (b.version_parent ? 1 : 0) || a.igdb_id - b.igdb_id);
   const viewed = preview ?? selected;
+  const title = selected ? itemName(selected) : null;
+  useEffect(() => { onTitle(title); }, [title, onTitle]);
+  useEffect(() => () => onTitle(null), [onTitle]);
   const scopeLabel = priceScope === 'all' ? 'Tiefster beobachteter Grundpreis · alle Regionen' : `Tiefster aktivierbarer Grundpreis · ${targetLabel}`;
   const code = targetCountry?.toUpperCase();
   return <div ref={root} className={`wishlist-feature ${selected ? 'has-selection' : ''}`}>
     <section className="list-panel" aria-labelledby="wishlist-title">
       <div className="wishlist-head">
         <div><h1 id="wishlist-title" ref={listHeading} tabIndex={-1}>Wunschliste</h1>
-          <MonoLabel className="list-count"><span>{loading ? 'Wird geladen …' : `${items.length} von 100 Spielen`}</span>{code && <span> · Zielland {code}</span>}{reachedCount > 0 && <span> · {reachedCount} Ziel erreicht</span>}</MonoLabel></div>
-        <IconButton variant="primary" label="Spiel hinzufügen" className="add-game-button" disabled={loading || !!listError || items.length >= 100} onClick={() => setSearchOpen(true)}><Icon name="plus" size={20} /></IconButton>
+          <Label className="list-count"><span>{loading ? 'Wird geladen …' : `${items.length} von 100 Spielen`}</span>{code && <span> · Zielland {code}</span>}{reachedCount > 0 && <span> · {reachedCount} Ziel erreicht</span>}</Label></div>
       </div>
       <div className="list-tools">
         <div className="filter-chips" role="group" aria-label="Liste eingrenzen">
@@ -223,7 +230,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, priceScope,
       <div className="list-search"><Icon name="search" size={15} /><input id="wishlist-filter" placeholder="Liste filtern …" value={filter} maxLength={200} onChange={event => filterList(event.target.value)} disabled={loading || items.length === 0} /></div>
       {message && <Notice>{message}</Notice>}
       {!loading && selectedId && !selected && <Notice>Der verlinkte Eintrag ist nicht mehr in deiner Wunschliste.</Notice>}
-      {listError && <Notice error>{listError}<Button secondary onClick={() => void load()}>Liste erneut laden</Button></Notice>}
+      {listError && <Notice error>{listError}<Button onClick={() => void load()}>Liste erneut laden</Button></Notice>}
       {loading ? <p className="list-loading" role="status">Wunschliste wird geladen …</p> : items.length === 0 ? <div className="list-empty"><EmptyState icon="heart" title={listError ? 'Die Liste ist derzeit nicht abrufbar.' : 'Deine Liste ist noch leer.'}>{listError ? '' : 'Suche ein Spiel und merke es vor, dann beobachtet KeyHunter den Preis.'}</EmptyState></div> : visible.length === 0 ? <p className="list-loading">Kein Titel passt zu deinem Listenfilter.</p> :
         <ul className="wishlist-items" aria-label="Vorgemerkte Spiele">{visible.map(item => <li key={item.id}><WishlistRow item={item} badge={badges[item.id] ?? item.price_badge} selected={selectedId === item.id} reached={reached(item)} scopeLabel={scopeLabel} onSelect={() => select(item.id)} /></li>)}</ul>}
       <div className="list-footer"><Button variant="ghost" size="sm" disabled={loading || !!listError || !items.length} onClick={exportList}><Icon name="download" size={14} />Liste exportieren</Button></div>
@@ -232,9 +239,9 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, priceScope,
       csrf={csrf} targetCountry={targetCountry} targetLabel={targetLabel} tab={tab} purchasing={purchasing} onTab={changeTab} onBack={() => select(null)} onPurchase={() => void purchase()}
       onRemove={() => { setRemoveError(''); setRemoveItem(selected); }} onView={chooseEdition} onClearPreview={() => setPreview(null)} onBadge={updateBadge} onSettings={onSettings} onError={onError} onRule={updateRule} />
       : <section className="empty-detail" aria-label="Spieldetails">
-        <EmptyState icon="heart" title={items.length ? 'Spiel auswählen' : 'Wunschliste leer'} action={!items.length && <Button onClick={() => setSearchOpen(true)} disabled={loading || !!listError}>Im Katalog suchen</Button>}>{items.length ? 'Wähle links ein Spiel, um Preise, Verlauf und Alarm zu sehen.' : ''}</EmptyState>
+        <EmptyState icon="heart" title={items.length ? 'Spiel auswählen' : 'Wunschliste leer'} action={!items.length && <Button variant="primary" onClick={() => onAddOpen(true)} disabled={loading || !!listError}>Im Katalog suchen</Button>}>{items.length ? 'Wähle links ein Spiel, um Preise, Verlauf und Alarm zu sehen.' : ''}</EmptyState>
       </section>}
-    <CatalogSearch open={searchOpen} csrf={csrf} items={items} onClose={closeSearch} onAdded={added} onError={onError} />
+    <CatalogSearch open={addOpen} csrf={csrf} items={items} onClose={closeSearch} onAdded={added} onError={onError} />
     <ConfirmDialog open={removeItem !== null} title="Titel entfernen?" confirmLabel="Entfernen bestätigen" danger cancelLabel="Behalten" busy={removing} onCancel={() => setRemoveItem(null)} onConfirm={() => void remove()}>
       <p>„{removeItem ? itemName(removeItem) : ''}“ wird aus deiner Wunschliste entfernt.</p>
       {removeError && <Notice error>{removeError}</Notice>}

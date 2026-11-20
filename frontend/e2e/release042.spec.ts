@@ -1,5 +1,5 @@
 import { test,expect } from '@playwright/test';
-import { signInToFixture } from './helpers';
+import { signInToFixture, navTo } from './helpers';
 import { openEditionPicker, openTab, removeCurrent } from './detail-helpers';
 
 test('saved prices appear on the first list response and edition tags are prepared before switching',async({page})=>{
@@ -47,7 +47,7 @@ test('library exposes system filters and acquisition or alphabet sorting without
   await signInToFixture(page);
   const data=[{id:'a',game_id:'a',platform_id:169,created_at:500,acquired_at:10,game:null,manual_title:'Zelda',verification:'manual_unverified'},{id:'b',game_id:'b',platform_id:49,created_at:1,acquired_at:30,game:null,manual_title:'Älterer Titel',verification:'manual_unverified'},{id:'c',game_id:'c',platform_id:169,created_at:300,acquired_at:20,game:null,manual_title:'Forza',verification:'manual_unverified'}];
   await page.route('**/api/v1/library',route=>route.fulfill({json:data}));
-  await page.getByRole('button',{name:'Bibliothek',exact:true}).click();
+  await navTo(page, 'Bibliothek');
   const list=page.getByRole('list',{name:'Meine Spiele'});
   await expect(list.getByRole('listitem').first()).toContainText('Älterer Titel');
   await expect(list.getByRole('listitem').first()).toContainText('Xbox One');
@@ -91,7 +91,7 @@ test('offers are ordered by price and the cheapest region is compared with the t
   await expect(rows.last()).toContainText('Deutschland');
   await expect(rows.last()).toContainText('in DE aktivierbar');
   // The "only valid" filter is off by default and, once on, can be undone from the strip that names the hidden offers.
-  await expect(page.getByRole('switch',{name:'Nur in DE aktivierbar'})).toHaveAttribute('aria-checked','false');
+  await expect(page.getByRole('switch',{name:'Nur in DE aktivierbar'})).not.toBeChecked();
   await page.getByRole('switch',{name:'Nur in DE aktivierbar'}).click();
   await expect(rows).toHaveCount(1);
   await expect(page.getByRole('button',{name:/2 Angebote in DE nicht aktivierbar.*Indien/})).toBeVisible();

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { expectSettingsSaved, signInToFixture } from './helpers';
+import { expectSettingsSaved, signInToFixture, navTo } from './helpers';
 import { removeCurrent } from './detail-helpers';
 
 test('price badge is permanent and its region setting persists',async({page})=>{
@@ -15,16 +15,16 @@ test('price badge is permanent and its region setting persists',async({page})=>{
   await expect(list.locator('.list-price')).toContainText('12,34');
   price=null;await page.clock.fastForward(31000);
   await expect(list.locator('.list-price')).toHaveText('Kein Angebot');
-  await page.getByRole('button',{name:'Einstellungen',exact:true}).click();
+  await navTo(page, 'Allgemein');
   const scope=page.getByRole('radiogroup',{name:'Preis in der Wunschliste',exact:true});
   await expect(scope.getByRole('radio',{name:/Nur in .* aktivierbar/})).toBeChecked();
   await scope.getByText('Alle Regionen',{exact:true}).click();
   await expectSettingsSaved(page);
-  await page.getByRole('button',{name:/^Wunschliste/}).click();
+  await navTo(page, 'Wunschliste');
   await expect(list.locator('.list-price')).toHaveAttribute('title',/Tiefster beobachteter Grundpreis · alle Regionen/);
-  await page.getByRole('button',{name:'Einstellungen',exact:true}).click();
+  await navTo(page, 'Allgemein');
   await page.reload();await expect(page.getByRole('radiogroup',{name:'Preis in der Wunschliste',exact:true}).getByRole('radio',{name:/Alle Regionen/})).toBeChecked();
-  await page.getByRole('button',{name:/^Wunschliste/}).click();
+  await navTo(page, 'Wunschliste');
   await list.getByRole('button',{name:/Forza Horizon 5/}).click();
   await removeCurrent(page);
 });
@@ -36,7 +36,7 @@ test('purchase and restore move the saved edition; owned family additions requir
   await search.fill('forza');await results.getByRole('button',{name:'Forza Horizon 5 vormerken',exact:true}).click();
   await page.getByRole('button',{name:'Gekauft',exact:true}).click();
   await expect(page.getByRole('list',{name:'Vorgemerkte Spiele'})).not.toBeVisible();
-  await page.getByRole('button',{name:'Bibliothek',exact:true}).click();
+  await navTo(page, 'Bibliothek');
   const library=page.getByRole('list',{name:'Meine Spiele'});
   await expect(library.getByRole('listitem')).toHaveCount(1);
   await library.getByRole('button',{name:'Forza Horizon 5 zurück in die Wunschliste',exact:true}).click();
@@ -49,7 +49,7 @@ test('purchase and restore move the saved edition; owned family additions requir
   await expect(warning).not.toBeVisible();await expect(results).toBeVisible();
   await expect(library.getByRole('listitem')).toHaveCount(1);
   await page.keyboard.press('Escape');
-  await page.getByRole('button',{name:/^Wunschliste/}).click();
+  await navTo(page, 'Wunschliste');
   await page.getByRole('button',{name:'Spiel hinzufügen',exact:true}).click();
   const catalog=page.getByRole('dialog',{name:'Spiel hinzufügen',exact:true});
   await page.getByLabel('Spiel im Katalog suchen',{exact:true}).fill('forza');
@@ -61,7 +61,7 @@ test('purchase and restore move the saved edition; owned family additions requir
   await expect(warning).toBeVisible();await warning.getByRole('button',{name:'Trotzdem vormerken',exact:true}).click();
   await expect(catalog).not.toBeVisible();await expect(warning).not.toBeVisible();
   await expect(page.getByRole('heading',{name:'Forza Horizon 5: Premium Edition',level:2,exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'Bibliothek',exact:true}).click();
+  await navTo(page, 'Bibliothek');
   await expect(library.getByRole('listitem')).toHaveCount(1);
   await library.getByRole('button',{name:'Forza Horizon 5 zurück in die Wunschliste',exact:true}).click();
   await restore.getByRole('button',{name:'In Wunschliste verschieben',exact:true}).click();
@@ -83,7 +83,7 @@ test('library navigation and confirmation fit a 320 pixel screen',async({page})=
   await expect.poll(()=>page.locator('.gd-actions').evaluate(el=>el.getBoundingClientRect().bottom<=document.querySelector('.gd-cover')!.getBoundingClientRect().top)).toBe(true);
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await removeCurrent(page);
-  await page.getByRole('button',{name:'Bibliothek',exact:true}).click();
+  await navTo(page, 'Bibliothek');
   await expect(page.getByRole('heading',{name:'Meine Bibliothek'})).toBeVisible();
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.reload();await expect(page.getByRole('heading',{name:'Meine Bibliothek'})).toBeVisible();

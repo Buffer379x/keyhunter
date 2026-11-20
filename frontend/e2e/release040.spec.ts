@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { expectSettingsSaved, signInToFixture } from './helpers';
+import { expectSettingsSaved, signInToFixture, navTo, navItem } from './helpers';
 import { openEditionPicker, openTab, removeCurrent } from './detail-helpers';
 
 test('settings separate key shops from games index and persist source intervals', async ({ page }) => {
   await signInToFixture(page);
-  await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
-  const shops = page.getByRole('tab', { name: 'Key-Shops', exact: true });
-  await expect(shops).toBeVisible(); await shops.click();
+  await navTo(page, 'Allgemein');
+  await navTo(page, 'Key-Shops');
+  await expect(navItem(page, 'Key-Shops')).toHaveAttribute('aria-current', 'page');
   const eneba = page.getByRole('article', { name: 'Eneba', exact: true });
   await expect(eneba.getByLabel('Abfrageintervall', { exact: true })).toHaveValue(String(8 * 3600));
   await expect(page.getByRole('region', { name: 'IGDB-Zugang' })).not.toBeVisible();
@@ -23,7 +23,7 @@ test('settings separate key shops from games index and persist source intervals'
   await page.getByRole('article', { name: 'Driffle', exact: true }).getByRole('button', { name: 'Entfernen', exact: true }).click();
   await page.getByRole('dialog', { name: 'Driffle entfernen?' }).getByRole('button', { name: 'Entfernen bestätigen', exact: true }).click();
   await expect(page.getByRole('article', { name: 'Driffle', exact: true })).not.toBeVisible();
-  await page.getByRole('tab', { name: 'Spieleindex', exact: true }).click();
+  await navTo(page, 'Spieleindex');
   await expect(page.getByRole('region', { name: 'IGDB-Zugang' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Editionsinhalte von Microsoft / Xbox' })).toBeVisible();
 });

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { expectSettingsSaved, signInToFixture } from './helpers';
+import { expectSettingsSaved, signInToFixture, navTo, settingsCountry } from './helpers';
 import { openTab, removeCurrent, wishlistHeading } from './detail-helpers';
 
 test('catalog choice persists, editions stay distinct, filters and removal work on mobile', async ({ page }) => {
@@ -118,19 +118,19 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
   await page.reload();
   await expect(page.getByRole('tab', { name: /^Verlauf/ })).toHaveAttribute('aria-selected', 'true');
   await openTab(page, 'Angebote');
-  await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
-  await page.getByLabel('Zielland', { exact: true }).selectOption('US');
+  await navTo(page, 'Allgemein');
+  await settingsCountry(page).selectOption('US');
   await expectSettingsSaved(page);
   target = 'US';
-  await page.getByRole('button', { name: /^Wunschliste/ }).click();
+  await navTo(page, 'Wunschliste');
   await expect(page.getByRole('tab', { name: /^Angebote/ })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('table', { name: 'Angebote nach Preis' }).locator('tbody tr')).toHaveCount(4);
   await openTab(page, 'Preis');
   await expect(page.getByRole('heading', { name: 'Bester gültiger Preis · US' })).toBeVisible();
-  await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
-  await page.getByLabel('Zielland', { exact: true }).selectOption('DE');
+  await navTo(page, 'Allgemein');
+  await settingsCountry(page).selectOption('DE');
   await expectSettingsSaved(page);
   target = 'DE';
-  await page.getByRole('button', { name: /^Wunschliste/ }).click();
+  await navTo(page, 'Wunschliste');
   await removeCurrent(page);
 });

@@ -75,6 +75,24 @@ export async function api<T>(path: string, method = 'GET', body?: unknown, csrf?
   return data as T;
 }
 
+/**
+ * Daily request budget of one shop. `used` and `limit` always exist; the other fields come with the paced worker (0.6.1)
+ * and are optional so the frontend keeps working against an older backend.
+ */
+export interface FetchBudget {
+  used: number;
+  limit: number;
+  /** Where the limit comes from, e.g. 'default' or 'setting'. */
+  limit_source?: string;
+  /** Requests per day the current wishlist needs. */
+  demand_per_day?: number;
+  /** Planned spacing between two requests in seconds ("alle 3 Min."). */
+  pace_seconds?: number | null;
+  /** Unix seconds of the next planned request. */
+  next_at?: number | null;
+  /** Requests per hour of today, 24 entries (index 0 = 00:00 local server time). */
+  by_hour?: number[];
+}
 /** GET /status/fetch: queue, budget and pauses per shop (times in Unix seconds). */
 export interface FetchShopStatus {
   source: string;
@@ -82,7 +100,7 @@ export interface FetchShopStatus {
   last_success_at: number | null;
   last_error: string | null;
   paused_until: number | null;
-  budget: { used: number; limit: number };
+  budget: FetchBudget;
   backlog: { due: number; requested: number; products: number; searches: number };
   oldest_due_at: number | null;
   next_due_at: number | null;

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { expectSettingsSaved, signInToFixture } from './helpers';
+import { expectSettingsSaved, signInToFixture, navTo, navItem } from './helpers';
 
 const now = () => Math.floor(Date.now() / 1000);
 const fetchStatus = () => ({
@@ -18,16 +18,21 @@ const fetchStatus = () => ({
 test('settings sections are bound to the URL, and Abrufstatus shows queue, budget, pauses and recent runs', async ({ page }) => {
   await page.route('**/api/v1/status/fetch', route => route.fulfill({ json: fetchStatus() }));
   await signInToFixture(page);
-  await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
-  const tab = (name: string) => page.getByRole('tab', { name, exact: true });
-  await expect(tab('Allgemein')).toHaveAttribute('aria-selected', 'true');
-  await tab('Benachrichtigungen').click();
+  await navTo(page, 'Allgemein');
+  // The sidebar group "Einstellungen" lists the sections; the open one is the current page and named in the breadcrumbs.
+  const crumbs = page.getByRole('navigation', { name: 'Pfad' });
+  await expect(navItem(page, 'Allgemein')).toHaveAttribute('aria-current', 'page');
+  await expect(crumbs).toHaveText(/Einstellungen.*Allgemein/);
+  await navTo(page, 'Benachrichtigungen');
   await expect(page).toHaveURL(/section=notifications/);
-  await tab('Abrufstatus').focus();
-  await page.keyboard.press('ArrowDown');
-  await expect(tab('System')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('heading', { name: 'Benachrichtigungen', level: 1 })).toBeVisible();
+  await navTo(page, 'System');
+  await expect(navItem(page, 'System')).toHaveAttribute('aria-current', 'page');
   await expect(page).toHaveURL(/section=system/);
-  await tab('Abrufstatus').click();
+  await page.goBack();
+  await expect(page).toHaveURL(/section=notifications/);
+  await expect(navItem(page, 'Benachrichtigungen')).toHaveAttribute('aria-current', 'page');
+  await navTo(page, 'Abrufstatus');
   await expect(page).toHaveURL(/section=status/);
   await expect(page.getByText('Fehler in 24 h')).toBeVisible();
   await expect(page.getByRole('article', { name: 'Abrufstatus Eneba' })).toContainText('64 von 120');
@@ -38,19 +43,20 @@ test('settings sections are bound to the URL, and Abrufstatus shows queue, budge
   await expect(page.getByRole('table', { name: 'Letzte Abrufe' }).getByRole('row')).toHaveCount(4);
   await expect(page.getByText('Jeder Shop wird nacheinander abgefragt, mit Pause zwischen Anfragen und unter Beachtung von robots.txt.')).toBeVisible();
   await page.reload();
-  await expect(tab('Abrufstatus')).toHaveAttribute('aria-selected', 'true');
+  await expect(navItem(page, 'Abrufstatus')).toHaveAttribute('aria-current', 'page');
+  await expect(crumbs).toHaveText(/Einstellungen.*Abrufstatus/);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 test('an invalid fee is not sent, says so, and the page keeps the edit', async ({ page }) => {
   await signInToFixture(page);
-  await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
-  await page.getByRole('tab', { name: 'Key-Shops', exact: true }).click();
+  await navTo(page, 'Allgemein');
+  await navTo(page, 'Key-Shops');
   const eneba = page.getByRole('article', { name: 'Eneba', exact: true });
   const fee = eneba.getByLabel('Geschätzte Gebühren (%)', { exact: true });
   const feeSwitch = eneba.getByRole('switch', { name: /Geschätzte Gebühren berücksichtigen/ });
-  if (await feeSwitch.getAttribute('aria-checked') !== 'true') await feeSwitch.click();
+  if (!await feeSwitch.isChecked()) await feeSwitch.click();
   await expectSettingsSaved(page);
   let puts = 0;
   await page.route('**/api/v1/settings', route => { if (route.request().method() === 'PUT') puts += 1; return route.continue(); });
@@ -74,7 +80,7 @@ test('a library entry can be removed after confirmation', async ({ page }) => {
   ];
   await page.route('**/api/v1/library', route => route.fulfill({ json: rows }));
   await page.route('**/api/v1/wishlist/*', route => { if (route.request().method() === 'DELETE') { rows = rows.filter(r => !route.request().url().endsWith(r.id)); return route.fulfill({ status: 204 }); } return route.continue(); });
-  await page.getByRole('button', { name: 'Bibliothek', exact: true }).click();
+  await navTo(page, 'Bibliothek');
   const list = page.getByRole('list', { name: 'Meine Spiele' });
   await expect(list.getByRole('listitem')).toHaveCount(2);
   await expect(list.getByRole('listitem').first()).toContainText('Gekauft');

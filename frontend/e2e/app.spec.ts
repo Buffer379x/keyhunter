@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { expectSettingsSaved, signInToFixture } from './helpers';
+import { expectSettingsSaved, signInToFixture, navTo, signOut, settingsCountry } from './helpers';
 import { wishlistHeading } from './detail-helpers';
 
 test('owner can set up, save service fees, use keyboard dialog, and log in again', async ({ page }) => {
@@ -8,31 +8,31 @@ test('owner can set up, save service fees, use keyboard dialog, and log in again
   await signInToFixture(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'test-results/wishlist-desktop.png', fullPage: true });
-  await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
-  await page.getByLabel('Zielland', { exact: true }).selectOption('AT');
+  await navTo(page, 'Allgemein');
+  await settingsCountry(page).selectOption('AT');
   await expect(page.getByRole('note').filter({ hasText: 'Die Shops bestätigen die Aktivierung derzeit nur für Deutschland. Für Österreich werden Angebote angezeigt' })).toBeVisible();
-  await page.getByLabel('Zielland', { exact: true }).selectOption('DE');
+  await settingsCountry(page).selectOption('DE');
   await expect(page.getByRole('note').filter({ hasText: 'Die Shops bestätigen' })).toHaveCount(0);
   // Changes save themselves: leaving the page right after a change still stores it, and the shell shows it at once.
-  await page.getByLabel('Zielland', { exact: true }).selectOption('FR');
-  await page.getByRole('button', { name: /^Wunschliste/ }).click();
-  await expect(page.locator('.target-pill')).toContainText('Frankreich');
-  await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
-  await page.getByLabel('Zielland', { exact: true }).selectOption('DE');
+  await settingsCountry(page).selectOption('FR');
+  await navTo(page, 'Wunschliste');
+  await expect(page.getByRole('complementary', { name: 'Seitenleiste' }).getByLabel('Zielland', { exact: true })).toHaveValue('FR');
+  await navTo(page, 'Allgemein');
+  await settingsCountry(page).selectOption('DE');
   await expectSettingsSaved(page);
-  await page.getByRole('button', { name: /^Wunschliste/ }).click();
-  await expect(page.locator('.target-pill')).toContainText('Deutschland');
-  await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
-  await page.getByRole('tab', { name: 'Key-Shops', exact:true }).click();
+  await navTo(page, 'Wunschliste');
+  await expect(page.getByRole('complementary', { name: 'Seitenleiste' }).getByLabel('Zielland', { exact: true })).toHaveValue('DE');
+  await navTo(page, 'Allgemein');
+  await navTo(page, 'Key-Shops');
   const eneba = page.getByRole('article', { name: 'Eneba' });
   await eneba.getByRole('switch', { name: /Geschätzte Gebühren berücksichtigen/ }).click();
   await eneba.getByLabel('Geschätzte Gebühren (%)', { exact: true }).fill('2,50');
   await expectSettingsSaved(page);
   await page.reload();
-  await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
-  await page.getByRole('tab', { name: 'Allgemein', exact:true }).click();
-  await expect(page.getByLabel('Zielland', { exact: true })).toHaveValue('DE');
-  await page.getByRole('tab', { name: 'Key-Shops', exact:true }).click();
+  await navTo(page, 'Allgemein');
+  await navTo(page, 'Allgemein');
+  await expect(settingsCountry(page)).toHaveValue('DE');
+  await navTo(page, 'Key-Shops');
   await expect(eneba.getByLabel('Geschätzte Gebühren (%)', { exact: true })).toHaveValue('2,50');
   const help = page.getByRole('button', { name: 'Wie werden Gebühren behandelt?' });
   await help.focus(); await page.keyboard.press('Enter');
@@ -48,7 +48,7 @@ test('owner can set up, save service fees, use keyboard dialog, and log in again
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.setViewportSize({ width: 320, height: 800 });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByRole('button', { name: 'Abmelden', exact: true }).click();
+  await signOut(page);
   await expect(page.getByRole('button', { name: 'Anmelden', exact: true })).toBeVisible();
   await page.getByLabel('Passphrase', { exact: true }).fill('browser test passphrase only');
   await page.getByLabel('Passphrase', { exact: true }).press('Enter');
@@ -58,8 +58,8 @@ test('owner can set up, save service fees, use keyboard dialog, and log in again
 
 test('owner replaces and removes the IGDB credentials from settings', async ({ page }) => {
   await signInToFixture(page);
-  await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
-  await page.getByRole('tab', { name: 'Spieleindex', exact:true }).click();
+  await navTo(page, 'Allgemein');
+  await navTo(page, 'Spieleindex');
   const igdb = page.getByRole('region', { name: 'IGDB-Zugang' });
   await igdb.getByLabel('Client-ID', { exact: true }).fill('browser-fixture-client');
   await igdb.getByLabel('Client Secret', { exact: true }).fill('browser-fixture-secret');
