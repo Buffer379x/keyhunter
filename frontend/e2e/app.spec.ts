@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { expectSettingsSaved, signInToFixture } from './helpers';
+import { wishlistHeading } from './detail-helpers';
 
 test('owner can set up, save service fees, use keyboard dialog, and log in again', async ({ page }) => {
   const errors: string[] = [];
@@ -51,7 +52,7 @@ test('owner can set up, save service fees, use keyboard dialog, and log in again
   await expect(page.getByRole('button', { name: 'Anmelden', exact: true })).toBeVisible();
   await page.getByLabel('Passphrase', { exact: true }).fill('browser test passphrase only');
   await page.getByLabel('Passphrase', { exact: true }).press('Enter');
-  await expect(page.getByRole('heading', { name: 'Meine Wunschliste' })).toBeVisible();
+  await expect(wishlistHeading(page)).toBeVisible();
   expect(errors).toEqual([]);
 });
 

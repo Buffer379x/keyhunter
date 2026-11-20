@@ -1,11 +1,12 @@
 import { test, expect } from '@playwright/test';
 import { expectSettingsSaved, signInToFixture } from './helpers';
+import { openTab, removeCurrent, wishlistHeading } from './detail-helpers';
 
 test('catalog choice persists, editions stay distinct, filters and removal work on mobile', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
   await signInToFixture(page);
-  await expect(page.getByRole('heading', { name: 'Meine Wunschliste' })).toBeVisible();
+  await expect(wishlistHeading(page)).toBeVisible();
   await page.getByRole('button', { name: 'Spiel hinzufügen', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Spiel hinzufügen', exact: true });
   await dialog.getByLabel('Spiel im Katalog suchen').fill('forza');
@@ -35,14 +36,12 @@ test('catalog choice persists, editions stay distinct, filters and removal work 
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.setViewportSize({ width: 320, height: 800 });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByRole('button', { name: 'Auf der Wunschliste' }).click();
-  await page.getByRole('button', { name: 'Entfernen bestätigen' }).click();
+  await removeCurrent(page);
   await expect(page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('listitem')).toHaveCount(1);
   await page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('button', { name: /Forza Horizon 5/ }).click();
-  await page.getByRole('button', { name: 'Auf der Wunschliste' }).click();
-  await page.getByRole('button', { name: 'Entfernen bestätigen' }).click();
+  await removeCurrent(page);
   await expect(page.getByText('0 von 100 Spielen', { exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Meine Wunschliste', exact: true })).toBeFocused();
+  await expect(wishlistHeading(page)).toBeFocused();
   expect(errors).toEqual([]);
 });
 
@@ -67,25 +66,27 @@ test('old search cannot replace newer results, outage differs from empty and man
   await dialog.getByRole('button', { name: 'Ungeprüft vormerken' }).click();
   await expect(page.getByRole('heading', { name: 'ausfall', exact: true })).toBeVisible();
   await expect(page.getByText('Manueller Titel · Zuordnungen werden vor dem Preisvergleich geprüft.', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Auf der Wunschliste' }).click();
-  await page.getByRole('button', { name: 'Entfernen bestätigen' }).click();
+  await removeCurrent(page);
   await expect(page.getByText('0 von 100 Spielen', { exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Meine Wunschliste', exact: true })).toBeFocused();
+  await expect(wishlistHeading(page)).toBeFocused();
 });
 
 test('dashboard shows automatic discovery, tabs and observed offer eligibility', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   await signInToFixture(page);
   await page.getByRole('searchbox', { name: 'Nach Spielen suchen', exact: true }).fill('forza');
   await page.getByRole('region', { name: 'Suchergebnisse' }).getByRole('button', { name: 'Forza Horizon 5 vormerken', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Preise nach Land & Region', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^Bester gültiger Preis/ })).toBeVisible();
+  await openTab(page, 'Angebote');
   await expect(page.getByText('Suche eingeplant', { exact: true })).toBeVisible();
+  await openTab(page, 'Preis');
   await expect(page.getByLabel('Produktlink von Eneba oder Driffle')).not.toBeVisible();
 
   // Synthetic response verifies rendering and filtering independently of shop availability.
   const link = (id: number, eligible: boolean, region = eligible ? 'Global' : 'United States') => ({
     id, source: 'eneba', url: 'https://www.eneba.com/de/xbox-fixture-xbox-live-key-global',
     review: 'confirmed', can_confirm: true, eligible, queued: false, enabled: true,
-    stale: false, observed_at: 1794950000, attempted_at: 1794950000, last_error: null, retry_at: 0,
+    stale: false, observed_at: Math.floor(Date.now() / 1000) - 7200, attempted_at: 1794950000, last_error: null, retry_at: 0, reasons: eligible ? [] : ['activation_blocked'],
     product: { name: 'Synthetic UI offer', region, market: 'DE', activation: eligible ? 'confirmed' : 'blocked', availability: 'in_stock' },
     quotes: [{ id: String(id), seller: null, base_cents: eligible ? 2499 : 1299, estimated_total_cents: null }],
   });
@@ -95,34 +96,41 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
       target_country: target, discovery_running: false, searches: [{ source: 'eneba', status: 'complete', checked_at: 1794950000, result_count: 4, last_error: null }], sources: [] },
   }) : route.continue());
   await page.reload();
-  await expect(page.locator('.offer-table-row')).toHaveCount(0);
-  await expect(page.locator('.region-row')).toHaveCount(4);
-  await expect(page.locator('.region-row.preferred-region')).toContainText('Deutschland');
-  await page.locator('.region-row').filter({hasText:'Vereinigte Staaten'}).click();
-  const offers=page.getByRole('dialog',{name:/Angebote.*Vereinigte Staaten/});
-  await expect(offers.locator('.offer-table-row')).toHaveCount(1);
-  await expect(offers).toContainText('Aktivierung im Zielland gesperrt');
-  await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'Editionen vergleichen', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Premium Edition ansehen', exact:true })).toBeVisible();
-  await page.getByRole('button', { name: 'Preisverlauf', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Bester gültiger Preis · DE' })).toBeVisible();
+  await openTab(page, 'Angebote');
+  const rows = page.getByRole('table', { name: 'Angebote nach Preis' }).locator('tbody tr');
+  await expect(rows).toHaveCount(4);
+  // Cheaper foreign offers stay visible, ordered by price, each with the reason why it does not count.
+  await expect(rows.first()).toContainText('Vereinigte Staaten');
+  await expect(rows.first()).toContainText('In DE nicht aktivierbar');
+  await expect(rows.filter({ hasText: 'Deutschland' })).toContainText('in DE aktivierbar');
+  await expect(page.getByRole('tab', { name: /^Angebote/ })).toContainText('4');
+  await openTab(page, 'Editionen');
+  await expect(page.getByRole('button', { name: 'Premium Edition ansehen', exact: true })).toBeVisible();
+  await openTab(page, 'Verlauf');
   await expect(page.getByText('Noch keine Preismessung vorhanden.')).toBeVisible();
-  await page.getByRole('button', { name: 'Spielinfos', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Spielinformationen' })).toBeVisible();
-  await page.getByRole('button', { name: 'Angebote & Preise', exact: true }).click();
+  await openTab(page, 'Infos');
+  await expect(page.getByRole('heading', { name: 'Über das Spiel' })).toBeVisible();
+  await expect(page).toHaveURL(/[?&]tab=infos/);
+  await page.goBack();
+  await expect(page).toHaveURL(/[?&]tab=verlauf/);
+  await expect(page.getByRole('tab', { name: /^Verlauf/ })).toHaveAttribute('aria-selected', 'true');
+  await page.reload();
+  await expect(page.getByRole('tab', { name: /^Verlauf/ })).toHaveAttribute('aria-selected', 'true');
+  await openTab(page, 'Angebote');
   await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
   await page.getByLabel('Zielland', { exact: true }).selectOption('US');
   await expectSettingsSaved(page);
   target = 'US';
   await page.getByRole('button', { name: /^Wunschliste/ }).click();
-  await expect(page.locator('.offer-table-row')).toHaveCount(0);
-  await expect(page.locator('.region-row')).toHaveCount(4);
-  await expect(page.locator('.region-row.preferred-region')).toContainText('Vereinigte Staaten');
+  await expect(page.getByRole('tab', { name: /^Angebote/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('table', { name: 'Angebote nach Preis' }).locator('tbody tr')).toHaveCount(4);
+  await openTab(page, 'Preis');
+  await expect(page.getByRole('heading', { name: 'Bester gültiger Preis · US' })).toBeVisible();
   await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
   await page.getByLabel('Zielland', { exact: true }).selectOption('DE');
   await expectSettingsSaved(page);
   target = 'DE';
   await page.getByRole('button', { name: /^Wunschliste/ }).click();
-  await page.getByRole('button', { name: 'Auf der Wunschliste' }).click();
-  await page.getByRole('button', { name: 'Entfernen bestätigen' }).click();
+  await removeCurrent(page);
 });

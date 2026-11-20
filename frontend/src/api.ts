@@ -42,6 +42,8 @@ export interface PriceBadgeData {
   checked_at:number|null;
   stale:boolean;
   pending:boolean;
+  /** Cheapest current offer of any region (valid in the target country or not). */
+  world?:{cents:number;region:string|null;observed_at:number|null}|null;
 }
 export interface WishlistItem {
   price_badge?:PriceBadgeData;
