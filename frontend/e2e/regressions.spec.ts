@@ -55,18 +55,17 @@ test('settings use the content width up to a readable maximum and share the app 
   const dimensions = await page.locator('main').evaluate(el => {
     const rect = el.getBoundingClientRect();
     const styles = getComputedStyle(el);
-    const layout = el.querySelector('.settings-layout')!.getBoundingClientRect();
+    const layout = el.querySelector('.settings-page')!.getBoundingClientRect();
     return { main: rect.width, available: innerWidth - rect.left, layout: layout.width, content: rect.width - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight) };
   });
-  // The settings use the content width up to a readable maximum (1240 px) and never overflow it.
+  // The settings use the content width up to the page maximum of the prototype (1320 px) and never overflow it.
   expect(dimensions.main).toBeCloseTo(dimensions.available, 0);
-  expect(dimensions.layout).toBeCloseTo(Math.min(dimensions.content, 1240), 0);
-  const settingsHeading = page.locator('.set-card h2').first();
-  for (const el of [page.locator('.set-head h1'), settingsHeading, settingsCountry(page), navItem(page, 'Key-Shops')]) {
+  expect(dimensions.layout).toBeCloseTo(Math.min(dimensions.content, 1320), 0);
+  const settingsLabel = page.locator('.settings-page .form-row > label').first();
+  for (const el of [page.locator('.settings-page .page-head h1'), settingsLabel, settingsCountry(page), navItem(page, 'Key-Shops')]) {
     expect(await el.evaluate(el => getComputedStyle(el).fontFamily)).toBe(family);
   }
   await navTo(page, 'Preisalarme');
-  expect(await page.locator('#channel-title').evaluate(el => getComputedStyle(el).fontFamily)).toBe(family);
   expect(await page.locator('.page-head h1').evaluate(el => getComputedStyle(el).fontFamily)).toBe(family);
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 844 });

@@ -8,12 +8,12 @@ test('settings separate key shops from games index and persist source intervals'
   await navTo(page, 'Key-Shops');
   await expect(navItem(page, 'Key-Shops')).toHaveAttribute('aria-current', 'page');
   const eneba = page.getByRole('article', { name: 'Eneba', exact: true });
-  await expect(eneba.getByLabel('Abfrageintervall', { exact: true })).toHaveValue(String(8 * 3600));
+  await expect(eneba.getByLabel('Produktseiten abfragen alle', { exact: true })).toHaveValue(String(8 * 3600));
   await expect(page.getByRole('region', { name: 'IGDB-Zugang' })).not.toBeVisible();
-  await eneba.getByLabel('Abfrageintervall', { exact: true }).selectOption(String(2 * 3600));
+  await eneba.getByLabel('Produktseiten abfragen alle', { exact: true }).selectOption(String(2 * 3600));
   await expectSettingsSaved(page);
   await page.reload();
-  await expect(eneba.getByLabel('Abfrageintervall', { exact: true })).toHaveValue(String(2 * 3600));
+  await expect(eneba.getByLabel('Produktseiten abfragen alle', { exact: true })).toHaveValue(String(2 * 3600));
   await page.getByLabel('Shop-URL', { exact: true }).fill('https://www.gamivo.com');
   await page.getByRole('button', { name: 'Dienst hinzufügen', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('kein geprüfter Reader');

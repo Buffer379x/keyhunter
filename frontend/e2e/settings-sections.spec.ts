@@ -34,14 +34,24 @@ test('settings sections are bound to the URL, and Abrufstatus shows queue, budge
   await expect(navItem(page, 'Benachrichtigungen')).toHaveAttribute('aria-current', 'page');
   await navTo(page, 'Abrufstatus');
   await expect(page).toHaveURL(/section=status/);
-  await expect(page.getByText('Fehler in 24 h')).toBeVisible();
-  await expect(page.getByRole('article', { name: 'Abrufstatus Eneba' })).toContainText('64 von 120');
+  // Per shop: state pill, today's fetches, budget; a pause or error gets its own line.
+  const eneba = page.getByRole('article', { name: 'Abrufstatus Eneba' });
+  await expect(eneba).toContainText('Läuft');
+  await expect(eneba).toContainText('64 von 120 Abrufen');
+  await expect(eneba).toContainText('in 15 Min.');
+  await expect(eneba.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '64');
+  // Without the 0.6.1 budget fields there is no demand marker and no demand line.
+  await expect(eneba.locator('.need')).toHaveCount(0);
+  await expect(eneba).not.toContainText('Bedarf');
   const driffle = page.getByRole('article', { name: 'Abrufstatus Driffle' });
   await expect(driffle).toContainText('Pausiert bis');
   await expect(driffle).toContainText('Abruflimit erreicht');
-  await expect(driffle).toContainText('6 fällig · 0 angefordert · 4 Produkte · 2 Suchen');
-  await expect(page.getByRole('table', { name: 'Letzte Abrufe' }).getByRole('row')).toHaveCount(4);
-  await expect(page.getByText('Jeder Shop wird nacheinander abgefragt, mit Pause zwischen Anfragen und unter Beachtung von robots.txt.')).toBeVisible();
+  const runs = page.getByRole('table', { name: 'Letzte Abrufe' });
+  await expect(runs.getByRole('row')).toHaveCount(4);
+  await expect(runs.getByRole('columnheader')).toHaveText(['Zeit', 'Shop', 'Art', 'Ziel', 'Ergebnis']);
+  await expect(runs.getByRole('row').nth(1)).toContainText('Forza Horizon 5');
+  await expect(runs.getByRole('row').nth(1)).toContainText('1,2 s');
+  await expect(runs.getByRole('row').nth(2)).toContainText('Abruflimit erreicht');
   await page.reload();
   await expect(navItem(page, 'Abrufstatus')).toHaveAttribute('aria-current', 'page');
   await expect(crumbs).toHaveText(/Einstellungen.*Abrufstatus/);
@@ -83,7 +93,7 @@ test('a library entry can be removed after confirmation', async ({ page }) => {
   await navTo(page, 'Bibliothek');
   const list = page.getByRole('list', { name: 'Meine Spiele' });
   await expect(list.getByRole('listitem')).toHaveCount(2);
-  await expect(list.getByRole('listitem').first()).toContainText('Gekauft');
+  await expect(list.getByRole('listitem').first()).toContainText(/\d{2}\.\d{2}\.2026/);
   await list.getByRole('button', { name: 'Zelda aus der Bibliothek entfernen', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Aus der Bibliothek entfernen?' });
   await dialog.getByRole('button', { name: 'Abbrechen', exact: true }).click();
@@ -94,4 +104,71 @@ test('a library entry can be removed after confirmation', async ({ page }) => {
   await list.getByRole('button', { name: 'Forza aus der Bibliothek entfernen', exact: true }).click();
   await dialog.getByRole('button', { name: 'Entfernen bestätigen', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Noch keine Spiele in der Bibliothek' })).toBeVisible();
+});
+
+test('Abrufstatus shows pace, demand marker and, when the demand is above the limit, the value Key-Shops needs', async ({ page }) => {
+  const budgets: Record<string, object> = {
+    eneba: { used: 412, limit: 500, limit_source: 'setting', demand_per_day: 620, pace_seconds: 172, next_at: now() + 120, by_hour: Array(24).fill(17) },
+    driffle: { used: 138, limit: 500, limit_source: 'default', demand_per_day: 160, pace_seconds: 180, next_at: now() + 600, by_hour: Array(24).fill(5) },
+  };
+  await page.route('**/api/v1/status/fetch', route => {
+    const data = fetchStatus();
+    data.shops = data.shops.map(shop => ({ ...shop, paused_until: null, last_error: null, budget: budgets[shop.source] as typeof shop.budget }));
+    return route.fulfill({ json: data });
+  });
+  await signInToFixture(page);
+  await navTo(page, 'Abrufstatus');
+  const eneba = page.getByRole('article', { name: 'Abrufstatus Eneba' });
+  await expect(eneba).toContainText('412 von 500 Abrufen · gleichmäßig verteilt, etwa alle 3 Min.');
+  await expect(eneba).toContainText('Bedarf ≈ 620 pro Tag');
+  await expect(eneba).toContainText('in 2 Min.');
+  await expect(eneba.locator('.need')).toHaveAttribute('style', /left: 100%/);
+  await expect(page.getByRole('article', { name: 'Abrufstatus Driffle' }).locator('.need')).toHaveAttribute('style', /left: 32(\.0)?%/);
+  // Only Eneba needs more than its limit: one warning that names the value, with a way to Key-Shops.
+  const notes = page.locator('[data-testid^="demand-note-"]');
+  await expect(notes).toHaveCount(1);
+  await expect(notes).toContainText('Eneba braucht etwa 620 Abrufe pro Tag, erlaubt sind 500.');
+  await expect(notes).toContainText('mindestens 620');
+  await notes.getByRole('button', { name: 'Zu den Key-Shops' }).click();
+  await expect(page).toHaveURL(/section=shops/);
+  await expect(navItem(page, 'Key-Shops')).toHaveAttribute('aria-current', 'page');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await navTo(page, 'Abrufstatus');
+  await expect(notes).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('Abrufe pro Tag saves a valid number with the settings and keeps an invalid one as a local draft', async ({ page }) => {
+  // The fixture backend may not know daily_jobs yet: answer GET and PUT like the 0.6.1 backend does.
+  let dailyJobs = 500;
+  const puts: { sources: { id: string; daily_jobs?: number }[] }[] = [];
+  await page.route('**/api/v1/settings', async route => {
+    const request = route.request();
+    if (request.method() === 'PUT') puts.push(request.postDataJSON());
+    const response = await route.fetch();
+    const json = await response.json();
+    if (request.method() === 'PUT') dailyJobs = puts.at(-1)!.sources.find(s => s.id === 'eneba')?.daily_jobs ?? dailyJobs;
+    json.sources = json.sources.map((s: { id: string; kind: string }) => s.id === 'eneba' ? { ...s, daily_jobs: dailyJobs, daily_jobs_default: 500 } : s);
+    return route.fulfill({ response, json });
+  });
+  await signInToFixture(page);
+  await navTo(page, 'Key-Shops');
+  const eneba = page.getByRole('article', { name: 'Eneba', exact: true });
+  const field = eneba.getByLabel('Abrufe pro Tag (höchstens)', { exact: true });
+  await expect(field).toHaveValue('500');
+  await expect(field).toHaveAttribute('placeholder', '500');
+  await expect(eneba).toContainText('Standard: 500');
+  await field.fill('12');
+  await field.blur();
+  await expect(eneba).toContainText('Bitte eine ganze Zahl von 20 bis 2000 eingeben.');
+  await expect(field).toHaveAttribute('aria-invalid', 'true');
+  await page.waitForTimeout(900);
+  expect(puts).toHaveLength(0);
+  await field.fill('750');
+  await expectSettingsSaved(page);
+  expect(puts).toHaveLength(1);
+  expect(puts[0].sources.find(s => s.id === 'eneba')?.daily_jobs).toBe(750);
+  await field.blur();
+  await page.reload();
+  await expect(page.getByRole('article', { name: 'Eneba', exact: true }).getByLabel('Abrufe pro Tag (höchstens)', { exact: true })).toHaveValue('750');
 });

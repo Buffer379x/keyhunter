@@ -1,4 +1,4 @@
-import type { FetchRun, FetchShopStatus } from '../../api.ts';
+import type { FetchBudget, FetchRun, FetchShopStatus } from '../../api.ts';
 
 /** Seconds without a worker heartbeat after which the backend itself calls a worker stalled (jobs.rs STALL_AFTER). */
 export const WORKER_STALLED_AFTER = 300;
@@ -8,13 +8,24 @@ export const shopTitle = (id: string) => ({ eneba: 'Eneba', driffle: 'Driffle', 
 const HOUR = 3600;
 const presetHours = [0.25, 0.5, 1, 2, 3, 4, 6, 8, 12, 24, 48, 72, 168];
 const hoursText = (hours: number) => `${hours.toLocaleString('de-DE', { maximumFractionDigits: 2 })}`;
-/** "Alle 8 Stunden"; the current value is always one of the options, also when it is not a preset. */
+/** Options of "Produktseiten abfragen alle": "8 Stunden"; the current value is always one of them, also when it is not a preset. */
 export function intervalOptions(currentSeconds: number): { value: number; label: string }[] {
   const seconds = [...new Set([...presetHours.map(h => Math.round(h * HOUR)), currentSeconds])].sort((a, b) => a - b);
   return seconds.map(value => {
     const hours = value / HOUR;
-    return { value, label: hours < 1 ? `Alle ${Math.round(hours * 60)} Minuten` : hours === 1 ? 'Jede Stunde' : `Alle ${hoursText(hours)} Stunden` };
+    return { value, label: hours < 1 ? `${Math.round(hours * 60)} Minuten` : hours === 1 ? '1 Stunde' : `${hoursText(hours)} Stunden` };
   });
+}
+
+/** Bounds of "Abrufe pro Tag (höchstens)" (backend: daily_jobs 20..=2000). */
+export const DAILY_JOBS_MIN = 20;
+export const DAILY_JOBS_MAX = 2000;
+/** A whole number from 20 to 2000 ("1.200" and "1200" both work), otherwise null. */
+export function parseDailyJobs(text: string): number | null {
+  const raw = text.trim().replace(/[.\s]/g, '');
+  if (!/^\d{1,5}$/.test(raw)) return null;
+  const value = Number(raw);
+  return value >= DAILY_JOBS_MIN && value <= DAILY_JOBS_MAX ? value : null;
 }
 
 export type Tone = 'ok' | 'warn' | 'error' | 'off';
@@ -29,7 +40,7 @@ export const outcomeText = (code: string) => outcomeNames[code] ?? code;
 export function outcomeTone(code: string): 'ok' | 'warn' | 'error' {
   return code === 'ok' ? 'ok' : code === 'rate_limited' || code === 'not_found' ? 'warn' : 'error';
 }
-export const kindNames: Record<string, string> = { product: 'Produkt', search: 'Suche', discovery: 'Discovery' };
+export const kindNames: Record<string, string> = { product: 'Preis', search: 'Suche', discovery: 'Discovery' };
 export const kindText = (kind: string) => kindNames[kind] ?? kind;
 export function durationText(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)} ms`;
@@ -60,17 +71,44 @@ export function budgetShare(used: number, limit: number): number {
   return limit > 0 ? Math.min(1, Math.max(0, used / limit)) : 0;
 }
 
-/** Numbers for the four tiles on top of the Abrufstatus section. Only enabled shops count towards queue and budget. */
-export function summarize(shops: FetchShopStatus[], errors24h: number) {
-  const active = shops.filter(shop => shop.enabled);
-  const oldest = active.flatMap(shop => shop.oldest_due_at === null ? [] : [{ at: shop.oldest_due_at, source: shop.source }]).sort((a, b) => a.at - b.at)[0] ?? null;
+/** "11:02" (local time of a Unix timestamp). */
+export const clockText = clock;
+
+/** "in 2 Min." for a time in the future, "jetzt" when it is due. */
+export function untilText(seconds: number, nowSeconds: number): string {
+  const diff = Math.round(seconds - nowSeconds);
+  if (diff < 60) return 'jetzt';
+  if (diff < 3600) return `in ${Math.round(diff / 60)} Min.`;
+  if (diff < 86400) return `in ${Math.round(diff / 3600)} Std.`;
+  return `in ${Math.round(diff / 86400)} T`;
+}
+
+/** Pill in the head of a shop panel on Abrufstatus. */
+export function fetchPill(shop: Pick<FetchShopStatus, 'enabled' | 'paused_until' | 'last_error' | 'worker_seen_at'>, nowSeconds: number): { tone: 'ok' | 'warn' | 'danger' | 'dim'; text: string } {
+  if (!shop.enabled) return { tone: 'dim', text: 'Aus' };
+  if (shop.paused_until !== null && shop.paused_until > nowSeconds) return { tone: 'warn', text: 'Pausiert' };
+  if (shop.worker_seen_at !== null && shop.worker_seen_at > 0 && nowSeconds - shop.worker_seen_at > WORKER_STALLED_AFTER) return { tone: 'danger', text: 'Reagiert nicht' };
+  if (shop.last_error) return { tone: 'danger', text: 'Fehler' };
+  return { tone: 'ok', text: 'Läuft' };
+}
+
+/**
+ * Daily budget of one shop as drawn on Abrufstatus: share of the bar, position of the demand marker (both 0..1),
+ * and `over` with the value the setting needs when the demand is higher than the limit. Fields the backend does not send stay null.
+ */
+export function budgetView(budget: FetchBudget) {
+  const { used, limit } = budget;
+  const demand = typeof budget.demand_per_day === 'number' && Number.isFinite(budget.demand_per_day) ? Math.ceil(budget.demand_per_day) : null;
+  const pace = typeof budget.pace_seconds === 'number' && budget.pace_seconds > 0 ? budget.pace_seconds : null;
   return {
-    due: active.reduce((sum, shop) => sum + shop.backlog.due, 0),
-    requested: active.reduce((sum, shop) => sum + shop.backlog.requested, 0),
-    used: active.reduce((sum, shop) => sum + shop.budget.used, 0),
-    limit: active.reduce((sum, shop) => sum + shop.budget.limit, 0),
-    oldest,
-    errors24h,
+    used, limit,
+    share: budgetShare(used, limit),
+    demand,
+    demandShare: demand === null || limit <= 0 ? null : Math.min(1, demand / limit),
+    pace,
+    over: demand !== null && limit > 0 && demand > limit,
+    needed: demand === null ? null : Math.max(DAILY_JOBS_MIN, demand),
+    fromEnv: budget.limit_source === 'env',
   };
 }
 
