@@ -25,7 +25,7 @@ pub(crate) fn minimum_series(samples: &[Sample]) -> Vec<Point> {
     let mut events: BTreeMap<i64, Vec<&Sample>> = BTreeMap::new();
     for sample in samples {
         events.entry(sample.observed_at).or_default().push(sample);
-        let expires = sample.observed_at.saturating_add(crate::offers::FRESH);
+        let expires = sample.observed_at.saturating_add(crate::pricing::FRESH);
         if expires <= end {
             events.entry(expires).or_default();
         }
@@ -33,7 +33,7 @@ pub(crate) fn minimum_series(samples: &[Sample]) -> Vec<Point> {
     let mut current: BTreeMap<i64, &Sample> = BTreeMap::new();
     let mut output = Vec::new();
     for (time, updates) in events {
-        current.retain(|_, s| s.observed_at.saturating_add(crate::offers::FRESH) > time);
+        current.retain(|_, s| s.observed_at.saturating_add(crate::pricing::FRESH) > time);
         let updated: BTreeSet<_> = updates.iter().map(|s| s.link_id).collect();
         for sample in updates {
             current.remove(&sample.link_id);

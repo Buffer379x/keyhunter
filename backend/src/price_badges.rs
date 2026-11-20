@@ -1,4 +1,7 @@
-use crate::{ApiError, ApiResult, Shared, auth, now, offers, shops::Availability};
+use crate::{
+    ApiError, ApiResult, Shared, auth, now, offers,
+    pricing::{self, Reason},
+};
 use axum::{
     Json,
     extract::{Query, State},
@@ -48,7 +51,10 @@ pub(crate) async fn load(
     let mut observed = false;
     let mut review = false;
     let mut error = failed;
-    for link in offers::links(pool, id, t).await? {
+    let price_scope = pricing::Scope::for_wishlist(target, scope);
+    let links = offers::links(pool, id, t).await?;
+    let mut candidates = Vec::new();
+    for link in &links {
         result.checked_at = result
             .checked_at
             .max(link.attempted_at)
@@ -58,37 +64,34 @@ pub(crate) async fn load(
             continue;
         };
         observed = true;
-        if !link.enabled || link.review == "rejected" || !wish.matches(&product) {
-            continue;
-        }
-        if !link.confirmed(&wish, &product) {
-            review = true;
-            continue;
-        }
-        if product.availability != Availability::InStock
-            || (scope != "all"
-                && (product.activation(target) != "confirmed"
-                    || product.purchase_country.as_deref() != Some(target)))
+        let verdict = pricing::evaluate(link, &wish, Some(&product), &price_scope, t);
+        if verdict.has(Reason::SourceDisabled)
+            || verdict.has(Reason::Rejected)
+            || verdict.has(Reason::Mismatch)
         {
             continue;
         }
-        let Some(at) = link.observed_at.filter(|at| *at <= t) else {
+        if verdict.has(Reason::NotConfirmed) {
+            review = true;
             continue;
-        };
-        for quote in &product.offers {
-            if !(0..=10_000_000).contains(&quote.cents) {
-                continue;
-            }
-            if result.cents.is_none_or(|old| quote.cents < old)
-                || (result.cents == Some(quote.cents)
-                    && result.observed_at.is_none_or(|old| at > old))
-            {
-                result.cents = Some(quote.cents);
-                result.observed_at = Some(at);
-                result.stale =
-                    t - at > offers::FRESH || link.last_error.is_some() || link.retry_at > t;
-            }
         }
+        candidates.push((link, product, verdict));
+    }
+    // A current price wins; otherwise the last known one is shown, marked as stale.
+    let prices = pricing::best(
+        candidates
+            .iter()
+            .map(|(link, product, verdict)| (*link, product, verdict)),
+        pricing::base,
+    );
+    if let Some((best, stale)) = prices
+        .current
+        .map(|best| (best, false))
+        .or(prices.last_known.map(|best| (best, true)))
+    {
+        result.cents = Some(best.cents);
+        result.observed_at = Some(best.observed_at);
+        result.stale = stale;
     }
     result.state = if result.cents.is_some() {
         "price"

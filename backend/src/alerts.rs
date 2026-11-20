@@ -215,28 +215,21 @@ async fn check(
     } else {
         vec![]
     };
-    // Changing the comparison basis or any eligible product identity starts a new series.
-    let mut identities = Vec::new();
+    // The series depends only on the wish, the rule and the fee settings. Newly found
+    // or re-mapped offers join it instead of resetting its baseline.
+    let price_scope = crate::pricing::Scope::target(&target);
     let mut best = None;
     let mut sampled = false;
     for link in offers::links(&mut *conn, id, t).await? {
         let Some(product) = link.product() else {
             continue;
         };
-        if link.enabled
-            && link.confirmed(&wish, &product)
-            && (rule.basis == "base" || link.fee_estimation_enabled)
-            && product.activation(&target) == "confirmed"
-            && product.purchase_country.as_deref() == Some(&target)
-        {
-            identities.push((link.id, product.fingerprint()));
+        if !crate::pricing::evaluate(&link, &wish, Some(&product), &price_scope, t).eligible() {
+            continue;
         }
-        if link.available(&wish, &product, &target, t) {
-            let price = price(&link, &product, rule);
-            if let Some(price) = price {
-                sampled |= link_id == Some(link.id) && link.observed_at == Some(t);
-                best = Some(best.map_or(price, |old: i64| old.min(price)));
-            }
+        if let Some(price) = price(&link, &product, rule) {
+            sampled |= link_id == Some(link.id) && link.observed_at == Some(t);
+            best = Some(best.map_or(price, |old: i64| old.min(price)));
         }
     }
     let scope = json!([
@@ -247,8 +240,7 @@ async fn check(
         rule.mode,
         rule.basis,
         rule.target_cents,
-        estimate_settings,
-        identities
+        estimate_settings
     ])
     .to_string();
     Ok(Check {
@@ -259,11 +251,10 @@ async fn check(
 }
 
 fn price(link: &offers::Link, product: &Product, rule: &StoredRule) -> Option<i64> {
-    let base = product.offers.iter().map(|o| o.cents).min()?;
     if rule.basis == "base" {
-        Some(base)
+        crate::pricing::base(link, product)
     } else {
-        link.estimate(base)
+        crate::pricing::estimate(link, product)
     }
 }
 
@@ -452,7 +443,7 @@ async fn deliver_one(pool: &SqlitePool, ntfy: &Ntfy) -> anyhow::Result<()> {
                     .best
                     .zip(row.cents)
                     .is_some_and(|(best, recorded)| best <= recorded)
-                && t - row.observed_at <= offers::FRESH
+                && t - row.observed_at <= crate::pricing::FRESH
         } else {
             false
         }

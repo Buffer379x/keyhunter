@@ -57,20 +57,24 @@ test('library exposes system filters and acquisition or alphabet sorting without
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
 
-test('country rows sort cheapest first while the preferred country keeps its highlight',async({page})=>{
+test('country rows list valid offers first, then restricted regions by price',async({page})=>{
   await signInToFixture(page);
   await page.getByRole('searchbox',{name:'Nach Spielen suchen',exact:true}).fill('forza');
   await page.getByRole('region',{name:'Suchergebnisse'}).getByRole('button',{name:'Forza Horizon 5 vormerken',exact:true}).click();
   await expect(page).toHaveURL(/[?&]item=/);
-  const link=(id:number,region:string,cents:number)=>({id,source:'eneba',url:'https://www.eneba.com/de/xbox-fixture-key-global',review:'confirmed',can_confirm:true,eligible:region==='DE',queued:false,enabled:true,stale:false,observed_at:1795107000,attempted_at:1795107000,last_error:null,retry_at:0,product:{name:'Synthetic',region,market:'DE',activation:region==='DE'?'confirmed':'unknown',availability:'in_stock'},quotes:[{id:String(id),seller:null,base_cents:cents,estimated_total_cents:region==='India'?null:cents+100}]});
+  const link=(id:number,region:string,cents:number)=>({id,source:'eneba',url:'https://www.eneba.com/de/xbox-fixture-key-global',review:'confirmed',can_confirm:true,eligible:region==='DE',queued:false,enabled:true,stale:false,observed_at:1795107000,attempted_at:1795107000,last_error:null,retry_at:0,reasons:region==='DE'?[]:['activation_unknown','purchase_context_mismatch'],product:{name:'Synthetic',region,market:'DE',activation:region==='DE'?'confirmed':'unknown',availability:'in_stock'},quotes:[{id:String(id),seller:null,base_cents:cents,estimated_total_cents:region==='India'?null:cents+100}]});
   await page.route('**/api/v1/wishlist/*/offers',route=>route.request().method()==='GET'?route.fulfill({json:{links:[link(1,'DE',3000),link(2,'USA',1000),link(3,'India',500)],histories:{preferred:[],all:[]},history:[],best_base:3000,best_estimate:3100,target_country:'DE',searches:[],sources:[],discovery_running:false}}):route.continue());
   await page.reload();
   await expect(page.locator('.region-row')).toHaveCount(3);
-  await expect(page.locator('.region-row').first()).toContainText('Indien');
-  await expect(page.locator('.preferred-region')).toContainText('Deutschland');
-  await expect(page.locator('.region-row').last()).toHaveClass(/preferred-region/);
+  // A cheaper region that cannot be activated in DE must never outrank a valid offer.
+  await expect(page.locator('.region-row').first()).toContainText('Deutschland');
+  await expect(page.locator('.region-row').first()).toHaveClass(/preferred-region/);
+  await expect(page.locator('.region-row').nth(1)).toContainText('Indien');
+  await expect(page.locator('.region-row').nth(1)).toContainText('Aktivierung in DE ungeklärt');
+  await expect(page.locator('.region-row').last()).toContainText('Vereinigte Staaten');
   await page.getByLabel('Preisgrundlage',{exact:true}).selectOption('estimate');
-  await expect(page.locator('.region-row').first()).toContainText('Vereinigte Staaten');
+  await expect(page.locator('.region-row').first()).toContainText('Deutschland');
+  await expect(page.locator('.region-row').nth(1)).toContainText('Vereinigte Staaten');
   await expect(page.locator('.region-row').last()).toContainText('Indien');
   await page.getByRole('button',{name:'Auf der Wunschliste'}).click();await page.getByRole('button',{name:'Entfernen bestätigen'}).click();
 });

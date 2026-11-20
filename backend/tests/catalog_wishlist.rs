@@ -285,9 +285,9 @@ async fn preferred_and_global_history_follow_the_actual_lowest_country_and_withd
     }
     // Current badge scope remains independent from the selected history scope.
     assert_eq!(
-        f.call("GET", "/api/v1/wishlist/prices", Value::Null)
+        f.call("GET", "/api/v1/wishlist/price-badges", Value::Null)
             .await
-            .1[id],
+            .1[id]["cents"],
         900
     );
     sqlx::query("UPDATE offer_link SET latest=json_set(latest,'$.offers[0].cents',500) WHERE json_extract(latest,'$.region')='India'").execute(&pool).await.unwrap();
@@ -295,17 +295,17 @@ async fn preferred_and_global_history_follow_the_actual_lowest_country_and_withd
     settings["wishlist_price_scope"] = json!("all");
     f.call("PUT", "/api/v1/settings", settings.clone()).await;
     assert_eq!(
-        f.call("GET", "/api/v1/wishlist/prices", Value::Null)
+        f.call("GET", "/api/v1/wishlist/price-badges", Value::Null)
             .await
-            .1[id],
+            .1[id]["cents"],
         500
     );
     settings["wishlist_price_scope"] = json!("preferred");
     f.call("PUT", "/api/v1/settings", settings).await;
     assert_eq!(
-        f.call("GET", "/api/v1/wishlist/prices", Value::Null)
+        f.call("GET", "/api/v1/wishlist/price-badges", Value::Null)
             .await
-            .1[id],
+            .1[id]["cents"],
         900
     );
     sqlx::query("UPDATE offer_link SET latest=json_set(latest,'$.offers[0].cents',1000) WHERE json_extract(latest,'$.region')='India'").execute(&pool).await.unwrap();
@@ -973,10 +973,11 @@ async fn library_moves_preserve_identity_and_require_confirmation() {
         json!([])
     );
     assert_eq!(
-        f.call("GET", "/api/v1/wishlist/prices", Value::Null)
+        f.call("GET", "/api/v1/wishlist/price-badges", Value::Null)
             .await
             .1,
-        json!({})
+        json!({}),
+        "library items have no badge and no current price"
     );
     let (_, owned) = f.call("GET", "/api/v1/library", Value::Null).await;
     assert_eq!(owned[0]["id"], id);

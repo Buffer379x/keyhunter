@@ -7,6 +7,7 @@ mod history;
 mod jobs;
 mod offers;
 mod price_badges;
+mod pricing;
 mod settings;
 mod shops;
 mod wishlist;
@@ -197,7 +198,6 @@ async fn create_app_inner(
             "/wishlist/{id}/editions",
             get(edition_tracking::get).post(edition_tracking::prepare),
         )
-        .route("/wishlist/prices", get(offers::wishlist_prices))
         .route("/wishlist/{id}/preview", post(wishlist::preview))
         .route("/settings/shop-readers", get(settings::shop_readers))
         .route("/settings/shops", post(settings::register_shop))

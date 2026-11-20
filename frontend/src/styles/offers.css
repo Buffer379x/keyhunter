@@ -101,3 +101,5 @@ summary { min-height: 36px; padding-block: 7px; }
   .region-controls label { flex-wrap: wrap; }
   .region-price small, .region-name small { font-size: 11px; }
 }
+.region-row .reason-label{color:var(--muted)}
+.region-row .region-price.ineligible strong{color:var(--muted);font-weight:600}

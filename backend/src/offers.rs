@@ -1,6 +1,6 @@
 use crate::{
-    ApiError, ApiResult, Shared, auth, internal, now,
-    shops::{self, Availability, Product, Shop, title_key},
+    ApiError, ApiResult, Shared, auth, internal, now, pricing,
+    shops::{self, Product, Shop, title_key},
 };
 use axum::{
     Json,
@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::{FromRow, SqlitePool};
 
-pub(crate) const FRESH: i64 = 24 * 3600;
+pub(crate) use crate::pricing::FRESH;
 const BAD_URL: ApiError = ApiError(
     StatusCode::BAD_REQUEST,
     "Gib eine öffentliche Xbox-Key-Produktseite eines unterstützten Shops ein.",
@@ -117,22 +117,33 @@ impl Link {
             && wish.matches(product)
             && self.fingerprint.as_deref() == Some(product.fingerprint().as_str())
     }
-    pub(crate) fn available(&self, wish: &Wish, product: &Product, target: &str, ts: i64) -> bool {
-        self.available_globally(wish, product, ts)
-            && product.activation(target) == "confirmed"
-            && product.purchase_country.as_deref() == Some(target)
-    }
-    pub(crate) fn available_globally(&self, wish: &Wish, product: &Product, ts: i64) -> bool {
-        self.enabled
-            && self.retry_at <= ts
-            && self.last_error.is_none()
-            && self.observed_at.is_some_and(|t| t <= ts && ts - t <= FRESH)
-            && product.availability == Availability::InStock
-            && self.confirmed(wish, product)
-    }
     pub(crate) fn estimate(&self, cents: i64) -> Option<i64> {
         self.fee_estimation_enabled
             .then(|| cents + (cents * self.fee_basis_points + 5000) / 10000)
+    }
+    #[cfg(test)]
+    pub(crate) fn fixture(
+        id: i64,
+        review: &str,
+        fingerprint: Option<String>,
+        observed_at: Option<i64>,
+    ) -> Self {
+        Self {
+            id,
+            source: "eneba".into(),
+            url: String::new(),
+            review: review.into(),
+            fingerprint,
+            latest: None,
+            observed_at,
+            attempted_at: observed_at,
+            last_error: None,
+            enabled: true,
+            fee_estimation_enabled: false,
+            fee_basis_points: 0,
+            queued: false,
+            retry_at: 0,
+        }
     }
 }
 
@@ -179,6 +190,8 @@ pub(crate) struct OffersView {
     price_badge: crate::price_badges::PriceBadge,
     best_base: Option<i64>,
     best_estimate: Option<i64>,
+    /// Lowest price that fails only on age or the latest fetch; never counts as best.
+    last_known: Option<pricing::Best>,
     target_country: String,
     discovery_running: bool,
     searches: Vec<Value>,
@@ -212,16 +225,28 @@ pub(crate) async fn list(
     let mut preferred_samples = Vec::new();
     let mut best_base = None;
     let mut best_estimate = None;
+    let mut last_known: Option<pricing::Best> = None;
+    let scope = pricing::Scope::target(&target);
     for link in links(&state.pool, &id, t).await? {
         let product = link.product();
         let matching = product.as_ref().is_some_and(|p| wish.matches(p));
         let confirmed = product.as_ref().is_some_and(|p| link.confirmed(&wish, p));
-        let eligible = product
-            .as_ref()
-            .is_some_and(|p| link.available(&wish, p, &target, t));
+        let verdict = pricing::evaluate(&link, &wish, product.as_ref(), &scope, t);
+        let eligible = verdict.eligible();
+        if verdict.last_known()
+            && let Some(cents) = product.as_ref().and_then(pricing::min_cents)
+            && last_known.is_none_or(|known| cents < known.cents)
+        {
+            last_known = Some(pricing::Best {
+                cents,
+                link_id: link.id,
+                observed_at: link.observed_at.unwrap_or_default(),
+            });
+        }
         let quotes: Vec<_> = product
             .iter()
             .flat_map(|p| &p.offers)
+            .filter(|q| pricing::valid_cents(q.cents))
             .map(|q| {
                 let estimate = link.estimate(q.cents);
                 if eligible {
@@ -273,7 +298,7 @@ pub(crate) async fn list(
         }
         rows.push(json!({"id":link.id,"source":link.source,"url":link.url,
             "review": if confirmed { "confirmed" } else if link.review == "confirmed" { "pending" } else { &link.review },
-            "can_confirm":matching,"eligible":eligible,"queued":link.queued,"enabled":link.enabled,
+            "can_confirm":matching,"eligible":eligible,"reasons":verdict,"queued":link.queued,"enabled":link.enabled,
             "observed_at":link.observed_at,"attempted_at":link.attempted_at,"last_error":link.last_error,
             "retry_at":link.retry_at,"stale":link.observed_at.is_some_and(|at|t-at > FRESH),
             "product": product.as_ref().map(|p| json!({"name":p.name,"region":p.region,
@@ -315,6 +340,7 @@ pub(crate) async fn list(
         },
         best_base,
         best_estimate,
+        last_known,
         target_country: target,
         discovery_running,
         searches,
@@ -472,46 +498,10 @@ pub(crate) async fn source_rows(pool: &SqlitePool) -> ApiResult<Vec<(String, Val
     }).collect())
 }
 
-pub(crate) async fn wishlist_prices(
-    State(state): State<Shared>,
-    headers: HeaderMap,
-) -> ApiResult<Json<Value>> {
-    auth::authenticate(&state, &headers).await?;
-    let target = target(&state.pool).await?;
-    let scope: String =
-        sqlx::query_scalar("SELECT wishlist_price_scope FROM app_settings WHERE id=1")
-            .fetch_one(&state.pool)
-            .await?;
-    let ids: Vec<String> = sqlx::query_scalar("SELECT id FROM wishlist_item w WHERE NOT EXISTS(SELECT 1 FROM edition_preview p WHERE p.track_id=w.id) AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id)")
-        .fetch_all(&state.pool)
-        .await?;
-    let mut prices = serde_json::Map::new();
-    let time = now();
-    for id in ids {
-        let wish = wish(&state.pool, &id).await?;
-        let mut best = None;
-        for link in links(&state.pool, &id, time).await? {
-            if let Some(p) = link.product().filter(|p| {
-                if scope == "all" {
-                    link.available_globally(&wish, p, time)
-                } else {
-                    link.available(&wish, p, &target, time)
-                }
-            }) {
-                for quote in p.offers {
-                    update_min(&mut best, quote.cents);
-                }
-            }
-        }
-        prices.insert(id, json!(best));
-    }
-    Ok(Json(Value::Object(prices)))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::shops::Quote;
+    use crate::shops::{Availability, Quote};
 
     #[test]
     fn automatic_confirmation_requires_catalog_identity() {
@@ -586,19 +576,10 @@ mod tests {
             queued: false,
             retry_at: 0,
         };
-        assert!(link.available(&wish, &product, "DE", 201));
         assert_eq!(link.estimate(2392), Some(2440));
         link.fee_estimation_enabled = false;
         assert_eq!(link.estimate(2392), None);
-        assert!(!link.available(&wish, &product, "AT", 201));
-        assert!(link.available_globally(&wish, &product, 201));
-        assert!(!link.available_globally(&wish, &product, 201 + FRESH));
-        assert!(!link.available(&wish, &product, "DE", 201 + FRESH));
-        product.blocked.push("DE".into());
-        assert!(!link.available(&wish, &product, "DE", 201));
-        product.blocked.clear();
-        link.last_error = Some("network".into());
-        assert!(!link.available(&wish, &product, "DE", 201));
+        assert!(link.confirmed(&wish, &product));
         for title in [
             "Forza Horizon 5 Premium Edition",
             "Forza Horizon 5 Remastered",
