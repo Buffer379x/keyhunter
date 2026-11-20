@@ -88,8 +88,8 @@ export default function PriceMatrix({ home, world, days, target, now, country, l
     </svg>
     {active && tip && <div className="tip" role="status" style={{ left: tip.left, top: tip.top }}>
       <div className="tip-h">{range(active)}</div>
-      <div className="tip-r"><i />{country}<b>{active.home ? money(active.home.cents) : 'keine Messung'}</b></div>
-      <div className="tip-r"><i className="w" />Weltweit{active.world?.region && <span className="tip-reg">{regionCode(active.world.region)}</span>}<b>{active.world ? money(active.world.cents) : 'keine Messung'}</b></div>
+      <div className="tip-r"><i />{country}<b className={active.home ? undefined : 'none'}>{active.home ? money(active.home.cents) : 'keine Messung'}</b></div>
+      <div className="tip-r"><i className="w" />Weltweit{active.world?.region && <span className="tip-reg">{regionCode(active.world.region)}</span>}<b className={active.world ? undefined : 'none'}>{active.world ? money(active.world.cents) : 'keine Messung'}</b></div>
       <div className="tip-r">Differenz<b>{active.home && active.world ? active.home.cents - active.world.cents < 1 ? '±0' : `−${money(active.home.cents - active.world.cents)}` : '–'}</b></div>
     </div>}
     <table className="sr-only">

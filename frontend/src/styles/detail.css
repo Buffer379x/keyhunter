@@ -126,6 +126,7 @@
 .tip .tip-h { background: var(--panel-2); border-radius: var(--r-sm); padding: 6px 8px; color: var(--text-2); }
 .tip .tip-r { display: flex; gap: 8px; align-items: center; padding: 5px 8px; color: var(--muted); }
 .tip .tip-r b { margin-left: auto; color: var(--text); font: 500 var(--t-sm) var(--f-mono); }
+.tip .tip-r b.none { color: var(--muted); font: 400 var(--t-xs) var(--f-sans); } /* (added) a column without a measurement */
 .tip i { width: 6px; height: 6px; border-radius: 2px; background: var(--accent); }
 .tip i.w { background: var(--world); }
 .tip .tip-reg { font: 500 10px var(--f-mono); color: var(--faint); } /* (added) region of the worldwide price */
