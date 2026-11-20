@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { offerRows, summarize, ruler, labelLanes, reasonList } from '../src/features/offers-model.ts';
+import { offerRows, summarize, reasonList, validity, verdict, verdictText } from '../src/features/offers-model.ts';
 import type { Link, OffersView } from '../src/features/offers-model.ts';
-import { defaultRange, changePercent, lowestPoint, mean, monthStarts, DAY } from '../src/features/history-model.ts';
 
 const link = (id: number, region: string, cents: number, reasons: string[] = [], extra: Partial<Link> = {}): Link => ({
   id, source: 'eneba', url: 'https://example.test', review: 'confirmed', can_confirm: true, eligible: reasons.length === 0, queued: false, enabled: true,
@@ -53,34 +52,50 @@ test('reasons come in a fixed order with the country filled in', () => {
   assert.deepEqual(reasonList(link(1, 'X', 1, ['purchase_context_mismatch', 'activation_unknown']), 'DE'), ['Aktivierung in DE ungeklärt', 'Anderer Kaufkontext']);
 });
 
-test('ruler keeps every value inside the range and labels share two lanes', () => {
-  const r = ruler([2149, 2392, 2500, 2690])!;
-  for (const cents of [2149, 2392, 2500, 2690]) { assert.ok(r.pos(cents) > 0 && r.pos(cents) < 100); }
-  assert.ok(r.ticks.length >= 2 && r.ticks.length <= 7);
-  assert.equal(ruler([]), null);
-  assert.ok(ruler([2000])!.pos(2000) > 40);
-  assert.deepEqual(labelLanes([10, 12, 60]), [0, 1, 0]);
-});
-
-test('history helpers: range, lowest, mean, change and month starts', () => {
-  const now = 1_800_000_000;
-  const point = (days: number, cents: number | null) => ({ observed_at: now - days * DAY, base_cents: cents, link_id: 1, region: 'DE' });
-  const rows = [point(20, 3499), point(14, 3299), point(7, 3099), point(0, 2890), point(3, null)];
-  assert.equal(defaultRange(rows, now), 30);
-  assert.equal(defaultRange([point(60, 1)], now), 90);
-  assert.equal(defaultRange([point(200, 1)], now), 365);
-  assert.equal(lowestPoint(rows)?.base_cents, 2890);
-  assert.equal(mean(rows), Math.round((3499 + 3299 + 3099 + 2890) / 4));
-  assert.equal(mean([point(1, 100)]), null);
-  assert.equal(changePercent(rows), -17);
-  const months = monthStarts(now - 90 * DAY, now);
-  assert.ok(months.length >= 2 && months.length <= 4);
-});
-
 test('reason labels keep nouns capitalised inside a sentence', async () => {
   const { inSentence } = await import('../src/features/offers-model.ts');
   assert.equal(inSentence('In DE nicht aktivierbar'), 'in DE nicht aktivierbar');
   assert.equal(inSentence('Anderer Kaufkontext'), 'anderer Kaufkontext');
   assert.equal(inSentence('Aktivierung in DE ungeklärt'), 'Aktivierung in DE ungeklärt');
   assert.equal(inSentence('Ausverkauft'), 'ausverkauft');
+});
+
+const money = (cents: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(cents / 100);
+const region = (row: { link: Link }) => row.link.product?.region === 'India' ? 'Indien' : row.link.product?.region ?? '';
+
+test('validity: valid, unclear activation, blocked and review rows each name their state', () => {
+  const v = view([link(1, 'DE', 3000), link(2, 'USA', 1000, ['activation_unknown']), link(3, 'India', 500, ['activation_blocked'])], 3000);
+  const rows = offerRows(v, 'base');
+  assert.deepEqual(rows.map(r => [r.link.id, validity(r, 'DE').tone, validity(r, 'DE').text]), [
+    [3, 'dim', 'in DE nicht aktivierbar'], [2, 'warn', 'Aktivierung in DE ungeklärt'], [1, 'ok', 'in DE aktivierbar'],
+  ]);
+  const review = offerRows(view([{ ...link(4, 'DE', 100), review: 'pending' }], null), 'base')[0];
+  assert.equal(validity(review, 'DE').text, 'Zuordnung prüfen');
+});
+
+test('verdict: same price, cheaper region with the effort thresholds 15 % and 30 %, and no valid offer', () => {
+  const at = (target: number, cheap: number, reasons = ['activation_unknown']) => {
+    const v = view([link(1, 'DE', target), link(2, 'India', cheap, reasons)], target);
+    return verdict(summarize(v, offerRows(v, 'base'), 'base', 'DE'), region, 'DE');
+  };
+  const same = verdict(summarize(view([link(1, 'DE', 3000)], 3000), offerRows(view([link(1, 'DE', 3000)], 3000), 'base'), 'base', 'DE'), region, 'DE')!;
+  assert.deepEqual(verdictText(same, 'Deutschland', money), { lead: 'Deutschland ist gerade weltweit am günstigsten.', rest: 'Kein Umweg nötig: Der beste Preis gilt direkt in Deutschland.' });
+  const small = at(10000, 9000)!;
+  assert.equal(small.kind === 'cheaper' && small.effort, 'small');
+  assert.equal(verdictText(small, 'Deutschland', money).lead, 'Indien spart 10,00\u00a0€ (10 %).');
+  assert.match(verdictText(small, 'Deutschland', money).rest, /ungeklärt; meist braucht es eine Regionsumstellung im Konto\. Bei so wenig Unterschied lohnt sich der Aufwand kaum\.$/);
+  const noticeable = at(10000, 8000, ['activation_blocked'])!;
+  assert.equal(noticeable.kind === 'cheaper' && noticeable.effort, 'noticeable');
+  assert.match(verdictText(noticeable, 'Deutschland', money).rest, /^Laut Shop lässt sich der Key in Deutschland nicht aktivieren\. Der Umweg spart spürbar/);
+  const large = at(2890, 1290)!;
+  assert.equal(large.kind === 'cheaper' && large.percent, 55);
+  assert.match(verdictText(large, 'Deutschland', money).rest, /Der Unterschied ist groß\.$/);
+  // Exactly 15 % is no longer "small"; exactly 30 % is "large".
+  assert.equal((at(10000, 8500) as { effort: string }).effort, 'noticeable');
+  assert.equal((at(10000, 7000) as { effort: string }).effort, 'large');
+  const none = view([link(3, 'India', 500, ['activation_blocked'])], null);
+  const only = verdict(summarize(none, offerRows(none, 'base'), 'base', 'DE'), region, 'DE')!;
+  assert.equal(only.kind, 'only_world');
+  assert.equal(verdictText(only, 'Deutschland', money).lead, 'Für Deutschland gibt es gerade kein gültiges Angebot.');
+  assert.equal(verdict(summarize(view([], null), [], 'base', 'DE'), region, 'DE'), null);
 });
