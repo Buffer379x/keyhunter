@@ -17,6 +17,9 @@ export async function signInToFixture(page: Page) {
     await page.getByLabel('Einrichtungscode', { exact: true }).fill(token.trim());
     await page.getByLabel('Passphrase', { exact: true }).fill('browser test passphrase only');
     await page.getByLabel('Passphrase wiederholen').fill('browser test passphrase only');
+    // The suite checks German prices for the target country DE, whatever the browser locale suggests.
+    const country = page.getByLabel('Zielland', { exact: true });
+    if (await country.count()) await country.selectOption('DE');
     await setup.click();
   } else {
     await page.getByLabel('Passphrase', { exact: true }).fill('browser test passphrase only');

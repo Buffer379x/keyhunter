@@ -28,7 +28,8 @@
 .popover-panel [role='menuitem'].danger, .popover-panel [role='menuitem'].danger svg { color: var(--danger); }
 
 /* Head */
-.game-detail { min-width: 0; }
+/* max-content rows: inside a height-limited scroll pane (the 0.6.0 split view) rows must not shrink and overlap. */
+.game-detail { min-width: 0; align-content: start; grid-auto-rows: max-content; }
 .game-detail > [role='tabpanel'] { min-width: 0; }
 .game-detail > [role='tabpanel']:focus-visible { outline-offset: 4px; border-radius: var(--r-lg); }
 .game-detail > .notice { margin: 0; }

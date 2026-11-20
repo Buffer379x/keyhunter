@@ -37,10 +37,11 @@ export default function OffersTab({ state, rows, summary, basis, onBasis, hasEst
   const hidden = rows.filter(row => !row.eligible && row.price !== null);
   const bestKey = summary.targetRow?.key;
   const pending = view.links.filter(link => link.review !== 'rejected' && link.enabled && !link.product).length;
-  const notes = [
-    ...view.searches.filter(search => searchNames[search.status]).map(search => `${shopNames[search.source] ?? search.source}: ${searchNames[search.status]}${search.last_error ? ` (${sourceErrors[search.last_error] ?? 'Quelle vorübergehend nicht erreichbar'})` : ''}`),
-    ...(view.sources ?? []).filter(source => !source.status.enabled || source.status.last_error).map(source => `${shopNames[source.source] ?? source.source}: ${!source.status.enabled ? 'deaktiviert' : sourceErrors[source.status.last_error ?? ''] ?? 'pausiert'}`),
-    ...(pending > 0 ? [`${pending} Produktabrufe ausstehend`] : []),
+  // Search and source states that need attention ("Eneba: Suche eingeplant"), each status as its own text.
+  const notes: { who: string; what: string }[] = [
+    ...view.searches.filter(search => searchNames[search.status]).map(search => ({ who: shopNames[search.source] ?? search.source, what: `${searchNames[search.status]}${search.last_error ? ` (${sourceErrors[search.last_error] ?? 'Quelle vorübergehend nicht erreichbar'})` : ''}` })),
+    ...(view.sources ?? []).filter(source => !source.status.enabled || source.status.last_error).map(source => ({ who: shopNames[source.source] ?? source.source, what: !source.status.enabled ? 'deaktiviert' : sourceErrors[source.status.last_error ?? ''] ?? 'pausiert' })),
+    ...(pending > 0 ? [{ who: '', what: `${pending} Produktabrufe ausstehend` }] : []),
   ];
   return <Panel aria-labelledby="offers-title">
     <PanelHead><Label id="offers-title">Angebote · nach Preis</Label><span className="mono faint count">{shown.length} von {rows.length}</span><span className="spacer" />
@@ -72,7 +73,7 @@ export default function OffersTab({ state, rows, summary, basis, onBasis, hasEst
     </Inset>
     {(notes.length > 0 || reviewCount > 0 || basis === 'estimate') && <p className="panel-foot">
       {basis === 'estimate' && <span>Geschätzte Gesamtpreise mit den Gebühren aus den Einstellungen</span>}
-      {notes.map(note => <span key={note}>{note}</span>)}
+      {notes.map(note => <span key={note.who + note.what}>{note.who && `${note.who}: `}<span>{note.what}</span></span>)}
       {reviewCount > 0 && <button type="button" className="text-button" onClick={() => onTab('infos')}>{reviewCount} {reviewCount === 1 ? 'Zuordnung' : 'Zuordnungen'} prüfen</button>}
     </p>}
   </Panel>;
