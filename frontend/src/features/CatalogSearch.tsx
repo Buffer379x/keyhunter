@@ -90,7 +90,7 @@ export default function CatalogSearch({ csrf, open, inline = false, items, onOpe
     {state === 'ready' && <p className="search-hint" role="status">{results.length ? `${results.length === 20 ? 'Bis zu 20' : results.length} Treffer für ${platformName(platform)}` : 'Keine passenden Katalogtreffer.'}{cached && results.length > 0 ? ' · aus dem Zwischenspeicher' : ''}</p>}
     {results.length > 0 && <ul className="catalog-results" aria-label="Katalogtreffer">{results.map(game => {
       const saved = (items ?? savedItems).some(item => item.game?.igdb_id === game.igdb_id && item.platform_id === platform);
-      return <li className="catalog-result" key={game.igdb_id}><Cover src={game.cover_url} /><div className="result-info"><h3>{game.name}</h3><p><span title="Jahr der Erstveröffentlichung">{releaseYear(game.first_release_date)}</span> · {platformName(platform)}</p><span className={`kind-badge ${selectionAllowed(game) ? '' : 'unverified'}`}>{kindName(game)}</span>{game.kind === 'edition' && <p className="edition-note">Edition separat erfasst · Händlerinhalt noch ungeprüft</p>}{!selectionAllowed(game) && <p className="edition-note">Kein belegtes eigenständiges Spiel bzw. keine zuordenbare Edition.</p>}</div><Button size={inline ? 'sm' : 'md'} disabled={busy || (saved && !inline) || !selectionAllowed(game)} onClick={() => void add(game)} aria-label={`${game.name} ${saved && inline ? 'öffnen' : 'vormerken'}`}>{busy ? '…' : saved ? inline ? 'Öffnen' : 'Vorgemerkt' : 'Vormerken'}</Button></li>;
+      return <li className="catalog-result" key={game.igdb_id}><Cover src={game.cover_url} /><div className="result-info"><h3>{game.name}</h3><p><span title="Jahr der Erstveröffentlichung">{releaseYear(game.first_release_date)}</span> · {platformName(platform)}</p><span className={`kind-badge ${selectionAllowed(game) ? '' : 'unverified'}`}>{kindName(game)}</span>{game.kind === 'edition' && <p className="edition-note">Edition separat erfasst · Händlerinhalt noch ungeprüft</p>}{!selectionAllowed(game) && <p className="edition-note">Kein belegtes eigenständiges Spiel bzw. keine zuordenbare Edition.</p>}</div><Button size="sm" disabled={busy || (saved && !inline) || !selectionAllowed(game)} onClick={() => void add(game)} aria-label={`${game.name} ${saved && inline ? 'öffnen' : 'vormerken'}`}>{busy ? '…' : saved ? inline ? 'Öffnen' : 'Vorgemerkt' : 'Vormerken'}</Button></li>;
     })}</ul>}
     {(state === 'error' || (state === 'ready' && results.length === 0)) && query.trim().length >= 2 && <div className="manual-fallback"><h3>Manuell vormerken</h3><p>„{query.trim()}“ wird manuell gespeichert. Plattform, Edition und Inhalte bleiben ungeprüft; daraus entstehen keine bestätigten Angebote.</p><Button disabled={busy} onClick={() => void add(null)}>{busy ? 'Wird gespeichert …' : 'Ungeprüft vormerken'}</Button></div>}
     <div className="catalog-attribution">Spieledaten von IGDB · Erstveröffentlichung ist nicht zwingend das Xbox-Veröffentlichungsdatum.</div>
@@ -105,8 +105,15 @@ export default function CatalogSearch({ csrf, open, inline = false, items, onOpe
       {resultsPanel}
     </section>}
   </div>;
+  // The add dialog: a panel with the title in the head and search, platform and results in the inset.
   return <dialog ref={dialog} className="catalog-dialog" aria-labelledby="catalog-title" onCancel={event => { if (busy) event.preventDefault(); else onClose(); }}>
     <div className="dialog-heading"><h2 id="catalog-title">Spiel hinzufügen</h2><IconButton variant="ghost" label="Suche schließen" onClick={onClose} disabled={busy}><Icon name="x" /></IconButton></div>
-    <form className="catalog-form" onSubmit={submit}><div className="form-row"><label htmlFor={queryId}>Spiel im Katalog suchen</label>{searchInput}</div>{platformField}</form>{resultsPanel}
+    <div className="inset catalog-body">
+      <form className="catalog-form" onSubmit={submit}>
+        <div className="form-row"><label htmlFor={queryId}>Spiel im Katalog suchen</label><span className="field"><Icon name="search" size={14} />{searchInput}</span></div>
+        {platformField}
+      </form>
+      {resultsPanel}
+    </div>
   </dialog>;
 }

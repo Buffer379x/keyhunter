@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
 import { api, HttpError } from './api';
 import type { Settings, SourceStatuses } from './api';
 import Wishlist from './features/Wishlist';
@@ -8,7 +7,7 @@ import CatalogSearch from './features/CatalogSearch';
 import type { WishlistItem } from './api';
 import PriceAlerts from './features/PriceAlerts';
 import SettingsPage from './features/SettingsPage';
-import { countryCodes } from './features/Country';
+import AuthScreen from './features/AuthScreen';
 import { Brand, Button, Icon, IconButton, InfoDialog, Notice, Toast } from './components';
 import type { IconName } from './components';
 import FetchStatus from './FetchStatus';
@@ -202,13 +201,7 @@ export default function App() {
   }
   const clearToast = useCallback(() => setToast(''), []);
 
-  if (screen !== 'ready') return <main className="auth-layout">
-    <div className="auth-card panel">
-      <Brand />
-      {screen === 'loading' ? <p role="status">KeyHunter wird geladen …</p> : screen === 'offline' ? <div><h1>Verbindung unterbrochen</h1><Notice error>{error}</Notice><Button variant="primary" onClick={() => void initialize()}>Erneut versuchen</Button></div> :
-        <AuthForm setup={screen === 'setup'} busy={busy} error={error} onSubmit={signIn} />}
-    </div>
-  </main>;
+  if (screen !== 'ready') return <AuthScreen screen={screen} busy={busy} error={error} onRetry={() => void initialize()} onSubmit={signIn} />;
 
   const overview: { page: Page; label: string; icon: IconName; count: number | null }[] = [
     { page: 'wishlist', label: 'Wunschliste', icon: 'heart', count: wishlistCount },
@@ -268,40 +261,4 @@ export default function App() {
     <InfoDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
     <Toast message={toast} onDone={clearToast} />
   </div>;
-}
-
-function AuthForm({ setup, busy, error, onSubmit }: { setup: boolean; busy: boolean; error: string; onSubmit: (password: string, token?: string, targetCountry?: string) => Promise<void> }) {
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [token, setToken] = useState('');
-  const [country, setCountry] = useState(() => {
-    const region = (navigator.language.split('-')[1] ?? '').toUpperCase();
-    return countryCodes.includes(region) ? region : 'DE';
-  });
-  const countryOptions = useMemo(() => {
-    const names = new Intl.DisplayNames(['de'], { type: 'region' });
-    return countryCodes.map(code => ({ code, name: names.of(code) ?? code })).sort((a, b) => a.name.localeCompare(b.name, 'de'));
-  }, []);
-  const [localError, setLocalError] = useState('');
-  async function submit(event: FormEvent) {
-    event.preventDefault(); setLocalError('');
-    const length = Array.from(password).length;
-    if (length > 128 || (setup && length < 12)) {
-      setLocalError(setup ? 'Die Passphrase muss 12 bis 128 Zeichen haben.' : 'Die Passphrase darf höchstens 128 Zeichen haben.');
-      return;
-    }
-    if (setup && password !== confirm) { setLocalError('Die Passphrasen stimmen nicht überein.'); return; }
-    await onSubmit(password, setup ? token : undefined, setup ? country : undefined);
-  }
-  return <>
-    <h1>{setup ? 'KeyHunter einrichten' : 'Anmelden'}</h1>
-    <form onSubmit={submit}>
-      {(localError || error) && <Notice error>{localError || error}</Notice>}
-      {setup && <div className="form-row"><label htmlFor="setup-token">Einrichtungscode</label><input id="setup-token" type="password" autoComplete="off" value={token} onChange={e => setToken(e.target.value)} required spellCheck={false} /><span className="field-help">Aus der lokalen Datei <code>bootstrap-token</code> im Datenverzeichnis.</span></div>}
-      <div className="form-row"><label htmlFor="password">Passphrase</label><input id="password" type="password" autoComplete={setup ? 'new-password' : 'current-password'} value={password} onChange={e => setPassword(e.target.value)} required />{setup && <span className="field-help">12 bis 128 Zeichen, gerne mehrere Wörter.</span>}</div>
-      {setup && <div className="form-row"><label htmlFor="password-confirm">Passphrase wiederholen</label><input id="password-confirm" type="password" autoComplete="new-password" value={confirm} onChange={e => setConfirm(e.target.value)} required /></div>}
-      {setup && <div className="form-row"><label htmlFor="setup-country">Zielland</label><select id="setup-country" value={country} onChange={e => setCountry(e.target.value)}>{countryOptions.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}</select><span className="field-help">Für dieses Land werden Angebote als aktivierbar bewertet. Später in den Einstellungen änderbar.</span></div>}
-      <Button variant="primary" type="submit" loading={busy}>{busy ? 'Bitte warten …' : setup ? 'Privaten Bereich einrichten' : 'Anmelden'}</Button>
-    </form>
-  </>;
 }
