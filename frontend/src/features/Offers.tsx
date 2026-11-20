@@ -7,7 +7,7 @@ export {money,dateTime} from './price-format';
 import { Button, CardHeading, Icon, Notice } from '../components';
 import { AlertEditor } from './PriceAlerts';
 import PriceHistoryPlot from './PriceHistoryPlot';
-import type { HistoryPoint } from './PriceHistoryPlot';
+import type { HistoryPoint, HistorySeries } from './PriceHistoryPlot';
 import { CountryFlag, countryData } from './Country';
 
 export const shopNames:Record<string,string>={eneba:'Eneba',driffle:'Driffle',igdb:'IGDB'};
@@ -26,7 +26,6 @@ export default function Offers({id,csrf,targetLabel,onError,onBadge,tab,editionP
   const path=`/wishlist/${encodeURIComponent(id)}/offers`;
   const [view,setView]=useState<View|null>(null);const [error,setError]=useState('');const [message,setMessage]=useState('');
   const [url,setUrl]=useState('');const [busy,setBusy]=useState(false);const [reload,setReload]=useState(0);const [basis,setBasis]=useState('base');
-  const [scope,setScope]=useState<'preferred'|'all'>(()=>{try{return localStorage.getItem('keyhunter.history.scope')==='all'?'all':'preferred';}catch{return 'preferred';}});
   const [openCountry,setOpenCountry]=useState<string|null>(null);const dialog=useRef<HTMLDialogElement>(null);const latest=useRef(0);
   useEffect(()=>{if(openCountry)dialog.current?.showModal();else dialog.current?.close();},[openCountry]);
   useEffect(()=>{
@@ -59,28 +58,44 @@ export default function Offers({id,csrf,targetLabel,onError,onBadge,tab,editionP
     catch(error){setError(error instanceof Error?error.message:'Angebotsänderung fehlgeschlagen.');if(error instanceof HttpError && error.status === 401) onError(error);return false;}finally{setBusy(false);}
   }
   async function add(event:FormEvent){event.preventDefault();if(await write('','POST',{url},'Produktlink zur Prüfung vorgemerkt.'))setUrl('');}
-  function changeScope(value:'preferred'|'all'){setScope(value);try{localStorage.setItem('keyhunter.history.scope',value);}catch{/* Keep the selection for this page if storage is unavailable. */}}
   const visibleLinks=view?.links.filter(l=>l.review!=='rejected'&&l.enabled)??[];
   const searches=view?.searches??[];const searching=searches.some(s=>['queued','searching'].includes(s.status));
   const groups=new Map<string,RegionGroup>();
   const price=(row:Priced)=>basis==='estimate'?(row.quote.estimated_total_cents??Infinity):row.quote.base_cents;
   for(const link of visibleLinks){if(!link.product)continue;const region=countryData(link.product.region);const group=groups.get(region.key)??{region,links:[],quotes:[]};group.links.push(link);group.quotes.push(...(link.review==='confirmed'?link.quotes:[]).map(quote=>({link,quote})));groups.set(region.key,group);}
-  for(const group of groups.values())group.quotes.sort((a,b)=>Number(b.link.eligible)-Number(a.link.eligible)||price(a)-price(b)||a.link.id-b.link.id);
-  const regions=[...groups.values()].sort((a,b)=>Number(!!b.quotes[0]?.link.eligible)-Number(!!a.quotes[0]?.link.eligible)||(a.quotes[0]?price(a.quotes[0]):Infinity)-(b.quotes[0]?price(b.quotes[0]):Infinity)||a.region.name.localeCompare(b.region.name,'de'));
+  // Rows are ordered by price only: the cheapest region comes first, wherever it is.
+  for(const group of groups.values())group.quotes.sort((a,b)=>price(a)-price(b)||Number(b.link.eligible)-Number(a.link.eligible)||a.link.id-b.link.id);
+  const regions=[...groups.values()].sort((a,b)=>(a.quotes[0]?price(a.quotes[0]):Infinity)-(b.quotes[0]?price(b.quotes[0]):Infinity)||a.region.name.localeCompare(b.region.name,'de'));
+  // Cheapest current offer of any region against the best offer that counts in the target country.
+  const current=(row:Priced)=>!row.link.stale&&!row.link.reasons?.some(r=>r==='stale'||r==='source_error')&&Number.isFinite(price(row));
+  const world=regions.flatMap(g=>g.quotes.filter(current).map(q=>({...q,region:g.region}))).sort((a,b)=>price(a)-price(b))[0];
+  const targetCents=basis==='estimate'?view?.best_estimate??null:view?.best_base??null;
+  const targetOffer=targetCents===null?undefined:regions.flatMap(g=>g.quotes.filter(q=>q.link.eligible&&price(q)===targetCents).map(q=>({...q,region:g.region})))[0];
+  const saving=world&&targetCents!==null&&price(world)<targetCents?targetCents-price(world):0;
   const selectedGroup=openCountry?groups.get(openCountry):undefined;
-  const history=view?.histories?.[scope]??view?.history??[];const measured=history.filter(p=>p.base_cents!==null);
+  // Both histories are always shown: the target country against the cheapest region anywhere.
+  const preferredHistory=view?.histories?.preferred??view?.history??[];const allHistory=view?.histories?.all??[];
+  const series:HistorySeries[]=[{key:'all',label:'Alle Länder',history:allHistory},{key:'preferred',label:`In ${targetLabel} aktivierbar`,history:preferredHistory}];
+  const lowest=(rows:HistoryPoint[])=>rows.filter(p=>p.base_cents!==null).reduce<HistoryPoint|null>((best,p)=>!best||p.base_cents!<best.base_cents!?p:best,null);
+  const lowestTarget=lowest(preferredHistory),lowestAll=lowest(allHistory);
+  const measuredAll=[...preferredHistory,...allHistory].filter(p=>p.base_cents!==null);
+  const byTime=new Map<number,{at:number;preferred?:HistoryPoint;all?:HistoryPoint}>();
+  for(const [key,rows] of [['preferred',preferredHistory],['all',allHistory]] as const)for(const row of rows){const entry=byTime.get(row.observed_at)??{at:row.observed_at};entry[key]=row;byTime.set(row.observed_at,entry);}
+  const measurements=[...byTime.values()].sort((a,b)=>b.at-a.at);
   const pending=visibleLinks.filter(l=>!l.product).length;
   const statusNames:Record<string,string>={queued:'Suche eingeplant',searching:'Angebote werden gesucht',complete:'Suche abgeschlossen',no_match:'Keine passenden Produkte gefunden',error:'Suche fehlgeschlagen',disabled:'Deaktiviert',paused:'Abrufe pausiert'};
   const historyPanel=<section className="dashboard-card history-card" aria-labelledby="history-title"><CardHeading icon="chart" title="Preisverlauf" id="history-title" />
-    <div className="history-controls"><div className="history-scope" role="group" aria-label="Region für Preisverlauf"><button type="button" className="icon-action" aria-label="Preisverlauf für mein Land" aria-pressed={scope==='preferred'} title={`Mein Land · ${targetLabel}`} onClick={()=>changeScope('preferred')}><Icon name="home"/></button><button type="button" className="icon-action" aria-label="Preisverlauf für alle Länder" aria-pressed={scope==='all'} title="Alle Länder · jeweils günstigster Preis" onClick={()=>changeScope('all')}><Icon name="globe"/></button></div><span>{scope==='all'?'Alle Länder':`Mein Land · ${targetLabel}`}</span></div>
-    <PriceHistoryPlot history={history}/>
-    {measured.length?<><div className="history-caption"><strong>{money(Math.min(...measured.map(p=>p.base_cents!)))}</strong><span>{scope==='all'?'Günstigster beobachteter Grundpreis über alle Länder':'Günstigster passender Grundpreis im Zielland'}</span></div>{measured.length===1&&<p className="field-help">Bisher eine Messung. Weitere Abfragen ergänzen die Verlaufslinie.</p>}<details open={tab==='history'}><summary>Messungen anzeigen</summary><div className="price-table-wrap"><table className="price-table" aria-label="Preismessungen"><thead><tr><th>Abfrage</th><th>Land / Region</th><th>Grundpreis</th></tr></thead><tbody>{[...history].reverse().map((row,i)=><tr key={`${row.observed_at}-${i}`}><td>{dateTime(row.observed_at)}</td><td><CountryFlag region={row.region}/> {countryData(row.region).name}</td><td>{row.base_cents===null?'Kein verfügbarer Preis':money(row.base_cents)}</td></tr>)}</tbody></table></div></details></>:<div className="card-empty"><Icon name="chart" size={30}/><p>Noch keine Preismessung vorhanden.</p></div>}
-    {measured.length > 0 && <p className="card-footnote">Messwerte gelten bis zur nächsten Abfrage, höchstens 24 Stunden.</p>}
+    <PriceHistoryPlot series={series}/>
+    {measuredAll.length?<><div className="history-caption">{lowestTarget?<div className="series-preferred"><span>Tiefstwert · in {targetLabel} aktivierbar</span><strong>{money(lowestTarget.base_cents!)}</strong><small>{countryData(lowestTarget.region).name} · {dateTime(lowestTarget.observed_at)}</small></div>:<div className="series-preferred"><span>In {targetLabel} aktivierbar</span><strong>–</strong><small>Noch keine passende Messung</small></div>}{lowestAll&&<div className="series-all"><span>Tiefstwert · alle Länder</span><strong>{money(lowestAll.base_cents!)}</strong><small>{countryData(lowestAll.region).name} · {dateTime(lowestAll.observed_at)}</small></div>}</div>{measuredAll.length===1&&<p className="field-help">Bisher eine Messung. Weitere Abfragen ergänzen die Verlaufslinie.</p>}<details open={tab==='history'}><summary>Messungen anzeigen</summary><div className="price-table-wrap"><table className="price-table" aria-label="Preismessungen"><thead><tr><th>Abfrage</th><th>In {targetLabel} aktivierbar</th><th>Günstigste Region</th></tr></thead><tbody>{measurements.map(row=><tr key={row.at}><td>{dateTime(row.at)}</td><td>{row.preferred?.base_cents==null?'–':money(row.preferred.base_cents)}</td><td>{row.all?.base_cents==null?'–':<><CountryFlag region={row.all.region}/> {countryData(row.all.region).name} · {money(row.all.base_cents)}</>}</td></tr>)}</tbody></table></div></details></>:<div className="card-empty"><Icon name="chart" size={30}/><p>Noch keine Preismessung vorhanden.</p></div>}
+    {measuredAll.length > 0 && <p className="card-footnote">Messwerte gelten bis zur nächsten Abfrage, höchstens 24 Stunden.</p>}
   </section>;
   const regionsPanel=<section className="dashboard-card region-card" aria-labelledby="regions-title"><CardHeading icon="globe" title="Preise nach Land & Region" id="regions-title"><span>{regions.length} {regions.length===1?'Region':'Regionen'}</span><button className="icon-action" aria-label="Preise prüfen" disabled={busy||searching} onClick={()=>void write('/refresh','POST',undefined,'Angebotssuche angefragt.')}><Icon name="refresh" size={16}/></button></CardHeading>
     <div className="region-controls"><label>Preisgrundlage<select aria-label="Preisgrundlage" value={basis} onChange={event=>setBasis(event.target.value)}><option value="base">Grundpreis</option><option value="estimate">Gesamtpreis geschätzt</option></select></label></div>
-    {view?.best_base!==null&&view?.best_base!==undefined&&<div className="comparison-summary"><span>Niedrigster passender Grundpreis <strong>{money(view.best_base)}</strong></span>{view.best_estimate!==null&&<span>Gesamtpreis geschätzt <strong>{money(view.best_estimate)}</strong></span>}</div>}
-    {(view?.best_base===null||view?.best_base===undefined)&&view?.last_known&&<div className="comparison-summary"><span>Kein aktueller Preis · zuletzt <strong>{money(view.last_known.cents)}</strong> am {dateTime(view.last_known.observed_at)}</span></div>}
+    {(world||targetCents!==null||view?.last_known)&&<div className="price-compare" aria-label="Preisvergleich">
+      <div className="compare-tile target"><span>Bester Preis · in {targetLabel} aktivierbar</span>{targetCents!==null?<><strong>{money(targetCents)}</strong><small>{targetOffer?`${targetOffer.region.name} · ${shopNames[targetOffer.link.source]}`:'Gültiges Angebot'}</small></>:view?.last_known?<><strong className="stale-price">{money(view.last_known.cents)}</strong><small>Kein aktueller Preis · zuletzt am {dateTime(view.last_known.observed_at)}</small></>:<><strong>–</strong><small>Derzeit kein gültiges Angebot</small></>}</div>
+      {world&&<div className="compare-tile world"><span>Günstigste Region · alle Länder</span><strong>{money(price(world))}</strong><small>{world.region.name} · {shopNames[world.link.source]}{!world.link.eligible&&` · ${ineligibleLabel(world.link,view?.target_country??'')??'nicht für '+targetLabel}`}</small></div>}
+      <p className="compare-delta">{saving>0?<><strong>{money(saving)} günstiger</strong> ({Math.round(saving/targetCents!*100)} %) in {world!.region.name} als dein bester Preis für {targetLabel}.</>:world&&targetCents!==null?<>Dein Angebot für {targetLabel} ist auch weltweit am günstigsten.</>:world&&!world.link.eligible?<>Für {targetLabel} gibt es derzeit kein gültiges Angebot zum Vergleich.</>:null}</p>
+    </div>}
     <div className="country-price-list">{regions.map(group=>{const best=group.quotes[0];const at=best?.link.observed_at??Math.max(0,...group.links.map(l=>l.observed_at??0));const preferred=group.region.key===view?.target_country;const why=best&&!best.link.eligible?ineligibleLabel(best.link,view?.target_country??''):null;const soldOut=!best&&group.links.some(l=>l.product?.availability==='sold_out');const unreviewed=!best&&group.links.some(l=>l.can_confirm&&l.review!=='confirmed');
       return <button type="button" key={group.region.key} aria-label={`Angebote für ${group.region.name} anzeigen`} className={`region-row ${preferred?'preferred-region':''}`} onClick={()=>setOpenCountry(group.region.key)}><CountryFlag region={group.region.name}/><span className="region-name">{group.region.name}{preferred&&<small className="preference-badge">Deine Präferenz</small>}{best?.link.eligible&&<small className="good-label">Für {view?.target_country}</small>}{why&&<small className="reason-label">{why}</small>}<small>{group.quotes.length} {group.quotes.length===1?'Angebot':'Angebote'}</small>{unreviewed&&<small>Zuordnung prüfen</small>}</span><span className={`region-price ${best&&!best.link.eligible?'ineligible':''}`}><strong>{best?(Number.isFinite(price(best))?money(price(best)):'Gebühren unbekannt'):soldOut?'Ausverkauft':'Kein Preis'}</strong><small>Stand: {at?dateTime(at):'noch keine Abfrage'}</small></span><Icon name="arrow" size={16}/></button>;
     })}</div>

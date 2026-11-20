@@ -103,3 +103,32 @@ summary { min-height: 36px; padding-block: 7px; }
 }
 .region-row .reason-label{color:var(--muted)}
 .region-row .region-price.ineligible strong{color:var(--muted);font-weight:600}
+
+/* Price comparison: best offer for the target country against the cheapest region anywhere. */
+.price-compare{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:14px}
+.compare-tile{display:grid;gap:3px;padding:12px 14px;border-radius:12px;border:1px solid #ffffff14;background:#ffffff06}
+.compare-tile>span{color:var(--muted);font-size:12px}
+.compare-tile strong{font-size:22px;font-variant-numeric:tabular-nums;line-height:1.2}
+.compare-tile small{color:var(--muted);font-size:12px}
+.compare-tile.target{box-shadow:inset 3px 0 var(--turquoise)}
+.compare-tile.target strong{color:var(--turquoise)}
+.compare-tile.world{box-shadow:inset 3px 0 var(--accent)}
+.compare-tile.world strong{color:var(--accent)}
+.compare-tile .stale-price{color:var(--muted)}
+.compare-delta{grid-column:1/-1;margin:0;font-size:13px;color:var(--muted)}
+.compare-delta strong{color:var(--text)}
+.compare-delta:empty{display:none}
+
+/* Both history series share one chart. */
+.history-legend{display:flex;flex-wrap:wrap;gap:14px;margin:0 0 6px;padding:0;list-style:none;font-size:12px;color:var(--muted)}
+.history-legend li{display:flex;align-items:center;gap:6px}
+.history-legend span{width:18px;height:0;border-top:2.5px solid var(--turquoise)}
+.history-legend .series-all span{border-top:2.5px dashed var(--accent)}
+.history-series.series-all .history-line{stroke:var(--accent);stroke-dasharray:6 4;stroke-width:2}
+.history-series.series-all .history-point{fill:var(--accent)}
+.history-series.series-preferred .history-point{fill:var(--turquoise)}
+.history-caption{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.history-caption>div{display:grid;gap:2px}
+.history-caption .series-preferred strong{color:var(--turquoise)}
+.history-caption .series-all strong{color:var(--accent)}
+.history-caption small{color:var(--muted);font-size:12px}

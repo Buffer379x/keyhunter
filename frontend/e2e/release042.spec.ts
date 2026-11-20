@@ -57,7 +57,7 @@ test('library exposes system filters and acquisition or alphabet sorting without
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
 
-test('country rows list valid offers first, then restricted regions by price',async({page})=>{
+test('country rows are ordered by price and the cheapest region is compared with the target country',async({page})=>{
   await signInToFixture(page);
   await page.getByRole('searchbox',{name:'Nach Spielen suchen',exact:true}).fill('forza');
   await page.getByRole('region',{name:'Suchergebnisse'}).getByRole('button',{name:'Forza Horizon 5 vormerken',exact:true}).click();
@@ -66,15 +66,25 @@ test('country rows list valid offers first, then restricted regions by price',as
   await page.route('**/api/v1/wishlist/*/offers',route=>route.request().method()==='GET'?route.fulfill({json:{links:[link(1,'DE',3000),link(2,'USA',1000),link(3,'India',500)],histories:{preferred:[],all:[]},history:[],best_base:3000,best_estimate:3100,target_country:'DE',searches:[],sources:[],discovery_running:false}}):route.continue());
   await page.reload();
   await expect(page.locator('.region-row')).toHaveCount(3);
-  // A cheaper region that cannot be activated in DE must never outrank a valid offer.
-  await expect(page.locator('.region-row').first()).toContainText('Deutschland');
-  await expect(page.locator('.region-row').first()).toHaveClass(/preferred-region/);
-  await expect(page.locator('.region-row').nth(1)).toContainText('Indien');
-  await expect(page.locator('.region-row').nth(1)).toContainText('Aktivierung in DE ungeklärt');
-  await expect(page.locator('.region-row').last()).toContainText('Vereinigte Staaten');
-  await page.getByLabel('Preisgrundlage',{exact:true}).selectOption('estimate');
-  await expect(page.locator('.region-row').first()).toContainText('Deutschland');
+  // The cheapest region comes first wherever it is; the reason says why it does not count for DE.
+  await expect(page.locator('.region-row').first()).toContainText('Indien');
+  await expect(page.locator('.region-row').first()).toContainText('Aktivierung in DE ungeklärt');
   await expect(page.locator('.region-row').nth(1)).toContainText('Vereinigte Staaten');
+  await expect(page.locator('.region-row').last()).toContainText('Deutschland');
+  await expect(page.locator('.region-row').last()).toHaveClass(/preferred-region/);
+  // The comparison always shows the target country next to the cheapest region.
+  const compare=page.getByLabel('Preisvergleich',{exact:true});
+  await expect(compare.locator('.compare-tile.target')).toContainText('30,00');
+  await expect(compare.locator('.compare-tile.world')).toContainText('5,00');
+  await expect(compare.locator('.compare-tile.world')).toContainText('Indien');
+  await expect(compare.locator('.compare-delta')).toContainText('25,00 € günstiger');
+  await expect(compare.locator('.compare-delta')).toContainText('83 %');
+  // Estimated totals: India has no fee estimate and moves to the end.
+  await page.getByLabel('Preisgrundlage',{exact:true}).selectOption('estimate');
+  await expect(page.locator('.region-row').first()).toContainText('Vereinigte Staaten');
+  await expect(page.locator('.region-row').nth(1)).toContainText('Deutschland');
   await expect(page.locator('.region-row').last()).toContainText('Indien');
+  await expect(compare.locator('.compare-tile.target')).toContainText('31,00');
+  await expect(compare.locator('.compare-tile.world')).toContainText('11,00');
   await page.getByRole('button',{name:'Auf der Wunschliste'}).click();await page.getByRole('button',{name:'Entfernen bestätigen'}).click();
 });

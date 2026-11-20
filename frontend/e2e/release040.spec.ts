@@ -53,9 +53,11 @@ test('edition previews keep the saved version, country dialogs group offers and 
   await expect(page.locator('.edition-row').filter({hasText:'Standard Edition'})).toContainText('Gemerkt');
   await expect(page.locator('.edition-row').filter({hasText:'Premium Edition'})).toContainText('Vorschau');
   await page.getByRole('button', { name:'Preisverlauf',exact:true }).click();
-  await expect(page.locator('path.history-line')).toHaveAttribute('d',/L/);
-  await page.getByRole('button',{name:'Preisverlauf für alle Länder',exact:true}).click();
-  await expect(page.locator('.history-caption')).toContainText('9,00');
+  await expect(page.locator('.series-preferred path.history-line')).toHaveAttribute('d',/L/);
+  // Both series are always visible: target country and all countries.
+  await expect(page.locator('.history-series')).toHaveCount(2);
+  await expect(page.locator('.history-caption .series-all')).toContainText('9,00');
+  await expect(page.locator('.history-caption .series-preferred')).toContainText('12,00');
   await expect(page.locator('circle.history-point title').first()).toContainText('Indien');
   await page.getByRole('button', { name:'Editionen vergleichen',exact:true }).click();
   await expect(page.getByRole('table', { name:'Editionsinhalte',exact:true })).toBeVisible();
