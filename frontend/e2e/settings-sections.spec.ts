@@ -138,19 +138,9 @@ test('Abrufstatus shows pace, demand marker and, when the demand is above the li
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test('Abrufe pro Tag saves a valid number with the settings and keeps an invalid one as a local draft', async ({ page }) => {
-  // The fixture backend may not know daily_jobs yet: answer GET and PUT like the 0.6.1 backend does.
-  let dailyJobs = 500;
-  const puts: { sources: { id: string; daily_jobs?: number }[] }[] = [];
-  await page.route('**/api/v1/settings', async route => {
-    const request = route.request();
-    if (request.method() === 'PUT') puts.push(request.postDataJSON());
-    const response = await route.fetch();
-    const json = await response.json();
-    if (request.method() === 'PUT') dailyJobs = puts.at(-1)!.sources.find(s => s.id === 'eneba')?.daily_jobs ?? dailyJobs;
-    json.sources = json.sources.map((s: { id: string; kind: string }) => s.id === 'eneba' ? { ...s, daily_jobs: dailyJobs, daily_jobs_default: 500 } : s);
-    return route.fulfill({ response, json });
-  });
+test('Abrufe pro Tag saves a valid number with the settings, keeps an invalid one as a local draft and empty restores the default', async ({ page }) => {
+  const puts: { sources: { id: string; daily_jobs?: number | null }[] }[] = [];
+  await page.route('**/api/v1/settings', route => { if (route.request().method() === 'PUT') puts.push(route.request().postDataJSON()); return route.continue(); });
   await signInToFixture(page);
   await navTo(page, 'Key-Shops');
   const eneba = page.getByRole('article', { name: 'Eneba', exact: true });
@@ -168,7 +158,14 @@ test('Abrufe pro Tag saves a valid number with the settings and keeps an invalid
   await expectSettingsSaved(page);
   expect(puts).toHaveLength(1);
   expect(puts[0].sources.find(s => s.id === 'eneba')?.daily_jobs).toBe(750);
+  // IGDB has no daily limit and keeps null.
+  expect(puts[0].sources.find(s => s.id === 'igdb')?.daily_jobs ?? null).toBeNull();
   await field.blur();
   await page.reload();
-  await expect(page.getByRole('article', { name: 'Eneba', exact: true }).getByLabel('Abrufe pro Tag (höchstens)', { exact: true })).toHaveValue('750');
+  await expect(field).toHaveValue('750');
+  await field.fill('');
+  await expectSettingsSaved(page);
+  expect(puts.at(-1)!.sources.find(s => s.id === 'eneba')?.daily_jobs).toBeNull();
+  await field.blur();
+  await expect(field).toHaveValue('500');
 });
