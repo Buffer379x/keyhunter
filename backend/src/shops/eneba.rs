@@ -404,6 +404,551 @@ fn collection_products(body: &str, keys: &[String]) -> Vec<Url> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::shops::Product;
+
+    const BASE: &str = include_str!("fixtures/eneba-product-base.html");
+    const SEARCH: &str = include_str!("fixtures/eneba-search.html");
+    const SLUG: &str = "xbox-forza-horizon-5-pc-xbox-live-key-global";
+    const NAME: &str = "Forza Horizon 5 PC/XBOX LIVE Key GLOBAL";
+    const A1: &str = "Auction::0a1b2c3d-0000-4000-8000-000000000001";
+    const A2: &str = "Auction::0a1b2c3d-0000-4000-8000-000000000002";
+    const APOLLO_OPEN: &str = r#"<script id="__APOLLO_STATE__" type="application/json">"#;
+    const ALGOLIA_OPEN: &str = r#"<script id="__ALGOLIA_STATE__" type="application/json">"#;
+
+    type Case = (&'static str, fn(&mut Value));
+
+    fn url(slug: &str) -> Url {
+        Url::parse(&format!("https://www.eneba.com/de/{slug}")).unwrap()
+    }
+
+    /// Rewrites the JSON inside the script that starts with `open`.
+    fn rewrite(body: &str, open: &str, change: impl FnOnce(&mut Value)) -> String {
+        let start = body.find(open).expect("script present") + open.len();
+        let end = start + body[start..].find("</script>").expect("script closed");
+        let mut json: Value = serde_json::from_str(&body[start..end]).unwrap();
+        change(&mut json);
+        format!("{}{}{}", &body[..start], json, &body[end..])
+    }
+
+    fn variant(change: impl FnOnce(&mut Value)) -> String {
+        rewrite(BASE, APOLLO_OPEN, change)
+    }
+
+    fn product_of(state: &mut Value) -> &mut Value {
+        &mut state[format!("Product::{SLUG}")]
+    }
+
+    fn parse_base() -> Product {
+        parse(&url(SLUG), BASE).unwrap()
+    }
+
+    fn auction(id: &str, cents: i64) -> Value {
+        serde_json::json!({
+            "id": id,
+            "price({\"currency\":\"EUR\"})": {"amount": cents, "currency": "EUR"},
+            "promotionalPrice({\"currency\":\"EUR\"})": null,
+            "isInStock": true,
+            "isPreOrder": false
+        })
+    }
+
+    fn offers(product: &Product) -> Vec<(&str, i64)> {
+        product
+            .offers
+            .iter()
+            .map(|q| (q.id.as_str(), q.cents))
+            .collect()
+    }
+
+    #[test]
+    fn product_base_game_global_returns_every_field() {
+        let product = parse_base();
+        assert_eq!(product.id, "synthproduct0001");
+        assert_eq!(product.name, NAME);
+        assert_eq!(product.title, "forza horizon 5");
+        assert!(product.key_game);
+        assert_eq!(product.platform_ids, [169, 49]);
+        assert_eq!(product.region.as_deref(), Some("Global"));
+        assert_eq!(product.allowed, ["DE"]);
+        assert!(product.blocked.is_empty());
+        assert_eq!(product.purchase_country.as_deref(), Some("DE"));
+        assert_eq!(product.availability, Availability::InStock);
+        assert!(product.offers.iter().all(|q| q.seller.is_none()));
+        // The cheapest offer lives only in auctions({"first":1}); the preferred auction is dearer.
+        assert!(product.offers.iter().any(|q| q.cents == 2392));
+        // Order is the lexicographic order of the Auction:: keys, not price order.
+        assert_eq!(
+            offers(&product),
+            [
+                ("0a1b2c3d-0000-4000-8000-000000000001", 2571),
+                ("0a1b2c3d-0000-4000-8000-000000000002", 2392)
+            ]
+        );
+        assert_eq!(product.activation("DE"), "confirmed");
+        assert_eq!(product.activation("AT"), "unknown");
+        assert_eq!(product.activation(""), "unknown");
+    }
+
+    #[test]
+    fn product_premium_edition_keeps_edition_in_title() {
+        let premium = "Forza Horizon 5 Premium Edition PC/XBOX LIVE Key GLOBAL";
+        let body = BASE.replace(NAME, premium);
+        let product = parse(&url(SLUG), &body).unwrap();
+        assert_eq!(product.title, "forza horizon 5 premium edition");
+        assert_eq!(product.name, premium);
+        assert!(product.key_game);
+        assert_ne!(product.fingerprint(), parse_base().fingerprint());
+    }
+
+    #[test]
+    fn product_dlc_type_is_not_a_key_game() {
+        let body = variant(|s| product_of(s)["type"]["value"] = "DLC".into());
+        let product = parse(&url(SLUG), &body).unwrap();
+        assert!(!product.key_game);
+        assert_eq!(product.title, "forza horizon 5");
+        assert_eq!(product.offers.len(), 2);
+    }
+
+    #[test]
+    fn product_slug_words_account_konto_dlc_upgrade_gift_are_not_key_games() {
+        for word in ["account", "konto", "dlc", "upgrade", "gift"] {
+            let slug = SLUG.replace("horizon-5", &format!("horizon-5-{word}"));
+            let body = BASE.replace(SLUG, &slug);
+            let product = parse(&url(&slug), &body).unwrap();
+            assert!(!product.key_game, "{word}");
+        }
+        // Only whole dash-separated words count.
+        let slug = SLUG.replace("horizon-5", "horizon-5-accounting");
+        let body = BASE.replace(SLUG, &slug);
+        assert!(parse(&url(&slug), &body).unwrap().key_game);
+    }
+
+    #[test]
+    fn product_other_game_checks_all_must_hold_for_key_game() {
+        let cases: &[Case] = &[
+            ("drm", |p| p["drm"]["slug"] = "steam".into()),
+            ("category", |p| p["category"] = "PHYSICAL".into()),
+            ("linked", |p| {
+                p["linkedProduct"] = serde_json::json!({"__ref": "x"})
+            }),
+            ("type", |p| p["type"]["value"] = "SOFTWARE".into()),
+        ];
+        for (label, change) in cases {
+            let body = variant(|s| change(product_of(s)));
+            assert!(!parse(&url(SLUG), &body).unwrap().key_game, "{label}");
+        }
+        // A name without a recognised platform suffix yields an empty title and therefore no key game.
+        let body = BASE.replace(NAME, "Forza Horizon 5");
+        let product = parse(&url(SLUG), &body).unwrap();
+        assert_eq!(product.title, "");
+        assert!(!product.key_game);
+    }
+
+    #[test]
+    fn product_pc_only_has_no_platform_ids() {
+        let body = variant(|s| {
+            product_of(s)["worksOn"] =
+                serde_json::json!([{"label": "Windows", "value": "WINDOWS"}]);
+        });
+        let product = parse(&url(SLUG), &body).unwrap();
+        assert!(product.platform_ids.is_empty());
+        assert!(product.key_game);
+        let body = variant(|s| {
+            product_of(s)["worksOn"] = serde_json::json!([{"value": "XBOX_ONE"}]);
+        });
+        assert_eq!(parse(&url(SLUG), &body).unwrap().platform_ids, [49]);
+    }
+
+    #[test]
+    fn product_blocked_country_wins_over_confirmed_activation() {
+        let body =
+            variant(|s| product_of(s)["blockedCountries"] = serde_json::json!(["DE", "xx", "FRA"]));
+        let product = parse(&url(SLUG), &body).unwrap();
+        // Malformed country codes are dropped.
+        assert_eq!(product.blocked, ["DE"]);
+        // The activation span is still honoured, but blocked has precedence in `activation`.
+        assert_eq!(product.allowed, ["DE"]);
+        assert_eq!(product.activation("DE"), "blocked");
+        assert_eq!(product.activation("AT"), "unknown");
+    }
+
+    #[test]
+    fn product_allowed_requires_context_country_list_entry_and_span() {
+        // Span missing: no allowed country.
+        let body = BASE.replace("aktiviert werden", "aktiviert");
+        let product = parse(&url(SLUG), &body).unwrap();
+        assert!(product.allowed.is_empty());
+        assert_eq!(product.activation("DE"), "unknown");
+        // Text must match exactly after whitespace normalisation (trailing dot, other country).
+        for text in [
+            "Kann in Deutschland aktiviert werden.",
+            "Kann in Österreich aktiviert werden",
+        ] {
+            let body = BASE.replace(r#"Kann in <span>Deutschland</span> aktiviert werden"#, text);
+            assert!(
+                parse(&url(SLUG), &body).unwrap().allowed.is_empty(),
+                "{text}"
+            );
+        }
+        // Extra whitespace and line breaks inside the span are normalised.
+        let body = BASE.replace(
+            r#"Kann in <span>Deutschland</span> aktiviert werden"#,
+            "Kann   in\n <span> Deutschland </span>\n aktiviert  werden",
+        );
+        assert_eq!(parse(&url(SLUG), &body).unwrap().allowed, ["DE"]);
+        // DE not in countriesAlpha2.
+        let body = variant(|s| product_of(s)["countriesAlpha2"] = serde_json::json!(["AT", "FR"]));
+        assert!(parse(&url(SLUG), &body).unwrap().allowed.is_empty());
+        // Context country other than DE: purchase country follows the context, nothing is allowed.
+        let body = variant(|s| {
+            let root = s["ROOT_QUERY"].as_object_mut().unwrap();
+            let rekeyed: serde_json::Map<String, Value> = root
+                .iter()
+                .map(|(k, v)| {
+                    (
+                        k.replace(r#""country":"DE""#, r#""country":"AT""#),
+                        v.clone(),
+                    )
+                })
+                .collect();
+            *root = rekeyed;
+        });
+        let product = parse(&url(SLUG), &body).unwrap();
+        assert_eq!(product.purchase_country.as_deref(), Some("AT"));
+        assert!(product.allowed.is_empty());
+        // No ROOT_QUERY entry with a country: purchase country unknown, nothing allowed.
+        let body = variant(|s| {
+            s["ROOT_QUERY"] = serde_json::json!({});
+        });
+        let product = parse(&url(SLUG), &body).unwrap();
+        assert_eq!(product.purchase_country, None);
+        assert!(product.allowed.is_empty());
+    }
+
+    #[test]
+    fn product_pre_order_auction_is_excluded() {
+        let body = variant(|s| s[A2]["isPreOrder"] = true.into());
+        let product = parse(&url(SLUG), &body).unwrap();
+        assert_eq!(
+            offers(&product),
+            [("0a1b2c3d-0000-4000-8000-000000000001", 2571)]
+        );
+        assert_eq!(product.availability, Availability::InStock);
+        // A missing isPreOrder flag is not "false" and is excluded as well.
+        let body = variant(|s| {
+            s[A2].as_object_mut().unwrap().remove("isPreOrder");
+        });
+        assert_eq!(parse(&url(SLUG), &body).unwrap().offers.len(), 1);
+    }
+
+    #[test]
+    fn product_non_eur_zero_and_out_of_range_prices_are_excluded() {
+        let price = r#"price({"currency":"EUR"})"#;
+        let body = variant(|s| s[A2][price]["currency"] = "USD".into());
+        assert_eq!(offers(&parse(&url(SLUG), &body).unwrap()).len(), 1);
+        for cents in [0, -5, 10_000_001] {
+            let body = variant(|s| s[A2][price]["amount"] = cents.into());
+            assert_eq!(parse(&url(SLUG), &body).unwrap().offers.len(), 1, "{cents}");
+        }
+        let body = variant(|s| s[A2][price]["amount"] = 1.into());
+        assert_eq!(parse(&url(SLUG), &body).unwrap().offers.len(), 2);
+        // A fractional amount is not an integer and is dropped.
+        let body = variant(|s| s[A2][price]["amount"] = 23.92.into());
+        assert_eq!(parse(&url(SLUG), &body).unwrap().offers.len(), 1);
+    }
+
+    #[test]
+    fn product_promotional_price_replaces_regular_price() {
+        let promo = r#"promotionalPrice({"currency":"EUR"})"#;
+        let body =
+            variant(|s| s[A2][promo] = serde_json::json!({"amount": 1999, "currency": "EUR"}));
+        assert!(
+            offers(&parse(&url(SLUG), &body).unwrap())
+                .contains(&("0a1b2c3d-0000-4000-8000-000000000002", 1999))
+        );
+        // A promotional price in another currency drops the offer; it does not fall back to the regular price.
+        let body =
+            variant(|s| s[A2][promo] = serde_json::json!({"amount": 1999, "currency": "USD"}));
+        assert_eq!(parse(&url(SLUG), &body).unwrap().offers.len(), 1);
+    }
+
+    #[test]
+    fn product_out_of_stock_and_inconsistent_auctions_are_excluded() {
+        let body = variant(|s| s[A2]["isInStock"] = false.into());
+        assert_eq!(parse(&url(SLUG), &body).unwrap().offers.len(), 1);
+        // The id stored in the auction must equal the key suffix.
+        let body = variant(|s| s[A2]["id"] = "something-else".into());
+        assert_eq!(parse(&url(SLUG), &body).unwrap().offers.len(), 1);
+        // Dangling reference.
+        let body = variant(|s| {
+            s.as_object_mut().unwrap().remove(A2);
+        });
+        assert_eq!(parse(&url(SLUG), &body).unwrap().offers.len(), 1);
+    }
+
+    #[test]
+    fn product_offers_are_capped_at_twenty() {
+        let body = variant(|s| {
+            let mut edges = Vec::new();
+            for n in 10..40 {
+                let key = format!("Auction::0a1b2c3d-0000-4000-8000-0000000001{n}");
+                s[key.as_str()] = auction(&key["Auction::".len()..], 3000 + n);
+                edges.push(serde_json::json!({"node": {"__ref": key}}));
+            }
+            product_of(s)["auctions({\"first\":30})"] = serde_json::json!({"edges": edges});
+        });
+        let product = parse(&url(SLUG), &body).unwrap();
+        assert_eq!(product.offers.len(), 20);
+        // The cap applies to the sorted auction keys, so a cheap offer can be cut off.
+        assert!(!product.offers.iter().any(|q| q.cents == 3039));
+    }
+
+    #[test]
+    fn product_sold_out_needs_json_ld_and_no_offers() {
+        let sold_out = BASE.replace("https://schema.org/InStock", "https://schema.org/SoldOut");
+        let none_in_stock = rewrite(&sold_out, APOLLO_OPEN, |s| {
+            s[A1]["isInStock"] = false.into();
+            s[A2]["isInStock"] = false.into();
+        });
+        let product = parse(&url(SLUG), &none_in_stock).unwrap();
+        assert_eq!(product.availability, Availability::SoldOut);
+        assert!(product.offers.is_empty());
+        // Without the SoldOut marker the state is merely unknown.
+        let unknown = rewrite(BASE, APOLLO_OPEN, |s| {
+            s[A1]["isInStock"] = false.into();
+            s[A2]["isInStock"] = false.into();
+        });
+        let product = parse(&url(SLUG), &unknown).unwrap();
+        assert_eq!(product.availability, Availability::Unknown);
+        assert!(product.offers.is_empty());
+        // The JSON-LD block must describe the same product name.
+        let other = none_in_stock.replace(
+            r#""name": "Forza Horizon 5 PC/XBOX LIVE Key GLOBAL""#,
+            r#""name": "Other""#,
+        );
+        assert_ne!(other, none_in_stock);
+        assert_eq!(
+            parse(&url(SLUG), &other).unwrap().availability,
+            Availability::Unknown
+        );
+        // Offers win over a SoldOut marker.
+        let product = parse(&url(SLUG), &sold_out).unwrap();
+        assert_eq!(product.availability, Availability::InStock);
+    }
+
+    #[test]
+    fn product_without_apollo_state_or_with_wrong_identity_is_a_parse_error() {
+        assert!(matches!(
+            parse(&url(SLUG), "<html><body>Access denied</body></html>"),
+            Err(ShopError::Parse)
+        ));
+        assert!(matches!(
+            parse(&url(SLUG), &format!("{APOLLO_OPEN}{{not json</script>")),
+            Err(ShopError::Parse)
+        ));
+        // The URL slug must match the product in the state.
+        assert!(matches!(
+            parse(&url("xbox-other-pc-xbox-live-key-global"), BASE),
+            Err(ShopError::Parse)
+        ));
+        let cases: &[Case] = &[
+            ("empty id", |p| p["shortId"] = "".into()),
+            ("id with symbol", |p| p["shortId"] = "a-b".into()),
+            ("empty name", |p| p["name"] = "".into()),
+            ("slug field differs", |p| p["slug"] = "other".into()),
+        ];
+        for (label, change) in cases {
+            let body = variant(|s| change(product_of(s)));
+            assert!(
+                matches!(parse(&url(SLUG), &body), Err(ShopError::Parse)),
+                "{label}"
+            );
+        }
+    }
+
+    #[test]
+    fn product_region_is_first_region_name_limited_to_80_chars() {
+        let long = "R".repeat(100);
+        let body = variant(|s| {
+            product_of(s)["regions"] = serde_json::json!([{"name": long}, {"name": "x"}])
+        });
+        assert_eq!(
+            parse(&url(SLUG), &body)
+                .unwrap()
+                .region
+                .unwrap()
+                .chars()
+                .count(),
+            80
+        );
+        let body = variant(|s| product_of(s)["regions"] = serde_json::json!([]));
+        assert_eq!(parse(&url(SLUG), &body).unwrap().region, None);
+    }
+
+    #[test]
+    fn fingerprint_identity_ignores_offers_and_punctuation_but_not_platforms() {
+        let base = parse_base();
+        let mut same = base.clone();
+        same.offers.clear();
+        same.title = "Forza  Horizon-5".into();
+        assert_eq!(base.fingerprint(), same.fingerprint());
+        let mut other = base.clone();
+        other.platform_ids = vec![49];
+        assert_ne!(base.fingerprint(), other.fingerprint());
+        let mut other = base.clone();
+        other.key_game = false;
+        assert_ne!(base.fingerprint(), other.fingerprint());
+        assert_eq!(base.fingerprint().len(), 64);
+    }
+
+    #[test]
+    fn strip_suffix_recognises_known_platform_suffixes_only() {
+        assert_eq!(strip_suffix("a pc xbox live key global"), Some("a"));
+        assert_eq!(strip_suffix("a xbox live key europe"), Some("a"));
+        assert_eq!(
+            strip_suffix("a xbox series x s xbox live key global"),
+            Some("a")
+        );
+        assert_eq!(strip_suffix("a pc xbox live key"), Some("a"));
+        assert_eq!(strip_suffix("a xbox live key"), Some("a"));
+        assert_eq!(strip_suffix("a"), None);
+        assert_eq!(strip_suffix("a steam key global"), None);
+        // The last occurrence wins for suffixes followed by a region.
+        assert_eq!(
+            strip_suffix("a pc xbox live key b pc xbox live key global"),
+            Some("a pc xbox live key b")
+        );
+    }
+
+    fn search(change: impl FnOnce(&mut Value)) -> String {
+        rewrite(SEARCH, ALGOLIA_OPEN, change)
+    }
+
+    fn hits_result(s: &mut Value) -> &mut Value {
+        let responses = s["responses"].as_object_mut().unwrap();
+        &mut responses.values_mut().next().unwrap()["results"][1]
+    }
+
+    #[test]
+    fn search_fixture_paginates_by_hits_per_page_of_twenty() {
+        let keys = ["forza horizon 5".to_string()];
+        let cases = [
+            (41, 1, Some(2)),
+            (41, 2, Some(3)),
+            (41, 3, None),
+            (40, 2, None),
+            (40, 1, Some(2)),
+            (20, 1, None),
+            (21, 1, Some(2)),
+            (0, 1, None),
+        ];
+        for (hits, page, next) in cases {
+            let body = search(|s| hits_result(s)["nbHits"] = hits.into());
+            let result = parse_search_page(&body, &keys, page).unwrap();
+            assert_eq!(result.next_page, next, "nbHits {hits} page {page}");
+        }
+        // Boundaries of the accepted ranges.
+        let body = search(|s| hits_result(s)["nbHits"] = 10_000.into());
+        assert_eq!(
+            parse_search_page(&body, &keys, 500).unwrap().next_page,
+            None
+        );
+        assert_eq!(
+            parse_search_page(&body, &keys, 499).unwrap().next_page,
+            Some(500)
+        );
+        assert!(parse_search_page(&body, &keys, 501).is_err());
+        assert!(parse_search_page(&body, &keys, -1).is_err());
+        let body = search(|s| hits_result(s)["nbHits"] = 10_001.into());
+        assert!(parse_search_page(&body, &keys, 1).is_err());
+    }
+
+    #[test]
+    fn search_fixture_keeps_regional_variants_but_not_other_editions() {
+        let keys = ["forza horizon 5".to_string()];
+        let result = parse_search_page(SEARCH, &keys, 1).unwrap();
+        let mut urls = result.urls.clone();
+        urls.sort();
+        // Output is sorted and deduplicated; the console spelling matches via the title comparison.
+        assert_eq!(
+            result.urls,
+            [
+                "https://www.eneba.com/de/xbox-forza-horizon-5-pc-xbox-live-key-argentina",
+                "https://www.eneba.com/de/xbox-forza-horizon-5-pc-xbox-live-key-turkey",
+                "https://www.eneba.com/de/xbox-forza-horizon-5-xbox-series-x-s-xbox-live-key-global",
+            ]
+        );
+        assert_eq!(urls, result.urls);
+        // A different key selects a different set; no key match means no links (but still Ok).
+        let other = parse_search_page(SEARCH, &["starfield".to_string()], 1).unwrap();
+        assert!(other.urls.is_empty());
+        assert_eq!(other.next_page, Some(2));
+        // Links are matched against any of the keys, not just the first one.
+        let both = parse_search_page(
+            SEARCH,
+            &[
+                "starfield".to_string(),
+                "forza horizon 5 premium edition".to_string(),
+            ],
+            1,
+        )
+        .unwrap();
+        assert_eq!(
+            both.urls,
+            [
+                "https://www.eneba.com/de/xbox-forza-horizon-5-premium-edition-pc-xbox-live-key-global"
+            ]
+        );
+    }
+
+    #[test]
+    fn search_changed_structure_is_an_error_not_an_empty_result() {
+        let keys = ["forza horizon 5".to_string()];
+        assert!(parse_search_page("<html><body>Changed</body></html>", &keys, 1).is_err());
+        assert!(parse_search_page(&format!("{ALGOLIA_OPEN}nope</script>"), &keys, 1).is_err());
+        let broken: &[fn(&mut Value)] = &[
+            |s| *s = serde_json::json!({}),
+            |s| s["responses"] = serde_json::json!([]),
+            |s| s["responses"] = serde_json::json!({"q": {"results": []}}),
+            |s| hits_result(s)["hits"] = "none".into(),
+            |s| hits_result(s)["nbHits"] = "41".into(),
+        ];
+        for (n, change) in broken.iter().enumerate() {
+            let body = search(change);
+            assert!(parse_search_page(&body, &keys, 1).is_err(), "case {n}");
+        }
+        // The result entry carrying hits+nbHits is found even if it is not the first one.
+        assert!(parse_search_page(SEARCH, &keys, 1).is_ok());
+    }
+
+    #[test]
+    fn search_page_with_state_but_no_links_is_ok_and_empty() {
+        // KNOWN BEHAVIOUR: a valid state without product links is an empty page, not an error.
+        let body = format!(
+            "{ALGOLIA_OPEN}{}</script>",
+            serde_json::json!({"responses": {"q": {"results": [{"hits": [], "nbHits": 0}]}}})
+        );
+        let result = parse_search_page(&body, &["forza horizon 5".to_string()], 1).unwrap();
+        assert!(result.urls.is_empty());
+        assert_eq!(result.next_page, None);
+    }
+
+    #[test]
+    fn sitemap_locs_accepts_index_and_urlset_and_skips_unsafe_values() {
+        let index = "<sitemapindex><sitemap><loc> https://www.eneba.com/de/sitemap/products1.xml </loc></sitemap></sitemapindex>";
+        assert_eq!(
+            sitemap_locs(index).unwrap().collect::<Vec<_>>(),
+            ["https://www.eneba.com/de/sitemap/products1.xml"]
+        );
+        let set = "<urlset><url><loc>https://a/x?a=1&amp;b=2</loc></url><url><loc>https://a/ok</loc></url></urlset>";
+        assert_eq!(
+            sitemap_locs(set).unwrap().collect::<Vec<_>>(),
+            ["https://a/ok"]
+        );
+        assert!(sitemap_locs("<html><loc>https://a</loc></html>").is_err());
+        assert!(sitemap_locs("").is_err());
+    }
+
     #[test]
     fn public_search_pages_continue_until_every_region_is_processed() {
         let state =
