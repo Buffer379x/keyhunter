@@ -133,6 +133,9 @@ async fn create_app_inner(
         .run(&pool)
         .await
         .context("Database migration failed")?;
+    shops::upgrade_fingerprints(&pool)
+        .await
+        .context("Fingerprint upgrade failed")?;
     let exists: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM owner")
         .fetch_one(&pool)
         .await?;

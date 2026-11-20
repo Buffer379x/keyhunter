@@ -79,7 +79,9 @@ pub(super) fn parse(url: &Url, body: &str) -> Result<Product, ShopError> {
         .map(|s| s.chars().take(80).collect());
     let mut offers = Vec::new();
     let mut sold_out = false;
-    if data["countryData"]["currency"] == "EUR" && data["isPreReleased"] == 0 {
+    // Released means 0 or false; a missing flag stays unknown and yields no prices.
+    let released = data["isPreReleased"].as_f64() == Some(0.0) || data["isPreReleased"] == false;
+    if data["countryData"]["currency"] == "EUR" && released {
         for script in document.select(&select("script[type='application/ld+json']")) {
             let Ok(schema) = serde_json::from_str::<Value>(&script.inner_html()) else {
                 continue;
@@ -162,7 +164,11 @@ fn quote(row: &Value, page: &Value, slug: &str) -> Option<Quote> {
     let offer_id = page["mcPdpData"]["offers"].as_array()?.iter().find(|v| {
         v["sellerId"].as_i64() == Some(seller_id)
             && v["storeName"] == seller
-            && decimal_cents(&v["price"].to_string()) == Some(cents)
+            && decimal_cents(
+                &v["price"]
+                    .as_str()
+                    .map_or_else(|| v["price"].to_string(), str::to_owned),
+            ) == Some(cents)
     })?["offerId"]
         .as_i64()?;
     (offer_id > 0).then(|| Quote {
@@ -452,12 +458,20 @@ mod tests {
     }
 
     #[test]
-    fn product_is_pre_released_must_be_the_integer_zero() {
-        // KNOWN ISSUE: the parser compares `isPreReleased` with the integer 0. If the shop ever serialises it as a
-        // boolean `false` (or null, or "0"), every offer is silently dropped and availability becomes Unknown
-        // instead of InStock. This test pins today's behaviour; do not "fix" it without changing the test.
+    fn product_is_released_for_zero_or_false_only() {
         for value in [
+            serde_json::json!(0),
+            serde_json::json!(0.0),
             serde_json::json!(false),
+        ] {
+            let body = next(|s| data(s)["isPreReleased"] = value.clone());
+            assert_eq!(
+                parse_ok(&body).availability,
+                Availability::InStock,
+                "{value}"
+            );
+        }
+        for value in [
             serde_json::json!(null),
             serde_json::json!("0"),
             serde_json::json!(1),
@@ -468,14 +482,14 @@ mod tests {
             assert!(product.offers.is_empty(), "{value}");
             assert_eq!(product.availability, Availability::Unknown, "{value}");
         }
-        // Missing field behaves the same.
+        // A missing flag is unknown, not released.
         let body = next(|s| {
             data(s).as_object_mut().unwrap().remove("isPreReleased");
         });
         assert_eq!(parse_ok(&body).availability, Availability::Unknown);
-        // Because the whole JSON-LD block is skipped, a SoldOut marker is not seen either.
+        // A pre-release skips the JSON-LD block, so a SoldOut marker is not seen either.
         let body = rewrite(
-            &next(|s| data(s)["isPreReleased"] = false.into()),
+            &next(|s| data(s)["isPreReleased"] = true.into()),
             LD_OPEN,
             |s| {
                 s["@graph"][0]["offers"]["availability"] = "https://schema.org/SoldOut".into();
@@ -483,30 +497,24 @@ mod tests {
             },
         );
         assert_eq!(parse_ok(&body).availability, Availability::Unknown);
-        // Even a float zero is not equal to the integer 0 for serde_json.
-        let body = next(|s| data(s)["isPreReleased"] = 0.0.into());
-        assert_eq!(parse_ok(&body).availability, Availability::Unknown);
     }
 
     #[test]
-    fn product_mc_price_as_string_drops_the_offer() {
-        // KNOWN ISSUE: `decimal_cents(&v["price"].to_string())` sees the quoted JSON text for string prices
-        // (`"25.02"` with quotes) and rejects it, so a marketplace payload with string prices drops all offers.
+    fn product_mc_price_may_be_a_number_or_a_string() {
+        let expected = parse_ok(BASE).offers.len();
         let body = next(|s| {
             for row in mc_offers(s) {
                 let price = row["price"].as_f64().unwrap();
                 row["price"] = format!("{price:.2}").into();
             }
         });
-        let product = parse_ok(&body);
-        assert!(product.offers.is_empty());
-        assert_eq!(product.availability, Availability::Unknown);
-        // Only the string-priced offer is lost.
-        let body = next(|s| mc_offers(s)[1]["price"] = "25.75".into());
-        assert_eq!(parse_ok(&body).offers.len(), 3);
+        assert_eq!(parse_ok(&body).offers.len(), expected);
+        // A string price that differs from the JSON-LD price drops only that offer.
+        let body = next(|s| mc_offers(s)[1]["price"] = "25.70".into());
+        assert_eq!(parse_ok(&body).offers.len(), expected - 1);
         // More than two decimals never match.
         let body = next(|s| mc_offers(s)[1]["price"] = 25.755.into());
-        assert_eq!(parse_ok(&body).offers.len(), 3);
+        assert_eq!(parse_ok(&body).offers.len(), expected - 1);
     }
 
     #[test]

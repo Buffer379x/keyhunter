@@ -1,23 +1,87 @@
 use super::ShopError;
 use reqwest::{Client, StatusCode, redirect::Policy};
 use std::{
+    collections::HashMap,
     net::{IpAddr, Ipv4Addr},
+    sync::{Arc, LazyLock, Mutex},
     time::{Duration, SystemTime},
 };
-use tokio::time::{Instant, sleep_until, timeout};
+use tokio::{
+    sync::{Mutex as AsyncMutex, OwnedMutexGuard},
+    time::{Instant, sleep_until, timeout},
+};
 use url::Url;
 
 const USER_AGENT: &str = "Keyhunter";
+/// A client, its pinned DNS answer and robots.txt are reused this long.
+const CLIENT_TTL: Duration = Duration::from_secs(24 * 3600);
 
-pub(super) struct PublicClient {
+struct Session {
     client: Client,
-    host: &'static str,
     robots: Robots,
     next: Instant,
+    created: Instant,
+}
+
+type Slot = Arc<AsyncMutex<Option<Session>>>;
+static SESSIONS: LazyLock<Mutex<HashMap<&'static str, Slot>>> = LazyLock::new(Default::default);
+
+/// Exclusive use of the shared session for one host: requests to a shop are serialized,
+/// so the crawl delay also holds across jobs and manual link checks.
+pub(super) struct PublicClient {
+    host: &'static str,
+    session: OwnedMutexGuard<Option<Session>>,
 }
 
 impl PublicClient {
     pub(super) async fn new(host: &'static str) -> Result<Self, ShopError> {
+        let slot = Arc::clone(
+            SESSIONS
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .entry(host)
+                .or_default(),
+        );
+        let mut session = slot.lock_owned().await;
+        if session
+            .as_ref()
+            .is_none_or(|current| current.created.elapsed() >= CLIENT_TTL)
+        {
+            *session = Some(Session::open(host).await?);
+        }
+        Ok(Self { host, session })
+    }
+
+    pub(super) async fn get(
+        &mut self,
+        url: &Url,
+        limit: usize,
+        prefix: bool,
+    ) -> Result<String, ShopError> {
+        let session = self.session.as_mut().ok_or(ShopError::Network)?;
+        if url.scheme() != "https"
+            || url.host_str() != Some(self.host)
+            || url.port().is_some()
+            || !url.username().is_empty()
+            || url.password().is_some()
+            || !allowed_query(url)
+            || !session.robots.allows(&url[url::Position::BeforePath..])
+        {
+            return Err(ShopError::Denied);
+        }
+        sleep_until(session.next).await;
+        let result = fetch(&session.client, url, limit, prefix).await;
+        session.next = Instant::now() + Duration::from_secs(session.robots.delay);
+        if matches!(result, Err(ShopError::Network)) {
+            // Resolve the host again on the next request; the address may have moved.
+            *self.session = None;
+        }
+        result
+    }
+}
+
+impl Session {
+    async fn open(host: &'static str) -> Result<Self, ShopError> {
         let ips: Vec<_> = timeout(Duration::from_secs(5), tokio::net::lookup_host((host, 443)))
             .await
             .map_err(|_| ShopError::Network)?
@@ -37,37 +101,14 @@ impl PublicClient {
             .map_err(|_| ShopError::Network)?;
         let url =
             Url::parse(&format!("https://{host}/robots.txt")).map_err(|_| ShopError::Denied)?;
-        let body = fetch(&client, &url, 128 * 1024, false).await?;
-        let robots = Robots::parse(&body)?;
+        let robots = Robots::from_response(fetch(&client, &url, 128 * 1024, false).await)?;
         let next = Instant::now() + Duration::from_secs(robots.delay);
         Ok(Self {
             client,
-            host,
             robots,
             next,
+            created: Instant::now(),
         })
-    }
-
-    pub(super) async fn get(
-        &mut self,
-        url: &Url,
-        limit: usize,
-        prefix: bool,
-    ) -> Result<String, ShopError> {
-        if url.scheme() != "https"
-            || url.host_str() != Some(self.host)
-            || url.port().is_some()
-            || !url.username().is_empty()
-            || url.password().is_some()
-            || !allowed_query(url)
-            || !self.robots.allows(&url[url::Position::BeforePath..])
-        {
-            return Err(ShopError::Denied);
-        }
-        sleep_until(self.next).await;
-        let result = fetch(&self.client, url, limit, prefix).await;
-        self.next = Instant::now() + Duration::from_secs(self.robots.delay);
-        result
     }
 }
 
@@ -191,6 +232,18 @@ struct Robots {
 }
 
 impl Robots {
+    /// A missing robots.txt allows everything (RFC 9309 §2.3.1.3); other failures stop the shop.
+    fn from_response(response: Result<String, ShopError>) -> Result<Self, ShopError> {
+        match response {
+            Ok(body) => Self::parse(&body),
+            Err(ShopError::NotFound) => Ok(Self {
+                rules: Vec::new(),
+                delay: 2,
+            }),
+            Err(error) => Err(error),
+        }
+    }
+
     fn parse(body: &str) -> Result<Self, ShopError> {
         type Group = (Vec<String>, Vec<(String, String)>);
         let mut groups: Vec<Group> = Vec::new();
@@ -301,6 +354,17 @@ mod tests {
         let robots = Robots::parse("User-agent: *\nDisallow: /*?*srsltid").unwrap();
         assert!(!robots.allows("/de/store/all?text=game&srsltid=tracking"));
     }
+    #[test]
+    fn missing_robots_txt_allows_everything_but_errors_do_not() {
+        let robots = Robots::from_response(Err(ShopError::NotFound)).unwrap();
+        assert!(robots.allows("/de/any-product"));
+        assert_eq!(robots.delay, 2);
+        assert!(Robots::from_response(Err(ShopError::Network)).is_err());
+        assert!(Robots::from_response(Err(ShopError::Denied)).is_err());
+        let robots = Robots::from_response(Ok("User-agent: *\nDisallow: /".into())).unwrap();
+        assert!(!robots.allows("/de/any-product"));
+    }
+
     #[test]
     fn robots_paths_and_public_resolution() {
         let rules = Robots::parse("User-agent: *\nDisallow: /*/search\nDisallow: /de/private*\nAllow: /de/private-game$\nCrawl-delay: 3").unwrap();

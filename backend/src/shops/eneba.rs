@@ -55,7 +55,16 @@ pub(super) fn parse(url: &Url, body: &str) -> Result<Product, ShopError> {
         .and_then(|row| row["name"].as_str())
         .map(|s| s.chars().take(80).collect());
     let blocked = countries(&product["blockedCountries"]);
-    let mut allowed = Vec::new();
+    // Activation comes from the structured country list, not from page text. Without the
+    // list the page structure changed, which must surface as a source error, not as
+    // silently unconfirmed offers.
+    let allowed: Vec<String> = product["countriesAlpha2"]
+        .is_array()
+        .then(|| countries(&product["countriesAlpha2"]))
+        .ok_or(ShopError::Parse)?
+        .into_iter()
+        .filter(|c| !blocked.contains(c))
+        .collect();
     let context = state["ROOT_QUERY"].as_object().and_then(|query| {
         query
             .iter()
@@ -73,24 +82,6 @@ pub(super) fn parse(url: &Url, body: &str) -> Result<Product, ShopError> {
             .into_iter()
             .next()
     });
-    if context.as_deref() == Some("DE")
-        && countries(&product["countriesAlpha2"])
-            .iter()
-            .any(|c| c == "DE")
-    {
-        let activation = document.select(&selector("span")).any(|node| {
-            node.text()
-                .collect::<Vec<_>>()
-                .join(" ")
-                .split_whitespace()
-                .collect::<Vec<_>>()
-                .join(" ")
-                == "Kann in Deutschland aktiviert werden"
-        });
-        if activation {
-            allowed.push("DE".to_string());
-        }
-    }
 
     let mut refs = BTreeSet::new();
     if let Some(key) = product["preferredAuction"]["__ref"].as_str() {
@@ -109,9 +100,8 @@ pub(super) fn parse(url: &Url, body: &str) -> Result<Product, ShopError> {
             }
         }
     }
-    let offers: Vec<_> = refs
+    let mut offers: Vec<_> = refs
         .into_iter()
-        .take(20)
         .filter_map(|key| {
             let auction = &state[key];
             let offer_id = auction["id"].as_str()?;
@@ -141,6 +131,9 @@ pub(super) fn parse(url: &Url, body: &str) -> Result<Product, ShopError> {
             })
         })
         .collect();
+    // Keep the cheapest offers when a page lists many sellers.
+    offers.sort_by_key(|quote| quote.cents);
+    offers.truncate(20);
     let availability = if !offers.is_empty() {
         Availability::InStock
     } else if document
@@ -469,23 +462,24 @@ mod tests {
         assert!(product.key_game);
         assert_eq!(product.platform_ids, [169, 49]);
         assert_eq!(product.region.as_deref(), Some("Global"));
-        assert_eq!(product.allowed, ["DE"]);
+        assert_eq!(product.allowed, ["AT", "DE", "FR"]);
         assert!(product.blocked.is_empty());
         assert_eq!(product.purchase_country.as_deref(), Some("DE"));
         assert_eq!(product.availability, Availability::InStock);
         assert!(product.offers.iter().all(|q| q.seller.is_none()));
         // The cheapest offer lives only in auctions({"first":1}); the preferred auction is dearer.
         assert!(product.offers.iter().any(|q| q.cents == 2392));
-        // Order is the lexicographic order of the Auction:: keys, not price order.
+        // Offers are ordered by price.
         assert_eq!(
             offers(&product),
             [
-                ("0a1b2c3d-0000-4000-8000-000000000001", 2571),
-                ("0a1b2c3d-0000-4000-8000-000000000002", 2392)
+                ("0a1b2c3d-0000-4000-8000-000000000002", 2392),
+                ("0a1b2c3d-0000-4000-8000-000000000001", 2571)
             ]
         );
         assert_eq!(product.activation("DE"), "confirmed");
-        assert_eq!(product.activation("AT"), "unknown");
+        assert_eq!(product.activation("AT"), "confirmed");
+        assert_eq!(product.activation("IT"), "unknown");
         assert_eq!(product.activation(""), "unknown");
     }
 
@@ -497,7 +491,6 @@ mod tests {
         assert_eq!(product.title, "forza horizon 5 premium edition");
         assert_eq!(product.name, premium);
         assert!(product.key_game);
-        assert_ne!(product.fingerprint(), parse_base().fingerprint());
     }
 
     #[test]
@@ -566,40 +559,38 @@ mod tests {
         let product = parse(&url(SLUG), &body).unwrap();
         // Malformed country codes are dropped.
         assert_eq!(product.blocked, ["DE"]);
-        // The activation span is still honoured, but blocked has precedence in `activation`.
-        assert_eq!(product.allowed, ["DE"]);
+        // A blocked country is never allowed, even when the country list names it.
+        assert_eq!(product.allowed, ["AT", "FR"]);
         assert_eq!(product.activation("DE"), "blocked");
-        assert_eq!(product.activation("AT"), "unknown");
+        assert_eq!(product.activation("AT"), "confirmed");
+        assert_eq!(product.activation("IT"), "unknown");
     }
 
     #[test]
-    fn product_allowed_requires_context_country_list_entry_and_span() {
-        // Span missing: no allowed country.
-        let body = BASE.replace("aktiviert werden", "aktiviert");
-        let product = parse(&url(SLUG), &body).unwrap();
-        assert!(product.allowed.is_empty());
-        assert_eq!(product.activation("DE"), "unknown");
-        // Text must match exactly after whitespace normalisation (trailing dot, other country).
-        for text in [
-            "Kann in Deutschland aktiviert werden.",
-            "Kann in Österreich aktiviert werden",
-        ] {
-            let body = BASE.replace(r#"Kann in <span>Deutschland</span> aktiviert werden"#, text);
-            assert!(
-                parse(&url(SLUG), &body).unwrap().allowed.is_empty(),
-                "{text}"
-            );
-        }
-        // Extra whitespace and line breaks inside the span are normalised.
-        let body = BASE.replace(
-            r#"Kann in <span>Deutschland</span> aktiviert werden"#,
-            "Kann   in\n <span> Deutschland </span>\n aktiviert  werden",
+    fn product_activation_comes_from_the_structured_country_list() {
+        // Page text does not matter (audit DQ-06): without the German sentence DE stays allowed.
+        let body = BASE.replace(r#"Kann in <span>Deutschland</span> aktiviert werden"#, "");
+        assert_eq!(
+            parse(&url(SLUG), &body).unwrap().activation("DE"),
+            "confirmed"
         );
-        assert_eq!(parse(&url(SLUG), &body).unwrap().allowed, ["DE"]);
         // DE not in countriesAlpha2.
         let body = variant(|s| product_of(s)["countriesAlpha2"] = serde_json::json!(["AT", "FR"]));
+        let product = parse(&url(SLUG), &body).unwrap();
+        assert_eq!(product.activation("DE"), "unknown");
+        assert_eq!(product.activation("AT"), "confirmed");
+        // An empty list allows nothing.
+        let body = variant(|s| product_of(s)["countriesAlpha2"] = serde_json::json!([]));
         assert!(parse(&url(SLUG), &body).unwrap().allowed.is_empty());
-        // Context country other than DE: purchase country follows the context, nothing is allowed.
+        // A missing list is a changed page structure and fails loudly.
+        let body = variant(|s| {
+            product_of(s)
+                .as_object_mut()
+                .unwrap()
+                .remove("countriesAlpha2");
+        });
+        assert!(matches!(parse(&url(SLUG), &body), Err(ShopError::Parse)));
+        // The purchase context follows the page context; the evaluator compares it to the target.
         let body = variant(|s| {
             let root = s["ROOT_QUERY"].as_object_mut().unwrap();
             let rekeyed: serde_json::Map<String, Value> = root
@@ -613,16 +604,18 @@ mod tests {
                 .collect();
             *root = rekeyed;
         });
-        let product = parse(&url(SLUG), &body).unwrap();
-        assert_eq!(product.purchase_country.as_deref(), Some("AT"));
-        assert!(product.allowed.is_empty());
-        // No ROOT_QUERY entry with a country: purchase country unknown, nothing allowed.
+        assert_eq!(
+            parse(&url(SLUG), &body)
+                .unwrap()
+                .purchase_country
+                .as_deref(),
+            Some("AT")
+        );
+        // No ROOT_QUERY entry with a country: purchase country unknown.
         let body = variant(|s| {
             s["ROOT_QUERY"] = serde_json::json!({});
         });
-        let product = parse(&url(SLUG), &body).unwrap();
-        assert_eq!(product.purchase_country, None);
-        assert!(product.allowed.is_empty());
+        assert_eq!(parse(&url(SLUG), &body).unwrap().purchase_country, None);
     }
 
     #[test]
@@ -692,15 +685,18 @@ mod tests {
             let mut edges = Vec::new();
             for n in 10..40 {
                 let key = format!("Auction::0a1b2c3d-0000-4000-8000-0000000001{n}");
-                s[key.as_str()] = auction(&key["Auction::".len()..], 3000 + n);
+                let cents = if n == 39 { 999 } else { 3000 + n };
+                s[key.as_str()] = auction(&key["Auction::".len()..], cents);
                 edges.push(serde_json::json!({"node": {"__ref": key}}));
             }
             product_of(s)["auctions({\"first\":30})"] = serde_json::json!({"edges": edges});
         });
         let product = parse(&url(SLUG), &body).unwrap();
         assert_eq!(product.offers.len(), 20);
-        // The cap applies to the sorted auction keys, so a cheap offer can be cut off.
-        assert!(!product.offers.iter().any(|q| q.cents == 3039));
+        // The cap keeps the cheapest offers, even when they come last.
+        assert_eq!(product.offers[0].cents, 999);
+        assert!(product.offers.windows(2).all(|w| w[0].cents <= w[1].cents));
+        assert!(!product.offers.iter().any(|q| q.cents == 3038));
     }
 
     #[test]
@@ -790,8 +786,16 @@ mod tests {
         let base = parse_base();
         let mut same = base.clone();
         same.offers.clear();
-        same.title = "Forza  Horizon-5".into();
-        assert_eq!(base.fingerprint(), same.fingerprint());
+        same.title = "Forza Horizon 5: Renamed by the shop".into();
+        same.name = same.title.clone();
+        assert_eq!(
+            base.fingerprint(),
+            same.fingerprint(),
+            "a renamed title keeps the identity"
+        );
+        let mut other = base.clone();
+        other.id = "synthproduct0002".into();
+        assert_ne!(base.fingerprint(), other.fingerprint());
         let mut other = base.clone();
         other.platform_ids = vec![49];
         assert_ne!(base.fingerprint(), other.fingerprint());

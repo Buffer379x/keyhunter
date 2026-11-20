@@ -146,7 +146,15 @@ impl Product {
         }
     }
 
+    /// Stable identity of a confirmed product: shop product id, key type and platforms.
+    /// A renamed shop title keeps the confirmation (audit DQ-05).
     pub(crate) fn fingerprint(&self) -> String {
+        let identity = serde_json::json!([2, self.id, self.key_game, self.platform_ids]);
+        hex::encode(crate::digest(&identity.to_string()))
+    }
+
+    /// Identity up to 0.5, which also contained the normalized title.
+    fn legacy_fingerprint(&self) -> String {
         let identity = serde_json::json!([
             1,
             self.id,
@@ -156,6 +164,36 @@ impl Product {
         ]);
         hex::encode(crate::digest(&identity.to_string()))
     }
+}
+
+/// Move confirmations and price history from the 0.5 fingerprint to the stable one.
+/// Idempotent: only rows that still carry the old fingerprint of their latest product change.
+pub(crate) async fn upgrade_fingerprints(pool: &sqlx::SqlitePool) -> sqlx::Result<()> {
+    let rows: Vec<(i64, String)> = sqlx::query_as(
+        "SELECT id,latest FROM offer_link WHERE latest IS NOT NULL AND fingerprint IS NOT NULL",
+    )
+    .fetch_all(pool)
+    .await?;
+    let mut tx = pool.begin().await?;
+    for (id, latest) in rows {
+        let Ok(product) = serde_json::from_str::<Product>(&latest) else {
+            continue;
+        };
+        let (old, new) = (product.legacy_fingerprint(), product.fingerprint());
+        sqlx::query("UPDATE offer_link SET fingerprint=? WHERE id=? AND fingerprint=?")
+            .bind(&new)
+            .bind(id)
+            .bind(&old)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("UPDATE OR IGNORE price_observation SET fingerprint=? WHERE link_id=? AND fingerprint=?")
+            .bind(&new)
+            .bind(id)
+            .bind(&old)
+            .execute(&mut *tx)
+            .await?;
+    }
+    tx.commit().await
 }
 
 pub(crate) fn title_key(value: &str) -> String {
@@ -218,5 +256,62 @@ mod tests {
         ] {
             assert!(product_link(url).is_none(), "{url}");
         }
+    }
+
+    #[tokio::test]
+    async fn fingerprint_upgrade_keeps_confirmations_and_history() {
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        let product = Product {
+            id: "p1".into(),
+            name: "Game".into(),
+            title: "game".into(),
+            platform_ids: vec![169],
+            key_game: true,
+            region: None,
+            allowed: vec!["DE".into()],
+            blocked: vec![],
+            purchase_country: Some("DE".into()),
+            offers: vec![],
+            availability: Availability::InStock,
+        };
+        sqlx::query(
+            "INSERT INTO game(id,manual_title,manual_key,created_at) VALUES('g','Game','game',0)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO wishlist_item VALUES('w','g',169,0)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let latest = serde_json::to_string(&product).unwrap();
+        for (id, fingerprint) in [(1, product.legacy_fingerprint()), (2, "manual".to_string())] {
+            sqlx::query("INSERT INTO offer_link(id,wish_id,source,url,review,fingerprint,latest) VALUES(?,'w','eneba',?,'confirmed',?,?)")
+                .bind(id).bind(format!("https://www.eneba.com/de/xbox-game-{id}-key-global")).bind(&fingerprint).bind(&latest)
+                .execute(&pool).await.unwrap();
+            sqlx::query("INSERT INTO price_observation(link_id,product_id,observed_at,market,fingerprint,offers,activation,availability) VALUES(?,'p1',1,'DE',?,'[]','confirmed','in_stock')")
+                .bind(id).bind(&fingerprint).execute(&pool).await.unwrap();
+        }
+        for _ in 0..2 {
+            upgrade_fingerprints(&pool).await.unwrap();
+        }
+        let links: Vec<String> =
+            sqlx::query_scalar("SELECT fingerprint FROM offer_link ORDER BY id")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        let history: Vec<String> =
+            sqlx::query_scalar("SELECT fingerprint FROM price_observation ORDER BY link_id")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        let expected = [product.fingerprint(), "manual".to_string()];
+        assert_eq!(links, expected);
+        assert_eq!(history, expected);
     }
 }
