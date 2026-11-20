@@ -124,6 +124,7 @@ pub(crate) struct Link {
     pub(crate) review: String,
     fingerprint: Option<String>,
     latest: Option<String>,
+    confirmed_name: Option<String>,
     pub observed_at: Option<i64>,
     pub attempted_at: Option<i64>,
     pub last_error: Option<String>,
@@ -160,6 +161,7 @@ impl Link {
             review: review.into(),
             fingerprint,
             latest: None,
+            confirmed_name: None,
             observed_at,
             attempted_at: observed_at,
             last_error: None,
@@ -344,6 +346,9 @@ pub(crate) async fn list(
             "can_confirm":matching,"eligible":eligible,"reasons":verdict,"queued":link.queued,"enabled":link.enabled,
             "observed_at":link.observed_at,"attempted_at":link.attempted_at,"last_error":link.last_error,
             "retry_at":link.retry_at,"stale":link.observed_at.is_some_and(|at|t-at > FRESH),
+            // A confirmed product the shop renamed since: the price counts, the title is worth a look.
+            "renamed": product.as_ref().filter(|p| link.review == "confirmed" && link.confirmed_name.as_ref().is_some_and(|name| *name != p.name))
+                .map(|p| json!({"from":link.confirmed_name,"to":p.name})),
             "product": product.as_ref().map(|p| json!({"name":p.name,"region":p.region,
                 "market":p.purchase_country,"activation":p.activation(&target),"availability":p.availability})),
             "quotes":quotes}));
@@ -482,13 +487,13 @@ pub(crate) async fn review(
         .ok_or(NOT_FOUND)?;
     if input.decision == "confirmed" {
         let product = link.product().filter(|p| wish.matches(p)).ok_or(CONFLICT)?;
-        let changed = sqlx::query("UPDATE offer_link SET review='confirmed', fingerprint=? WHERE id=? AND wish_id=? AND latest=?")
-            .bind(product.fingerprint()).bind(link_id).bind(&id).bind(link.latest).execute(&state.pool).await?;
+        let changed = sqlx::query("UPDATE offer_link SET review='confirmed', fingerprint=?, confirmed_name=? WHERE id=? AND wish_id=? AND latest=?")
+            .bind(product.fingerprint()).bind(&product.name).bind(link_id).bind(&id).bind(link.latest).execute(&state.pool).await?;
         if changed.rows_affected() == 0 {
             return Err(CONFLICT);
         }
     } else if matches!(input.decision.as_str(), "rejected" | "pending") {
-        sqlx::query("UPDATE offer_link SET review=?, fingerprint=NULL WHERE id=? AND wish_id=?")
+        sqlx::query("UPDATE offer_link SET review=?, fingerprint=NULL, confirmed_name=NULL WHERE id=? AND wish_id=?")
             .bind(&input.decision)
             .bind(link_id)
             .bind(&id)
@@ -611,6 +616,7 @@ mod tests {
             review: "confirmed".into(),
             fingerprint: Some(product.fingerprint()),
             latest: None,
+            confirmed_name: None,
             observed_at: Some(200),
             attempted_at: Some(200),
             last_error: None,

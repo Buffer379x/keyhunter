@@ -132,3 +132,4 @@ summary { min-height: 36px; padding-block: 7px; }
 .history-caption .series-preferred strong{color:var(--turquoise)}
 .history-caption .series-all strong{color:var(--accent)}
 .history-caption small{color:var(--muted);font-size:12px}
+.rename-note{color:var(--accent);font-size:13px}

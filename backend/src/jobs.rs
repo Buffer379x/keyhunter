@@ -503,8 +503,8 @@ async fn confirm_discovered(
     .fetch_optional(&mut *conn)
     .await?;
     if wish.is_some_and(|wish| wish.auto_matches(product)) {
-        sqlx::query("UPDATE offer_link SET review='confirmed',fingerprint=? WHERE id=? AND review='pending'")
-            .bind(product.fingerprint()).bind(link).execute(conn).await?;
+        sqlx::query("UPDATE offer_link SET review='confirmed',fingerprint=?,confirmed_name=? WHERE id=? AND review='pending'")
+            .bind(product.fingerprint()).bind(&product.name).bind(link).execute(conn).await?;
     }
     Ok(())
 }
