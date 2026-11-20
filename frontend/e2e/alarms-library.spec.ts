@@ -55,9 +55,19 @@ test('Bibliothek shows covers with edition and purchase date, and keeps the rest
   await expect(page.getByRole('heading', { name: 'Bibliothek', level: 1, exact: true })).toBeVisible();
   await expect(page.getByText('2 Spiele gekauft · werden nicht mehr abgefragt')).toBeVisible();
   const items = page.getByRole('list', { name: 'Meine Spiele' }).getByRole('listitem');
-  await expect(items.first()).toContainText(/Halo Infinite\s*Kampagne · \d{2}\.\d{2}\.2026/);
+  await expect(items.first()).toContainText(/Halo Infinite\s*Kampagne\s*Gekauft \d{2}\.\d{2}\.2026/);
   await expect(items.first().locator('img')).toHaveAttribute('src', /halo\.svg$/);
   await expect(items.nth(1)).toContainText('Xbox One');
   await expect(items.nth(1).locator('.cover-initials')).toHaveText('LO');
-  await expect(items.first().getByRole('button', { name: 'Halo Infinite zurück in die Wunschliste', exact: true })).toBeVisible();
+  // Restore and delete sit on the cover and only show after the lock in the page head is opened.
+  const restore = items.first().getByRole('button', { name: 'Halo Infinite zurück in die Wunschliste', exact: true });
+  await expect(restore).toHaveCount(0);
+  await page.getByRole('button', { name: 'Bearbeiten entsperren', exact: true }).click();
+  await expect(restore).toBeVisible();
+  await expect(items.first().getByRole('button', { name: 'Halo Infinite aus der Bibliothek entfernen', exact: true })).toBeVisible();
+  // Every tile has the same text height, whatever the title length.
+  const heights = await items.locator('.lib-info').evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().height));
+  expect(new Set(heights).size).toBe(1);
+  await page.getByRole('button', { name: 'Bearbeiten sperren', exact: true }).click();
+  await expect(restore).toHaveCount(0);
 });

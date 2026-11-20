@@ -94,6 +94,7 @@ test('a library entry can be removed after confirmation', async ({ page }) => {
   const list = page.getByRole('list', { name: 'Meine Spiele' });
   await expect(list.getByRole('listitem')).toHaveCount(2);
   await expect(list.getByRole('listitem').first()).toContainText(/\d{2}\.\d{2}\.2026/);
+  await page.getByRole('button', { name: 'Bearbeiten entsperren', exact: true }).click();
   await list.getByRole('button', { name: 'Zelda aus der Bibliothek entfernen', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Aus der Bibliothek entfernen?' });
   await dialog.getByRole('button', { name: 'Abbrechen', exact: true }).click();

@@ -37,6 +37,7 @@ test('purchase and restore move the saved edition; owned family additions requir
   await navTo(page, 'Bibliothek');
   const library=page.getByRole('list',{name:'Meine Spiele'});
   await expect(library.getByRole('listitem')).toHaveCount(1);
+  await page.getByRole('button',{name:'Bearbeiten entsperren',exact:true}).click();
   await library.getByRole('button',{name:'Forza Horizon 5 zurück in die Wunschliste',exact:true}).click();
   const restore=page.getByRole('dialog',{name:'Zurück in die Wunschliste?'});
   await expect(restore).toBeVisible();await restore.getByRole('button',{name:'Abbrechen',exact:true}).click();
@@ -61,6 +62,7 @@ test('purchase and restore move the saved edition; owned family additions requir
   await expect(page.getByRole('heading',{name:'Forza Horizon 5: Premium Edition',level:1,exact:true})).toBeVisible();
   await navTo(page, 'Bibliothek');
   await expect(library.getByRole('listitem')).toHaveCount(1);
+  await page.getByRole('button',{name:'Bearbeiten entsperren',exact:true}).click();
   await library.getByRole('button',{name:'Forza Horizon 5 zurück in die Wunschliste',exact:true}).click();
   await restore.getByRole('button',{name:'In Wunschliste verschieben',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Forza Horizon 5',exact:true})).toBeVisible();

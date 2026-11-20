@@ -125,14 +125,18 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
 
   // Row → game → back: filter, sort and scroll position are kept, the row gets the focus again
   await page.getByLabel('Liste filtern').fill('Forza');
-  await page.getByLabel('Sortieren', { exact: true }).selectOption('price');
+  const priceHeader = wishlistTable(page).locator('thead').getByRole('button', { name: /^Preis [A-Z]{2}$/ });
+  await priceHeader.click();
   await expect(wishlistRows(page)).toHaveCount(2);
   await expect(wishlistRows(page).first()).toContainText('Forza Horizon 5');
   // At 1024 px the table scrolls inside its panel; nothing (not even screen-reader labels) widens the page
   await page.setViewportSize({ width: 1024, height: 768 });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.setViewportSize({ width: 390, height: 640 });
-  await expect(wishlistTable(page).locator('thead')).toBeHidden(); // cards
+  // Cards; the headers stay as a row of sort buttons above them, the price column is still the sorted one
+  await expect(wishlistTable(page).locator('thead')).toBeVisible();
+  await expect(wishlistTable(page).locator('thead').getByRole('button')).toHaveCount(6);
+  await expect(wishlistTable(page).locator('thead th[aria-sort="ascending"]')).toHaveText(/^Preis [A-Z]{2}/);
   await expect(row(forza).locator('.c-save')).toBeHidden();
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const main = page.locator('#main-content');
@@ -149,7 +153,7 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
   await expect(wishlistTable(page)).toBeVisible();
   await expect(page).not.toHaveURL(/item=/);
   await expect(page.getByLabel('Liste filtern')).toHaveValue('Forza');
-  await expect(page.getByLabel('Sortieren', { exact: true })).toHaveValue('price');
+  await expect(wishlistTable(page).locator('thead th[aria-sort="ascending"]')).toHaveText(/^Preis [A-Z]{2}/);
   await expect.poll(() => main.evaluate(element => element.scrollTop)).toBe(scrolled);
   await expect(row(premium)).toBeFocused();
 
@@ -166,7 +170,8 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
   await navTo(page, 'Wunschliste');
   await expect(wishlistTable(page)).toBeVisible();
   await page.getByLabel('Liste filtern').fill('');
-  await page.getByLabel('Sortieren', { exact: true }).selectOption('added');
+  await priceHeader.click(); await priceHeader.click(); // descending, then back to newest first
+  await expect(wishlistTable(page).locator('thead th[aria-sort="none"]')).toHaveCount(6);
   await removeAll(page);
   await expect(wishlistHeading(page)).toBeFocused();
   expect(errors).toEqual([]);

@@ -135,6 +135,21 @@ for (const vp of viewports) {
       await settle(page);
       await expect(page).toHaveScreenshot(`${file}-${vp.name}.png`, { mask: masks(page) });
     });
+    test('library unlocked', async ({ page }) => {
+      await prepare(page);
+      const entry = (n: number, title: string, platform: number, acquired: number) => ({ id: String(n).repeat(32), game_id: String(n), platform_id: platform, created_at: n, acquired_at: acquired, verification: 'manual_unverified', game: null, manual_title: title });
+      await page.route('**/api/v1/library', r => r.fulfill({ json: [
+        entry(1, 'Halo Infinite', 169, 1795107000),
+        entry(2, 'Microsoft Flight Simulator 2024: Premium Deluxe Edition mit allen Flugzeugen', 169, 1790000000),
+        entry(3, 'Lies of P', 49, 1780000000),
+      ] }));
+      await page.goto('/?view=library');
+      await expect(page.getByRole('main').getByRole('heading', { name: 'Bibliothek', level: 1 })).toBeVisible();
+      await page.getByRole('button', { name: 'Bearbeiten entsperren', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Halo Infinite aus der Bibliothek entfernen', exact: true })).toBeVisible();
+      await settle(page);
+      await expect(page).toHaveScreenshot(`library-${vp.name}.png`, { mask: masks(page) });
+    });
     settings('', 'settings-allgemein', 'Allgemein');
     settings('status', 'settings-abrufstatus', 'Abrufstatus', 'Letzte Abrufe');
   });

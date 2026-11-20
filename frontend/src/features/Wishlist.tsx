@@ -8,8 +8,8 @@ import type { TabId } from './GameDetail';
 import WishlistRow from './WishlistRow';
 import { mergeBadges } from './price-badges';
 import type { Rule } from './PriceAlerts';
-import { isSortMode, sortWishlist } from './wishlist-sort';
-import type { SortMode } from './wishlist-sort';
+import { nextSort, parseSort, serializeSort, sortWishlist } from './wishlist-sort';
+import type { SortKey, WishlistSort } from './wishlist-sort';
 import { addedTicks, alarmSentToday, cheaperKpi, fetchKpi, matchesChip, reachedTrend, rowFacts, shortTitle } from './wishlist-model';
 import type { ChipFilter, Row, RowFacts } from './wishlist-model';
 import { itemName } from './catalog-ui';
@@ -25,6 +25,20 @@ interface Props {
   onSettings: () => void; onCountChange: (count: number) => void; onError: (error: unknown) => void }
 
 const SLOTS = 100;
+
+/**
+ * Sortable column header: the first click sorts in the column's natural direction, the second reverses it, the third returns to
+ * "newest first". `aria-sort` tells screen readers the state; up to 720 px the headers become a row of sort buttons above the cards.
+ */
+function SortHeader({ id, sort, onSort, right = false, children }: { id: SortKey; sort: WishlistSort; onSort: (key: SortKey) => void; right?: boolean; children: string }) {
+  const active = sort.key === id;
+  return <th className={right ? 'r' : undefined} aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+    <button type="button" className={`th-sort${active ? ' on' : ''}`} onClick={() => onSort(id)}
+      title={active ? (sort.dir === 'asc' ? 'Aufsteigend sortiert' : 'Absteigend sortiert') : `Nach ${children} sortieren`}>
+      {children}<Icon name={active && sort.dir === 'desc' ? 'down' : 'up'} />
+    </button>
+  </th>;
+}
 const SORT_KEY = 'keyhunter.wishlist.sort';
 const FETCH_REFRESH_MS = 60_000;
 /**
@@ -67,7 +81,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, addOpen, on
   const [chip, setChip] = useState<ChipFilter>('alle');
   const [selectedId, setSelectedId] = useState<string | null>(routeSelection);
   const [preview, setPreview] = useState<WishlistItem | null>(null);
-  const [sort, setSort] = useState<SortMode>(() => { try { const value = localStorage.getItem(SORT_KEY); return isSortMode(value) ? value : 'added'; } catch { return 'added'; } });
+  const [sort, setSort] = useState<WishlistSort>(() => { try { return parseSort(localStorage.getItem(SORT_KEY)); } catch { return parseSort(null); } });
   const [badges, setBadges] = useState<Record<string, PriceBadgeData>>({});
   const [alerts, setAlerts] = useState<AlertRules>({});
   const [events, setEvents] = useState<AlertEvent[] | null>(null);
@@ -225,9 +239,10 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, addOpen, on
     if (value) url.searchParams.set('filter', value); else url.searchParams.delete('filter');
     window.history.replaceState(window.history.state, '', url);
   }
-  function changeSort(value: SortMode) {
+  function sortBy(key: SortKey) {
+    const value = nextSort(sort, key);
     setSort(value);
-    try { localStorage.setItem(SORT_KEY, value); } catch { /* Keep in memory. */ }
+    try { localStorage.setItem(SORT_KEY, serializeSort(value)); } catch { /* Keep in memory. */ }
   }
   function added(item: WishlistItem, created: boolean) {
     ++loadGeneration.current;
@@ -336,9 +351,6 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, addOpen, on
         </div>
         <span className="spacer" />
         <Field icon="search" className="wl-q"><input type="search" placeholder="Liste filtern …" aria-label="Liste filtern" value={filter} maxLength={200} onChange={event => filterList(event.target.value)} disabled={!ready || items.length === 0} /></Field>
-        <Field className="wl-sort"><span className="muted">Sortieren</span><select aria-label="Sortieren" value={sort} onChange={event => changeSort(event.target.value as SortMode)}>
-          <option value="added">Zuletzt hinzugefügt</option><option value="price">{priceLabel}</option><option value="save">Größte Ersparnis</option><option value="target">Nächster am Ziel</option>
-        </select></Field>
       </PanelHead>
       <Inset className="table-wrap">
         {loading ? <p className="empty" role="status">Wunschliste wird geladen …</p>
@@ -346,7 +358,15 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, addOpen, on
             action={!listError && <Button variant="primary" onClick={() => onAddOpen(true)}><Icon name="search" />Im Katalog suchen</Button>}>{listError ? '' : 'Suche ein Spiel und merke es vor, dann beobachtet KeyHunter den Preis.'}</EmptyState>
             : visible.length === 0 ? <p className="empty">Kein Spiel passt zu diesem Filter.</p>
               : <table className="wl" aria-label="Vorgemerkte Spiele">
-                <thead><tr><th>Spiel</th><th className="r">{priceLabel}</th><th>Günstigste Region</th><th className="r">Ersparnis</th><th className="r">Ziel</th><th>Status</th><th>14 Tage</th><th><span className="sr-only">Öffnen</span></th></tr></thead>
+                <thead><tr>
+                  <SortHeader id="title" sort={sort} onSort={sortBy}>Spiel</SortHeader>
+                  <SortHeader id="price" sort={sort} onSort={sortBy} right>{priceLabel}</SortHeader>
+                  <SortHeader id="world" sort={sort} onSort={sortBy}>Günstigste Region</SortHeader>
+                  <SortHeader id="save" sort={sort} onSort={sortBy} right>Ersparnis</SortHeader>
+                  <SortHeader id="target" sort={sort} onSort={sortBy} right>Ziel</SortHeader>
+                  <SortHeader id="status" sort={sort} onSort={sortBy}>Status</SortHeader>
+                  <th className="no-sort">14 Tage</th><th className="no-sort"><span className="sr-only">Öffnen</span></th>
+                </tr></thead>
                 <tbody>{visible.map(item => <WishlistRow key={item.id} item={item} badge={badges[item.id] ?? item.price_badge} facts={facts[item.id]} code={code} compare
                   scopeLabel={scopeLabel} targetDisabled={!!alerts[item.id] && !alerts[item.id].enabled} onOpen={() => open(item.id)}
                   rowRef={element => { if (element) rows.current.set(item.id, element); else rows.current.delete(item.id); }} />)}</tbody>

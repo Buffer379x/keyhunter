@@ -7,10 +7,21 @@
 .wl-loading { color: var(--muted); } /* (added) */
 .kpi-foot .warn { color: var(--warn); } /* (added) "zu knapp" */
 
-/* Filter panel: chips, "Liste filtern …" and the sort select */
+/* Filter panel: chips and "Liste filtern …" */
 .wishlist-page .wl-q { width: 200px; }
-.wishlist-page .wl-sort > span { font-size: var(--t-xs); white-space: nowrap; }
-.wishlist-page .wl-sort select { flex: none; width: auto; }
+
+/* (added, 0.6.2) Sortable column headers: the header text is a button; the arrow shows on the sorted column and on hover. */
+table.wl th .th-sort {
+  display: inline-flex; align-items: center; gap: 4px; padding: 0; margin: 0; border: 0; background: none; cursor: pointer;
+  font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; white-space: nowrap;
+}
+table.wl th.r .th-sort { flex-direction: row-reverse; }
+table.wl th .th-sort svg { width: 12px; height: 12px; opacity: 0; transition: opacity .12s; }
+table.wl th .th-sort:hover { color: var(--text-2); }
+table.wl th .th-sort:hover svg { opacity: .6; }
+table.wl th .th-sort.on { color: var(--accent); }
+table.wl th .th-sort.on svg { opacity: 1; }
+table.wl th .th-sort:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
 
 /* Table cells */
 .game-cell { display: flex; align-items: center; gap: 12px; min-width: 220px; }
@@ -38,8 +49,13 @@ table.wl tbody tr:focus-visible { outline-offset: -2px; } /* (added) the focus r
 
 /* Up to 720 px the rows become cards (prototype `table.wl`) */
 @media (max-width: 720px) {
-  table.wl thead { display: none; }
-  table.wl, table.wl tbody { display: block; }
+  /* (added, 0.6.2) The headers stay as a row of sort buttons above the cards. */
+  table.wl, table.wl tbody, table.wl thead { display: block; }
+  table.wl thead { border-bottom: 1px solid var(--line); }
+  table.wl thead tr { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 10px 12px; grid-template-areas: none; }
+  table.wl thead th { padding: 0; border: 0; font: 400 var(--t-xs)/1.4 var(--f-sans); letter-spacing: 0; text-transform: none; color: var(--muted); }
+  table.wl thead th.no-sort { display: none; }
+  table.wl th.r .th-sort { flex-direction: row; }
   table.wl tr {
     display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "g g p" "w w s";
     gap: 8px 10px; padding: 12px; border-bottom: 1px solid var(--line);

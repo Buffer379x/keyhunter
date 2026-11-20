@@ -29,6 +29,8 @@ export default function Library({ csrf, onRestored, onOpenWishlist, onCountChang
   const [action, setAction] = useState<Action>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  /** The cover buttons (restore, delete) only show after the lock in the page head is opened; every visit starts locked. */
+  const [unlocked, setUnlocked] = useState(false);
   const [system, setSystem] = useState(() => stored('keyhunter.library.system', 'all'));
   const [sort, setSort] = useState<Order>(() => stored('keyhunter.library.sort', 'added') === 'name' ? 'name' : 'added');
   const systems = [...new Set(items.map(item => item.platform_id))].sort((a, b) => platformName(a).localeCompare(platformName(b), 'de'));
@@ -76,6 +78,8 @@ export default function Library({ csrf, onRestored, onOpenWishlist, onCountChang
       </select>
       <Seg label="Bibliothek sortieren" value={sort} onChange={order}
         options={[{ value: 'added', label: 'Zuletzt gekauft' }, { value: 'name', label: 'A–Z' }]} />
+      <IconButton className={`lib-lock${unlocked ? ' open' : ''}`} aria-pressed={unlocked} onClick={() => setUnlocked(open => !open)}
+        label={unlocked ? 'Bearbeiten sperren' : 'Bearbeiten entsperren'}><Icon name={unlocked ? 'unlock' : 'lock'} /></IconButton>
     </>} />
     {loadError && <Notice error>{loadError}<Button size="sm" onClick={() => setReload(n => n + 1)}>Erneut laden</Button></Notice>}
     {loading && <>
@@ -88,16 +92,20 @@ export default function Library({ csrf, onRestored, onOpenWishlist, onCountChang
     {!loading && items.length > 0 && <ul className="lib" aria-label="Meine Spiele">
       {visible.map(item => {
         const name = itemName(item);
-        const meta = [item.game?.edition_name || platformName(item.platform_id), item.acquired_at > 0 ? boughtOn(item.acquired_at) : null].filter(Boolean).join(' · ');
+        const edition = item.game?.edition_name || platformName(item.platform_id);
+        const bought = item.acquired_at > 0 ? boughtOn(item.acquired_at) : '';
         return <li key={item.id} className="lib-item">
-          <Cover src={item.game?.cover_url ?? null} title={name} large />
-          <div className="lib-info">
-            <b>{name}</b>
-            <span className="lib-meta">{meta}</span>
+          <div className="lib-cover">
+            <Cover src={item.game?.cover_url ?? null} title={name} large />
+            {unlocked && <div className="lib-tools">
+              <IconButton label={`${name} zurück in die Wunschliste`} onClick={() => ask('restore', item)}><Icon name="undo" /></IconButton>
+              <IconButton variant="danger" label={`${name} aus der Bibliothek entfernen`} onClick={() => ask('remove', item)}><Icon name="trash" /></IconButton>
+            </div>}
           </div>
-          <div className="lib-actions">
-            <Button size="sm" aria-label={`${name} zurück in die Wunschliste`} onClick={() => ask('restore', item)}>In Wunschliste</Button>
-            <IconButton variant="ghost" label={`${name} aus der Bibliothek entfernen`} onClick={() => ask('remove', item)}><Icon name="x" /></IconButton>
+          <div className="lib-info">
+            <b title={name}>{name}</b>
+            <span className="lib-meta" title={edition}>{edition}</span>
+            <span className="lib-meta">{bought && <><span className="lib-bought">Gekauft </span>{bought}</>}</span>
           </div>
         </li>;
       })}
