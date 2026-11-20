@@ -46,6 +46,7 @@ pub(crate) struct AppState {
     ntfy: Option<Arc<alerts::Ntfy>>,
     heartbeat: Arc<jobs::Heartbeat>,
     background: bool,
+    trend_cache: price_badges::TrendCache,
 }
 type Shared = Arc<AppState>;
 type ApiResult<T> = std::result::Result<T, ApiError>;
@@ -199,6 +200,7 @@ async fn create_app_inner(
         ntfy: ntfy.clone(),
         heartbeat: Arc::default(),
         background: run_background,
+        trend_cache: Default::default(),
     });
     if run_background {
         jobs::start(&state.pool, Arc::clone(&state.heartbeat));
@@ -422,6 +424,75 @@ mod migration_tests {
             .sql
             .as_str()
             .to_owned()
+    }
+
+    #[tokio::test]
+    async fn budget_migration_backfills_valid_prices_and_marks_unsearched_wishes() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        up_to(&pool, 13).await;
+        let observation = |at: i64, offers: &str, activation: &str, availability: &str| {
+            format!("INSERT INTO price_observation(link_id,product_id,observed_at,market,fingerprint,offers,activation,availability)
+                VALUES(1,'p',{at},'DE','f','{offers}','{activation}','{availability}');")
+        };
+        let rows = [
+            observation(
+                1,
+                r#"[{"id":"a","cents":0},{"id":"b","cents":1500},{"id":"c","cents":900}]"#,
+                "confirmed",
+                "in_stock",
+            ),
+            observation(2, r#"[{"id":"a","cents":900}]"#, "unknown", "in_stock"),
+            observation(3, r#"[]"#, "confirmed", "sold_out"),
+        ];
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "INSERT INTO game(id,manual_title,manual_key,created_at) VALUES('g','Game','game',0);
+            INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES('new','g',169,0),('old','g',49,0);
+            INSERT INTO offer_link(id,wish_id,source,url) VALUES(1,'new','eneba','https://www.eneba.com/de/xbox-game-key');
+            INSERT INTO shop_job(source,wish_id,due) VALUES('eneba','new',0);
+            INSERT INTO shop_job(source,wish_id,due,checked_at) VALUES('eneba','old',0,5);
+            {}",
+            rows.concat()
+        )))
+        .execute(&pool)
+        .await
+        .unwrap();
+        up_to_only(&pool, 14).await;
+        sqlx::raw_sql(sqlx::AssertSqlSafe(observation(
+            4,
+            r#"[{"id":"a","cents":700},{"id":"b","cents":20000000}]"#,
+            "confirmed",
+            "in_stock",
+        )))
+        .execute(&pool)
+        .await
+        .unwrap();
+        let cents: Vec<Option<i64>> =
+            sqlx::query_scalar("SELECT valid_cents FROM price_observation ORDER BY observed_at")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        assert_eq!(cents, [Some(900), None, None, Some(700)]);
+        let initial: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT wish_id,initial FROM shop_job WHERE wish_id IS NOT NULL ORDER BY wish_id",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert_eq!(initial, [("new".into(), 1), ("old".into(), 0)]);
+    }
+
+    /// Apply exactly one embedded migration as plain SQL.
+    async fn up_to_only(pool: &sqlx::SqlitePool, version: i64) {
+        let migrator = sqlx::migrate!("./migrations");
+        let migration = migrator.iter().find(|m| m.version == version).unwrap();
+        sqlx::raw_sql(sqlx::AssertSqlSafe(migration.sql.as_str().to_owned()))
+            .execute(pool)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
