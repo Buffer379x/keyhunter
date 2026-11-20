@@ -135,6 +135,10 @@ pub(crate) struct Link {
     pub retry_at: i64,
 }
 impl Link {
+    /// Fingerprint stored at confirmation.
+    pub(crate) fn fingerprint(&self) -> Option<&str> {
+        self.fingerprint.as_deref()
+    }
     pub(crate) fn product(&self) -> Option<Product> {
         serde_json::from_str(self.latest.as_deref()?).ok()
     }
@@ -377,7 +381,7 @@ pub(crate) async fn list(
         json!({"source":source,"status":status,"checked_at":checked,"last_error":error,"result_count":count})
     }).collect();
     let (_, scope) = crate::price_badges::context(&state.pool).await?;
-    let price_badge = crate::price_badges::load(&state.pool, &id, &target, &scope).await?;
+    let price_badge = crate::price_badges::load(&state, &id, &target, &scope).await?;
     Ok(Json(OffersView {
         price_badge,
         links: rows,

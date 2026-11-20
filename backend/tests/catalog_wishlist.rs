@@ -1876,3 +1876,94 @@ async fn daily_jobs_setting_overrides_the_default_and_shows_in_the_fetch_status(
         assert_ne!(fetch_budget(&f).await["limit_source"], "setting");
     }
 }
+
+#[tokio::test]
+async fn price_badges_carry_a_daily_target_country_trend() {
+    let f = Fixture::new().await;
+    let (_, saved) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":1,"platform_id":169}),
+        )
+        .await;
+    let id = saved["item"]["id"].as_str().unwrap().to_string();
+    let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
+    settings["target_country"] = json!("DE");
+    f.call("PUT", "/api/v1/settings", settings).await;
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(
+            sqlx::sqlite::SqliteConnectOptions::new()
+                .filename(f.config.data_dir.join("keyhunter.db")),
+        )
+        .await
+        .unwrap();
+    let t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    let today = t - t % 86400;
+    let quotes = |cents: i64| json!([{"id":"q","cents":cents,"seller":null}]).to_string();
+    let product = json!({"id":"global","name":"Example","title":"Example","platform_ids":[169],"key_game":true,"region":"Global","allowed":["DE"],"blocked":[],"purchase_country":"DE","offers":[{"id":"q","cents":1100,"seller":null}],"availability":"in_stock"});
+    let link: i64 = sqlx::query_scalar("INSERT INTO offer_link(wish_id,source,url,latest,observed_at) VALUES(?,'eneba','https://www.eneba.com/de/xbox-example-xbox-live-key-global',?,?) RETURNING id")
+        .bind(&id).bind(product.to_string()).bind(t - 60).fetch_one(&pool).await.unwrap();
+    f.call(
+        "PUT",
+        &format!("/api/v1/wishlist/{id}/offers/{link}"),
+        json!({"decision":"confirmed"}),
+    )
+    .await;
+    let fingerprint: String = sqlx::query_scalar("SELECT fingerprint FROM offer_link WHERE id=?")
+        .bind(link)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    // Before the window, two observations on day 8, one not activatable in DE, today's price,
+    // and an observation in another market that never counts.
+    for (at, cents, market, activation) in [
+        (today - 20 * 86400, 1500, "DE", "confirmed"),
+        (today - 5 * 86400 + 100, 1300, "DE", "confirmed"),
+        (today - 5 * 86400 + 200, 1200, "DE", "confirmed"),
+        (today - 2 * 86400, 1000, "DE", "unknown"),
+        (today - 86400, 500, "US", "confirmed"),
+        (t - 60, 1100, "DE", "confirmed"),
+    ] {
+        sqlx::query("INSERT INTO price_observation(link_id,product_id,observed_at,market,fingerprint,offers,activation,availability) VALUES(?,'global',?,?,?,?,?,'in_stock')")
+            .bind(link).bind(at).bind(market).bind(&fingerprint).bind(quotes(cents)).bind(activation).execute(&pool).await.unwrap();
+    }
+    let mut expected = vec![json!(1500); 8];
+    expected.extend([json!(1200), json!(1200), json!(1200)]);
+    expected.extend([Value::Null, Value::Null, json!(1100)]);
+    let (_, badges) = f
+        .call("GET", "/api/v1/wishlist/price-badges", Value::Null)
+        .await;
+    assert_eq!(badges[&id]["trend"], json!(expected));
+    let (_, list) = f.call("GET", "/api/v1/wishlist", Value::Null).await;
+    assert_eq!(list[0]["price_badge"]["trend"], json!(expected));
+    // A new fetch (new observation and observation time of the link) updates the cached trend.
+    sqlx::query("INSERT INTO price_observation(link_id,product_id,observed_at,market,fingerprint,offers,activation,availability) VALUES(?,'global',?,'DE',?,?,'confirmed','in_stock')")
+        .bind(link).bind(t - 30).bind(&fingerprint).bind(quotes(900)).execute(&pool).await.unwrap();
+    sqlx::query("UPDATE offer_link SET observed_at=? WHERE id=?")
+        .bind(t - 30)
+        .bind(link)
+        .execute(&pool)
+        .await
+        .unwrap();
+    expected[13] = json!(900);
+    let (_, badges) = f
+        .call("GET", "/api/v1/wishlist/price-badges", Value::Null)
+        .await;
+    assert_eq!(badges[&id]["trend"], json!(expected));
+    // A rejected link no longer contributes.
+    f.call(
+        "PUT",
+        &format!("/api/v1/wishlist/{id}/offers/{link}"),
+        json!({"decision":"rejected"}),
+    )
+    .await;
+    let (_, badges) = f
+        .call("GET", "/api/v1/wishlist/price-badges", Value::Null)
+        .await;
+    assert_eq!(badges[&id]["trend"], json!(vec![Value::Null; 14]));
+}

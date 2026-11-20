@@ -70,7 +70,7 @@ pub(crate) async fn list(
         .collect::<ApiResult<Vec<_>>>()?;
     let (target, scope) = crate::price_badges::context(&state.pool).await?;
     let ids: Vec<String> = items.iter().map(|item| item.id.clone()).collect();
-    let mut badges = crate::price_badges::load_many(&state.pool, &ids, &target, &scope).await?;
+    let mut badges = crate::price_badges::load_many(&state, &ids, &target, &scope).await?;
     for item in &mut items {
         item.price_badge = badges.remove(&item.id);
     }
@@ -112,7 +112,7 @@ pub(crate) async fn add(
             if let Some(row) = existing {
                 return Ok((
                     StatusCode::OK,
-                    Json(serde_json::json!({"item":with_badge(&state.pool,decode(row)?).await?,"created":false})),
+                    Json(serde_json::json!({"item":with_badge(&state,decode(row)?).await?,"created":false})),
                 )
                     .into_response());
             }
@@ -213,7 +213,7 @@ pub(crate) async fn add(
     let created = inserted.rows_affected() == 1 || moved;
     tx.commit().await?;
     crate::jobs::schedule_wish(&state.pool, &item.id).await?;
-    item = with_badge(&state.pool, item).await?;
+    item = with_badge(&state, item).await?;
     Ok((
         if created {
             StatusCode::CREATED
@@ -286,7 +286,7 @@ pub(crate) async fn preview(
     )?;
     tx.commit().await?;
     crate::jobs::schedule_wish(&state.pool, &track).await?;
-    let item = with_badge(&state.pool, item).await?;
+    let item = with_badge(&state, item).await?;
     Ok(Json(serde_json::json!({"item":item})))
 }
 
@@ -516,8 +516,8 @@ pub(crate) async fn track_edition(
     Ok(track)
 }
 
-async fn with_badge(pool: &sqlx::SqlitePool, mut item: WishlistItem) -> ApiResult<WishlistItem> {
-    let (target, scope) = crate::price_badges::context(pool).await?;
-    item.price_badge = Some(crate::price_badges::load(pool, &item.id, &target, &scope).await?);
+async fn with_badge(state: &crate::AppState, mut item: WishlistItem) -> ApiResult<WishlistItem> {
+    let (target, scope) = crate::price_badges::context(&state.pool).await?;
+    item.price_badge = Some(crate::price_badges::load(state, &item.id, &target, &scope).await?);
     Ok(item)
 }

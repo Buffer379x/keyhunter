@@ -1,5 +1,5 @@
 use crate::{
-    ApiError, ApiResult, Shared, auth, now, offers,
+    ApiError, ApiResult, AppState, Shared, auth, now, offers,
     pricing::{self, Reason},
 };
 use axum::{
@@ -9,7 +9,10 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
-use std::collections::BTreeMap;
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Mutex,
+};
 
 #[derive(Clone, Serialize)]
 pub(crate) struct PriceBadge {
@@ -22,7 +25,15 @@ pub(crate) struct PriceBadge {
     /// Cheapest current offer of any region, always reported for the comparison with the
     /// target country (the core use case), independent of the badge setting.
     pub world: Option<WorldBest>,
+    /// Best price valid in the target country at the end of each of the last 14 UTC days,
+    /// oldest first (today: now). Each link carries its last observation forward; `None`
+    /// before the first observation or while no confirmed link has a valid price.
+    pub trend: Vec<Option<i64>>,
 }
+
+/// Number of UTC days in [`PriceBadge::trend`].
+const TREND_DAYS: i64 = 14;
+const DAY: i64 = 86400;
 
 #[derive(Clone, Serialize)]
 pub(crate) struct WorldBest {
@@ -41,12 +52,12 @@ pub(crate) async fn context(pool: &SqlitePool) -> ApiResult<(String, String)> {
 
 /// Display a saved observation; live alert eligibility remains stricter.
 pub(crate) async fn load(
-    pool: &SqlitePool,
+    state: &AppState,
     id: &str,
     target: &str,
     scope: &str,
 ) -> ApiResult<PriceBadge> {
-    load_many(pool, &[id.to_string()], target, scope)
+    load_many(state, &[id.to_string()], target, scope)
         .await?
         .remove(id)
         .ok_or(ApiError(
@@ -63,13 +74,135 @@ struct JobSummary {
     pending: bool,
 }
 
-/// Badges for many items with three queries in total, independent of the number of items.
-pub(crate) async fn load_many(
+/// Observation time and price of a link: `None` when it was not valid in the target country.
+type Series = Vec<(i64, Option<i64>)>;
+type Samples = BTreeMap<i64, Series>;
+/// A link a badge shows: id, latest observation time and confirmed fingerprint.
+type ShownLink = (i64, Option<i64>, Option<String>);
+
+/// What the trend samples of a link depend on. Observations are immutable and every new one
+/// sets `offer_link.observed_at`, so samples stay valid while this key stays the same.
+#[derive(Clone, PartialEq, Eq)]
+struct TrendKey {
+    start: i64,
+    target: String,
+    observed_at: Option<i64>,
+    fingerprint: Option<String>,
+}
+
+/// Trend samples per link, so polling the badges reads only links with new observations.
+#[derive(Default)]
+pub(crate) struct TrendCache(Mutex<HashMap<i64, (TrendKey, Series)>>);
+
+/// Upper bound of cached links; the cache starts over when it is reached.
+const TREND_CACHE_LINKS: usize = 20_000;
+
+impl TrendCache {
+    /// Samples of the given links: cached ones as they are, the others in one batched query.
+    async fn samples(
+        &self,
+        pool: &SqlitePool,
+        links: &[(i64, TrendKey)],
+        t: i64,
+    ) -> sqlx::Result<Samples> {
+        let mut samples = Samples::new();
+        let mut missing = vec![];
+        {
+            let cache = self.0.lock().unwrap_or_else(|e| e.into_inner());
+            for (link, key) in links {
+                match cache.get(link) {
+                    Some((cached, values)) if cached == key => {
+                        samples.insert(*link, values.clone());
+                    }
+                    _ => missing.push(*link),
+                }
+            }
+        }
+        let Some((_, key)) = links.first() else {
+            return Ok(samples);
+        };
+        if missing.is_empty() {
+            return Ok(samples);
+        }
+        let fetched = trend_samples(pool, &missing, &key.target, key.start, t).await?;
+        let mut cache = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        if cache.len() + fetched.len() > TREND_CACHE_LINKS {
+            cache.clear();
+        }
+        for (link, key) in links {
+            if let Some(values) = fetched.get(link) {
+                cache.insert(*link, (key.clone(), values.clone()));
+            }
+        }
+        samples.extend(fetched);
+        Ok(samples)
+    }
+}
+
+/// Observations that decide the trend of the given links, in one query that reads only the
+/// `price_history` index: per link the last observation before the window (carried forward)
+/// and every observation in the window, all in the target country with the link's confirmed
+/// fingerprint. One row per link keeps the transfer small.
+async fn trend_samples(
     pool: &SqlitePool,
+    links: &[i64],
+    target: &str,
+    start: i64,
+    t: i64,
+) -> sqlx::Result<Samples> {
+    let links = serde_json::to_string(links).unwrap_or_else(|_| "[]".into());
+    let rows: Vec<(i64, Option<i64>, Option<String>)> = sqlx::query_as(
+        "SELECT l.id,
+            (SELECT p.valid_cents FROM price_observation p WHERE p.link_id=l.id AND p.market=?2
+                AND p.fingerprint=l.fingerprint AND p.observed_at<?3 ORDER BY p.observed_at DESC LIMIT 1),
+            (SELECT group_concat(o.observed_at||':'||COALESCE(o.valid_cents,''),',') FROM price_observation o
+                WHERE o.link_id=l.id AND o.market=?2 AND o.fingerprint=l.fingerprint AND o.observed_at>=?3 AND o.observed_at<=?4)
+        FROM offer_link l WHERE l.id IN (SELECT value FROM json_each(?1))",
+    )
+    .bind(links)
+    .bind(target)
+    .bind(start)
+    .bind(t)
+    .fetch_all(pool)
+    .await?;
+    let mut samples = Samples::new();
+    for (link, carried, window) in rows {
+        let entry = samples.entry(link).or_default();
+        entry.push((start - 1, carried));
+        for sample in window.iter().flat_map(|w| w.split(',')) {
+            if let Some((at, cents)) = sample.split_once(':')
+                && let Ok(at) = at.parse()
+            {
+                entry.push((at, cents.parse().ok()));
+            }
+        }
+        entry.sort_unstable_by_key(|(at, _)| *at);
+    }
+    Ok(samples)
+}
+
+/// Daily best target-country price of the given links (see [`PriceBadge::trend`]).
+fn trend(links: &[i64], samples: &Samples, start: i64) -> Vec<Option<i64>> {
+    (1..=TREND_DAYS)
+        .map(|day| {
+            let end = start + day * DAY;
+            links
+                .iter()
+                .filter_map(|link| samples.get(link)?.iter().rev().find(|(at, _)| *at < end)?.1)
+                .min()
+        })
+        .collect()
+}
+
+/// Badges for many items with at most four queries in total, independent of the number of
+/// items (the trend query only for links with new observations, see [`TrendCache`]).
+pub(crate) async fn load_many(
+    state: &AppState,
     ids: &[String],
     target: &str,
     scope: &str,
 ) -> ApiResult<BTreeMap<String, PriceBadge>> {
+    let pool = &state.pool;
     let t = now();
     let ids_json = serde_json::to_string(ids).map_err(|_| crate::internal())?;
     let wishes = offers::wishes(pool, &ids_json).await?;
@@ -82,19 +215,43 @@ pub(crate) async fn load_many(
     let mut jobs: BTreeMap<String, JobSummary> =
         jobs.into_iter().map(|j| (j.item.clone(), j)).collect();
     let price_scope = pricing::Scope::for_wishlist(target, scope);
-    Ok(wishes
+    let start = t - t.rem_euclid(DAY) - (TREND_DAYS - 1) * DAY;
+    let mut shown = vec![];
+    let mut badges: Vec<(String, PriceBadge, Vec<i64>)> = wishes
         .into_iter()
         .map(|(id, wish)| {
             let job = jobs.remove(&id);
-            let badge = compute(
+            let (badge, links_shown) = compute(
                 &wish,
                 &links.remove(&id).unwrap_or_default(),
                 job.as_ref(),
                 &price_scope,
                 t,
             );
-            (id, badge)
+            let ids = links_shown.iter().map(|(link, ..)| *link).collect();
+            shown.extend(
+                links_shown
+                    .into_iter()
+                    .map(|(link, observed_at, fingerprint)| {
+                        let key = TrendKey {
+                            start,
+                            target: target.to_string(),
+                            observed_at,
+                            fingerprint,
+                        };
+                        (link, key)
+                    }),
+            );
+            (id, badge, ids)
         })
+        .collect();
+    let samples = state.trend_cache.samples(pool, &shown, t).await?;
+    for (_, badge, links) in &mut badges {
+        badge.trend = trend(links, &samples, start);
+    }
+    Ok(badges
+        .into_iter()
+        .map(|(id, badge, _)| (id, badge))
         .collect())
 }
 
@@ -104,7 +261,7 @@ fn compute(
     job: Option<&JobSummary>,
     price_scope: &pricing::Scope,
     t: i64,
-) -> PriceBadge {
+) -> (PriceBadge, Vec<ShownLink>) {
     let mut result = PriceBadge {
         cents: None,
         state: "unknown",
@@ -113,6 +270,7 @@ fn compute(
         stale: false,
         pending: job.is_some_and(|j| j.pending),
         world: None,
+        trend: vec![],
     };
     let mut observed = false;
     let mut review = false;
@@ -143,6 +301,7 @@ fn compute(
             pricing::evaluate(link, wish, Some(&product), &pricing::Scope::AllRegions, t);
         candidates.push((link, product, verdict, anywhere));
     }
+
     let world = pricing::best(
         candidates
             .iter()
@@ -187,7 +346,18 @@ fn compute(
     } else {
         "unknown"
     };
-    result
+    // The trend follows the same links: enabled shop, not rejected, matching and confirmed.
+    let shown = candidates
+        .iter()
+        .map(|(link, ..)| {
+            (
+                link.id,
+                link.observed_at,
+                link.fingerprint().map(str::to_string),
+            )
+        })
+        .collect();
+    (result, shown)
 }
 
 #[derive(Deserialize)]
@@ -204,5 +374,44 @@ pub(crate) async fn list(
     auth::authenticate(&state, &headers).await?;
     let (target, scope) = context(&state.pool).await?;
     let ids:Vec<String>=sqlx::query_scalar("SELECT w.id FROM wishlist_item w WHERE w.state!='owned' AND (w.state='wished' OR EXISTS(SELECT 1 FROM edition_watch e JOIN wishlist_item a ON a.id=e.wish_id WHERE e.track_id=w.id AND (?1 IS NULL OR a.id=?1) AND a.state='wished'))").bind(query.anchor).fetch_all(&state.pool).await?;
-    Ok(Json(load_many(&state.pool, &ids, &target, &scope).await?))
+    Ok(Json(load_many(&state, &ids, &target, &scope).await?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn trend_carries_each_link_forward_and_takes_the_daily_best() {
+        let start = 1_800_000_000 - 1_800_000_000 % DAY;
+        let samples = Samples::from([
+            (
+                1,
+                vec![
+                    (start - 10, Some(1000)),
+                    (start + DAY + 5, Some(900)),
+                    (start + 3 * DAY, None),
+                ],
+            ),
+            (2, vec![(start + 2 * DAY + 1, Some(950))]),
+            (3, vec![(start + 5 * DAY, Some(100))]),
+        ]);
+        let trend = trend(&[1, 2], &samples, start);
+        assert_eq!(trend.len(), 14);
+        assert_eq!(
+            trend[..5],
+            [Some(1000), Some(900), Some(900), Some(950), Some(950)]
+        );
+        assert!(trend[5..].iter().all(|cents| *cents == Some(950)));
+        assert_eq!(
+            super::trend(&[3], &samples, start)[..7],
+            [None, None, None, None, None, Some(100), Some(100)],
+            "null before the first observation"
+        );
+        assert!(
+            super::trend(&[], &samples, start)
+                .iter()
+                .all(Option::is_none)
+        );
+    }
 }
