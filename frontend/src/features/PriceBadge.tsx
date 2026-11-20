@@ -16,7 +16,7 @@ export default function PriceBadge({ badge, className = '', scopeLabel = 'Beobac
   const timestamp = badge?.observed_at ?? badge?.checked_at;
   const title = [scopeLabel, timestamp ? `Abfrage: ${dateTime(timestamp)}` : badge ? 'Noch keine Abfrage' : 'Gespeicherter Preis wird geladen', badge?.stale ? 'Letzter bekannter Preis · erneute Prüfung ausstehend' : null, badge?.pending ? 'Aktualisierung eingeplant' : null].filter(Boolean).join(' · ');
   return <span className={`price-badge ${className} ${hasPrice ? 'known' : 'unknown'} ${badge?.stale ? 'stale' : ''}`} title={title}>
-    {hasPrice ? <Price cents={badge!.cents} size="sm" tone={badge!.stale ? 'stale' : 'default'} /> : !badge ? 'Preis wird geladen …' : (badge.state === 'unknown' && badge.pending ? 'Wird gesucht …' : states[badge.state] ?? 'Preis nicht abrufbar')}
+    {hasPrice ? <Price cents={badge!.cents} tone={badge!.stale ? 'stale' : 'default'} /> : !badge ? 'Preis wird geladen …' : (badge.state === 'unknown' && badge.pending ? 'Wird gesucht …' : states[badge.state] ?? 'Preis nicht abrufbar')}
   </span>;
 }
 

@@ -1,4 +1,4 @@
-import { Button, Card, Chip, Icon, MonoLabel, Price, SegmentedControl, StatusChip } from '../components';
+import { BigPrice, Button, Icon, Label, Panel, Pill, Price, Seg } from '../components';
 import { relativeTime } from '../time';
 import { countryData } from './Country';
 import Flag from './Flag';
@@ -13,7 +13,7 @@ import { shopNames } from './shop-names';
 const time = (seconds: number) => new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' }).format(seconds * 1000);
 const basisLabel: Record<Basis, string> = { base: 'Grundpreis', estimate: 'Gesamtpreis geschätzt' };
 export function BasisSwitch({ basis, onChange }: { basis: Basis; onChange: (basis: Basis) => void }) {
-  return <SegmentedControl label="Preisgrundlage" value={basis} onChange={onChange} options={[{ value: 'base', label: 'Grundpreis' }, { value: 'estimate', label: 'Gesamtpreis geschätzt' }]} />;
+  return <Seg label="Preisgrundlage" value={basis} onChange={onChange} options={[{ value: 'base', label: 'Grundpreis' }, { value: 'estimate', label: 'Gesamtpreis geschätzt' }]} />;
 }
 const feeNote = (row: OfferRow, basis: Basis) => basis === 'estimate'
   ? `Grundpreis ${money(row.quote!.base_cents)}`
@@ -74,36 +74,36 @@ export default function PriceTab({ view, rows, summary, basis, onBasis, targetCo
     : row ? 'Kein günstigeres Angebot wird ausgeschlossen.' : '';
 
   return <div className="price-grid">
-    <Card lock className="best-card" aria-labelledby="best-title">
+    <Panel padded className="best-card" aria-labelledby="best-title">
       <div className="best-head">
-        <MonoLabel as="h3" id="best-title">Bester gültiger Preis · {code}</MonoLabel>
-        {observed !== null && <MonoLabel title={dateTime(observed)}>{time(observed)} · {relativeTime(observed)}</MonoLabel>}
+        <Label as="h3" id="best-title">Bester gültiger Preis · {code}</Label>
+        {observed !== null && <Label title={dateTime(observed)}>{time(observed)} · {relativeTime(observed)}</Label>}
       </div>
       <div className="best-body">
         <div className="best-price">
           {!view ? <p className="status-big" role="status">Preis wird geladen …</p>
-            : targetCents !== null ? <Price cents={targetCents} size="xl" />
-            : view.last_known ? <><p className="status-big">Kein aktueller Preis</p><p className="last-known"><Price cents={view.last_known.cents} size="sm" tone="stale" /><span>zuletzt bekannt am {dateTime(view.last_known.observed_at)}</span></p></>
+            : targetCents !== null ? <BigPrice cents={targetCents} />
+            : view.last_known ? <><p className="status-big">Kein aktueller Preis</p><p className="last-known"><Price cents={view.last_known.cents} tone="stale" /><span>zuletzt bekannt am {dateTime(view.last_known.observed_at)}</span></p></>
             : soldOut ? <p className="status-big">Ausverkauft</p>
             : !rows.length ? <p className="status-big">{searching ? 'Angebote werden gesucht …' : 'Noch keine Angebote'}</p>
             : <p className="status-big">Kein gültiges Angebot in {targetLabel}</p>}
           <div className="chip-row">
-            {targetCents !== null && <><StatusChip kind="best" />
-              <Chip kind="valid">in {code} aktivierbar</Chip>
-              {reached && <StatusChip kind="target" />}</>}
-            {targetCents === null && view?.last_known && <Chip kind="stale">Veraltet · {relativeTime(view.last_known.observed_at)}</Chip>}
-            {targetCents === null && view && !view.last_known && !soldOut && rows.length > 0 && <Chip kind="neutral" icon="minus">nichts in {code} gültig</Chip>}
+            {targetCents !== null && <><Pill tone="ok" icon="check">Bestpreis</Pill>
+              <Pill tone="ok" icon="check">in {code} aktivierbar</Pill>
+              {reached && <Pill tone="hot" icon="target">Ziel erreicht</Pill>}</>}
+            {targetCents === null && view?.last_known && <Pill tone="dim" icon="clock">Veraltet · {relativeTime(view.last_known.observed_at)}</Pill>}
+            {targetCents === null && view && !view.last_known && !soldOut && rows.length > 0 && <Pill tone="default" icon="minus">nichts in {code} gültig</Pill>}
           </div>
           {row && <p className="best-line">{basis === 'estimate' ? 'Gesamtpreis geschätzt bei' : 'Grundpreis bei'} <strong>{shopNames[row.link.source] ?? row.link.source}</strong> · {countryData(row.link.product?.region).name} · {feeNote(row, basis)}</p>}
-          {!row && view && !view.last_known && !rows.length && !searching && <Button variant="secondary" onClick={() => onTab('infos')}>Produktlink ergänzen</Button>}
+          {!row && view && !view.last_known && !rows.length && !searching && <Button onClick={() => onTab('infos')}>Produktlink ergänzen</Button>}
         </div>
         <div className="best-actions">
-          {row && <a className="button" href={row.link.url} target="_blank" rel="noopener noreferrer">Zum Angebot <Icon name="external" size={16} /></a>}
-          {summary.pricedCount > 0 && <button type="button" className="button ghost" onClick={() => onTab('angebote')}>{summary.pricedCount} {summary.pricedCount === 1 ? 'Angebot' : 'Angebote'} vergleichen</button>}
+          {row && <a className="btn primary" href={row.link.url} target="_blank" rel="noopener noreferrer">Zum Angebot <Icon name="ext" size={16} /></a>}
+          {summary.pricedCount > 0 && <button type="button" className="btn ghost" onClick={() => onTab('angebote')}>{summary.pricedCount} {summary.pricedCount === 1 ? 'Angebot' : 'Angebote'} vergleichen</button>}
         </div>
       </div>
       {scale && <div className="visier">
-        <div className="visier-head"><MonoLabel as="h4">Preis-Visier</MonoLabel>
+        <div className="visier-head"><Label as="h4">Preis-Visier</Label>
           {delta !== null && <span className="visier-delta">{delta >= 0 ? `${money(delta)} unter deinem Ziel` : `${money(-delta)} über deinem Ziel`}</span>}</div>
         <div className="visier-scale" role="img" aria-label={rulerText}>
           <span className="visier-axis" />
@@ -116,16 +116,16 @@ export default function PriceTab({ view, rows, summary, basis, onBasis, targetCo
           {markers.map((marker, i) => <span key={marker.key} className={`visier-label ${marker.key} lane${lanes[i]}`} style={{ left: `clamp(44px, ${scale.pos(marker.cents)}%, calc(100% - 44px))` }}>{marker.label}</span>)}
         </div>
       </div>}
-    </Card>
+    </Panel>
 
     <div className="price-side">
       <Compare view={view} summary={summary} basis={basis} onBasis={onBasis} code={code} targetLabel={targetLabel} onTab={onTab} />
-      <Card className="why-card" aria-labelledby="why-title">
+      <Panel padded className="why-card" aria-labelledby="why-title">
         <h3 id="why-title">Warum dieser Preis zählt</h3>
         {why.length > 0 && <ul className="why-list">{why.map(item => <li key={item.title}><span className={`why-mark ${item.mark}`} aria-hidden="true">{item.mark === 'ok' ? '✓' : 'i'}</span><span><strong>{item.title}</strong><small>{item.detail}</small></span></li>)}</ul>}
         {why.length === 0 && view && <p className="field-help">{rows.length ? `Kein Angebot erfüllt alle Bedingungen für ${targetLabel}: bestätigtes Produkt, Aktivierung im Zielland, aktueller Abruf, lieferbar.` : 'Sobald Angebote gefunden sind, steht hier, warum der beste Preis zählt.'}</p>}
         {summaryLine && <p className="why-summary" id="why-summary">{summaryLine}</p>}
-      </Card>
+      </Panel>
     </div>
   </div>;
 }
@@ -138,18 +138,18 @@ function Compare({ view, summary, basis, onBasis, code, targetLabel, onTab }: { 
   const worldReasons = world && !world.eligible ? reasonList(world.link, view.target_country) : [];
   const worldRegion = world?.link.product ? countryData(world.link.product.region) : null;
   const same = world && targetCents !== null && world.price === targetCents;
-  return <Card className="compare-card" aria-labelledby="compare-title">
+  return <Panel padded className="compare-card" aria-labelledby="compare-title">
     <div className="compare-head"><h3 id="compare-title">{targetLabel} und weltweit</h3><BasisSwitch basis={basis} onChange={onBasis} /></div>
     <div className="price-compare" aria-label="Preisvergleich">
-      <div className={`compare-tile target ${targetCents === null ? 'none' : ''}`}><MonoLabel>{targetCents === null && view.last_known ? `Zuletzt bekannt · ${code}` : `Bester Preis · in ${code} aktivierbar`}</MonoLabel>
-        {targetCents !== null ? <><Price cents={targetCents} size="md" /><small>{targetRow ? `${countryData(targetRow.link.product?.region).name} · ${shopNames[targetRow.link.source] ?? targetRow.link.source}` : 'Gültiges Angebot'}</small></>
-          : view.last_known ? <><Price cents={view.last_known.cents} size="md" tone="stale" /><small>Kein aktueller Preis · zuletzt am {dateTime(view.last_known.observed_at)}</small></>
+      <div className={`compare-tile target ${targetCents === null ? 'none' : ''}`}><Label>{targetCents === null && view.last_known ? `Zuletzt bekannt · ${code}` : `Bester Preis · in ${code} aktivierbar`}</Label>
+        {targetCents !== null ? <><BigPrice cents={targetCents} /><small>{targetRow ? `${countryData(targetRow.link.product?.region).name} · ${shopNames[targetRow.link.source] ?? targetRow.link.source}` : 'Gültiges Angebot'}</small></>
+          : view.last_known ? <><BigPrice cents={view.last_known.cents} /><small>Kein aktueller Preis · zuletzt am {dateTime(view.last_known.observed_at)}</small></>
           : <><span className="tile-missing">kein gültiges Angebot</span><small>in {targetLabel}</small></>}
       </div>
-      {world && <div className="compare-tile world"><MonoLabel>Günstigste Region · alle Länder</MonoLabel>
-        <Price cents={world.price} size="md" />
+      {world && <div className="compare-tile world"><Label>Günstigste Region · alle Länder</Label>
+        <BigPrice cents={world.price} />
         <small><Flag region={world.link.product?.region} /> {worldRegion?.name} · {shopNames[world.link.source] ?? world.link.source}</small>
-        {world.eligible ? <Chip kind="valid">in {code} aktivierbar</Chip> : <Chip kind="neutral" icon="cross">{worldReasons[0] ?? `nicht für ${targetLabel}`}</Chip>}
+        {world.eligible ? <Pill tone="ok" icon="check">in {code} aktivierbar</Pill> : <Pill tone="default" icon="x">{worldReasons[0] ?? `nicht für ${targetLabel}`}</Pill>}
       </div>}
     </div>
     <p className="compare-delta" aria-live="polite">{saving > 0 && world
@@ -157,5 +157,5 @@ function Compare({ view, summary, basis, onBasis, code, targetLabel, onTab }: { 
       : same || (world && targetCents !== null) ? <>Dein Angebot für {targetLabel} ist auch weltweit am günstigsten.</>
       : world && !world.eligible ? <>Für {targetLabel} gibt es derzeit kein gültiges Angebot zum Vergleich.</> : null}</p>
     {summary.pricedCount > 1 && <button type="button" className="text-button" onClick={() => onTab('angebote')}>Alle Regionen und Angebote ansehen</button>}
-  </Card>;
+  </Panel>;
 }

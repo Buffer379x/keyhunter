@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, EmptyState, MonoLabel, SegmentedControl } from '../components';
+import { EmptyState, Label, Panel, Seg } from '../components';
 import { relativeTime } from '../time';
 import { countryData } from './Country';
 import Flag from './Flag';
@@ -33,25 +33,25 @@ export default function HistoryTab({ view, targetCode, targetLabel, target }: { 
   const byTime = new Map<number, { at: number; preferred?: HistoryPoint; all?: HistoryPoint }>();
   for (const [key, rows] of [['preferred', preferredAll], ['all', allAll]] as const) for (const row of rows) { const entry = byTime.get(row.observed_at) ?? { at: row.observed_at }; entry[key] = row; byTime.set(row.observed_at, entry); }
   const measurements = [...byTime.values()].sort((a, b) => b.at - a.at);
-  if (!everything.length) return <Card><EmptyState icon="chart" title="Noch keine Preismessung vorhanden." headingLevel={3}>Sobald KeyHunter Preise abgerufen hat, entsteht hier der Verlauf.</EmptyState></Card>;
+  if (!everything.length) return <Panel padded><EmptyState icon="chart" title="Noch keine Preismessung vorhanden." headingLevel={3}>Sobald KeyHunter Preise abgerufen hat, entsteht hier der Verlauf.</EmptyState></Panel>;
   return <div className="history-tab">
-    <Card className="history-card" aria-labelledby="history-title">
+    <Panel padded className="history-card" aria-labelledby="history-title">
       <div className="history-head">
-        <MonoLabel as="h3" id="history-title">Bester gültiger Grundpreis{change !== null ? ` · ${change > 0 ? '+' : '−'}${Math.abs(change)} % seit ${firstDay}` : ''}</MonoLabel>
-        <SegmentedControl label="Zeitraum" value={String(days) as `${Range}`} onChange={value => setChosen(Number(value) as Range)} options={ranges.map(r => ({ value: String(r) as `${Range}`, label: rangeLabel[r] }))} />
+        <Label as="h3" id="history-title">Bester gültiger Grundpreis{change !== null ? ` · ${change > 0 ? '+' : '−'}${Math.abs(change)} % seit ${firstDay}` : ''}</Label>
+        <Seg label="Zeitraum" value={String(days) as `${Range}`} onChange={value => setChosen(Number(value) as Range)} options={ranges.map(r => ({ value: String(r) as `${Range}`, label: rangeLabel[r] }))} />
       </div>
       <PriceHistoryPlot series={series} target={target} days={days} now={now} />
       {everything.length === 1 && <p className="field-help">Bisher eine Messung. Weitere Abfragen ergänzen die Verlaufslinie.</p>}
-    </Card>
+    </Panel>
     <div className="history-caption">
-      {lowTarget ? <div className="stat series-preferred"><MonoLabel>Tiefstwert · in {targetCode} aktivierbar</MonoLabel><strong>{money(lowTarget.base_cents!)}</strong><small>{where(lowTarget)}</small></div>
-        : <div className="stat series-preferred"><MonoLabel>In {targetCode} aktivierbar</MonoLabel><strong>–</strong><small>Noch keine passende Messung</small></div>}
-      {lowAll && <div className="stat series-all"><MonoLabel>Tiefstwert · alle Länder</MonoLabel><strong>{money(lowAll.base_cents!)}</strong><small>{where(lowAll)}</small></div>}
-      {highTarget && preferred.length > 1 && <div className="stat"><MonoLabel>Höchstwert · {targetCode}</MonoLabel><strong>{money(highTarget.base_cents!)}</strong><small>{day(highTarget.observed_at)}</small></div>}
-      {average !== null && <div className="stat"><MonoLabel>Ø im Zeitraum · {targetCode}</MonoLabel><strong>{money(average)}</strong><small>Mittel der Messwerte</small></div>}
-      <div className="stat"><MonoLabel>Messungen</MonoLabel><strong>{measurements.length}</strong><small>seit {day(Math.min(...everything.map(row => row.observed_at)))}</small></div>
+      {lowTarget ? <div className="stat series-preferred"><Label>Tiefstwert · in {targetCode} aktivierbar</Label><strong>{money(lowTarget.base_cents!)}</strong><small>{where(lowTarget)}</small></div>
+        : <div className="stat series-preferred"><Label>In {targetCode} aktivierbar</Label><strong>–</strong><small>Noch keine passende Messung</small></div>}
+      {lowAll && <div className="stat series-all"><Label>Tiefstwert · alle Länder</Label><strong>{money(lowAll.base_cents!)}</strong><small>{where(lowAll)}</small></div>}
+      {highTarget && preferred.length > 1 && <div className="stat"><Label>Höchstwert · {targetCode}</Label><strong>{money(highTarget.base_cents!)}</strong><small>{day(highTarget.observed_at)}</small></div>}
+      {average !== null && <div className="stat"><Label>Ø im Zeitraum · {targetCode}</Label><strong>{money(average)}</strong><small>Mittel der Messwerte</small></div>}
+      <div className="stat"><Label>Messungen</Label><strong>{measurements.length}</strong><small>seit {day(Math.min(...everything.map(row => row.observed_at)))}</small></div>
     </div>
-    <Card className="history-table-card">
+    <Panel padded className="history-table-card">
       <details open>
         <summary>Messungen anzeigen</summary>
         <div className="table-scroll" tabIndex={0} role="region" aria-label="Preismessungen als Tabelle"><table className="measure-table" aria-label="Preismessungen">
@@ -63,6 +63,6 @@ export default function HistoryTab({ view, targetCode, targetLabel, target }: { 
           </tr>)}</tbody></table></div>
       </details>
       <p className="card-footnote">Messwerte gelten bis zur nächsten Abfrage, höchstens 24 Stunden. {targetLabel} ist dein Zielland.</p>
-    </Card>
+    </Panel>
   </div>;
 }

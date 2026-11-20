@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, HttpError } from '../api';
 import type { PriceBadgeData } from '../api';
-import { Button, Card, Chip, EmptyState, Icon, MonoLabel, Notice, PageHeading, Price, SegmentedControl, Switch } from '../components';
+import { Button, EmptyState, Label, Notice, PageHeading, Panel, Pill, Price, Seg, Switch } from '../components';
 import { whenVisible } from '../poll';
 import { relativeTime } from '../time';
 import { money } from './price-format';
@@ -12,7 +12,7 @@ type RuleView = Rule & { wish_id: string; title: string; delivery: string | null
 export type AlertEvent = { id: number; wish_id: string | null; state: string; observed_at: number; sent_at: number | null; cents: number | null; attempts: number };
 type Overview = { configured: boolean; rules: RuleView[]; events: AlertEvent[] };
 const deliveryNames: Record<string, string> = { pending: 'Wartet auf Zustellung', sent: 'Zugestellt', failed: 'Zustellung fehlgeschlagen', cancelled: 'Verworfen' };
-const deliveryChip = (state: string) => <Chip kind={state === 'sent' ? 'best' : state === 'failed' ? 'danger' : state === 'pending' ? 'warn' : 'neutral'} icon={state === 'sent' ? 'check' : state === 'pending' ? 'clock' : undefined}>{deliveryNames[state] ?? state}</Chip>;
+const deliveryChip = (state: string) => <Pill tone={state === 'sent' ? 'ok' : state === 'failed' ? 'danger' : state === 'pending' ? 'warn' : 'default'} icon={state === 'sent' ? 'check' : state === 'pending' ? 'clock' : state === 'failed' ? 'alert' : 'minus'}>{deliveryNames[state] ?? state}</Pill>;
 const shortDate = (seconds: number) => new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(seconds * 1000).replace(',', ' ·');
 const basisName = (basis: Rule['basis']) => basis === 'base' ? 'Grundpreis' : 'Gesamtpreis geschätzt';
 
@@ -92,7 +92,7 @@ export function AlertEditor({ id, alert, editionName, targetLabel, onSettings, o
   const toggle = (enabled: boolean) => rule && void run(() => alert.save({ ...rule, enabled }), enabled ? 'Alarm ist aktiv.' : 'Alarm ist pausiert.');
 
   return <div className="alert-layout">
-    <Card className="alert-card" aria-labelledby="alert-editor-title">
+    <Panel padded className="alert-card" aria-labelledby="alert-editor-title">
       <div className="alert-card-head">
         <h3 id="alert-editor-title">Preisalarm für {editionName}</h3>
         {rule && <Switch checked={rule.enabled} onChange={toggle} disabled={busy}>Alarm aktiv</Switch>}
@@ -101,12 +101,12 @@ export function AlertEditor({ id, alert, editionName, targetLabel, onSettings, o
       {alert.error && <Notice error>{alert.error}</Notice>}
       {error && <Notice error>{error}</Notice>}{message && <Notice>{message}</Notice>}
       {ready ? <form className="alert-form" onSubmit={submit}>
-        <div className="field"><span className="field-label" id="alert-mode-label">Auslösen, wenn</span>
-          <SegmentedControl label="Auslöser" className="wide" value={mode} onChange={setMode} options={[{ value: 'target', label: 'Zielpreis erreicht' }, { value: 'low', label: 'Neuer Tiefstpreis' }]} /></div>
+        <div className="form-row"><span className="field-label" id="alert-mode-label">Auslösen, wenn</span>
+          <Seg label="Auslöser" className="wide" value={mode} onChange={setMode} options={[{ value: 'target', label: 'Zielpreis erreicht' }, { value: 'low', label: 'Neuer Tiefstpreis' }]} /></div>
         <div className="alert-row">
-          {mode === 'target' && <div className="field"><label htmlFor="alert-price">Zielpreis</label><span className="euro-input"><input id="alert-price" inputMode="decimal" maxLength={10} value={target} onChange={e => setTarget(e.target.value)} required aria-describedby="alert-price-unit" /><span id="alert-price-unit" aria-label="Euro">€</span></span></div>}
-          <div className="field"><span className="field-label">Preisgrundlage</span>
-            <SegmentedControl label="Preisgrundlage" className="wide" value={basis} onChange={setBasis} options={[{ value: 'base', label: 'Grundpreis' }, { value: 'estimate', label: 'Gesamtpreis geschätzt' }]} /></div>
+          {mode === 'target' && <div className="form-row"><label htmlFor="alert-price">Zielpreis</label><span className="euro-input"><input id="alert-price" inputMode="decimal" maxLength={10} value={target} onChange={e => setTarget(e.target.value)} required aria-describedby="alert-price-unit" /><span id="alert-price-unit" aria-label="Euro">€</span></span></div>}
+          <div className="form-row"><span className="field-label">Preisgrundlage</span>
+            <Seg label="Preisgrundlage" className="wide" value={basis} onChange={setBasis} options={[{ value: 'base', label: 'Grundpreis' }, { value: 'estimate', label: 'Gesamtpreis geschätzt' }]} /></div>
         </div>
         <div className="channel-note"><span className={`channel-dot ${configured ? 'on' : 'off'}`} aria-hidden="true" />
           <span>{configured ? 'Benachrichtigung über ntfy · eingerichtet' : 'ntfy ist noch nicht eingerichtet. Du kannst die Regel trotzdem speichern.'}</span>
@@ -116,16 +116,16 @@ export function AlertEditor({ id, alert, editionName, targetLabel, onSettings, o
           {rule && <Button variant="danger" disabled={busy} onClick={() => void run(alert.remove, 'Alarmregel entfernt.')}>Alarm entfernen</Button>}
         </div>
       </form> : !alert.error && <p role="status">Alarmregel wird geladen …</p>}
-    </Card>
-    <Card className="alert-card" aria-labelledby="alert-events-title">
+    </Panel>
+    <Panel padded className="alert-card" aria-labelledby="alert-events-title">
       <h3 id="alert-events-title">Auslösungen</h3>
       {events === null ? <p role="status">Wird geladen …</p> : events.length === 0 ? <p className="field-help">Dieser Alarm hat noch nicht ausgelöst.</p> :
         <ul className="event-list">{events.map(event => <li key={event.id}>
-          <span><MonoLabel>{shortDate(event.sent_at ?? event.observed_at)}</MonoLabel><strong>{event.cents !== null ? money(event.cents) : 'Preis unbekannt'}</strong></span>
+          <span><Label>{shortDate(event.sent_at ?? event.observed_at)}</Label><strong>{event.cents !== null ? money(event.cents) : 'Preis unbekannt'}</strong></span>
           {deliveryChip(event.state)}
         </li>)}</ul>}
       <p className="field-help">Höchstens eine Nachricht je Spiel und 24 Stunden.</p>
-    </Card>
+    </Panel>
   </div>;
 }
 
@@ -165,15 +165,15 @@ export default function PriceAlerts({ csrf, onError }: { csrf: string; onError: 
   const lastEvent = (wishId: string) => data?.events.find(event => event.wish_id === wishId);
   return <section className="alerts-page">
     <PageHeading title="Preisalarme" />
-    {loadError && <Notice error>{loadError} <Button secondary onClick={() => setReload(n => n + 1)}>Erneut laden</Button></Notice>}
-    <Card className="alert-card channel-card" aria-labelledby="channel-title">
+    {loadError && <Notice error>{loadError} <Button onClick={() => setReload(n => n + 1)}>Erneut laden</Button></Notice>}
+    <Panel padded className="alert-card channel-card" aria-labelledby="channel-title">
       <div>
         <h2 id="channel-title">ntfy</h2>
         <p className="channel-state"><span className={`channel-dot ${data?.configured ? 'on' : 'off'}`} aria-hidden="true" />{data?.configured ? 'Kanal eingerichtet' : data ? 'Kanal noch nicht eingerichtet' : 'Kanalstatus wird geladen …'}</p>
       </div>
-      <Button secondary disabled={!data?.configured || busy} onClick={() => void testChannel()}>Testnachricht senden</Button>
+      <Button disabled={!data?.configured || busy} onClick={() => void testChannel()}>Testnachricht senden</Button>
       {message && <Notice>{message}</Notice>}
-    </Card>
+    </Panel>
     <h2 id="rules-title" className="alerts-heading">Alarmregeln</h2>
     {data && data.rules.length === 0 && <EmptyState icon="bell" title="Noch kein Alarm">Lege im Detail eines Wunschspiels einen Alarm an. Er meldet sich, wenn ein Preis dein Ziel erreicht.</EmptyState>}
     <ul className="rule-list" aria-labelledby="rules-title">{data?.rules.map(rule => {
@@ -182,29 +182,29 @@ export default function PriceAlerts({ csrf, onError }: { csrf: string; onError: 
       const target = ruleTarget(rule);
       const reached = rule.enabled && target !== null && current !== null && current <= target;
       const event = lastEvent(rule.wish_id);
-      return <li key={rule.wish_id}><Card as="div" className="rule-card">
+      return <li key={rule.wish_id}><Panel padded as="div" className="rule-card">
         <div className="rule-main">
           <a className="rule-title" href={`?item=${encodeURIComponent(rule.wish_id)}&tab=alarm`}>{rule.title}</a>
           <span className="rule-meta">{rule.enabled ? 'Aktiv' : 'Pausiert'} · {target !== null ? `Ziel ${money(target)}` : 'Neuer Tiefstpreis'} · {basisName(rule.basis)}</span>
-          <span className="rule-chips">{reached && <Chip kind="target">Ziel erreicht</Chip>}{!rule.enabled && <Chip kind="neutral" icon="clock">Pausiert</Chip>}{badge?.stale && <Chip kind="stale">Veraltet</Chip>}</span>
+          <span className="rule-chips">{reached && <Pill tone="hot" icon="target">Ziel erreicht</Pill>}{!rule.enabled && <Pill tone="default" icon="clock">Pausiert</Pill>}{badge?.stale && <Pill tone="dim" icon="clock">Veraltet</Pill>}</span>
         </div>
         <div className="rule-price">
-          <span className="rule-price-label"><MonoLabel>Aktuell</MonoLabel></span>
-          <Price cents={current} size="sm" tone={badge?.stale ? 'stale' : 'default'} missing={badge ? 'kein aktueller Preis' : 'wird geladen …'} />
+          <span className="rule-price-label"><Label>Aktuell</Label></span>
+          <Price cents={current} tone={badge?.stale ? 'stale' : 'default'} missing={badge ? 'kein aktueller Preis' : 'wird geladen …'} />
           {target !== null && current !== null && <span className={`rule-delta ${reached ? 'reached' : ''}`}>{current <= target ? `${money(target - current)} unter Ziel` : `${money(current - target)} über Ziel`}</span>}
         </div>
         <div className="rule-delivery">
-          <span className="rule-price-label"><MonoLabel>Letzte Auslösung</MonoLabel></span>
+          <span className="rule-price-label"><Label>Letzte Auslösung</Label></span>
           {event ? <><span>{shortDate(event.sent_at ?? event.observed_at)} · {event.cents !== null ? money(event.cents) : ''}</span>{deliveryChip(event.state)}</> : <span className="field-help">noch keine</span>}
           {!event && rule.delivery && deliveryChip(rule.delivery)}
         </div>
-      </Card></li>;
+      </Panel></li>;
     })}</ul>
     <h2 id="deliveries-title" className="alerts-heading">Letzte Zustellungen</h2>
     {data && data.events.length === 0 && <p className="field-help">Es liegt noch kein Zustellversuch vor.</p>}
     <ul className="event-list wide" aria-labelledby="deliveries-title">{data?.events.map(event => <li key={event.id}>
       <span><strong>{event.wish_id ? data.rules.find(rule => rule.wish_id === event.wish_id)?.title ?? 'Ehemaliger Wunschlisteneintrag' : 'Testnachricht'}</strong>
-        <MonoLabel title={new Date((event.sent_at ?? event.observed_at) * 1000).toLocaleString('de-DE')}>{relativeTime(event.sent_at ?? event.observed_at)}{event.attempts > 0 && ` · ${event.attempts} Versuch(e)`}</MonoLabel></span>
+        <Label title={new Date((event.sent_at ?? event.observed_at) * 1000).toLocaleString('de-DE')}>{relativeTime(event.sent_at ?? event.observed_at)}{event.attempts > 0 && ` · ${event.attempts} Versuch(e)`}</Label></span>
       {deliveryChip(event.state)}
     </li>)}</ul>
   </section>;

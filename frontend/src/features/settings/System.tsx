@@ -7,7 +7,7 @@ export default function System({ onLogout, busy }: { onLogout: () => void; busy:
     <SectionCard title="Sicherheit" titleId="security-title">
       <div className="set-row-inline">
         <p className="set-hint">Abmelden beendet die Sitzung in diesem Browser.</p>
-        <Button variant="secondary" loading={busy} onClick={onLogout}><Icon name="logout" size={16} />Abmelden</Button>
+        <Button loading={busy} onClick={onLogout}><Icon name="logout" size={16} />Abmelden</Button>
       </div>
     </SectionCard>
     <SectionCard title="Daten und Backup" titleId="backup-title">

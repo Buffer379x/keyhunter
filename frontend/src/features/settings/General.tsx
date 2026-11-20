@@ -33,7 +33,7 @@ export default function General({ settings, countries, edit, onError }: {
   ];
   return <>
     <SectionCard title="Zielland" sub="Ein Angebot zählt nur, wenn der Shop die Aktivierung in diesem Land bestätigt.">
-      <div className="field set-narrow">
+      <div className="form-row set-narrow">
         <label htmlFor="target-country">Zielland</label>
         <select id="target-country" value={target ?? ''} onChange={event => edit(current => ({ ...current, target_country: event.target.value || null }))}>
           <option value="">Bitte wählen</option>
@@ -58,7 +58,7 @@ export default function General({ settings, countries, edit, onError }: {
     </SectionCard>
 
     <RowCard title="Wunschliste exportieren" sub="Titel, Plattform, IGDB-ID, Art und Prüfstatus als JSON">
-      <Button variant="secondary" loading={exporting} onClick={() => void exportList()}><Icon name="download" size={16} />Exportieren</Button>
+      <Button loading={exporting} onClick={() => void exportList()}><Icon name="download" size={16} />Exportieren</Button>
     </RowCard>
     {exportError && <Notice error>{exportError}</Notice>}
   </>;

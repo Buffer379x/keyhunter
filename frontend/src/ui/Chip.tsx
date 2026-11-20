@@ -1,20 +1,27 @@
-import type { ReactNode } from 'react';
+import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { Icon } from './Icon';
+import type { IconName } from './Icon';
 
-export type ChipKind = 'best' | 'valid' | 'target' | 'warn' | 'stale' | 'neutral' | 'danger';
-const icons: Record<ChipKind, string> = { best: 'check', valid: 'check', target: 'target', warn: 'alert', stale: 'clock', neutral: 'minus', danger: 'cross' };
-const defaults: Partial<Record<ChipKind, string>> = { best: 'Bestpreis', valid: 'Gültig', target: 'Ziel erreicht', warn: 'Prüfen', stale: 'Veraltet', danger: 'Fehler' };
-
-/**
- * Chip with an icon and a text, never colour alone (price status vocabulary, spec section 6).
- * kind: best (teal, best valid offer), valid (teal outline, "in DE aktivierbar"), target (orange, "Ziel erreicht"),
- * warn (amber, "Zuordnung prüfen"), stale (grey, "Veraltet · vor 2 T"), neutral (grey outline, "Nicht in DE"),
- * danger (red, "Abruf fehlgeschlagen"). `icon` overrides the icon of the kind.
- */
-export function Chip({ kind = 'neutral', icon, children }: { kind?: ChipKind; icon?: string; children: ReactNode }) {
-  return <span className={`ui-chip ${kind}`}><Icon name={icon ?? icons[kind]} size={13} />{children}</span>;
+/** Filter chip (`.chip`): a toggle button with aria-pressed and an optional mono count ("Alle 12"). */
+export function Chip({ pressed, count, className = '', children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & {
+  pressed: boolean; count?: number | null; children: ReactNode;
+}) {
+  return <button type="button" className={`chip ${className}`.trim()} aria-pressed={pressed} {...props}>
+    {children}{count !== undefined && count !== null && <span className="mono">{count}</span>}
+  </button>;
 }
-/** Chip whose text defaults to the standard label of its kind (not for neutral: give it a text). */
-export function StatusChip({ kind, children }: { kind: ChipKind; children?: ReactNode }) {
-  return <Chip kind={kind}>{children ?? defaults[kind] ?? ''}</Chip>;
+
+export type PillTone = 'default' | 'ok' | 'warn' | 'hot' | 'dim' | 'danger';
+/**
+ * Status pill (`.pill`, 22 px): icon plus text, never colour alone.
+ * tone: ok (green, "in DE aktivierbar", "Ziel erreicht" as a state), warn (amber, unclear), hot (orange, your target),
+ * dim (grey, inactive or waiting), danger (red, failed), default (neutral outline).
+ */
+export function Pill({ tone = 'default', icon, className = '', children }: { tone?: PillTone; icon?: IconName; className?: string; children: ReactNode }) {
+  return <span className={`pill${tone === 'default' ? '' : ` ${tone}`} ${className}`.trim()}>{icon && <Icon name={icon} size={12} />}{children}</span>;
+}
+
+/** Region code badge (`.reg`): "DE", "IN", "GL". `home` marks the target country (orange). Replaces flag images. */
+export function Reg({ code, home = false, title }: { code: string; home?: boolean; title?: string }) {
+  return <span className={home ? 'reg home' : 'reg'} title={title}>{code.toUpperCase()}</span>;
 }

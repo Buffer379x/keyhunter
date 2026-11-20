@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Card } from '../../ui';
+import { Panel } from '../../ui';
 import { shopTitle } from './format';
 import type { Tone } from './format';
 
@@ -7,21 +7,21 @@ import type { Tone } from './format';
 export function SectionCard({ title, titleId, sub, aside, children, className = '', ...rest }: {
   title: string; titleId?: string; sub?: ReactNode; aside?: ReactNode; children?: ReactNode; className?: string; 'aria-label'?: string; 'data-testid'?: string;
 }) {
-  return <Card className={`set-card ${className}`.trim()} aria-labelledby={titleId} {...rest}>
+  return <Panel padded className={`set-card ${className}`.trim()} aria-labelledby={titleId} {...rest}>
     <header className="set-card-head">
       <div><h2 id={titleId}>{title}</h2>{sub && <p>{sub}</p>}</div>
       {aside}
     </header>
     {children}
-  </Card>;
+  </Panel>;
 }
 
 /** Row card: text on the left, action or status on the right (export, "Weiteren Shop hinzufügen", Editionsinhalte). */
 export function RowCard({ title, sub, children, headingId }: { title: string; sub?: ReactNode; children?: ReactNode; headingId?: string }) {
-  return <Card className="set-row-card">
+  return <Panel padded className="set-row-card">
     <div><h2 id={headingId}>{title}</h2>{sub && <p>{sub}</p>}</div>
     {children}
-  </Card>;
+  </Panel>;
 }
 
 /** Status dot. Always sits next to a text. */
@@ -40,5 +40,5 @@ export function UsageBar({ used, limit, label }: { used: number; limit: number; 
 
 /** Definition list of label and value pairs. */
 export function Facts({ items }: { items: { label: string; value: ReactNode }[] }) {
-  return <dl className="set-facts">{items.map(item => <div key={item.label}><dt className="ui-mono">{item.label}</dt><dd>{item.value}</dd></div>)}</dl>;
+  return <dl className="set-facts">{items.map(item => <div key={item.label}><dt className="label">{item.label}</dt><dd>{item.value}</dd></div>)}</dl>;
 }

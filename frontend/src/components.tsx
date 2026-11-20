@@ -1,14 +1,12 @@
 import { useEffect, useId, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { Button, Icon } from './ui';
+import { Button } from './ui';
 
-export { Icon, Button, IconButton, Chip, StatusChip, Price, formatPrice, Tabs, TabPanel, SegmentedControl, Card, MonoLabel, EmptyState, TargetLock, Switch } from './ui';
+export * from './ui';
 export { KeyMark, Brand } from './brand';
-export function PageHeading({ title }: { title: string }) {
-  return <header className="page-heading"><h1>{title}</h1></header>;
-}
-export function CardHeading({ icon, title, id, children }: { icon: string; title: string; id?: string; children?: ReactNode }) {
-  return <div className="card-heading"><Icon name={icon} /><h3 id={id}>{title}</h3>{children}</div>;
+/** Page header (`.page-head`): the h1, an optional sub line and actions on the right (they wrap below on narrow screens). */
+export function PageHeading({ title, sub, actions, id }: { title: string; sub?: ReactNode; actions?: ReactNode; id?: string }) {
+  return <header className="page-head"><div><h1 id={id}>{title}</h1>{sub && <p>{sub}</p>}</div>{actions && <div className="head-actions">{actions}</div>}</header>;
 }
 export function Notice({ error = false, children }: { error?: boolean; children: ReactNode }) {
   return <div className={`notice ${error ? 'error' : ''}`} role={error ? 'alert' : 'status'}>{children}</div>;
@@ -22,7 +20,7 @@ export function InfoDialog({ open, onClose }: { open: boolean; onClose: () => vo
     <p>Ein niedriger Shoppreis enthält möglicherweise noch nicht alle Kosten. Ohne belegte Gebühren bleibt der Gesamtpreis unbekannt.</p>
     <p>Du kannst pro Shop einen prozentualen Aufschlag einstellen. Daraus berechnete Preise werden als <strong>geschätzt</strong> gekennzeichnet. Der tatsächliche Kaufpreis kann abweichen.</p>
     <p>Ein Schätzwert ersetzt weder die Aktivierungsprüfung noch die Angaben des Shops.</p>
-    <Button onClick={onClose}>Verstanden</Button>
+    <div className="dialog-actions"><Button variant="primary" onClick={onClose}>Verstanden</Button></div>
   </dialog>;
 }
 
@@ -31,6 +29,6 @@ export function ConfirmDialog({open,title,confirmLabel,cancelLabel='Abbrechen',b
   const titleId=useId();
   useEffect(()=>{if(open&&!dialog.current?.open)dialog.current?.showModal();else if(!open)dialog.current?.close();},[open]);
   return <dialog ref={dialog} aria-labelledby={titleId} onKeyDown={event=>{if(event.key==='Escape')event.stopPropagation();}} onCancel={event=>{event.preventDefault();event.stopPropagation();if(!busy)onCancel();}}>
-    <h2 id={titleId}>{title}</h2>{children}<div className="dialog-actions"><Button secondary disabled={busy} onClick={onCancel}>{cancelLabel}</Button><Button variant={danger?'danger':'primary'} disabled={busy} onClick={onConfirm}>{busy?'Wird gespeichert …':confirmLabel}</Button></div>
+    <h2 id={titleId}>{title}</h2>{children}<div className="dialog-actions"><Button disabled={busy} onClick={onCancel}>{cancelLabel}</Button><Button variant={danger?'danger':'primary'} disabled={busy} onClick={onConfirm}>{busy?'Wird gespeichert …':confirmLabel}</Button></div>
   </dialog>;
 }

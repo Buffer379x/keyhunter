@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import type { LibraryItem, WishlistItem } from '../api';
-import { Button, ConfirmDialog, EmptyState, Icon, IconButton, Notice, SegmentedControl } from '../components';
+import { Button, ConfirmDialog, EmptyState, Icon, IconButton, Notice, Seg } from '../components';
 import { Cover, itemName, platformName } from './catalog-ui';
 import { libraryItems } from './library-sort';
 import '../styles/library.css';
@@ -73,27 +73,27 @@ export default function Library({ csrf, onRestored, onOpenWishlist, onCountChang
         <p>{loading ? 'Wird geladen …' : items.length === 0 ? 'Noch keine Spiele' : visible.length === items.length ? `${games(items.length)} als gekauft markiert` : `${visible.length} von ${games(items.length)}`}</p>
       </div>
       {items.length > 0 && <div className="lib-controls">
-        <div className="field">
+        <div className="form-row">
           <label htmlFor="library-system">System</label>
           <select id="library-system" aria-label="Bibliothek nach System filtern" value={activeSystem} onChange={event => filter(event.target.value)}>
             <option value="all">Alle Systeme</option>
             {systems.map(id => <option key={id} value={id}>{platformName(id)}</option>)}
           </select>
         </div>
-        <div className="field">
+        <div className="form-row">
           <span className="lib-label" id="library-sort-label">Sortieren</span>
-          <SegmentedControl label="Bibliothek sortieren" value={sort} onChange={order}
+          <Seg label="Bibliothek sortieren" value={sort} onChange={order}
             options={[{ value: 'added', label: 'Zuletzt gekauft' }, { value: 'name', label: 'A–Z' }]} />
         </div>
       </div>}
     </header>
-    {loadError && <Notice error>{loadError}<Button variant="secondary" size="sm" onClick={() => setReload(n => n + 1)}>Erneut laden</Button></Notice>}
+    {loadError && <Notice error>{loadError}<Button size="sm" onClick={() => setReload(n => n + 1)}>Erneut laden</Button></Notice>}
     {loading && <>
       <p className="sr-only" role="status">Bibliothek wird geladen …</p>
       <ul className="lib-grid lib-skeleton" aria-hidden="true">{[0, 1, 2, 3, 4, 5].map(n => <li key={n}><span className="lib-ghost cover" /><span className="lib-ghost line" /><span className="lib-ghost line short" /></li>)}</ul>
     </>}
     {empty && <div className="lib-empty"><EmptyState icon="library" title="Noch keine Spiele in der Bibliothek"
-      action={<Button variant="secondary" onClick={onOpenWishlist}>Zur Wunschliste</Button>}>
+      action={<Button onClick={onOpenWishlist}>Zur Wunschliste</Button>}>
       Spiele, die du auf der Wunschliste als gekauft markierst, erscheinen hier. Ihr Preisverlauf bleibt erhalten.</EmptyState></div>}
     {!loading && items.length > 0 && <ul className="lib-grid" aria-label="Meine Spiele">
       {visible.map(item => {
@@ -104,11 +104,11 @@ export default function Library({ csrf, onRestored, onOpenWishlist, onCountChang
           <div className="lib-info">
             <strong className="lib-title">{name}</strong>
             <span className="lib-meta">{platformName(item.platform_id)}{edition ? ` · ${edition}` : ''}</span>
-            {item.acquired_at > 0 && <span className="lib-date ui-mono">Gekauft {boughtOn(item.acquired_at)}</span>}
+            {item.acquired_at > 0 && <span className="lib-date label">Gekauft {boughtOn(item.acquired_at)}</span>}
           </div>
           <div className="lib-actions">
-            <Button variant="secondary" size="sm" aria-label={`${name} zurück in die Wunschliste`} onClick={() => ask('restore', item)}>In Wunschliste</Button>
-            <IconButton variant="ghost" label={`${name} aus der Bibliothek entfernen`} onClick={() => ask('remove', item)}><Icon name="close" size={16} /></IconButton>
+            <Button size="sm" aria-label={`${name} zurück in die Wunschliste`} onClick={() => ask('restore', item)}>In Wunschliste</Button>
+            <IconButton variant="ghost" label={`${name} aus der Bibliothek entfernen`} onClick={() => ask('remove', item)}><Icon name="x" size={16} /></IconButton>
           </div>
         </li>;
       })}

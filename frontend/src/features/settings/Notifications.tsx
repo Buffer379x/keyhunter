@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../../api';
 import type { AlertOverview } from '../../api';
-import { Button, Chip, Notice } from '../../components';
+import { Button, Notice, Pill } from '../../components';
 import { relativeTime } from '../../time';
 import { SectionCard } from './parts';
 import { deliveryNames, lastTest } from './format';
@@ -20,7 +20,7 @@ export default function Notifications({ overview, failed, csrf, reload, onError 
   }
   const last = overview ? lastTest(overview.events) : null;
   const aside = overview
-    ? <Chip kind={overview.configured ? 'best' : 'neutral'} icon={overview.configured ? 'check' : 'minus'}>{overview.configured ? 'Eingerichtet' : 'Nicht eingerichtet'}</Chip>
+    ? <Pill tone={overview.configured ? 'ok' : 'default'} icon={overview.configured ? 'check' : 'minus'}>{overview.configured ? 'Eingerichtet' : 'Nicht eingerichtet'}</Pill>
     : <span className="set-muted">{failed ? 'Status nicht lesbar' : 'Status wird geladen …'}</span>;
   return <SectionCard title="ntfy" titleId="ntfy-title" sub="Push-Nachrichten für Preisalarme" aside={aside}>
     <p className="set-hint">
@@ -31,8 +31,8 @@ export default function Notifications({ overview, failed, csrf, reload, onError 
     {error && <Notice error>{error}</Notice>}
     {message && <Notice>{message}</Notice>}
     <div className="set-actions">
-      <Button variant="secondary" disabled={!overview?.configured} loading={busy} onClick={() => void test()}>Testnachricht senden</Button>
-      {last && <span className="ui-mono set-last">Letzter Test {relativeTime(last.sent_at ?? last.observed_at)} · {deliveryNames[last.state] ?? last.state}</span>}
+      <Button disabled={!overview?.configured} loading={busy} onClick={() => void test()}>Testnachricht senden</Button>
+      {last && <span className="label set-last">Letzter Test {relativeTime(last.sent_at ?? last.observed_at)} · {deliveryNames[last.state] ?? last.state}</span>}
     </div>
     <p className="set-hint">Höchstens eine Nachricht je Spiel und 24 Stunden. Der Preis wird vor dem Versand erneut geprüft. Alarmregeln legst du im Detail eines Spiels an, die Übersicht findest du unter Alarme.</p>
   </SectionCard>;

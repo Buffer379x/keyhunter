@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Card, Chip, EmptyState, Icon, IconButton, MonoLabel, Price, Switch } from '../components';
+import { Button, EmptyState, Icon, IconButton, Label, Panel, Pill, Price, Switch } from '../components';
 import { relativeTime } from '../time';
 import { countryData } from './Country';
 import Flag from './Flag';
@@ -22,12 +22,12 @@ type Props = {
 
 /** Validity of an offer in the target country as visible text with icon: valid, or the reasons why not. */
 function Validity({ row, code, best, view }: { row: OfferRow; code: string; best: boolean; view: OffersView }) {
-  if (row.status === 'review') return <Chip kind="warn">Zuordnung prüfen</Chip>;
-  if (row.status === 'sold_out') return <Chip kind="neutral" icon="cross">Ausverkauft</Chip>;
-  if (row.link.last_error && !row.quote) return <Chip kind="danger">Abruffehler</Chip>;
-  if (row.eligible) return <span className="validity"><Chip kind="valid">in {code} aktivierbar</Chip>{best && <Chip kind="best">Bestpreis</Chip>}</span>;
+  if (row.status === 'review') return <Pill tone="warn" icon="alert">Zuordnung prüfen</Pill>;
+  if (row.status === 'sold_out') return <Pill tone="default" icon="x">Ausverkauft</Pill>;
+  if (row.link.last_error && !row.quote) return <Pill tone="danger" icon="alert">Abruffehler</Pill>;
+  if (row.eligible) return <span className="validity"><Pill tone="ok" icon="check">in {code} aktivierbar</Pill>{best && <Pill tone="ok" icon="check">Bestpreis</Pill>}</span>;
   const reasons = reasonList(row.link, view.target_country);
-  return <span className="validity"><Chip kind="neutral" icon="cross">{reasons[0] ?? `nicht in ${code}`}</Chip>{reasons.length > 1 && <small>{reasons.slice(1).join(' · ')}</small>}</span>;
+  return <span className="validity"><Pill tone="default" icon="x">{reasons[0] ?? `nicht in ${code}`}</Pill>{reasons.length > 1 && <small>{reasons.slice(1).join(' · ')}</small>}</span>;
 }
 const missingText = (row: OfferRow) => row.status === 'sold_out' ? 'ausverkauft' : row.status === 'review' ? 'Zuordnung prüfen' : row.status === 'fees_unknown' ? 'Gebühren unbekannt' : 'kein Preis';
 function Age({ row }: { row: OfferRow }) {
@@ -50,9 +50,9 @@ export default function OffersTab({ state, rows, summary, basis, onBasis, target
   const pending = view.links.filter(link => link.review !== 'rejected' && link.enabled && !link.product).length;
   const refresh = <IconButton label="Preise prüfen" disabled={busy || searching} onClick={() => void write('/refresh', 'POST', undefined, 'Angebotssuche angefragt.')}><Icon name="refresh" size={16} /></IconButton>;
   const sortKey = basis === 'estimate' ? 'estimate' : 'base';
-  return <Card className="offers-card" aria-labelledby="offers-title">
+  return <Panel padded className="offers-card" aria-labelledby="offers-title">
     <div className="offers-head">
-      <MonoLabel as="h3" id="offers-title">{summary.validCount} von {summary.pricedCount} in {code} aktivierbar · {editionName}</MonoLabel>
+      <Label as="h3" id="offers-title">{summary.validCount} von {summary.pricedCount} in {code} aktivierbar · {editionName}</Label>
       <div className="offers-controls">
         <Switch checked={onlyValid} onChange={setOnlyValid}>Nur in {code} aktivierbar</Switch>
         <BasisSwitch basis={basis} onChange={onBasis} />
@@ -60,7 +60,7 @@ export default function OffersTab({ state, rows, summary, basis, onBasis, target
       </div>
     </div>
     {rows.length === 0 && <EmptyState icon="search" title={searching ? 'KeyHunter sucht Angebote' : 'Noch keine regionalen Preise'} headingLevel={3}
-      action={!searching && <Button secondary disabled={busy} onClick={() => void write('/refresh', 'POST', undefined)}>Angebote automatisch suchen</Button>}>
+      action={!searching && <Button disabled={busy} onClick={() => void write('/refresh', 'POST', undefined)}>Angebote automatisch suchen</Button>}>
       {searching ? 'Die Suche nach regionalen Produkten für diese Edition läuft.' : 'Für diese Edition wurden noch keine Angebote gefunden.'}</EmptyState>}
     {shown.length > 0 && (wide
       ? <div className="offer-scroll" tabIndex={0} role="region" aria-label="Angebotstabelle"><table className="offer-table" aria-label="Angebote nach Preis">
@@ -75,10 +75,10 @@ export default function OffersTab({ state, rows, summary, basis, onBasis, target
             <td><span className="shop-cell">{shopMark(row.link.source)}<strong>{shopNames[row.link.source] ?? row.link.source}</strong></span></td>
             <td><span className="region-cell"><span className="region-name"><Flag region={region.name} />{region.name}</span><Validity row={row} code={code} best={best} view={view} /></span></td>
             <td className="seller" title={row.quote && !row.quote.seller ? 'Verkäufer nicht angegeben' : undefined}>{row.quote?.seller ?? '–'}</td>
-            <td className="num">{row.quote ? <Price cents={row.quote.base_cents} size="sm" /> : <span className="missing">{missingText(row)}</span>}</td>
-            <td className="num muted">{row.quote ? row.quote.estimated_total_cents !== null ? <Price cents={row.quote.estimated_total_cents} size="sm" tone="stale" /> : 'Gebühren unbekannt' : '–'}</td>
+            <td className="num">{row.quote ? <Price cents={row.quote.base_cents} /> : <span className="missing">{missingText(row)}</span>}</td>
+            <td className="num muted">{row.quote ? row.quote.estimated_total_cents !== null ? <Price cents={row.quote.estimated_total_cents} tone="stale" /> : 'Gebühren unbekannt' : '–'}</td>
             <td><Age row={row} /></td>
-            <td className="link-cell"><a className="icon-action open-offer" aria-label={`Angebot bei ${shopNames[row.link.source] ?? row.link.source} · ${region.name} öffnen`} href={row.link.url} target="_blank" rel="noopener noreferrer"><Icon name="external" size={16} /></a></td>
+            <td className="link-cell"><a className="icon-btn open-offer" aria-label={`Angebot bei ${shopNames[row.link.source] ?? row.link.source} · ${region.name} öffnen`} href={row.link.url} target="_blank" rel="noopener noreferrer"><Icon name="ext" size={16} /></a></td>
           </tr>;
         })}</tbody></table></div>
       : <ul className="offer-cards" aria-label="Angebote nach Preis">{shown.map(row => {
@@ -90,9 +90,9 @@ export default function OffersTab({ state, rows, summary, basis, onBasis, target
           <div className="offer-card-main"><strong>{shopNames[row.link.source] ?? row.link.source} · <span className="region-name"><Flag region={region.name} />{region.name}</span></strong>
             <Validity row={row} code={code} best={best} view={view} />
             <small>{row.quote?.seller ? `${row.quote.seller} · ` : ''}<Age row={row} /></small></div>
-          <div className="offer-card-price">{price !== null ? <Price cents={price} size="sm" /> : <span className="missing">{missingText(row)}</span>}
+          <div className="offer-card-price">{price !== null ? <Price cents={price} /> : <span className="missing">{missingText(row)}</span>}
             {row.quote && price !== null && basis === 'base' && row.quote.estimated_total_cents !== null && <small>{money(row.quote.estimated_total_cents)} geschätzt</small>}
-            <a className="icon-action open-offer" aria-label={`Angebot bei ${shopNames[row.link.source] ?? row.link.source} · ${region.name} öffnen`} href={row.link.url} target="_blank" rel="noopener noreferrer"><Icon name="external" size={16} /></a></div>
+            <a className="icon-btn open-offer" aria-label={`Angebot bei ${shopNames[row.link.source] ?? row.link.source} · ${region.name} öffnen`} href={row.link.url} target="_blank" rel="noopener noreferrer"><Icon name="ext" size={16} /></a></div>
         </li>;
       })}</ul>)}
     {onlyValid && hidden > 0 && <button type="button" className="hidden-strip" onClick={() => setOnlyValid(false)}>
@@ -104,6 +104,6 @@ export default function OffersTab({ state, rows, summary, basis, onBasis, target
     </div>
     {view.searches.map(search => <div className="source-state" key={search.source}><span className={`status-dot ${['queued', 'searching'].includes(search.status) ? 'searching' : ''}`} aria-hidden="true" /><strong>{shopNames[search.source] ?? search.source}</strong><span>{searchNames[search.status] ?? search.status}</span>{search.last_error && <span>{sourceErrors[search.last_error] ?? 'Quelle vorübergehend nicht erreichbar'}</span>}</div>)}
     {view.sources?.filter(source => !source.status.enabled || source.status.last_error).map(source => <div className="source-state" key={source.source}><strong>{shopNames[source.source] ?? source.source}</strong><span>{!source.status.enabled ? 'Deaktiviert' : sourceErrors[source.status.last_error ?? ''] ?? 'Quelle pausiert'}</span></div>)}
-  </Card>;
+  </Panel>;
 }
 

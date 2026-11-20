@@ -1,5 +1,5 @@
 import type { PriceBadgeData, WishlistItem } from '../api';
-import { Chip, StatusChip } from '../components';
+import { Pill } from '../components';
 import { relativeTime } from '../time';
 import { itemName, kindName, platformName } from './catalog-ui';
 import GameCover from './GameCover';
@@ -18,9 +18,9 @@ export default function WishlistRow({ item, badge, selected, reached, scopeLabel
       <strong>{itemName(item)}</strong>
       <span className="entry-sub">{kind} · {platformName(item.platform_id)}</span>
       <span className="entry-chips">
-        {reached && <StatusChip kind="target" />}
-        {stale && <Chip kind="stale">Veraltet{staleAt ? ` · ${relativeTime(staleAt)}` : ''}</Chip>}
-        {needsReview(item, badge) && <StatusChip kind="warn">{item.game ? 'Prüfen' : 'Ungeprüft'}</StatusChip>}
+        {reached && <Pill tone="hot" icon="target">Ziel erreicht</Pill>}
+        {stale && <Pill tone="dim" icon="clock">Veraltet{staleAt ? ` · ${relativeTime(staleAt)}` : ''}</Pill>}
+        {needsReview(item, badge) && <Pill tone="warn" icon="alert">{item.game ? 'Prüfen' : 'Ungeprüft'}</Pill>}
       </span>
     </span>
     <span className="entry-price"><PriceBadge className="list-price" badge={badge} scopeLabel={scopeLabel} /></span>

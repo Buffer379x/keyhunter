@@ -63,12 +63,12 @@ export default function GameDetail(props: Props) {
   return <section className="game-detail" aria-labelledby="game-title">
     <header className={`gd-hero ${artwork && !artworkFailed ? 'has-art' : ''}`}>
       <div className="gd-art" aria-hidden="true">{artwork && !artworkFailed && <img src={artwork} alt="" referrerPolicy="no-referrer" onError={() => setArtworkFailed(true)} />}</div>
-      {artwork && !artworkFailed && <span className="gd-credit ui-mono">Artwork · IGDB</span>}
-      <Button variant="secondary" className="gd-back" aria-label="Zur Wunschliste" onClick={onBack}><Icon name="arrow" size={18} /><span>Wunschliste</span></Button>
+      {artwork && !artworkFailed && <span className="gd-credit label">Artwork · IGDB</span>}
+      <Button className="gd-back" aria-label="Zur Wunschliste" onClick={onBack}><Icon name="chev" size={18} /><span>Wunschliste</span></Button>
       <div className="gd-bar">
         <GameCover className="gd-cover" src={game?.cover_url} title={itemName(viewed)} />
         <div className="gd-title">
-          <span className="ui-mono soft gd-meta">{meta}</span>
+          <span className="label soft gd-meta">{meta}</span>
           <h2 id="game-title">{itemName(viewed)}</h2>
           <div className="gd-sub">
             {item.game ? <EditionPicker variants={variants} item={item} viewed={viewed} preview={preview} editionError={editionError} badgeOf={g => badgeOfItem(itemOf(g))} canView={g => g.igdb_id === item.game?.igdb_id || !!itemOf(g)} onView={onView} />
@@ -88,8 +88,8 @@ export default function GameDetail(props: Props) {
         </div>}
       </div>
     </header>
-    {preview && <div className="gd-preview" role="status"><span>Vorschau: <strong>{viewedName}</strong> · gemerkt ist {savedName}</span><Button size="sm" variant="secondary" onClick={onClearPreview}>Zur gemerkten Edition</Button></div>}
-    {!targetCountry && <div className="country-callout"><span>Wähle dein Zielland für den Preisvergleich.</span><Button secondary onClick={onSettings}>Zielland wählen</Button></div>}
+    {preview && <div className="gd-preview" role="status"><span>Vorschau: <strong>{viewedName}</strong> · gemerkt ist {savedName}</span><Button size="sm" onClick={onClearPreview}>Zur gemerkten Edition</Button></div>}
+    {!targetCountry && <div className="country-callout"><span>Wähle dein Zielland für den Preisvergleich.</span><Button onClick={onSettings}>Zielland wählen</Button></div>}
     {item.verification !== 'catalog' && <Notice>{item.verification === 'needs_review' ? 'Die Katalogdaten bestätigen diese Auswahl nicht mehr. Bitte prüfe Plattform und Produkttyp.' : 'Manueller Titel · Zuordnungen werden vor dem Preisvergleich geprüft.'}</Notice>}
     <DetailBody key={viewed.id} {...props} alert={alert} rule={preview ? null : alert.rule} savedName={savedName} />
   </section>;
@@ -97,9 +97,9 @@ export default function GameDetail(props: Props) {
 
 function EditionPicker({ variants, item, viewed, preview, editionError, badgeOf, canView, onView }: { variants: CatalogGame[]; item: WishlistItem; viewed: WishlistItem; preview: boolean; editionError: string; badgeOf: (game: CatalogGame) => PriceBadgeData | undefined; canView: (game: CatalogGame) => boolean; onView: (game: CatalogGame) => void }) {
   const current = viewed.game ?? item.game!;
-  return <Popover triggerClassName="gd-edition" triggerLabel={undefined} trigger={<><span>{editionName(current)}</span><span className="gd-edition-state">· {preview ? 'Vorschau' : 'gemerkt'}</span><Icon name="arrow" size={14} /></>} panelClassName="edition-panel">
+  return <Popover triggerClassName="gd-edition" triggerLabel={undefined} trigger={<><span>{editionName(current)}</span><span className="gd-edition-state">· {preview ? 'Vorschau' : 'gemerkt'}</span><Icon name="chev" size={14} /></>} panelClassName="edition-panel">
     {close => <>
-      <p className="edition-panel-title ui-mono">Edition ansehen · {variants.length} {variants.length === 1 ? 'Edition' : 'Editionen'}</p>
+      <p className="edition-panel-title label">Edition ansehen · {variants.length} {variants.length === 1 ? 'Edition' : 'Editionen'}</p>
       {editionError && <p className="field-help">{editionError}</p>}
       <ul className="edition-list">{variants.map(game => <li key={game.igdb_id}>
         <button type="button" className={`edition-row ${current.igdb_id === game.igdb_id ? 'selected' : ''}`} aria-label={`${editionName(game)} ansehen`} disabled={!canView(game)} onClick={() => { close(); onView(game); }}>
@@ -135,7 +135,7 @@ function DetailBody(props: Props & { alert: AlertState; rule: Rule | null; saved
   return <div className="gd-body" ref={body}>
     <div className="gd-tabs"><Tabs id="gd" label="Spieldetails" items={items} value={tab} onChange={id => onTab(id as TabId)} /></div>
     <div className="gd-content">
-      {state.error && <Notice error>{state.error}<Button secondary onClick={state.refetch}>Erneut laden</Button></Notice>}{state.message && <Notice>{state.message}</Notice>}
+      {state.error && <Notice error>{state.error}<Button onClick={state.refetch}>Erneut laden</Button></Notice>}{state.message && <Notice>{state.message}</Notice>}
       <TabPanel id="gd" tab="preis" value={tab}>
         {!view && !state.error ? <p role="status">Preisdaten werden geladen …</p> : <PriceTab view={view} rows={rows} summary={summary} basis={basis} onBasis={setBasis} targetCode={code} targetLabel={targetLabel} rule={rule} searching={searching} history={history} onTab={id => onTab(id as TabId)} />}
       </TabPanel>

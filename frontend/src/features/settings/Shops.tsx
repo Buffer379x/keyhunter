@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, HttpError } from '../../api';
 import type { FetchShopStatus, Settings, SourceSettings } from '../../api';
-import { Button, Card, ConfirmDialog, Notice, Switch } from '../../components';
+import { Button, ConfirmDialog, Notice, Panel, Switch } from '../../components';
 import { parseFeePercent } from '../../fees';
 import { relativeTime } from '../../time';
 import { Dot, RowCard, ShopMark, UsageBar } from './parts';
@@ -22,7 +22,7 @@ function ShopCard({ source, status, feeText, edit, editFee, settle, onRemove }: 
   const feeActive = source.enabled && source.fee_estimation_enabled;
   const feeInvalid = feeActive && parseFeePercent(feeText) === null;
   const intervals = intervalOptions(source.poll_interval_seconds);
-  return <Card as="article" className="set-card set-shop" aria-label={name}>
+  return <Panel padded as="article" className="set-card set-shop" aria-label={name}>
     <div className="set-shop-head">
       <span className="set-shop-id"><ShopMark id={source.id} /><span><strong>{name}</strong>
         <span className="set-shop-state"><Dot tone={state.tone} />{state.text}</span></span></span>
@@ -31,13 +31,13 @@ function ShopCard({ source, status, feeText, edit, editFee, settle, onRemove }: 
       </Switch>
     </div>
     <div className="set-shop-fields">
-      <div className="field">
+      <div className="form-row">
         <label htmlFor={`${source.id}-interval`}>Abfrageintervall</label>
         <select id={`${source.id}-interval`} value={source.poll_interval_seconds} onChange={event => change({ poll_interval_seconds: Number(event.target.value) })}>
           {intervals.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
       </div>
-      <div className="field" role="group" aria-labelledby={`${source.id}-fee-title`}>
+      <div className="form-row" role="group" aria-labelledby={`${source.id}-fee-title`}>
         <span id={`${source.id}-fee-title`} className="set-label">Gebühren schätzen</span>
         <div className="set-fee">
           <Switch checked={source.fee_estimation_enabled} disabled={!source.enabled} onChange={on => change({ fee_estimation_enabled: on })}>
@@ -52,7 +52,7 @@ function ShopCard({ source, status, feeText, edit, editFee, settle, onRemove }: 
           </span>
         </div>
       </div>
-      <div className="field" role="group" aria-labelledby={`${source.id}-usage-title`}>
+      <div className="form-row" role="group" aria-labelledby={`${source.id}-usage-title`}>
         <span id={`${source.id}-usage-title`} className="set-label">Abrufe heute</span>
         {status && status.budget.limit > 0
           ? <UsageBar used={status.budget.used} limit={status.budget.limit} label={`${name}: ${status.budget.used} von ${status.budget.limit} Abrufen heute`} />
@@ -65,7 +65,7 @@ function ShopCard({ source, status, feeText, edit, editFee, settle, onRemove }: 
     <div className="set-shop-foot">
       <Button variant="danger" size="sm" onClick={onRemove}>Entfernen</Button>
     </div>
-  </Card>;
+  </Panel>;
 }
 
 export default function Shops({ settings, feeDraft, edit, editFee, settle, status, csrf, onShopsChanged, onHelp, onError }: {
@@ -100,15 +100,15 @@ export default function Shops({ settings, feeDraft, edit, editFee, settle, statu
     {shops.map(source => <ShopCard key={source.id} source={source} status={status?.find(s => s.source === source.id)} feeText={feeDraft[source.id] ?? ''}
       edit={edit} editFee={editFee} settle={settle} onRemove={() => { setError(''); setRemoving(source); }} />)}
     {(message || error) && !removing && (error ? <Notice error>{error}</Notice> : <Notice>{message}</Notice>)}
-    <Card as="form" className="set-row-card set-add" onSubmit={register}>
+    <Panel padded as="form" className="set-row-card set-add" onSubmit={register}>
       <div><h2>Weiteren Shop hinzufügen</h2><p>Jeder Shop braucht einen geprüften Reader. Verfügbar: Eneba, Driffle.</p></div>
       {allActive
-        ? <Button variant="secondary" disabled>Alle verfügbaren aktiv</Button>
+        ? <Button disabled>Alle verfügbaren aktiv</Button>
         : <div className="set-add-fields">
-          <div className="field"><label htmlFor="shop-url">Shop-URL</label><input id="shop-url" type="url" placeholder="https://driffle.com" value={url} onChange={e => setUrl(e.target.value)} required maxLength={300} /></div>
+          <div className="form-row"><label htmlFor="shop-url">Shop-URL</label><input id="shop-url" type="url" placeholder="https://driffle.com" value={url} onChange={e => setUrl(e.target.value)} required maxLength={300} /></div>
           <Button type="submit" loading={working && !removing}>{working && !removing ? 'Wird geprüft …' : 'Dienst hinzufügen'}</Button>
         </div>}
-    </Card>
+    </Panel>
     <div><button type="button" className="text-button" onClick={onHelp}>Wie werden Gebühren behandelt?</button></div>
     <ConfirmDialog open={removing !== null} title={removing ? `${shopTitle(removing.id)} entfernen?` : ''} confirmLabel="Entfernen bestätigen" danger busy={working}
       onCancel={() => setRemoving(null)} onConfirm={() => removing && void change('DELETE', `/settings/shops/${removing.id}`)}>

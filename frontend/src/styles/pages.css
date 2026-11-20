@@ -1,9 +1,3 @@
-/* Shared leftovers used by the alert and offer screens. The settings and library screens have their own files: settings.css, library.css. */
-.shop-logo { width: 32px; height: 32px; display: grid; place-items: center; flex-shrink: 0; border-radius: var(--radius-control); background: #473a78; color: #f4ebff; font-weight: 750; }
-.offer-link-form, .alert-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
-.offer-link-form .field, .alert-form .field { flex: 1 1 min(100%,200px); }
-.offer-section { margin-bottom: var(--space-panel); }
-.offer-section p, .settings-card p { font-size: var(--font-body-size); }
-.alert-list { display: grid; padding: 0; margin: 0; list-style: none; }
-.alert-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding-block: 10px; border-top: 1px solid var(--border); }
-.alert-form .check-label { flex-basis: 100%; }
+/* Shared leftover used by the alert editor. The settings and library screens have their own files: settings.css, library.css. */
+.alert-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.alert-form .form-row { flex: 1 1 min(100%, 200px); }

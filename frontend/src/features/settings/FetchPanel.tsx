@@ -1,5 +1,4 @@
-import { Chip, EmptyState, Icon, Button } from '../../components';
-import { Card } from '../../ui';
+import { Button, EmptyState, Icon, Panel, Pill } from '../../components';
 import type { FetchRun, FetchShopStatus, FetchStatusResponse } from '../../api';
 import { relativeTime } from '../../time';
 import { Dot, Facts, ShopMark, UsageBar } from './parts';
@@ -7,7 +6,7 @@ import { dateTimeText, durationText, kindText, outcomeText, outcomeTone, shopSta
 
 function Tile({ label, value, note, tone }: { label: string; value: string; note: string; tone?: 'warn' | 'error' }) {
   return <div className={`set-tile${tone ? ` ${tone}` : ''}`}>
-    <span className="ui-mono">{label}</span>
+    <span className="label">{label}</span>
     <strong>{value}</strong>
     <span className="set-tile-note">{note}</span>
   </div>;
@@ -19,13 +18,13 @@ function ShopFacts({ shop, now }: { shop: FetchShopStatus; now: number }) {
   const name = shopTitle(shop.source);
   const paused = shop.paused_until !== null && shop.paused_until > now;
   const { due, requested, products, searches } = shop.backlog;
-  const kind = state.tone === 'ok' ? 'best' : state.tone === 'off' ? 'neutral' : state.tone === 'warn' ? 'warn' : 'danger';
-  return <Card as="article" className="set-shop" aria-label={`Abrufstatus ${name}`}>
+  const tone = state.tone === 'ok' ? 'ok' : state.tone === 'off' ? 'default' : state.tone === 'warn' ? 'warn' : 'danger';
+  return <Panel padded as="article" className="set-shop" aria-label={`Abrufstatus ${name}`}>
     <div className="set-shop-head">
       <span className="set-shop-id"><ShopMark id={shop.source} /><span><strong>{name}</strong><span className="set-shop-state"><Dot tone={state.tone} />{state.text}</span></span></span>
-      <Chip kind={kind} icon={state.tone === 'ok' ? 'check' : state.tone === 'off' ? 'minus' : state.tone === 'warn' ? 'clock' : 'alert'}>
+      <Pill tone={tone} icon={state.tone === 'ok' ? 'check' : state.tone === 'off' ? 'minus' : state.tone === 'warn' ? 'clock' : 'alert'}>
         {state.tone === 'ok' ? 'In Ordnung' : state.tone === 'off' ? (shop.enabled ? 'Noch kein Abruf' : 'Aus') : state.tone === 'warn' ? 'Pausiert' : 'Fehler'}
-      </Chip>
+      </Pill>
     </div>
     <Facts items={[
       { label: 'Worker', value: <span className="set-inline"><Dot tone={worker.tone} />{worker.text}</span> },
@@ -37,24 +36,24 @@ function ShopFacts({ shop, now }: { shop: FetchShopStatus; now: number }) {
       { label: 'Ältester fälliger Abruf', value: shop.oldest_due_at === null ? 'Keiner' : <span title={dateTimeText(shop.oldest_due_at)}>{relativeTime(shop.oldest_due_at)}</span> },
       { label: 'Nächster Abruf', value: shop.next_due_at === null ? 'Nichts geplant' : <span title={dateTimeText(shop.next_due_at)}>{shop.next_due_at <= now ? 'Fällig' : `${dateTimeText(shop.next_due_at)} Uhr`}</span> },
     ]} />
-  </Card>;
+  </Panel>;
 }
 
 function RunsTable({ runs }: { runs: FetchRun[] }) {
   if (runs.length === 0) return <p className="set-hint">Noch keine Abrufe aufgezeichnet.</p>;
   return <div className="set-table" role="table" aria-label="Letzte Abrufe">
     <div role="rowgroup" className="set-thead"><div role="row">
-      {['Zeit', 'Shop', 'Art', 'Detail', 'Ergebnis', 'Dauer'].map(head => <span key={head} role="columnheader" className="ui-mono">{head}</span>)}
+      {['Zeit', 'Shop', 'Art', 'Detail', 'Ergebnis', 'Dauer'].map(head => <span key={head} role="columnheader" className="label">{head}</span>)}
     </div></div>
     <div role="rowgroup">{runs.map((run, index) => {
       const tone = outcomeTone(run.outcome);
       return <div role="row" key={`${run.started_at}-${index}`}>
-        <span role="cell" className="set-c-time ui-mono" title={dateTimeText(run.started_at)}>{relativeTime(run.started_at)}</span>
+        <span role="cell" className="set-c-time label" title={dateTimeText(run.started_at)}>{relativeTime(run.started_at)}</span>
         <span role="cell" className="set-c-shop">{shopTitle(run.source)}</span>
         <span role="cell" className="set-c-kind">{kindText(run.kind)}</span>
         <span role="cell" className="set-c-detail" title={run.detail ?? undefined}>{run.detail ?? '–'}</span>
-        <span role="cell" className="set-c-result"><Chip kind={tone === 'ok' ? 'best' : tone === 'warn' ? 'warn' : 'danger'}>{outcomeText(run.outcome)}</Chip></span>
-        <span role="cell" className="set-c-duration ui-mono">{durationText(run.duration_ms)}</span>
+        <span role="cell" className="set-c-result"><Pill tone={tone === 'ok' ? 'ok' : tone === 'warn' ? 'warn' : 'danger'} icon={tone === 'ok' ? 'check' : 'alert'}>{outcomeText(run.outcome)}</Pill></span>
+        <span role="cell" className="set-c-duration label">{durationText(run.duration_ms)}</span>
       </div>;
     })}</div>
   </div>;
@@ -62,7 +61,7 @@ function RunsTable({ runs }: { runs: FetchRun[] }) {
 
 export default function FetchPanel({ data, failed, loadedAt, reload }: { data: FetchStatusResponse | null; failed: boolean; loadedAt: number | null; reload: () => void }) {
   if (!data) return <p role="status" className="set-muted">{failed ? 'Der Abrufstatus konnte nicht gelesen werden.' : 'Abrufstatus wird geladen …'}</p>;
-  if (data.shops.length === 0) return <Card><EmptyState icon="refresh" title="Noch kein Shop eingerichtet" headingLevel={3}>Sobald ein Key-Shop eingerichtet ist, siehst du hier Warteschlange, Tagesbudget und letzte Abrufe.</EmptyState></Card>;
+  if (data.shops.length === 0) return <Panel padded><EmptyState icon="refresh" title="Noch kein Shop eingerichtet" headingLevel={3}>Sobald ein Key-Shop eingerichtet ist, siehst du hier Warteschlange, Tagesbudget und letzte Abrufe.</EmptyState></Panel>;
   const now = Date.now() / 1000;
   const sum = summarize(data.shops, data.errors_24h);
   const clock = loadedAt === null ? '' : new Date(loadedAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -78,10 +77,10 @@ export default function FetchPanel({ data, failed, loadedAt, reload }: { data: F
       <Tile label="Fehler in 24 h" value={String(sum.errors24h)} note={sum.errors24h === 0 ? 'Keine fehlgeschlagenen Abrufe' : 'Fehlgeschlagene Abrufe'} tone={sum.errors24h > 0 ? 'error' : undefined} />
     </div>
     {data.shops.map(shop => <ShopFacts key={shop.source} shop={shop} now={now} />)}
-    <Card className="set-card" aria-labelledby="runs-title">
+    <Panel padded className="set-card" aria-labelledby="runs-title">
       <header className="set-card-head"><div><h2 id="runs-title">Letzte Abrufe</h2></div></header>
       <RunsTable runs={data.recent_runs} />
       <p className="set-hint">Jeder Shop wird nacheinander abgefragt, mit Pause zwischen Anfragen und unter Beachtung von robots.txt.</p>
-    </Card>
+    </Panel>
   </>;
 }

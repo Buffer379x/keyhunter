@@ -1,24 +1,33 @@
 const whole = new Intl.NumberFormat('de-DE');
+const parts = (cents: number) => [whole.format(Math.trunc(cents / 100)), String(Math.abs(cents) % 100).padStart(2, '0')] as const;
 
 /** "23,92 €" (German separators, euro cents as an integer). */
 export function formatPrice(cents: number): string {
-  return `${whole.format(Math.floor(cents / 100))},${String(Math.abs(cents) % 100).padStart(2, '0')} €`;
+  const [int, frac] = parts(cents);
+  return `${int},${frac} €`;
 }
 
+type Missing = { missing?: string; className?: string };
+const valid = (cents: number | null | undefined): cents is number => cents !== null && cents !== undefined && Number.isFinite(cents);
+/** A missing price is never drawn as a price: it shows the status text in `missing` instead. */
+const MissingPrice = ({ missing = 'noch nicht abgefragt', className = '' }: Missing) => <span className={`price-missing ${className}`.trim()}>{missing}</span>;
+
 /**
- * Price with split cents: big integer, small ",92 €" (xl and md); sm is one line size for lists and tables.
- * Tabular numerals, German formatting. Colour: tone "stale" (secondary), "target" (orange, only for the target price).
- * `struck` crosses it out (sold out). A missing price (`cents` null or undefined) is never drawn as a price:
- * it shows the status text in `missing` instead, e.g. "noch nicht abgefragt" or "wird gesucht …".
+ * Inline price for lists and tables (`.price`: JetBrains Mono 14 px, tabular numerals).
+ * tone: world (the cheapest region, warm white), hot (orange: best offer, your target), stale (muted). `struck` crosses it out.
  */
-export function Price({ cents, size = 'md', tone = 'default', struck = false, missing = 'noch nicht abgefragt', className = '' }: {
-  cents: number | null | undefined; size?: 'xl' | 'md' | 'sm'; tone?: 'default' | 'stale' | 'target'; struck?: boolean; missing?: string; className?: string;
+export function Price({ cents, tone = 'default', struck = false, missing, className = '' }: Missing & {
+  cents: number | null | undefined; tone?: 'default' | 'world' | 'hot' | 'stale'; struck?: boolean;
 }) {
-  if (cents === null || cents === undefined || !Number.isFinite(cents)) return <span className={`ui-price-missing ${className}`.trim()}>{missing}</span>;
-  const int = whole.format(Math.floor(cents / 100));
-  const frac = `,${String(Math.abs(cents) % 100).padStart(2, '0')} €`;
-  return <span className={`ui-price ${size} ${tone}${struck ? ' struck' : ''} ${className}`.trim()}>
-    <span aria-hidden="true"><span className="ui-price-int">{int}</span><span className="ui-price-frac">{frac}</span></span>
-    <span className="sr-only">{int}{frac}</span>
+  if (!valid(cents)) return <MissingPrice missing={missing} className={className} />;
+  return <span className={`price${tone === 'default' ? '' : ` ${tone}`}${struck ? ' struck' : ''} ${className}`.trim()}>{formatPrice(cents)}</span>;
+}
+
+/** Large price (`.big-price`, 34 px) with the cents and the euro sign set smaller: "23<small>,92 €</small>". `world` colours it as the worldwide price. */
+export function BigPrice({ cents, world = false, missing, className = '' }: Missing & { cents: number | null | undefined; world?: boolean }) {
+  if (!valid(cents)) return <MissingPrice missing={missing} className={className} />;
+  const [int, frac] = parts(cents);
+  return <span className={`big-price${world ? ' world' : ''} ${className}`.trim()}>
+    <span aria-hidden="true">{int}<small>,{frac} €</small></span><span className="sr-only">{int},{frac} €</span>
   </span>;
 }

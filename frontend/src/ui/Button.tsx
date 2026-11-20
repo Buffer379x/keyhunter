@@ -1,30 +1,29 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
-type Native = ButtonHTMLAttributes<HTMLButtonElement>;
+export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger';
+type Native = ComponentProps<'button'>;
+const variantClass = (variant: ButtonVariant) => variant === 'default' ? '' : ` ${variant}`;
 
 /**
- * Button.
- * - variant: primary (orange, the one main action of a view), secondary (default for the rest), ghost (outline), danger (destructive).
- * - secondary: legacy shortcut for variant="secondary"; an explicit variant wins.
- * - size: 'md' (40 px, 44 px on touch) or 'sm' (32 px, 44 px on touch).
+ * Button (`.btn`, 32 px; `size="sm"` is 28 px).
+ * - variant: default (neutral), primary (orange, the one main action of a view), ghost (no border, for quiet
+ *   secondary actions), danger (destructive).
  * - loading: shows a spinner, sets aria-busy and blocks clicks. Keep the label, it still tells what happens.
- * Everything else is passed to the <button>; type defaults to "button".
+ * Put an <Icon> before or after the text as a child. Everything else is passed to the <button>; type defaults to "button".
  */
-export function Button({ variant, secondary = false, size = 'md', loading = false, disabled, className = '', children, ...props }: Native & {
-  variant?: ButtonVariant; secondary?: boolean; size?: 'sm' | 'md'; loading?: boolean; children?: ReactNode;
+export function Button({ variant = 'default', size = 'md', loading = false, disabled, className = '', children, ...props }: Native & {
+  variant?: ButtonVariant; size?: 'sm' | 'md'; loading?: boolean; children?: ReactNode;
 }) {
-  const kind = variant ?? (secondary ? 'secondary' : 'primary');
-  return <button type="button" className={`button ${kind}${size === 'sm' ? ' sm' : ''}${loading ? ' loading' : ''} ${className}`.trim()}
+  return <button type="button" className={`btn${variantClass(variant)}${size === 'sm' ? ' sm' : ''} ${className}`.trim()}
     disabled={disabled || loading} aria-busy={loading || undefined} {...props}>
-    {loading && <span className="ui-spinner" aria-hidden="true" />}{children}
+    {loading && <span className="spinner" aria-hidden="true" />}{children}
   </button>;
 }
 
 /**
- * Icon-only button. `label` is required: it becomes the accessible name and the tooltip.
- * Pass the icon as children, e.g. <IconButton label="Suche schließen"><Icon name="close" /></IconButton>.
+ * Square icon-only button (`.icon-btn`, 32 px). `label` is required: it becomes the accessible name and the tooltip.
+ * Pass the icon as children, e.g. <IconButton label="Suche schließen"><Icon name="x" /></IconButton>.
  */
-export function IconButton({ label, variant = 'secondary', className = '', children, ...props }: Native & { label: string; variant?: ButtonVariant }) {
-  return <button type="button" className={`icon-action ${variant} ${className}`.trim()} aria-label={label} title={label} {...props}>{children}</button>;
+export function IconButton({ label, variant = 'default', className = '', children, ...props }: Native & { label: string; variant?: ButtonVariant }) {
+  return <button type="button" className={`icon-btn${variantClass(variant)} ${className}`.trim()} aria-label={label} title={label} {...props}>{children}</button>;
 }
