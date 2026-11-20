@@ -4,7 +4,8 @@ import { countryData } from './Country';
 import Flag from './Flag';
 import { dateTime, money } from './price-format';
 
-const states: Record<string, string> = { unknown: 'Unbekannt', no_offer: 'Kein Angebot', review: 'Zuordnung prüfen', error: 'Abruf fehlgeschlagen' };
+// Status vocabulary of the design (03 §6): a missing price is named by its cause.
+const states: Record<string, string> = { unknown: 'Noch nicht abgefragt', no_offer: 'Kein Angebot', review: 'Zuordnung prüfen', error: 'Abruf fehlgeschlagen' };
 
 /**
  * Permanent price of one item (list row, edition): the saved price with split cents, or the state as text. A missing price is
@@ -15,7 +16,7 @@ export default function PriceBadge({ badge, className = '', scopeLabel = 'Beobac
   const timestamp = badge?.observed_at ?? badge?.checked_at;
   const title = [scopeLabel, timestamp ? `Abfrage: ${dateTime(timestamp)}` : badge ? 'Noch keine Abfrage' : 'Gespeicherter Preis wird geladen', badge?.stale ? 'Letzter bekannter Preis · erneute Prüfung ausstehend' : null, badge?.pending ? 'Aktualisierung eingeplant' : null].filter(Boolean).join(' · ');
   return <span className={`price-badge ${className} ${hasPrice ? 'known' : 'unknown'} ${badge?.stale ? 'stale' : ''}`} title={title}>
-    {hasPrice ? <Price cents={badge!.cents} size="sm" tone={badge!.stale ? 'stale' : 'default'} /> : !badge ? 'Preis wird geladen …' : states[badge.state] ?? 'Preis nicht abrufbar'}
+    {hasPrice ? <Price cents={badge!.cents} size="sm" tone={badge!.stale ? 'stale' : 'default'} /> : !badge ? 'Preis wird geladen …' : (badge.state === 'unknown' && badge.pending ? 'Wird gesucht …' : states[badge.state] ?? 'Preis nicht abrufbar')}
   </span>;
 }
 
