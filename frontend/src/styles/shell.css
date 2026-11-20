@@ -63,6 +63,7 @@
 .menu-btn { display: none; }
 
 .content {
+  position: relative; /* containing block for absolutely positioned descendants, so they scroll and clip with the page */
   flex: 1; overflow-y: auto;
   padding-block: 22px 40px;
   padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px));

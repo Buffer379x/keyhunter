@@ -20,14 +20,8 @@ test('price badge is permanent and its region setting persists',async({page})=>{
   await expect(row.locator('.c-world')).toHaveText('In keinem Shop gefunden');
   await expect(row.locator('.c-status')).toHaveText('Kein Angebot');
   await navTo(page, 'Allgemein');
-  const scope=page.getByRole('radiogroup',{name:'Preis in der Wunschliste',exact:true});
-  await expect(scope.getByRole('radio',{name:/Nur in .* aktivierbar/})).toBeChecked();
-  await scope.getByText('Alle Regionen',{exact:true}).click();
-  await expectSettingsSaved(page);
-  await navTo(page, 'Wunschliste');
-  await expect(row.locator('.c-de')).toHaveAttribute('title',/Tiefster beobachteter Grundpreis · alle Regionen/);
-  await navTo(page, 'Allgemein');
-  await page.reload();await expect(page.getByRole('radiogroup',{name:'Preis in der Wunschliste',exact:true}).getByRole('radio',{name:/Alle Regionen/})).toBeChecked();
+  // Since 0.6.1 the list always compares the target country with the cheapest region worldwide.
+  await expect(page.getByRole('radiogroup',{name:'Preis in der Wunschliste'})).toHaveCount(0);
   await navTo(page, 'Wunschliste');
   await openWishlistRow(page,/Forza Horizon 5/);
   await removeCurrent(page);

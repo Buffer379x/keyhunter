@@ -218,7 +218,10 @@ pub(crate) async fn load_many(
         .bind(t).bind(t / 86400).bind(crate::jobs::daily_budget()).bind(&ids_json).fetch_all(pool).await?;
     let mut jobs: BTreeMap<String, JobSummary> =
         jobs.into_iter().map(|j| (j.item.clone(), j)).collect();
-    let price_scope = pricing::Scope::for_wishlist(target, scope);
+    // Since 0.6.1 the wishlist always shows the target-country price next to the cheapest region
+    // worldwide (`world`), so the stored scope setting no longer changes `cents`.
+    let _ = scope;
+    let price_scope = pricing::Scope::for_wishlist(target, "preferred");
     let start = t - t.rem_euclid(DAY) - (TREND_DAYS - 1) * DAY;
     let mut shown = vec![];
     let mut badges: Vec<(String, PriceBadge, Vec<i64>)> = wishes

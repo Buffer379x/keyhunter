@@ -17,7 +17,7 @@ import { whenVisible } from '../poll';
 import { downloadJson, wishlistExport } from './wishlist-export';
 
 interface Props {
-  csrf: string; targetCountry: string | null; targetLabel: string; priceScope: 'preferred' | 'all';
+  csrf: string; targetCountry: string | null; targetLabel: string;
   /** The add dialog; the top bar's "Spiel hinzufügen" opens it, so the state lives in the shell. */
   addOpen: boolean; onAddOpen: (open: boolean) => void;
   /** Title of the open game for the breadcrumb (null without a selection). */
@@ -58,7 +58,7 @@ const emptyFoot = <span aria-hidden="true">{'\u00a0'}</span>;
  * Wishlist page: the list (KPI tiles, filter chips, table) or, with `?item=`, the game detail as its own full-width page.
  * The list state (filter, sort, scroll position) survives a visit to a game; browser back returns to the same place.
  */
-export default function Wishlist({ csrf, targetCountry, targetLabel, priceScope, addOpen, onAddOpen, onTitle, onSettings, onCountChange, onError }: Props) {
+export default function Wishlist({ csrf, targetCountry, targetLabel, addOpen, onAddOpen, onTitle, onSettings, onCountChange, onError }: Props) {
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState('');
@@ -130,7 +130,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, priceScope,
       if (!controller.signal.aborted) cancel = whenVisible(() => void readPrices(), pending ? 3000 : 30000);
     }
     void readPrices(); return () => { controller.abort(); cancel(); };
-  }, [items, priceScope, targetCountry, updateBadges, selected?.id]);
+  }, [items, targetCountry, updateBadges, selected?.id]);
   // Alarm targets ("Ziel" column, "Ziel erreicht") and the delivery log ("Alarm gesendet"), read once; the open detail keeps the rules current.
   useEffect(() => {
     const controller = new AbortController();
@@ -286,9 +286,9 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, priceScope,
   const title = selected ? itemName(selected) : null;
   useEffect(() => { onTitle(title); }, [title, onTitle]);
   useEffect(() => () => onTitle(null), [onTitle]);
-  const scopeLabel = priceScope === 'all' ? 'Tiefster beobachteter Grundpreis · alle Regionen' : `Tiefster aktivierbarer Grundpreis · ${targetLabel}`;
+  const scopeLabel = `Tiefster aktivierbarer Grundpreis · ${targetLabel}`;
   const code = targetCountry?.toUpperCase() ?? '';
-  const priceLabel = priceScope === 'all' ? 'Bester Preis' : code ? `Preis ${code}` : 'Preis';
+  const priceLabel = code ? `Preis ${code}` : 'Preis';
 
   const dialogs = <>
     <CatalogSearch open={addOpen} csrf={csrf} items={items} onClose={closeSearch} onAdded={added} onError={onError} />
@@ -347,7 +347,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, priceScope,
             : visible.length === 0 ? <p className="empty">Kein Spiel passt zu diesem Filter.</p>
               : <table className="wl" aria-label="Vorgemerkte Spiele">
                 <thead><tr><th>Spiel</th><th className="r">{priceLabel}</th><th>Günstigste Region</th><th className="r">Ersparnis</th><th className="r">Ziel</th><th>Status</th><th>14 Tage</th><th><span className="sr-only">Öffnen</span></th></tr></thead>
-                <tbody>{visible.map(item => <WishlistRow key={item.id} item={item} badge={badges[item.id] ?? item.price_badge} facts={facts[item.id]} code={code} compare={priceScope !== 'all'}
+                <tbody>{visible.map(item => <WishlistRow key={item.id} item={item} badge={badges[item.id] ?? item.price_badge} facts={facts[item.id]} code={code} compare
                   scopeLabel={scopeLabel} targetDisabled={!!alerts[item.id] && !alerts[item.id].enabled} onOpen={() => open(item.id)}
                   rowRef={element => { if (element) rows.current.set(item.id, element); else rows.current.delete(item.id); }} />)}</tbody>
               </table>}

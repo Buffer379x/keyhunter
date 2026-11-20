@@ -115,7 +115,8 @@
 .ticks i.on { background: var(--accent); }
 
 /* Tables */
-.table-wrap { overflow-x: auto; }
+/* position: relative keeps absolutely positioned children (e.g. .sr-only labels) inside the scroll clip. */
+.table-wrap { overflow-x: auto; position: relative; }
 table { width: 100%; border-collapse: collapse; }
 th {
   text-align: left; font: 500 var(--t-label)/1.2 var(--f-mono); letter-spacing: .08em; text-transform: uppercase;

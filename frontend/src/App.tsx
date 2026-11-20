@@ -99,7 +99,6 @@ export default function App() {
   }, []);
   const auto = useSettingsAutosave({ csrf, onSaved: refreshSources, onProtectedError: handleProtectedError });
   const savedCountry = auto.saved?.target_country ?? null;
-  const savedPriceScope = auto.saved?.wishlist_price_scope ?? 'preferred';
   /** Go to a page (and settings section). `add` opens the wishlist's add dialog on arrival. */
   const navigate = useCallback((next: Page, nextSection: Section = 'general', add = false) => {
     const go = () => {
@@ -257,7 +256,7 @@ export default function App() {
       </header>
       <main id="main-content" className="content" tabIndex={-1}>
         {error && <Notice error>{error}</Notice>}
-        {page === 'wishlist' ? <Wishlist key={wishlistRevision} csrf={csrf} targetCountry={savedCountry} priceScope={savedPriceScope} targetLabel={targetLabel ?? 'Noch nicht gewählt'} addOpen={addOpen} onAddOpen={setAddOpen} onTitle={setGameTitle} onSettings={() => openSettings()} onCountChange={setWishlistCount} onError={handleProtectedError} />
+        {page === 'wishlist' ? <Wishlist key={wishlistRevision} csrf={csrf} targetCountry={savedCountry} targetLabel={targetLabel ?? 'Noch nicht gewählt'} addOpen={addOpen} onAddOpen={setAddOpen} onTitle={setGameTitle} onSettings={() => openSettings()} onCountChange={setWishlistCount} onError={handleProtectedError} />
           : page === 'library' ? <Library csrf={csrf} onRestored={selectSearchResult} onOpenWishlist={() => navigate('wishlist')} onCountChange={setLibraryCount} onError={handleProtectedError} />
             : page === 'alerts' ? <PriceAlerts csrf={csrf} targetCountry={savedCountry} targetLabel={targetLabel ?? 'Zielland'} onError={handleProtectedError} />
               : auto.settings && <SettingsPage section={section} onSection={openSettings} settings={auto.settings} auto={auto} csrf={csrf} busy={busy} countries={countries} sourceStatus={sourceStatus}

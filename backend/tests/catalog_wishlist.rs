@@ -292,14 +292,15 @@ async fn preferred_and_global_history_follow_the_actual_lowest_country_and_withd
     );
     sqlx::query("UPDATE offer_link SET latest=json_set(latest,'$.offers[0].cents',500) WHERE json_extract(latest,'$.region')='India'").execute(&pool).await.unwrap();
     let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
+    // The stored scope no longer changes the badge: the target-country price stays, the cheaper
+    // region appears as the world comparison (0.6.1).
     settings["wishlist_price_scope"] = json!("all");
     f.call("PUT", "/api/v1/settings", settings.clone()).await;
-    assert_eq!(
-        f.call("GET", "/api/v1/wishlist/price-badges", Value::Null)
-            .await
-            .1[id]["cents"],
-        500
-    );
+    let (_, badges) = f
+        .call("GET", "/api/v1/wishlist/price-badges", Value::Null)
+        .await;
+    assert_eq!(badges[id]["cents"], 900);
+    assert_eq!(badges[id]["world"]["cents"], 500);
     settings["wishlist_price_scope"] = json!("preferred");
     f.call("PUT", "/api/v1/settings", settings).await;
     assert_eq!(
@@ -1377,6 +1378,14 @@ async fn saved_badges_distinguish_unqueried_empty_error_and_retained_observation
         "no_offer"
     );
     settings["wishlist_price_scope"] = json!("all");
+    f.call("PUT", "/api/v1/settings", settings.clone()).await;
+    // The stored scope no longer widens the badge (0.6.1): still nothing valid in AT, and the
+    // world comparison only uses current observations, so the day-old price is not repeated there.
+    let (_, shown) = f.call("GET", badges, Value::Null).await;
+    assert_eq!(shown[id]["state"], "no_offer");
+    assert!(shown[id]["cents"].is_null(), "no price is valid in AT");
+    assert!(shown[id]["world"].is_null());
+    settings["target_country"] = json!("DE");
     f.call("PUT", "/api/v1/settings", settings).await;
     assert_eq!(
         f.call("GET", badges, Value::Null).await.1[id]["cents"],

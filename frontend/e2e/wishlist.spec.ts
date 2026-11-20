@@ -128,6 +128,9 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
   await page.getByLabel('Sortieren', { exact: true }).selectOption('price');
   await expect(wishlistRows(page)).toHaveCount(2);
   await expect(wishlistRows(page).first()).toContainText('Forza Horizon 5');
+  // At 1024 px the table scrolls inside its panel; nothing (not even screen-reader labels) widens the page
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.setViewportSize({ width: 390, height: 640 });
   await expect(wishlistTable(page).locator('thead')).toBeHidden(); // cards
   await expect(row(forza).locator('.c-save')).toBeHidden();
