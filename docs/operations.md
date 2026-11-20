@@ -91,6 +91,6 @@ Die Bibliothek zeigt das System unter dem Titel. Der Systemfilter enthält nur v
 
 Bevor ein Update das Datenbankschema ändert, legt KeyHunter automatisch eine Kopie unter `<Datenverzeichnis>/backups/keyhunter-schema-<alte Version>-<Zeit>.db` an; die drei neuesten bleiben erhalten. Rückweg: Container stoppen, die Kopie als `keyhunter.db` zurückkopieren (vorhandene `keyhunter.db-wal` und `-shm` vorher entfernen) und das vorherige Image starten.
 
-## Upgrade nach 0.5.0 (unveröffentlicht)
+## Upgrade auf 0.6.0
 
 Datenvolume beibehalten. Migration 0011 ergänzt Abrufpriorität, Relevanz und eine Abrufhistorie. Beim Start werden Produktbestätigungen und Preisverlauf auf einen titelunabhängigen Fingerabdruck übertragen; umbenannte Shopprodukte bleiben dadurch bestätigt. Preisalarme beginnen ihre Auswertung einmalig neu, weil der Bereich eines Alarms nicht mehr von einzelnen Link-IDs abhängt: Liegt der Preis bereits unter einem Zielpreis, kann eine Benachrichtigung einmal erneut kommen (mit der üblichen Sperrzeit). Eneba-Aktivierungen stammen aus der strukturierten Länderliste; Angebote anderer Länder als Deutschland bleiben sichtbar, zählen aber weiterhin nicht als gültiger Bestpreis. Neue Installationen fragen das Zielland bei der Einrichtung ab. Migration 0012 überführt Wunschliste, Editionsvorschauen und Bibliothek in eine Zustandsspalte, 0013 merkt sich den Shop-Titel bestätigter Produkte. Editionsvorschauen, die 14 Tage nicht angesehen wurden, ruhen bis zum nächsten Öffnen.
