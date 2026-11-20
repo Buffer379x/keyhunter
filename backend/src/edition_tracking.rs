@@ -51,7 +51,7 @@ async fn snapshot(state: &Shared, id: &str) -> ApiResult<Prepared> {
     }
     let (target, scope) = crate::price_badges::context(&state.pool).await?;
     let ids: Vec<String> = items.iter().map(|item| item.id.clone()).collect();
-    let mut badges = crate::price_badges::load_many(&state.pool, &ids, &target, &scope).await?;
+    let mut badges = crate::price_badges::load_many(state, &ids, &target, &scope).await?;
     for item in &mut items {
         item.price_badge = badges.remove(&item.id);
     }

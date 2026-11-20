@@ -1,20 +1,40 @@
-//! Persistent, budgeted shop jobs.
+//! Persistent, budgeted and paced shop jobs.
 //!
 //! Each shop has one worker. A job is claimed with a lease, executed (network) and
-//! completed in one short transaction. Claim order:
+//! completed in one short transaction. Claim order and pacing:
 //!
-//! | class | jobs |
-//! |---|---|
-//! | 0 | refresh requested by the user, first search of a new wish (not of a preview) |
-//! | 1 | price of an active wish that is (or may be) valid in the target country, search continuation pages |
-//! | 2 | repeated search of an active wish |
-//! | 3 | price of an active wish outside the target country, sold out or unknown |
-//! | 4 | edition previews |
-//! | 5 | shop-wide discovery |
+//! | class | jobs | paced |
+//! |---|---|---|
+//! | 0 | refresh requested by the user, first search of a new wish (not of a preview) | no |
+//! | 1 | price of an active wish that is (or may be) valid in the target country, search continuation pages | yes, unless a direct user action (below) |
+//! | 2 | repeated search of an active wish | yes, unless a direct user action |
+//! | 3 | price of an active wish outside the target country, sold out or unknown | yes, unless a direct user action |
+//! | 4 | edition previews | yes (a requested refresh is class 0) |
+//! | 5 | shop-wide discovery | yes |
 //!
 //! Every fourth job of a day goes to the most overdue job of classes 2 to 5, so lower
 //! classes keep a share of the budget even when class 1 alone could use it up. Product intervals adapt to
 //! relevance: irrelevant variants and previews are fetched less often.
+//!
+//! **Budget.** A shop runs at most [`daily_limit`] jobs per UTC day: `source_settings.daily_jobs`
+//! (Settings → Key-Shops), else `KEYHUNTER_SHOP_DAILY_JOBS`, else 500. Every job counts, paced or not.
+//! Workers read the value on every claim, so a change applies without restart.
+//!
+//! **Pacing.** After a paced job the shop may start its next paced job [`pace_gap`] later: the rest
+//! of the UTC day divided by the remaining budget, clamped to 20 s … 1 h. The time is stored in
+//! `shop_state.paced_until`, so a restart does not burst. Retry ladder, source pauses, robots and the
+//! per-host gap of the shop clients apply in addition.
+//!
+//! **Direct user actions** ([`bypass`]) skip pacing (never the budget). A job is one when its item is
+//! a wish (not a preview, owned or deleted item; class 0 excepted) and
+//! - it is class 0 (requested refresh of any item, first search of a new wish), or
+//! - it is a search with `initial=1`: every page and retry of the first search of a new wish or
+//!   of a search run started by a requested refresh, until its last page is stored, or
+//! - it is a product with `initial=1` whose link has no observation yet: the first price fetch of a
+//!   link created by a user action (saving, restoring or refreshing a wish, adding a link by hand)
+//!   or found by a search run that itself bypassed pacing. The flag clears after that first run.
+//!
+//! Links attached at start-up or after a shop-wide discovery are never direct user actions.
 
 use crate::{
     ApiResult, Shared, alerts, auth, now, offers, random_token,
@@ -45,12 +65,39 @@ const RUN_RETENTION: i64 = 30 * DAY;
 /// A worker that has not looped for this long counts as stalled.
 const STALL_AFTER: i64 = 300;
 
-pub(crate) fn daily_budget() -> i64 {
+/// Daily budget per shop when neither the setting nor the environment sets one.
+const DEFAULT_DAILY_JOBS: i64 = 500;
+/// Allowed values of the per-shop setting `daily_jobs`.
+pub(crate) const DAILY_JOBS_SETTING: std::ops::RangeInclusive<i64> = 20..=2000;
+/// Shortest and longest pause between two paced jobs of a shop.
+const PACE_MIN: i64 = 20;
+const PACE_MAX: i64 = 3600;
+
+/// Operator default of the daily budget per shop and where it comes from (`env` or `default`).
+/// `KEYHUNTER_SHOP_DAILY_JOBS` counts when it is a whole number from 1 to 2000.
+pub(crate) fn default_budget() -> (i64, &'static str) {
     std::env::var("KEYHUNTER_SHOP_DAILY_JOBS")
         .ok()
-        .and_then(|v| v.parse::<i64>().ok())
-        .filter(|v| (1..=1000).contains(v))
-        .unwrap_or(120)
+        .and_then(|v| v.trim().parse::<i64>().ok())
+        .filter(|v| (1..=2000).contains(v))
+        .map_or((DEFAULT_DAILY_JOBS, "default"), |v| (v, "env"))
+}
+
+/// Operator default of the daily budget per shop (see [`default_budget`]).
+pub(crate) fn daily_budget() -> i64 {
+    default_budget().0
+}
+
+/// Effective daily limit of a shop: its setting, else the operator default.
+pub(crate) fn daily_limit(setting: Option<i64>) -> i64 {
+    setting.unwrap_or_else(daily_budget)
+}
+
+/// Pause after a paced job at `t` with `remaining` budget left today: the remaining budget
+/// spread evenly over the rest of the UTC day.
+pub(crate) fn pace_gap(t: i64, remaining: i64) -> i64 {
+    let rest = DAY - t.rem_euclid(DAY);
+    (rest / remaining.max(1)).clamp(PACE_MIN, PACE_MAX)
 }
 
 /// Last loop time of each shop worker, for readiness and the status page.
@@ -110,22 +157,48 @@ const NOT_OWNED: &str = "COALESCE(t.state,'wished')!='owned'";
 /// A preview is fetched while an active wish watches it and it was viewed in the last 14 days.
 const WATCHED_IF_PREVIEW: &str = "(COALESCE(t.state,'wished')!='preview' OR (COALESCE(t.viewed_at,0)>?2-1209600 AND EXISTS(SELECT 1 FROM edition_watch ew JOIN wishlist_item aw ON aw.id=ew.wish_id WHERE ew.track_id=t.id AND aw.state='wished')))";
 const ANY_ACTIVE_WISH: &str = "EXISTS(SELECT 1 FROM wishlist_item w WHERE w.state='wished')";
-const CLASS: &str = "CASE
-    WHEN j.requested_at>?5 THEN 0
+
+/// Jobs the scheduler runs at all (whenever they are due); idle jobs stay out.
+fn queued() -> String {
+    format!(
+        "(j.link_id IS NULL OR l.review!='rejected') AND {NOT_OWNED} AND {WATCHED_IF_PREVIEW} AND {ANY_ACTIVE_WISH}"
+    )
+}
+
+/// Claim class (module table); `window` is the placeholder of `now - REQUEST_WINDOW`.
+fn class(window: &str) -> String {
+    format!(
+        "CASE
+    WHEN j.requested_at>{window} THEN 0
     WHEN t.state='preview' THEN 4
     WHEN j.wish_id IS NOT NULL AND j.checked_at IS NULL THEN 0
     WHEN j.link_id IS NULL AND j.wish_id IS NULL THEN 5
     WHEN j.link_id IS NOT NULL THEN CASE WHEN j.relevance=1 THEN 1 ELSE 3 END
     WHEN j.search_page>1 THEN 1
-    ELSE 2 END";
+    ELSE 2 END"
+    )
+}
 
+/// True for a job that serves a direct user action and skips pacing (module docs).
+fn bypass(window: &str) -> String {
+    format!(
+        "(({})=0 OR (j.initial=1 AND COALESCE(t.state,'wished')='wished'
+        AND (j.wish_id IS NOT NULL OR (j.link_id IS NOT NULL AND l.observed_at IS NULL))))",
+        class(window)
+    )
+}
+
+/// `?1` shop, `?2` now, `?3` UTC day, `?4` default budget, `?5` now - REQUEST_WINDOW.
 fn claimable() -> String {
     format!(
         "FROM shop_job j JOIN source_settings s ON s.id=j.source JOIN shop_state p ON p.source=j.source
         LEFT JOIN offer_link l ON l.id=j.link_id {ITEM}
-        WHERE j.source=?1 AND s.enabled AND s.configured AND p.retry_at<=?2 AND (p.budget_day!=?3 OR p.jobs_today<?4)
-        AND j.due<=?2 AND j.lease_until<=?2 AND (j.link_id IS NULL OR l.review!='rejected')
-        AND {NOT_OWNED} AND {WATCHED_IF_PREVIEW} AND {ANY_ACTIVE_WISH}"
+        WHERE j.source=?1 AND s.enabled AND s.configured AND p.retry_at<=?2
+        AND (p.budget_day!=?3 OR p.jobs_today<COALESCE(s.daily_jobs,?4))
+        AND j.due<=?2 AND j.lease_until<=?2 AND (p.paced_until<=?2 OR {})
+        AND {}",
+        bypass("?5"),
+        queued()
     )
 }
 
@@ -136,6 +209,9 @@ pub(crate) struct Job {
     failures: i64,
     wish_id: Option<String>,
     search_page: i64,
+    /// The job serves a direct user action and skipped pacing.
+    #[sqlx(skip)]
+    bypass: bool,
 }
 
 async fn claim(
@@ -154,6 +230,7 @@ async fn claim(
     .bind(t)
     .bind(day)
     .bind(budget)
+    .bind(t - REQUEST_WINDOW)
     .fetch_one(pool)
     .await?;
     if !pending {
@@ -164,7 +241,7 @@ async fn claim(
     // Every fourth job of the day goes to the most overdue job of classes 2..5.
     let sql = format!(
         "UPDATE shop_job SET lease_until=?6,lease_token=?7 WHERE id=(SELECT id FROM (
-            SELECT j.id AS id, j.due AS due, {CLASS} AS class {}
+            SELECT j.id AS id, j.due AS due, {} AS class {}
             AND NOT EXISTS(SELECT 1 FROM shop_job running WHERE running.source=j.source AND running.lease_until>?2)
         ) ORDER BY CASE
             WHEN class=0 THEN 0
@@ -172,9 +249,10 @@ async fn claim(
                 THEN CASE WHEN class>=2 THEN 1 ELSE 2 END
             ELSE class END, due, id LIMIT 1)
         RETURNING id,link_id,failures,wish_id,search_page",
+        class("?5"),
         claimable()
     );
-    let claimed = sqlx::query_as(AssertSqlSafe(sql))
+    let mut claimed: Option<Job> = sqlx::query_as(AssertSqlSafe(sql))
         .bind(shop.id())
         .bind(t)
         .bind(day)
@@ -184,9 +262,32 @@ async fn claim(
         .bind(token)
         .fetch_optional(&mut *tx)
         .await?;
-    if claimed.is_some() {
-        sqlx::query("UPDATE shop_state SET jobs_today=CASE WHEN budget_day=? THEN jobs_today+1 ELSE 1 END, budget_day=? WHERE source=?")
-            .bind(day).bind(day).bind(shop.id()).execute(&mut *tx).await?;
+    if let Some(job) = &mut claimed {
+        // The transaction holds the write lock, so the job cannot change in between.
+        job.bypass = sqlx::query_scalar(AssertSqlSafe(format!(
+            "SELECT {} FROM shop_job j LEFT JOIN offer_link l ON l.id=j.link_id {ITEM} WHERE j.id=?1",
+            bypass("?2")
+        )))
+        .bind(job.id)
+        .bind(t - REQUEST_WINDOW)
+        .fetch_one(&mut *tx)
+        .await?;
+        let (used, limit): (i64, i64) = sqlx::query_as(
+            "UPDATE shop_state SET jobs_today=CASE WHEN budget_day=?1 THEN jobs_today+1 ELSE 1 END, budget_day=?1 WHERE source=?2
+            RETURNING jobs_today,(SELECT COALESCE(s.daily_jobs,?3) FROM source_settings s WHERE s.id=?2)",
+        )
+        .bind(day)
+        .bind(shop.id())
+        .bind(budget)
+        .fetch_one(&mut *tx)
+        .await?;
+        if !job.bypass {
+            sqlx::query("UPDATE shop_state SET paced_until=? WHERE source=?")
+                .bind(t + pace_gap(t, limit - used))
+                .bind(shop.id())
+                .execute(&mut *tx)
+                .await?;
+        }
     }
     tx.commit().await?;
     Ok(claimed)
@@ -198,6 +299,38 @@ pub(crate) enum Work {
     Search(crate::shops::eneba::SearchPage),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Kind {
+    Product,
+    Search,
+    Discovery,
+}
+
+impl Kind {
+    fn of(link_id: Option<i64>, wish_id: Option<&str>) -> Self {
+        match (link_id, wish_id) {
+            (Some(_), _) => Self::Product,
+            (None, Some(_)) => Self::Search,
+            (None, None) => Self::Discovery,
+        }
+    }
+    fn id(self) -> &'static str {
+        match self {
+            Self::Product => "product",
+            Self::Search => "search",
+            Self::Discovery => "discovery",
+        }
+    }
+    /// Delay after a successful run until the job is due again (`interval` is effective).
+    fn repeat_after(self, interval: i64) -> i64 {
+        match self {
+            Self::Product => interval,
+            Self::Search => WEEK.max(interval),
+            Self::Discovery => DAY.max(interval),
+        }
+    }
+}
+
 fn next_schedule(
     result: &Result<Work, ShopError>,
     previous_failures: i64,
@@ -206,10 +339,10 @@ fn next_schedule(
     jitter: i64,
 ) -> (i64, i64) {
     match result {
-        Ok(Work::Product(_)) => (t + interval, 0),
+        Ok(Work::Product(_)) => (t + Kind::Product.repeat_after(interval), 0),
         Ok(Work::Search(page)) if page.next_page.is_some() => (t, 0),
-        Ok(Work::Search(_)) => (t + WEEK.max(interval), 0),
-        Ok(Work::Discovery(_)) => (t + DAY.max(interval), 0),
+        Ok(Work::Search(_)) => (t + Kind::Search.repeat_after(interval), 0),
+        Ok(Work::Discovery(_)) => (t + Kind::Discovery.repeat_after(interval), 0),
         Err(error) => {
             // Transient errors climb a short ladder; others wait a full interval.
             let retry = match error {
@@ -321,13 +454,18 @@ async fn complete(
     let interval = effective_interval(interval, relevance != Some(2), preview);
     let jitter = i64::from(u8::from_str_radix(&token[..2], 16).unwrap_or(0) % 31);
     let (due, failures) = next_schedule(&result, job.failures, t, interval, jitter);
+    // A search run keeps `initial` until its last page is stored; a product only for one run.
+    let keep_initial = job.link_id.is_none()
+        && job.wish_id.is_some()
+        && !matches!(&result, Ok(Work::Search(page)) if page.next_page.is_none());
     let mut tx = pool.begin().await?;
     let count = sqlx::query(
-        "UPDATE shop_job SET due=?,failures=?,lease_until=0,lease_token=NULL,requested_at=0
+        "UPDATE shop_job SET due=?,failures=?,lease_until=0,lease_token=NULL,requested_at=0,initial=CASE WHEN ? THEN initial ELSE 0 END
         WHERE id=? AND lease_token=? AND lease_until>?",
     )
     .bind(due)
     .bind(failures)
+    .bind(keep_initial)
     .bind(job.id)
     .bind(token)
     .bind(t)
@@ -379,7 +517,7 @@ async fn complete(
         }
         Ok(Work::Search(page)) => {
             let id = job.wish_id.as_ref().expect("search job");
-            let found = enqueue_candidates(&mut tx, shop, id, &page.urls, t).await?;
+            let found = enqueue_candidates(&mut tx, shop, id, &page.urls, t, job.bypass).await?;
             sqlx::query("UPDATE shop_job SET result_count=CASE WHEN search_page=1 THEN ? ELSE COALESCE(result_count,0)+? END, search_page=? WHERE id=?")
                 .bind(found).bind(found).bind(page.next_page.unwrap_or(1)).bind(job.id)
                 .execute(&mut *tx).await?;
@@ -415,13 +553,7 @@ async fn complete(
             None
         }
     };
-    let kind = if job.link_id.is_some() {
-        "product"
-    } else if job.wish_id.is_some() {
-        "search"
-    } else {
-        "discovery"
-    };
+    let kind = Kind::of(job.link_id, job.wish_id.as_deref()).id();
     sqlx::query("INSERT INTO job_run(source,kind,wish_id,link_id,started_at,duration_ms,outcome,detail) VALUES(?,?,?,?,?,?,?,?)")
         .bind(shop.id()).bind(kind).bind(&job.wish_id).bind(job.link_id).bind(started_at).bind(elapsed_ms)
         .bind(result.as_ref().err().map_or("ok", ShopError::code)).bind(detail)
@@ -453,12 +585,14 @@ async fn set_success(
 }
 
 /// Persist every discovered region; each product gets its own budgeted, retryable job.
+/// `initial` marks new jobs as the first fetch of a direct user action (module docs).
 async fn enqueue_candidates(
     conn: &mut sqlx::SqliteConnection,
     shop: Shop,
     id: &str,
     urls: &[String],
     t: i64,
+    initial: bool,
 ) -> sqlx::Result<i64> {
     let mut found = 0;
     for raw in urls {
@@ -476,12 +610,15 @@ async fn enqueue_candidates(
         .fetch_optional(&mut *conn)
         .await?;
         if let Some(link) = link {
-            sqlx::query("INSERT OR IGNORE INTO shop_job(source,link_id,due) VALUES(?,?,?)")
-                .bind(shop.id())
-                .bind(link)
-                .bind(t)
-                .execute(&mut *conn)
-                .await?;
+            sqlx::query(
+                "INSERT OR IGNORE INTO shop_job(source,link_id,due,initial) VALUES(?,?,?,?)",
+            )
+            .bind(shop.id())
+            .bind(link)
+            .bind(t)
+            .bind(initial)
+            .execute(&mut *conn)
+            .await?;
             found += 1;
         }
     }
@@ -516,13 +653,14 @@ async fn attach(pool: &SqlitePool, shop: Shop) -> anyhow::Result<()> {
             .fetch_all(pool)
             .await?;
     for id in ids {
-        attach_wish(pool, shop, &id).await?;
+        attach_wish(pool, shop, &id, false).await?;
     }
     Ok(())
 }
 
-/// Attach indexed candidates to one item (when it is saved, restored or previewed).
-async fn attach_wish(pool: &SqlitePool, shop: Shop, id: &str) -> anyhow::Result<()> {
+/// Attach indexed candidates to one item (when it is saved, restored or previewed);
+/// `initial` when a user action asked for it.
+async fn attach_wish(pool: &SqlitePool, shop: Shop, id: &str, initial: bool) -> anyhow::Result<()> {
     let active: bool =
         sqlx::query_scalar("SELECT configured AND enabled FROM source_settings WHERE id=?")
             .bind(shop.id())
@@ -552,20 +690,116 @@ async fn attach_wish(pool: &SqlitePool, shop: Shop, id: &str) -> anyhow::Result<
         return Ok(());
     }
     let mut tx = pool.begin().await?;
-    enqueue_candidates(&mut tx, shop, id, &urls, now()).await?;
+    enqueue_candidates(&mut tx, shop, id, &urls, now(), initial).await?;
     tx.commit().await?;
     Ok(())
 }
 
+/// Queue the search and the indexed candidates of an item a user saved, restored, refreshed
+/// or previewed. New jobs are direct user actions (they bypass pacing only for wishes).
 pub(crate) async fn schedule_wish(pool: &SqlitePool, id: &str) -> sqlx::Result<()> {
-    sqlx::query("INSERT OR IGNORE INTO shop_job(source,wish_id,due) SELECT 'eneba',id,? FROM wishlist_item w WHERE id=? AND w.state!='owned'")
+    sqlx::query("INSERT OR IGNORE INTO shop_job(source,wish_id,due,initial) SELECT 'eneba',id,?,1 FROM wishlist_item w WHERE id=? AND w.state!='owned'")
         .bind(now()).bind(id).execute(pool).await?;
     for shop in Shop::ALL {
-        if let Err(error) = attach_wish(pool, shop, id).await {
+        if let Err(error) = attach_wish(pool, shop, id, true).await {
             tracing::warn!(source = shop.id(), %error, "Candidate attachment failed");
         }
     }
     Ok(())
+}
+
+/// Expected jobs per day of a shop under its current schedule.
+///
+/// Uses the scheduler's own rules: the [`queued`] filter (no owned or rejected items, previews
+/// only while watched and viewed in the last 14 days, nothing without an active wish), the
+/// effective adaptive interval ([`effective_interval`], stored relevance) and the repeat delay of
+/// each kind ([`Kind::repeat_after`]). One-off work (first searches, continuation pages, new links,
+/// retries) is not part of the steady state and therefore not counted.
+pub(crate) async fn demand(pool: &SqlitePool, shop: Shop, t: i64) -> sqlx::Result<f64> {
+    type Group = (Option<i64>, Option<String>, i64, bool, i64, i64);
+    let groups: Vec<Group> = sqlx::query_as(AssertSqlSafe(format!(
+        "SELECT MIN(j.link_id),MIN(j.wish_id),j.relevance,COALESCE(t.state,'wished')='preview',s.poll_interval_seconds,COUNT(*)
+        FROM shop_job j JOIN source_settings s ON s.id=j.source LEFT JOIN offer_link l ON l.id=j.link_id {ITEM}
+        WHERE j.source=?1 AND s.enabled AND s.configured AND {}
+        GROUP BY j.link_id IS NOT NULL,j.wish_id IS NOT NULL,j.relevance,4,5",
+        queued()
+    )))
+    .bind(shop.id())
+    .bind(t)
+    .fetch_all(pool)
+    .await?;
+    Ok(groups
+        .into_iter()
+        .map(|(link, wish, relevance, preview, interval, count)| {
+            let kind = Kind::of(link, wish.as_deref());
+            let relevant = kind != Kind::Product || relevance != 2;
+            let period = kind.repeat_after(effective_interval(interval, relevant, preview));
+            count as f64 * DAY as f64 / period as f64
+        })
+        .sum())
+}
+
+/// Budget part of the fetch status of one shop.
+async fn budget_status(pool: &SqlitePool, shop: Shop, t: i64) -> sqlx::Result<Value> {
+    let today = t - t.rem_euclid(DAY);
+    let (setting, used, paced_until, retry_at, enabled): (Option<i64>, i64, i64, i64, bool) =
+        sqlx::query_as(
+            "SELECT s.daily_jobs,CASE WHEN p.budget_day=? THEN p.jobs_today ELSE 0 END,p.paced_until,p.retry_at,(s.enabled AND s.configured)
+            FROM shop_state p JOIN source_settings s ON s.id=p.source WHERE p.source=?",
+        )
+        .bind(t / DAY)
+        .bind(shop.id())
+        .fetch_one(pool)
+        .await?;
+    let limit = daily_limit(setting);
+    let limit_source = if setting.is_some() {
+        "setting"
+    } else {
+        default_budget().1
+    };
+    // A paced job waits for `paced_until`, a direct user action only for its due time.
+    let next_job: Option<i64> = sqlx::query_scalar(AssertSqlSafe(format!(
+        "SELECT MIN(CASE WHEN {} THEN j.due ELSE MAX(j.due,?4) END)
+        FROM shop_job j LEFT JOIN offer_link l ON l.id=j.link_id {ITEM} WHERE j.source=?1 AND {}",
+        bypass("?3"),
+        queued()
+    )))
+    .bind(shop.id())
+    .bind(t)
+    .bind(t - REQUEST_WINDOW)
+    .bind(paced_until)
+    .fetch_one(pool)
+    .await?;
+    let next_at = next_job.filter(|_| enabled).map(|at| {
+        let at = at.max(t).max(retry_at);
+        if used >= limit {
+            at.max(today + DAY)
+        } else {
+            at
+        }
+    });
+    let hours: Vec<(i64, i64)> = sqlx::query_as(
+        "SELECT (started_at-?2)/3600,COUNT(*) FROM job_run WHERE source=?1 AND started_at>=?2 AND started_at<?2+86400 GROUP BY 1",
+    )
+    .bind(shop.id())
+    .bind(today)
+    .fetch_all(pool)
+    .await?;
+    let mut by_hour = [0i64; 24];
+    for (hour, count) in hours {
+        if let Some(slot) = usize::try_from(hour).ok().and_then(|h| by_hour.get_mut(h)) {
+            *slot = count;
+        }
+    }
+    Ok(json!({
+        "used": used,
+        "limit": limit,
+        "limit_source": limit_source,
+        "demand_per_day": demand(pool, shop, t).await?.round() as i64,
+        "pace_seconds": pace_gap(t, limit - used),
+        "next_at": next_at,
+        "by_hour": by_hour,
+    }))
 }
 
 /// GET /api/v1/status/fetch: queue, budget, pauses and recent runs per shop.
@@ -575,18 +809,15 @@ pub(crate) async fn status(
 ) -> ApiResult<Json<Value>> {
     auth::authenticate(&state, &headers).await?;
     let t = now();
-    let budget = daily_budget();
-    type ShopRow = (String, bool, Option<i64>, Option<String>, i64, i64);
+    type ShopRow = (String, bool, Option<i64>, Option<String>, i64);
     let rows: Vec<ShopRow> = sqlx::query_as(
-        "SELECT s.id,(s.enabled AND s.configured),p.last_success,p.last_error,p.retry_at,
-        CASE WHEN p.budget_day=? THEN p.jobs_today ELSE 0 END
+        "SELECT s.id,(s.enabled AND s.configured),p.last_success,p.last_error,p.retry_at
         FROM shop_state p JOIN source_settings s ON s.id=p.source WHERE s.configured=1 ORDER BY s.id",
     )
-    .bind(t / DAY)
     .fetch_all(&state.pool)
     .await?;
     let mut shops = Vec::new();
-    for (source, enabled, last_success, last_error, retry_at, used) in rows {
+    for (source, enabled, last_success, last_error, retry_at) in rows {
         let Some(shop) = Shop::from_id(&source) else {
             continue;
         };
@@ -614,7 +845,7 @@ pub(crate) async fn status(
             "last_success_at": last_success,
             "last_error": last_error,
             "paused_until": (retry_at > t).then_some(retry_at),
-            "budget": {"used": used, "limit": budget},
+            "budget": budget_status(&state.pool, shop, t).await?,
             "backlog": {"due": due, "requested": requested.unwrap_or(0), "products": products.unwrap_or(0), "searches": searches.unwrap_or(0)},
             "oldest_due_at": oldest,
             "next_due_at": next_due,
@@ -651,6 +882,13 @@ pub(crate) async fn status(
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// Lift the pacing of every shop, for tests about other scheduling rules.
+    async fn unpace(pool: &SqlitePool) {
+        sqlx::query("UPDATE shop_state SET paced_until=0")
+            .execute(pool)
+            .await
+            .unwrap();
+    }
     #[tokio::test]
     async fn discovered_product_prices_run_before_more_search_pages() {
         let pool = sqlx::sqlite::SqlitePoolOptions::new()
@@ -865,6 +1103,7 @@ mod tests {
         .execute(&pool)
         .await
         .unwrap();
+        unpace(&pool).await;
         sqlx::query("INSERT INTO edition_watch VALUES('saved','preview')")
             .execute(&pool)
             .await
@@ -884,6 +1123,7 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
+        unpace(&pool).await;
         sqlx::query("UPDATE wishlist_item SET viewed_at=? WHERE id='preview'")
             .bind(now() - 15 * DAY)
             .execute(&pool)
@@ -1108,6 +1348,7 @@ mod tests {
                 .unwrap()
                 .is_none()
         );
+        unpace(&pool).await;
         assert!(
             claim(&pool, Shop::Eneba, "reclaimed", t + 180, 3)
                 .await
@@ -1120,6 +1361,7 @@ mod tests {
                 .unwrap()
                 .is_none()
         );
+        unpace(&pool).await;
         assert!(
             claim(&pool, Shop::Driffle, "next_day", t + DAY, 1)
                 .await
@@ -1137,6 +1379,7 @@ mod tests {
                 .unwrap()
                 .is_none()
         );
+        unpace(&pool).await;
         assert!(
             claim(&pool, Shop::Eneba, "resumed", t + 600, 3)
                 .await
@@ -1270,7 +1513,8 @@ mod tests {
                     .await
                     .unwrap();
             }
-            if let Some(job) = claim(&pool, Shop::Eneba, "aa", t, BUDGET).await.unwrap() {
+            // The worker claims whatever budget and pacing allow at this time.
+            while let Some(job) = claim(&pool, Shop::Eneba, "aa", t, BUDGET).await.unwrap() {
                 if job.wish_id.as_deref() == Some("late") && late_search.is_none() {
                     late_search = Some(t);
                 }
@@ -1286,7 +1530,7 @@ mod tests {
                     .await
                     .unwrap();
             }
-            t += 1800;
+            t += 300;
             if t % DAY == 0 && t >= T0 + 5 * DAY {
                 assert_eq!(
                     stale_count(&active_valid, t - DAY).await,
@@ -1315,5 +1559,539 @@ mod tests {
             .await
             .unwrap();
         assert!(runs <= BUDGET * 10, "the daily budget holds: {runs} runs");
+        // Pacing spreads the budget: no UTC hour of a busy day gets more than a few jobs.
+        let busiest: i64 = sqlx::query_scalar(
+            "SELECT MAX(n) FROM (SELECT COUNT(*) AS n FROM job_run WHERE started_at>=? GROUP BY started_at/3600)",
+        )
+        .bind(T0 + DAY)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert!(busiest <= 6, "at most 6 jobs in one hour, got {busiest}");
+        assert!(
+            runs >= BUDGET * 9,
+            "pacing still uses the budget: {runs} runs"
+        );
+    }
+
+    async fn memory() -> SqlitePool {
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        pool
+    }
+
+    async fn add_item(pool: &SqlitePool, id: &str, state: &str) {
+        sqlx::query("INSERT INTO game(id,manual_title,manual_key,created_at) VALUES(?,?,?,0)")
+            .bind(id)
+            .bind(id)
+            .bind(id)
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO wishlist_item(id,game_id,platform_id,created_at,state,viewed_at,acquired_at) VALUES(?,?,169,0,?,?,?)",
+        )
+        .bind(id)
+        .bind(id)
+        .bind(state)
+        .bind((state == "preview").then_some(i64::MAX / 2))
+        .bind((state == "owned").then_some(0))
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    async fn add_link(pool: &SqlitePool, wish: &str, n: usize, due: i64) -> i64 {
+        let id: i64 = sqlx::query_scalar("INSERT INTO offer_link(wish_id,source,url,review) VALUES(?,'eneba',?,'confirmed') RETURNING id")
+            .bind(wish).bind(format!("https://www.eneba.com/de/xbox-{wish}-{n}-key-global"))
+            .fetch_one(pool).await.unwrap();
+        sqlx::query("INSERT INTO shop_job(source,link_id,due) VALUES('eneba',?,?)")
+            .bind(id)
+            .bind(due)
+            .execute(pool)
+            .await
+            .unwrap();
+        id
+    }
+
+    fn priced(valid: bool) -> Product {
+        Product {
+            id: "fixture".into(),
+            name: "Game".into(),
+            title: "Game".into(),
+            platform_ids: vec![169],
+            key_game: true,
+            region: Some("Global".into()),
+            allowed: if valid { vec!["DE".into()] } else { vec![] },
+            blocked: vec![],
+            purchase_country: Some("DE".into()),
+            offers: vec![crate::shops::Quote {
+                id: "q".into(),
+                cents: 2000,
+                seller: None,
+            }],
+            availability: Availability::InStock,
+        }
+    }
+
+    #[test]
+    fn pace_spreads_the_remaining_budget_over_the_rest_of_the_utc_day() {
+        const T0: i64 = 1_800_000_000 - 1_800_000_000 % DAY;
+        assert_eq!(pace_gap(T0, 500), 172);
+        assert_eq!(pace_gap(T0, 120), 720);
+        assert_eq!(pace_gap(T0 + DAY / 2, 120), 360);
+        assert_eq!(pace_gap(T0, 10_000), PACE_MIN, "never faster than 20 s");
+        assert_eq!(pace_gap(T0, 20), PACE_MAX, "never slower than one hour");
+        assert_eq!(
+            pace_gap(T0 + DAY - 600, 0),
+            600,
+            "no budget left: wait for the new day"
+        );
+        assert_eq!(pace_gap(T0 + DAY - 5, 1), PACE_MIN);
+    }
+
+    #[tokio::test]
+    async fn paced_jobs_wait_while_direct_user_actions_bypass_pacing_but_count() {
+        use crate::shops::eneba::SearchPage;
+        let pool = memory().await;
+        const T0: i64 = 1_800_000_000 - 1_800_000_000 % DAY;
+        let t = T0 + 3600;
+        add_item(&pool, "old", "wished").await;
+        // Two known links of an existing wish, due now.
+        let known = [
+            add_link(&pool, "old", 0, 0).await,
+            add_link(&pool, "old", 1, 0).await,
+        ];
+        sqlx::query("UPDATE offer_link SET observed_at=0")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE shop_job SET due=? WHERE wish_id IS NULL AND link_id IS NULL")
+            .bind(T0 + 10 * DAY)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let first = claim(&pool, Shop::Eneba, "a1", t, 500)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(first.link_id.is_some() && !first.bypass);
+        complete(
+            &pool,
+            Shop::Eneba,
+            &first,
+            "a1",
+            Ok(Work::Product(Box::new(priced(true)))),
+            t,
+            t,
+            1,
+        )
+        .await
+        .unwrap();
+        let gap = pace_gap(t, 499);
+        let paced: i64 =
+            sqlx::query_scalar("SELECT paced_until FROM shop_state WHERE source='eneba'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(paced, t + gap, "the next paced job time is persisted");
+        assert!(
+            claim(&pool, Shop::Eneba, "a2", t + gap - 1, 500)
+                .await
+                .unwrap()
+                .is_none(),
+            "the second known link waits for its slot"
+        );
+
+        // A new wish: its first search, the continuation pages of that run and the first
+        // price of every product it found run at once and still use the budget.
+        add_item(&pool, "new", "wished").await;
+        schedule_wish(&pool, "new").await.unwrap();
+        let search = claim(&pool, Shop::Eneba, "s1", t + 10, 500)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(search.wish_id.as_deref(), Some("new"));
+        assert!(search.bypass);
+        let urls = |n: usize| {
+            vec![format!(
+                "https://www.eneba.com/de/xbox-new-{n}-xbox-live-key-global"
+            )]
+        };
+        complete(
+            &pool,
+            Shop::Eneba,
+            &search,
+            "s1",
+            Ok(Work::Search(SearchPage {
+                urls: urls(1),
+                next_page: Some(2),
+            })),
+            t + 10,
+            t + 10,
+            1,
+        )
+        .await
+        .unwrap();
+        // Page 2 and the products of pages 1 and 2, in claim order.
+        let mut found = vec![];
+        for (i, token) in ["j1", "j2", "j3"].into_iter().enumerate() {
+            let job = claim(&pool, Shop::Eneba, token, t + 20 + i as i64, 500)
+                .await
+                .unwrap()
+                .unwrap();
+            assert!(job.bypass, "{token} bypasses pacing");
+            let result = if let Some(link) = job.link_id {
+                found.push(link);
+                Work::Product(Box::new(priced(true)))
+            } else {
+                assert_eq!(job.search_page, 2);
+                Work::Search(SearchPage {
+                    urls: urls(2),
+                    next_page: None,
+                })
+            };
+            complete(
+                &pool,
+                Shop::Eneba,
+                &job,
+                token,
+                Ok(result),
+                t + 20 + i as i64,
+                t,
+                1,
+            )
+            .await
+            .unwrap();
+        }
+        assert_eq!(found.len(), 2);
+        assert!(!found.iter().any(|id| known.contains(id)));
+        let (used, still_paced): (i64, i64) =
+            sqlx::query_as("SELECT jobs_today,paced_until FROM shop_state WHERE source='eneba'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(used, 5, "direct user actions count toward the budget");
+        assert_eq!(still_paced, t + gap, "and leave the pacing slot alone");
+        assert!(
+            claim(&pool, Shop::Eneba, "a3", t + gap - 1, 500)
+                .await
+                .unwrap()
+                .is_none(),
+            "the new wish's links are done; the next repeated search waits as well"
+        );
+
+        // After its first run the repeated search, a refetched product and links attached by
+        // a shop-wide discovery are paced again.
+        sqlx::query("UPDATE shop_job SET due=0 WHERE wish_id='new' OR link_id IN (SELECT value FROM json_each(?))")
+            .bind(serde_json::to_string(&found).unwrap())
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO shop_candidate(source,url,title_key) VALUES('eneba','https://www.eneba.com/de/xbox-new-9-xbox-live-key-global','new')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        attach(&pool, Shop::Eneba).await.unwrap();
+        assert!(
+            claim(&pool, Shop::Eneba, "a4", t + gap - 1, 500)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        // A requested refresh is class 0 and bypasses pacing.
+        sqlx::query("UPDATE shop_job SET requested_at=? WHERE link_id=?")
+            .bind(t)
+            .bind(known[1])
+            .execute(&pool)
+            .await
+            .unwrap();
+        let refresh = claim(&pool, Shop::Eneba, "rr", t + gap - 1, 500)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!((refresh.link_id, refresh.bypass), (Some(known[1]), true));
+        complete(
+            &pool,
+            Shop::Eneba,
+            &refresh,
+            "rr",
+            Ok(Work::Product(Box::new(priced(true)))),
+            t + gap - 1,
+            t,
+            1,
+        )
+        .await
+        .unwrap();
+        let next = claim(&pool, Shop::Eneba, "a5", t + gap, 500)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            !next.bypass,
+            "once the slot is reached, paced jobs run again"
+        );
+
+        // Budget exhaustion stops direct user actions too.
+        sqlx::query("UPDATE source_settings SET daily_jobs=20 WHERE id='eneba'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE shop_state SET jobs_today=20 WHERE source='eneba'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE shop_job SET lease_until=0,lease_token=NULL,requested_at=?")
+            .bind(t + gap)
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert!(
+            claim(&pool, Shop::Eneba, "full", t + gap + 1, 500)
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn previews_and_manual_restarts_do_not_bypass_pacing() {
+        let pool = memory().await;
+        add_item(&pool, "anchor", "wished").await;
+        add_item(&pool, "preview", "preview").await;
+        sqlx::query("INSERT INTO edition_watch VALUES('anchor','preview')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        schedule_wish(&pool, "preview").await.unwrap();
+        sqlx::query("UPDATE shop_state SET paced_until=? WHERE source='eneba'")
+            .bind(now() + 600)
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert!(
+            claim(&pool, Shop::Eneba, "preview", now(), 500)
+                .await
+                .unwrap()
+                .is_none(),
+            "the first search of an edition preview is paced"
+        );
+        // Once the slot is reached, the preview runs as a paced job.
+        unpace(&pool).await;
+        let job = claim(&pool, Shop::Eneba, "preview", now(), 500)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            (job.wish_id.as_deref(), job.bypass),
+            (Some("preview"), false)
+        );
+    }
+
+    #[tokio::test]
+    async fn the_daily_jobs_setting_overrides_the_default_without_restart() {
+        let pool = memory().await;
+        add_item(&pool, "wish", "wished").await;
+        for n in 0..3 {
+            add_link(&pool, "wish", n, 0).await;
+        }
+        const T0: i64 = 1_800_000_000 - 1_800_000_000 % DAY;
+        sqlx::query("UPDATE shop_state SET budget_day=?,jobs_today=25 WHERE source='eneba'")
+            .bind(T0 / DAY)
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert!(
+            claim(&pool, Shop::Eneba, "default", T0, 500)
+                .await
+                .unwrap()
+                .is_some()
+        );
+        sqlx::query("UPDATE shop_job SET lease_until=0,lease_token=NULL")
+            .execute(&pool)
+            .await
+            .unwrap();
+        unpace(&pool).await;
+        sqlx::query("UPDATE source_settings SET daily_jobs=26 WHERE id='eneba'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert!(
+            claim(&pool, Shop::Eneba, "setting", T0 + 1, 500)
+                .await
+                .unwrap()
+                .is_none(),
+            "26 jobs used of 26"
+        );
+        let budget = budget_status(&pool, Shop::Eneba, T0 + 1).await.unwrap();
+        assert_eq!(budget["limit"], 26);
+        assert_eq!(budget["limit_source"], "setting");
+        assert_eq!(
+            budget["next_at"],
+            T0 + DAY,
+            "a full budget waits for the next UTC day"
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_status_reports_pace_next_start_and_runs_per_hour() {
+        let pool = memory().await;
+        let t = now();
+        let today = t - t % DAY;
+        add_item(&pool, "wish", "wished").await;
+        add_link(&pool, "wish", 0, t + 900).await;
+        sqlx::query("UPDATE shop_job SET due=? WHERE link_id IS NULL AND wish_id IS NULL")
+            .bind(t + 7200)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "UPDATE shop_state SET budget_day=?,jobs_today=3,paced_until=? WHERE source='eneba'",
+        )
+        .bind(t / DAY)
+        .bind(t + 1800)
+        .execute(&pool)
+        .await
+        .unwrap();
+        for at in [today, today + 1, today + 3600 * 5, today - 1] {
+            sqlx::query("INSERT INTO job_run(source,kind,started_at,duration_ms,outcome) VALUES('eneba','product',?,1,'ok')")
+                .bind(at)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        let budget = budget_status(&pool, Shop::Eneba, t).await.unwrap();
+        let expected = default_budget();
+        assert_eq!(budget["used"], 3);
+        assert_eq!(budget["limit"], expected.0);
+        assert_eq!(budget["limit_source"], expected.1);
+        assert_eq!(budget["pace_seconds"], pace_gap(t, expected.0 - 3));
+        assert_eq!(
+            budget["next_at"],
+            t + 1800,
+            "the product is due but waits for its slot"
+        );
+        let hours = budget["by_hour"].as_array().unwrap();
+        assert_eq!(hours.len(), 24);
+        assert_eq!(hours[0], 2);
+        assert_eq!(hours[5], 1);
+        assert_eq!(hours.iter().map(|h| h.as_i64().unwrap()).sum::<i64>(), 3);
+        // A product (3/day at 8 h) and the daily discovery.
+        assert_eq!(budget["demand_per_day"], 4);
+        sqlx::query("DELETE FROM shop_job")
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert!(budget_status(&pool, Shop::Eneba, t).await.unwrap()["next_at"].is_null());
+    }
+
+    #[tokio::test]
+    async fn demand_estimate_matches_an_unlimited_simulation() {
+        use crate::shops::eneba::SearchPage;
+        let pool = memory().await;
+        sqlx::query("UPDATE app_settings SET target_country='DE'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        const T0: i64 = 1_800_000_000 - 1_800_000_000 % DAY;
+        let mut valid = std::collections::HashMap::new();
+        // Active wishes with valid and other regions, watched previews, an unviewed preview,
+        // an owned item and a rejected link; the last three stay idle.
+        for w in 0..4 {
+            let wish = format!("w{w}");
+            add_item(&pool, &wish, "wished").await;
+            schedule_wish(&pool, &wish).await.unwrap();
+            for n in 0..5 {
+                valid.insert(add_link(&pool, &wish, n, T0).await, n < 2);
+            }
+            let preview = format!("p{w}");
+            add_item(&pool, &preview, "preview").await;
+            sqlx::query("INSERT INTO edition_watch VALUES(?,?)")
+                .bind(&wish)
+                .bind(&preview)
+                .execute(&pool)
+                .await
+                .unwrap();
+            schedule_wish(&pool, &preview).await.unwrap();
+            for n in 0..3 {
+                valid.insert(add_link(&pool, &preview, n, T0).await, n < 1);
+            }
+        }
+        add_item(&pool, "unviewed", "preview").await;
+        sqlx::query("UPDATE wishlist_item SET viewed_at=? WHERE id='unviewed'")
+            .bind(T0 - 30 * DAY)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO edition_watch VALUES('w0','unviewed')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        add_item(&pool, "owned", "owned").await;
+        for item in ["unviewed", "owned"] {
+            schedule_wish(&pool, item).await.unwrap();
+            valid.insert(add_link(&pool, item, 0, T0).await, true);
+        }
+        let rejected = add_link(&pool, "w0", 9, T0).await;
+        valid.insert(rejected, true);
+        sqlx::query("UPDATE offer_link SET review='rejected' WHERE id=?")
+            .bind(rejected)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE shop_job SET due=? WHERE wish_id IS NOT NULL OR link_id IS NULL")
+            .bind(T0)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        // Unlimited budget, no pacing: every job runs exactly when it is due.
+        let mut estimate = None;
+        let mut t = T0;
+        while t < T0 + 15 * DAY {
+            if t == T0 + DAY {
+                // Relevance is learned after the first run of every product.
+                estimate = Some(demand(&pool, Shop::Eneba, t).await.unwrap());
+            }
+            loop {
+                unpace(&pool).await;
+                let Some(job) = claim(&pool, Shop::Eneba, "aa", t, 1_000_000).await.unwrap() else {
+                    break;
+                };
+                let result = match (job.link_id, &job.wish_id) {
+                    (Some(id), _) => Work::Product(Box::new(priced(valid[&id]))),
+                    (None, Some(_)) => Work::Search(SearchPage {
+                        urls: vec![],
+                        next_page: None,
+                    }),
+                    (None, None) => Work::Discovery(vec![]),
+                };
+                complete(&pool, Shop::Eneba, &job, "aa", Ok(result), t, t, 1)
+                    .await
+                    .unwrap();
+            }
+            t += 300;
+        }
+        let runs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM job_run WHERE started_at>=?")
+            .bind(T0 + DAY)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let simulated = runs as f64 / 14.0;
+        let estimate = estimate.unwrap();
+        // 8 valid wish links ×3, 12 others ×1, 4 valid preview links ×1.5, 8 others ×0.5,
+        // 8 weekly searches and the daily discovery.
+        assert!(
+            (estimate - (24.0 + 12.0 + 6.0 + 4.0 + 8.0 / 7.0 + 1.0)).abs() < 1e-9,
+            "{estimate}"
+        );
+        assert!(
+            (simulated - estimate).abs() <= estimate * 0.03,
+            "estimate {estimate:.1}/day, simulation {simulated:.1}/day"
+        );
     }
 }
