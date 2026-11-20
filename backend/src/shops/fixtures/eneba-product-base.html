@@ -1,0 +1,111 @@
+<!--
+  Fixture: Eneba product page (base game, region GLOBAL).
+  Origin: structure derived from a public Eneba product page observed 2026-11-17; hand-reconstructed.
+  Minimized to: JSON-LD Product block, the German activation <span> (nested spans as on the real page)
+  and a trimmed script#__APOLLO_STATE__ with synthetic ids/prices. No text, image or review content copied.
+  Pins: product(...) ROOT_QUERY keys carry the purchase country; auctions({"first":1}) holds the
+  cheapest offer and preferredAuction a different one; the "Kann in Deutschland aktiviert werden"
+  span marks DE activation; offers come from Auction::<id> entries with price({"currency":"EUR"}) in cents.
+-->
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><title>Forza Horizon 5 (fixture)</title>
+<script type="application/ld+json" data-rh="true">{"@context": "https://schema.org", "@type": "Product", "name": "Forza Horizon 5 PC/XBOX LIVE Key GLOBAL", "offers": {"@type": "AggregateOffer", "availability": "https://schema.org/InStock", "lowPrice": 23.92, "priceCurrency": "EUR", "offerCount": 21}}</script>
+</head><body>
+<div><strong>Global</strong><span><span class="a">Kann in <span>Deutschland</span> aktiviert werden</span><span class="a">Region free</span></span></div>
+<script id="__APOLLO_STATE__" type="application/json">{
+ "ROOT_QUERY": {
+  "product({\"context\":{\"language\":\"de_DE\"},\"increaseCacheAge\":true,\"slug\":\"xbox-forza-horizon-5-pc-xbox-live-key-global\"})": {
+   "__ref": "Product::xbox-forza-horizon-5-pc-xbox-live-key-global"
+  },
+  "product({\"context\":{\"country\":\"DE\",\"language\":\"de_DE\",\"region\":\"germany\"},\"slug\":\"xbox-forza-horizon-5-pc-xbox-live-key-global\"})": {
+   "__ref": "Product::xbox-forza-horizon-5-pc-xbox-live-key-global"
+  }
+ },
+ "Product::xbox-forza-horizon-5-pc-xbox-live-key-global": {
+  "__typename": "Product",
+  "slug": "xbox-forza-horizon-5-pc-xbox-live-key-global",
+  "shortId": "synthproduct0001",
+  "linkedProduct": null,
+  "name": "Forza Horizon 5 PC/XBOX LIVE Key GLOBAL",
+  "regions": [
+   {
+    "__typename": "ProductRegion",
+    "code": "global",
+    "name": "Global"
+   }
+  ],
+  "blockedCountries": [],
+  "countriesAlpha2": [
+   "AT",
+   "DE",
+   "FR"
+  ],
+  "drm": {
+   "__typename": "Drm",
+   "name": "Xbox Live",
+   "slug": "xbox"
+  },
+  "worksOn": [
+   {
+    "label": "Windows",
+    "value": "WINDOWS"
+   },
+   {
+    "label": "Xbox One",
+    "value": "XBOX_ONE"
+   },
+   {
+    "label": "Xbox Series X",
+    "value": "XBOX_SERIES_X"
+   }
+  ],
+  "category": "DIGITAL",
+  "type": {
+   "__typename": "ProductTypeEnumValue",
+   "value": "GAME",
+   "label": "Spiel"
+  },
+  "preferredAuction": {
+   "__ref": "Auction::0a1b2c3d-0000-4000-8000-000000000001"
+  },
+  "auctions({\"first\":1})": {
+   "__typename": "AuctionConnection",
+   "totalCount": 21,
+   "edges": [
+    {
+     "__typename": "AuctionEdge",
+     "node": {
+      "__ref": "Auction::0a1b2c3d-0000-4000-8000-000000000002"
+     }
+    }
+   ]
+  }
+ },
+ "Auction::0a1b2c3d-0000-4000-8000-000000000001": {
+  "__typename": "Auction",
+  "id": "0a1b2c3d-0000-4000-8000-000000000001",
+  "price({\"currency\":\"EUR\"})": {
+   "__typename": "Money",
+   "amount": 2571,
+   "currency": "EUR"
+  },
+  "promotionalPrice({\"currency\":\"EUR\"})": null,
+  "isInStock": true,
+  "isPreOrder": false,
+  "promotion": false
+ },
+ "Auction::0a1b2c3d-0000-4000-8000-000000000002": {
+  "__typename": "Auction",
+  "id": "0a1b2c3d-0000-4000-8000-000000000002",
+  "price({\"currency\":\"EUR\"})": {
+   "__typename": "Money",
+   "amount": 2392,
+   "currency": "EUR"
+  },
+  "promotionalPrice({\"currency\":\"EUR\"})": null,
+  "isInStock": true,
+  "isPreOrder": false,
+  "promotion": false
+ }
+}</script>
+</body></html>
