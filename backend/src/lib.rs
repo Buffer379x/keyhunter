@@ -44,6 +44,8 @@ pub(crate) struct AppState {
     password_slots: Arc<tokio::sync::Semaphore>,
     catalog: Arc<dyn catalog::provider::CatalogProvider>,
     ntfy: Option<Arc<alerts::Ntfy>>,
+    heartbeat: Arc<jobs::Heartbeat>,
+    background: bool,
 }
 type Shared = Arc<AppState>;
 type ApiResult<T> = std::result::Result<T, ApiError>;
@@ -169,9 +171,11 @@ async fn create_app_inner(
         password_slots: Arc::new(tokio::sync::Semaphore::new(4)),
         catalog,
         ntfy: ntfy.clone(),
+        heartbeat: Arc::default(),
+        background: run_background,
     });
     if run_background {
-        jobs::start(&state.pool);
+        jobs::start(&state.pool, Arc::clone(&state.heartbeat));
         edition_tracking::start(&state);
         if let Some(ntfy) = ntfy {
             alerts::start(&state.pool, ntfy);
@@ -189,6 +193,7 @@ async fn create_app_inner(
             get(catalog::edition_comparison),
         )
         .route("/sources/status", get(catalog::source_status))
+        .route("/status/fetch", get(jobs::status))
         .route("/wishlist", get(wishlist::list).post(wishlist::add))
         .route("/library", get(wishlist::library))
         .route("/wishlist/{id}/purchase", post(wishlist::purchase))
@@ -255,6 +260,12 @@ async fn create_app_inner(
 
 async fn ready(State(state): State<Shared>) -> ApiResult<Json<serde_json::Value>> {
     sqlx::query("SELECT 1").execute(&state.pool).await?;
+    if state.background && state.heartbeat.stalled(now()) {
+        return Err(ApiError(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Ein Abrufdienst reagiert nicht. Container-Protokoll prüfen.",
+        ));
+    }
     Ok(Json(
         json!({"status":"ready","version":env!("CARGO_PKG_VERSION")}),
     ))

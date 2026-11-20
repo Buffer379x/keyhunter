@@ -1573,3 +1573,46 @@ async fn preparing_all_editions_preserves_the_saved_selection_and_exposes_previe
         StatusCode::NOT_FOUND
     );
 }
+
+#[tokio::test]
+async fn fetch_status_reports_queue_budget_and_requested_refreshes() {
+    let fx = Fixture::new().await;
+    let (s, _, _) = request(
+        &fx.app,
+        "GET",
+        "/api/v1/status/fetch",
+        Value::Null,
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+
+    let (s, wish) = fx
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":1,"platform_id":169}),
+        )
+        .await;
+    assert!(s.is_success(), "{wish}");
+    let (s, status) = fx.call("GET", "/api/v1/status/fetch", Value::Null).await;
+    assert_eq!(s, StatusCode::OK, "{status}");
+    let eneba = status["shops"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|shop| shop["source"] == "eneba")
+        .expect("eneba is listed");
+    assert_eq!(eneba["budget"]["used"], 0);
+    assert!(eneba["budget"]["limit"].as_i64().unwrap() > 0);
+    assert_eq!(
+        eneba["backlog"]["searches"], 1,
+        "the new wish waits for its first search"
+    );
+    assert_eq!(status["errors_24h"], 0);
+    assert_eq!(status["recent_runs"], json!([]));
+
+    let (s, ready, _) = request(&fx.app, "GET", "/health/ready", Value::Null, None, None).await;
+    assert_eq!(s, StatusCode::OK, "{ready}");
+}
