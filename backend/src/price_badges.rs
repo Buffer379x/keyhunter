@@ -25,6 +25,9 @@ pub(crate) struct PriceBadge {
     /// Cheapest current offer of any region, always reported for the comparison with the
     /// target country (the core use case), independent of the badge setting.
     pub world: Option<WorldBest>,
+    /// Shop and region of `cents` (the target-country price, or the scope's best).
+    pub source: Option<String>,
+    pub region: Option<String>,
     /// Best price valid in the target country at the end of each of the last 14 UTC days,
     /// oldest first (today: now). Each link carries its last observation forward; `None`
     /// before the first observation or while no confirmed link has a valid price.
@@ -38,6 +41,7 @@ const DAY: i64 = 86400;
 #[derive(Clone, Serialize)]
 pub(crate) struct WorldBest {
     pub cents: i64,
+    pub source: String,
     pub region: Option<String>,
     pub observed_at: i64,
 }
@@ -270,6 +274,8 @@ fn compute(
         stale: false,
         pending: job.is_some_and(|j| j.pending),
         world: None,
+        source: None,
+        region: None,
         trend: vec![],
     };
     let mut observed = false;
@@ -309,13 +315,20 @@ fn compute(
         pricing::base,
     )
     .current;
-    result.world = world.map(|best| WorldBest {
-        cents: best.cents,
-        region: candidates
+    let origin = |link_id| {
+        candidates
             .iter()
-            .find(|(link, ..)| link.id == best.link_id)
-            .and_then(|(_, product, ..)| product.region.clone()),
-        observed_at: best.observed_at,
+            .find(|(link, ..)| link.id == link_id)
+            .map(|(link, product, ..)| (link.source.clone(), product.region.clone()))
+    };
+    result.world = world.and_then(|best| {
+        let (source, region) = origin(best.link_id)?;
+        Some(WorldBest {
+            cents: best.cents,
+            source,
+            region,
+            observed_at: best.observed_at,
+        })
     });
     // A current price wins; otherwise the last known one is shown, marked as stale.
     let prices = pricing::best(
@@ -332,6 +345,10 @@ fn compute(
         result.cents = Some(best.cents);
         result.observed_at = Some(best.observed_at);
         result.stale = stale;
+        if let Some((source, region)) = origin(best.link_id) {
+            result.source = Some(source);
+            result.region = region;
+        }
     }
     result.state = if result.cents.is_some() {
         "price"
