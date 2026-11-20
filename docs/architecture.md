@@ -16,6 +16,8 @@ Abbrechbare debouncte Katalogsuche und eigener Listenfilter sind getrennt. Auswa
 
 Die IGDB-Edition und -Plattform dienen dem Katalogbezug. Shopadapter belegen die konkrete Produktidentität, Aktivierbarkeit und den beobachteten Preis separat.
 
+Jeder verfolgte Eintrag (Spiel bzw. Edition + Plattform) hat genau einen Zustand in `wishlist_item.state`: `wished` (Wunschliste), `preview` (versteckte Editionsvorschau, über `edition_watch` an einen Wunsch gebunden) oder `owned` (Bibliothek). Shop-Links, Jobs, Beobachtungen und Alarmregeln hängen an diesem Eintrag und bleiben bei Zustandswechseln erhalten. API-Fehler liefern neben der deutschen Meldung einen festen `code` (z. B. `not_found`, `conflict`).
+
 Die rootlose amd64-Runtime enthält Binary, Webassets, CA-Zertifikate und Healthcheck-Curl. Node/Rust-Compiler, `work/`, Importgespräche und Secrets gelangen nicht ins Runtime-Image. Docker-Buildkontext ist auf benötigte Quellen beschränkt. Es gibt keinen Queue-Dienst, externen Datenbankserver oder dauerhaften Browser-Worker.
 
 
