@@ -9,6 +9,10 @@ test('owner can set up, save service fees, use keyboard dialog, and log in again
   await page.screenshot({ path: 'test-results/wishlist-desktop.png', fullPage: true });
   const savedCountryLabel = await page.locator('.target-pill').innerText();
   await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
+  await page.getByLabel('Zielland', { exact: true }).selectOption('AT');
+  await expect(page.getByRole('note').filter({ hasText: 'Die Shops bestätigen die Aktivierung derzeit nur für Deutschland. Für Österreich werden Angebote angezeigt' })).toBeVisible();
+  await page.getByLabel('Zielland', { exact: true }).selectOption('DE');
+  await expect(page.getByRole('note').filter({ hasText: 'Die Shops bestätigen' })).toHaveCount(0);
   await page.getByLabel('Zielland', { exact: true }).selectOption('FR');
   await page.getByRole('button', { name: /^Wunschliste/ }).click();
   await expect(page.locator('.target-pill')).toHaveText(savedCountryLabel);

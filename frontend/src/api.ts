@@ -13,6 +13,7 @@ export interface Settings {
   wishlist_price_scope: 'preferred' | 'all';
   sources: SourceSettings[];
   countries: string[];
+  confirmed_activation_countries?: string[];
 }
 export class HttpError extends Error {
   status: number;

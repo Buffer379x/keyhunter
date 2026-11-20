@@ -27,6 +27,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Check backend and frontend
         run: sh deploy/check.sh
+      - name: Audit production dependencies
+        run: cd frontend && npm audit --omit=dev --audit-level=high
       - name: Run browser tests with the synthetic catalog
         env:
           KEYHUNTER_TEST_BROWSER_CHANNEL: chrome
