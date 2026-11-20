@@ -8,13 +8,15 @@ export const shopTitle = (id: string) => ({ eneba: 'Eneba', driffle: 'Driffle', 
 const HOUR = 3600;
 const presetHours = [0.25, 0.5, 1, 2, 3, 4, 6, 8, 12, 24, 48, 72, 168];
 const hoursText = (hours: number) => `${hours.toLocaleString('de-DE', { maximumFractionDigits: 2 })}`;
+/** "2 Stunden", "30 Minuten", "1 Stunde". */
+export function intervalLabel(seconds: number): string {
+  const hours = seconds / HOUR;
+  return hours < 1 ? `${Math.round(hours * 60)} Minuten` : hours === 1 ? '1 Stunde' : `${hoursText(hours)} Stunden`;
+}
 /** Options of "Produktseiten abfragen alle": "8 Stunden"; the current value is always one of them, also when it is not a preset. */
 export function intervalOptions(currentSeconds: number): { value: number; label: string }[] {
   const seconds = [...new Set([...presetHours.map(h => Math.round(h * HOUR)), currentSeconds])].sort((a, b) => a - b);
-  return seconds.map(value => {
-    const hours = value / HOUR;
-    return { value, label: hours < 1 ? `${Math.round(hours * 60)} Minuten` : hours === 1 ? '1 Stunde' : `${hoursText(hours)} Stunden` };
-  });
+  return seconds.map(value => ({ value, label: intervalLabel(value) }));
 }
 
 /** Bounds of "Abrufe pro Tag (höchstens)" (backend: daily_jobs 20..=2000). */

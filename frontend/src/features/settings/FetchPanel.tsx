@@ -3,7 +3,7 @@ import type { FetchRun, FetchShopStatus, FetchStatusResponse } from '../../api';
 import { relativeTime } from '../../time';
 import { paceText } from '../../FetchStatus';
 import { SettingsPanel } from './parts';
-import { DAILY_JOBS_MAX, budgetView, clockText, dateTimeText, durationText, fetchPill, kindText, outcomeText, outcomeTone, shopState, shopTitle, untilText, workerState } from './format';
+import { DAILY_JOBS_MAX, budgetView, intervalLabel, clockText, dateTimeText, durationText, fetchPill, kindText, outcomeText, outcomeTone, shopState, shopTitle, untilText, workerState } from './format';
 
 const pct = (share: number) => `${(share * 100).toFixed(1)}%`;
 
@@ -42,7 +42,7 @@ function ShopStatus({ shop, now }: { shop: FetchShopStatus; now: number }) {
 }
 
 /** Warning above the shops when the wishlist needs more fetches than a shop may make per day. */
-function DemandNote({ shop, onShops }: { shop: FetchShopStatus; onShops: () => void }) {
+function DemandNote({ shop, interval, onShops }: { shop: FetchShopStatus; interval?: number; onShops: () => void }) {
   const budget = budgetView(shop.budget);
   if (!shop.enabled || !budget.over || budget.needed === null) return null;
   const name = shopTitle(shop.source);
@@ -54,6 +54,7 @@ function DemandNote({ shop, onShops }: { shop: FetchShopStatus; onShops: () => v
       {tooMany
         ? <>Das ist mehr als die höchstens möglichen {DAILY_JOBS_MAX}. Setze „Abrufe pro Tag (höchstens)“ auf {DAILY_JOBS_MAX} und verlängere das Intervall, damit alle Wünsche rechtzeitig abgefragt werden.</>
         : <>Damit alle Wünsche rechtzeitig abgefragt werden, setze „Abrufe pro Tag (höchstens)“ auf mindestens <b>{budget.needed}</b>.</>}
+      {interval !== undefined && interval < RECOMMENDED_INTERVAL && <> Alternativ das Intervall von {intervalLabel(interval)} auf die empfohlenen 8 Stunden verlängern; das senkt den Bedarf auf grob {Math.max(1, Math.round(Number(budget.demand) * interval / RECOMMENDED_INTERVAL))} pro Tag.</>}
       {budget.fromEnv && ' Das Limit kommt derzeit aus einer Umgebungsvariable.'}{' '}
       <button type="button" className="text-button" onClick={onShops}>Zu den Key-Shops</button>
     </span>
@@ -77,13 +78,16 @@ function RunsTable({ runs }: { runs: FetchRun[] }) {
   </table></div>;
 }
 
-export default function FetchPanel({ data, failed, loadedAt, onShops }: { data: FetchStatusResponse | null; failed: boolean; loadedAt: number | null; onShops: () => void }) {
+/** Recommended product interval of both shops (settings::shop_readers). */
+const RECOMMENDED_INTERVAL = 28800;
+
+export default function FetchPanel({ data, failed, loadedAt, intervals = {}, onShops }: { data: FetchStatusResponse | null; failed: boolean; loadedAt: number | null; intervals?: Record<string, number>; onShops: () => void }) {
   if (!data) return <p role="status" className="hint">{failed ? 'Der Abrufstatus konnte nicht gelesen werden.' : 'Abrufstatus wird geladen …'}</p>;
   if (data.shops.length === 0) return <Panel><EmptyState icon="activity" title="Noch kein Shop eingerichtet" headingLevel={3}>Sobald ein Key-Shop eingerichtet ist, siehst du hier Tagesbudget, nächste und letzte Abrufe.</EmptyState></Panel>;
   const now = Date.now() / 1000;
   return <>
     {failed && loadedAt !== null && <p className="hint" role="status">Aktualisierung fehlgeschlagen · Stand {new Date(loadedAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr</p>}
-    {data.shops.map(shop => <DemandNote key={shop.source} shop={shop} onShops={onShops} />)}
+    {data.shops.map(shop => <DemandNote key={shop.source} shop={shop} interval={intervals[shop.source]} onShops={onShops} />)}
     <div className="shops">{data.shops.map(shop => <ShopStatus key={shop.source} shop={shop} now={now} />)}</div>
     <SettingsPanel title="Letzte Abrufe" titleId="runs-title" insetClassName="set-runs">
       <RunsTable runs={data.recent_runs} />

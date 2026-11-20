@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { budgetShare, budgetView, durationText, fetchPill, intervalOptions, kindText, lastTest, outcomeText, outcomeTone, parseDailyJobs, shopState, untilText, workerState } from '../src/features/settings/format.ts';
+import { budgetShare, budgetView, durationText, fetchPill, intervalLabel, intervalOptions, kindText, lastTest, outcomeText, outcomeTone, parseDailyJobs, shopState, untilText, workerState } from '../src/features/settings/format.ts';
 import type { FetchShopStatus } from '../src/api.ts';
 
 const shop = (patch: Partial<FetchShopStatus> = {}): FetchShopStatus => ({
@@ -78,4 +78,11 @@ test('outcomes, durations, budget share and the last test message', () => {
   assert.equal(budgetShare(1, 0), 0);
   assert.equal(lastTest([{ id: 3, wish_id: 'a' }, { id: 2, wish_id: null }, { id: 1, wish_id: null }])?.id, 2);
   assert.equal(lastTest([{ id: 3, wish_id: 'a' }]), null);
+});
+
+test('interval labels name hours and minutes in German', () => {
+  assert.equal(intervalLabel(7200), '2 Stunden');
+  assert.equal(intervalLabel(3600), '1 Stunde');
+  assert.equal(intervalLabel(1800), '30 Minuten');
+  assert.equal(intervalLabel(5400), '1,5 Stunden');
 });
