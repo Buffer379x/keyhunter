@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { signInToFixture } from './helpers';
+import { expectSettingsSaved, signInToFixture } from './helpers';
 
 test('catalog choice persists, editions stay distinct, filters and removal work on mobile', async ({ page }) => {
   const errors: string[] = [];
@@ -112,8 +112,7 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
   await page.getByRole('button', { name: 'Angebote & Preise', exact: true }).click();
   await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
   await page.getByLabel('Zielland', { exact: true }).selectOption('US');
-  await page.getByRole('button', { name: 'Änderungen speichern' }).click();
-  await expect(page.getByText('Einstellungen gespeichert.', { exact: true })).toBeVisible();
+  await expectSettingsSaved(page);
   target = 'US';
   await page.getByRole('button', { name: /^Wunschliste/ }).click();
   await expect(page.locator('.offer-table-row')).toHaveCount(0);
@@ -121,8 +120,7 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
   await expect(page.locator('.region-row.preferred-region')).toContainText('Vereinigte Staaten');
   await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
   await page.getByLabel('Zielland', { exact: true }).selectOption('DE');
-  await page.getByRole('button', { name: 'Änderungen speichern' }).click();
-  await expect(page.getByText('Einstellungen gespeichert.', { exact: true })).toBeVisible();
+  await expectSettingsSaved(page);
   target = 'DE';
   await page.getByRole('button', { name: /^Wunschliste/ }).click();
   await page.getByRole('button', { name: 'Auf der Wunschliste' }).click();

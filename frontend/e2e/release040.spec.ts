@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { signInToFixture } from './helpers';
+import { expectSettingsSaved, signInToFixture } from './helpers';
 
 test('settings separate key shops from games index and persist source intervals', async ({ page }) => {
   await signInToFixture(page);
@@ -7,20 +7,20 @@ test('settings separate key shops from games index and persist source intervals'
   const shops = page.getByRole('tab', { name: 'Key-Shops', exact: true });
   await expect(shops).toBeVisible(); await shops.click();
   const eneba = page.getByRole('article', { name: 'Eneba', exact: true });
-  await expect(eneba.getByLabel('Abfrageintervall (Stunden)', { exact: true })).toHaveValue('8');
+  await expect(eneba.getByLabel('Abfrageintervall', { exact: true })).toHaveValue(String(8 * 3600));
   await expect(page.getByRole('region', { name: 'IGDB-Zugang' })).not.toBeVisible();
-  await eneba.getByLabel('Abfrageintervall (Stunden)', { exact: true }).fill('2');
-  await page.getByRole('button', { name: 'Änderungen speichern' }).click();
-  await expect(page.getByText('Einstellungen gespeichert.', { exact: true })).toBeVisible();
+  await eneba.getByLabel('Abfrageintervall', { exact: true }).selectOption(String(2 * 3600));
+  await expectSettingsSaved(page);
   await page.reload();
-  await expect(eneba.getByLabel('Abfrageintervall (Stunden)', { exact: true })).toHaveValue('2');
+  await expect(eneba.getByLabel('Abfrageintervall', { exact: true })).toHaveValue(String(2 * 3600));
   await page.getByLabel('Shop-URL', { exact: true }).fill('https://www.gamivo.com');
   await page.getByRole('button', { name: 'Dienst hinzufügen', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('kein geprüfter Reader');
   await page.getByLabel('Shop-URL', { exact: true }).fill('https://driffle.com');
   await page.getByRole('button', { name: 'Dienst hinzufügen', exact: true }).click();
   await expect(page.getByRole('article', { name: 'Driffle', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Driffle entfernen', exact: true }).click();
+  await page.getByRole('article', { name: 'Driffle', exact: true }).getByRole('button', { name: 'Entfernen', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Driffle entfernen?' }).getByRole('button', { name: 'Entfernen bestätigen', exact: true }).click();
   await expect(page.getByRole('article', { name: 'Driffle', exact: true })).not.toBeVisible();
   await page.getByRole('tab', { name: 'Spieleindex', exact: true }).click();
   await expect(page.getByRole('region', { name: 'IGDB-Zugang' })).toBeVisible();

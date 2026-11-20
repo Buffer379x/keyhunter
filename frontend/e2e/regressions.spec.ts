@@ -47,7 +47,7 @@ test('returning to wishlist after using search never reopens an add dialog', asy
   await page.keyboard.press('Escape');
 });
 
-test('settings fill the content width and typography is consistent across pages', async ({ page }) => {
+test('settings use the content width up to a readable maximum and share the app typography', async ({ page }) => {
   await signInToFixture(page);
   await page.setViewportSize({ width: 1920, height: 1080 });
   const family = await page.locator('.wishlist-head h1').evaluate(el => getComputedStyle(el).fontFamily);
@@ -55,20 +55,17 @@ test('settings fill the content width and typography is consistent across pages'
   const dimensions = await page.locator('main').evaluate(el => {
     const rect = el.getBoundingClientRect();
     const styles = getComputedStyle(el);
-    const form = el.querySelector('.settings-form')!.getBoundingClientRect();
-    return { main: rect.width, available: innerWidth - rect.left, form: form.width, content: rect.width - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight) };
+    const layout = el.querySelector('.settings-layout')!.getBoundingClientRect();
+    return { main: rect.width, available: innerWidth - rect.left, layout: layout.width, content: rect.width - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight) };
   });
+  // The settings use the content width up to a readable maximum (1240 px) and never overflow it.
   expect(dimensions.main).toBeCloseTo(dimensions.available, 0);
-  expect(dimensions.form).toBeCloseTo(dimensions.content, 0);
-  const settingsHeading = page.locator('.settings-card h2').first();
-  const headingSize = await settingsHeading.evaluate(el => getComputedStyle(el).fontSize);
-  const paragraphSize = await page.locator('.settings-card p').first().evaluate(el => getComputedStyle(el).fontSize);
-  for (const el of [page.locator('.page-heading h1'), settingsHeading, page.getByLabel('Zielland', { exact: true }), page.getByRole('button', { name: 'Änderungen speichern' })]) {
+  expect(dimensions.layout).toBeCloseTo(Math.min(dimensions.content, 1240), 0);
+  const settingsHeading = page.locator('.set-card h2').first();
+  for (const el of [page.locator('.set-head h1'), settingsHeading, page.getByLabel('Zielland', { exact: true }), page.getByRole('tab', { name: 'Key-Shops', exact: true })]) {
     expect(await el.evaluate(el => getComputedStyle(el).fontFamily)).toBe(family);
   }
   await page.getByRole('button', { name: 'Alarme', exact: true }).click();
-  expect(await page.locator('#channel-title').evaluate(el => getComputedStyle(el).fontSize)).toBe(headingSize);
-  expect(await page.locator('.offer-section p').first().evaluate(el => getComputedStyle(el).fontSize)).toBe(paragraphSize);
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 844 });
     await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();

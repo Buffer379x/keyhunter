@@ -1,43 +1,9 @@
-.settings-form { display: grid; gap: var(--space-panel); width: 100%; }
-.settings-tabs { margin-bottom: var(--space-panel); }
-.source-card .field-help { max-width: 65ch; }
-@media (max-width: 560px) {
-  .settings-tabs { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); }
-  .settings-tabs button { padding-inline: 4px; gap: 4px; font-size: 12px; }
-  .settings-tabs svg { width: 15px; }
-}
-.section-content { min-width: 0; }
-.field-grid, .source-list { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit,minmax(min(100%,250px),1fr)); }
-.source-list { grid-template-columns: repeat(auto-fit,minmax(min(100%,320px),1fr)); align-items: start; }
-.source-card { min-width: 0; background: var(--bg); border-radius: var(--radius-control); padding: var(--space-panel); }
-.source-heading { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.source-heading h3 { margin: 0; }
-.source-heading > div:nth-child(2) { flex: 1; min-width: 105px; }
-.source-heading > div:nth-child(2) > span, .source-state { color: var(--muted); font-size: 12px; }
-.source-logo, .shop-logo { width: 32px; height: 32px; display: grid; place-items: center; flex-shrink: 0; border-radius: var(--radius-control); background: #473a78; color: #f4ebff; font-weight: 750; }
-.source-toggle { display: flex; align-items: center; gap: 6px; min-height: 44px; }
-.source-state { display: block; margin-top: 10px; }
-.source-interval, .fee-options, .wishlist-price-setting { margin-top: 16px; }
-.source-interval input, .fee-row input { max-width: 180px; }
-.fee-row { display: grid; gap: 6px; margin-block: 8px; }
-.fee-row p { margin-bottom: 0; font-size: 13px; }
-.settings-actions { display: flex; justify-content: flex-end; }
-.shop-register, .enrichment-card, .igdb-access-form, .settings-form > .settings-card + .settings-card { margin-top: var(--space-panel); }
-.igdb-access-form { display: grid; gap: 12px; }
-.shop-register-form, .alert-form, .offer-link-form, .library-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
-.shop-register-form .field, .offer-link-form .field, .alert-form .field, .library-controls .field { flex: 1 1 min(100%,200px); }
-.shop-register-form, .wishlist-price-setting { max-width: 760px; }
-.remove-source { color: #f4baa9; }
-.library-controls { margin-bottom: var(--space-panel); max-width: 710px; }
-.library-grid { list-style: none; display: grid; grid-template-columns: repeat(auto-fill,minmax(min(100%,135px),1fr)); gap: 20px 14px; padding: 0; margin: 0; max-width: 1450px; }
-.library-game { display: grid; gap: 4px; width: 100%; padding: 0; border: 0; background: transparent; color: var(--text); text-align: left; border-radius: var(--radius-control); overflow-wrap: anywhere; }
-.library-game .game-cover { width: 100%; height: auto; aspect-ratio: 3/4; margin-bottom: 4px; }
-.library-game:hover .game-cover { border-color: var(--accent); }
-.library-system { color: var(--muted); font-size: 13px; }
-.library-empty { color: var(--muted); }
+/* Shared leftovers used by the alert and offer screens. The settings and library screens have their own files: settings.css, library.css. */
+.shop-logo { width: 32px; height: 32px; display: grid; place-items: center; flex-shrink: 0; border-radius: var(--radius-control); background: #473a78; color: #f4ebff; font-weight: 750; }
+.offer-link-form, .alert-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.offer-link-form .field, .alert-form .field { flex: 1 1 min(100%,200px); }
 .offer-section { margin-bottom: var(--space-panel); }
 .offer-section p, .settings-card p { font-size: var(--font-body-size); }
 .alert-list { display: grid; padding: 0; margin: 0; list-style: none; }
 .alert-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding-block: 10px; border-top: 1px solid var(--border); }
 .alert-form .check-label { flex-basis: 100%; }
-@media (max-width: 560px) { .settings-actions .button { width: 100%; } }

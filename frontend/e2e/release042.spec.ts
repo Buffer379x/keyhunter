@@ -49,10 +49,10 @@ test('library exposes system filters and acquisition or alphabet sorting without
   await expect(list.getByRole('listitem').first()).toContainText('Xbox One');
   await page.getByLabel('Bibliothek nach System filtern',{exact:true}).selectOption('169');
   await expect(list.getByRole('listitem')).toHaveCount(2);
-  await page.getByLabel('Bibliothek sortieren',{exact:true}).selectOption('name');
+  await page.getByRole('radiogroup',{name:'Bibliothek sortieren',exact:true}).getByRole('radio',{name:'A–Z',exact:true}).click();
   await expect(list.getByRole('listitem').first()).toContainText('Forza');
   await page.reload();await expect(page.getByLabel('Bibliothek nach System filtern',{exact:true})).toHaveValue('169');
-  await expect(page.getByLabel('Bibliothek sortieren',{exact:true})).toHaveValue('name');
+  await expect(page.getByRole('radiogroup',{name:'Bibliothek sortieren',exact:true}).getByRole('radio',{name:'A–Z',exact:true})).toBeChecked();
   await page.setViewportSize({width:320,height:844});
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });

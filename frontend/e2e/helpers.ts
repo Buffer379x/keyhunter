@@ -2,6 +2,11 @@ import { expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
+/** Waits until the settings page reports that every change is stored (auto-save indicator). */
+export async function expectSettingsSaved(page: Page) {
+  await expect(page.getByRole('status').filter({ hasText: 'Alle Änderungen gespeichert' })).toBeVisible();
+}
+
 export async function signInToFixture(page: Page) {
   await page.goto('/');
   await expect(page.getByRole('button', { name: /^(Privaten Bereich einrichten|Anmelden)$/ })).toBeVisible();

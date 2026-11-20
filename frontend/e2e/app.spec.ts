@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { signInToFixture } from './helpers';
+import { expectSettingsSaved, signInToFixture } from './helpers';
 
 test('owner can set up, save service fees, use keyboard dialog, and log in again', async ({ page }) => {
   const errors: string[] = [];
@@ -7,23 +7,26 @@ test('owner can set up, save service fees, use keyboard dialog, and log in again
   await signInToFixture(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'test-results/wishlist-desktop.png', fullPage: true });
-  const savedCountryLabel = await page.locator('.target-pill').innerText();
   await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
   await page.getByLabel('Zielland', { exact: true }).selectOption('AT');
   await expect(page.getByRole('note').filter({ hasText: 'Die Shops bestätigen die Aktivierung derzeit nur für Deutschland. Für Österreich werden Angebote angezeigt' })).toBeVisible();
   await page.getByLabel('Zielland', { exact: true }).selectOption('DE');
   await expect(page.getByRole('note').filter({ hasText: 'Die Shops bestätigen' })).toHaveCount(0);
+  // Changes save themselves: leaving the page right after a change still stores it, and the shell shows it at once.
   await page.getByLabel('Zielland', { exact: true }).selectOption('FR');
   await page.getByRole('button', { name: /^Wunschliste/ }).click();
-  await expect(page.locator('.target-pill')).toHaveText(savedCountryLabel);
+  await expect(page.locator('.target-pill')).toContainText('Frankreich');
   await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
   await page.getByLabel('Zielland', { exact: true }).selectOption('DE');
+  await expectSettingsSaved(page);
+  await page.getByRole('button', { name: /^Wunschliste/ }).click();
+  await expect(page.locator('.target-pill')).toContainText('Deutschland');
+  await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
   await page.getByRole('tab', { name: 'Key-Shops', exact:true }).click();
   const eneba = page.getByRole('article', { name: 'Eneba' });
-  await eneba.getByLabel('Geschätzte Gebühren berücksichtigen').check();
+  await eneba.getByRole('switch', { name: /Geschätzte Gebühren berücksichtigen/ }).click();
   await eneba.getByLabel('Geschätzte Gebühren (%)', { exact: true }).fill('2,50');
-  await page.getByRole('button', { name: 'Änderungen speichern' }).click();
-  await expect(page.getByRole('status')).toHaveText('Einstellungen gespeichert.');
+  await expectSettingsSaved(page);
   await page.reload();
   await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
   await page.getByRole('tab', { name: 'Allgemein', exact:true }).click();
@@ -60,7 +63,7 @@ test('owner replaces and removes the IGDB credentials from settings', async ({ p
   await igdb.getByLabel('Client-ID', { exact: true }).fill('browser-fixture-client');
   await igdb.getByLabel('Client Secret', { exact: true }).fill('browser-fixture-secret');
   const update = page.waitForRequest(r => r.url().endsWith('/settings/igdb') && r.method() === 'PUT');
-  await igdb.getByRole('button', { name: 'IGDB-Zugang speichern' }).click();
+  await igdb.getByRole('button', { name: 'Prüfen und speichern' }).click();
   expect((await update).postDataJSON()).toEqual({
     client_id: 'browser-fixture-client', client_secret: 'browser-fixture-secret',
   });
@@ -69,7 +72,8 @@ test('owner replaces and removes the IGDB credentials from settings', async ({ p
   await page.reload();
   await expect(igdb.getByLabel('Client-ID', { exact: true })).toHaveValue('');
   await expect(igdb.getByLabel('Client Secret', { exact: true })).toHaveValue('');
-  await igdb.getByRole('button', { name: 'IGDB-Zugang entfernen' }).click();
+  await igdb.getByRole('button', { name: 'Zugang entfernen' }).click();
   await igdb.getByRole('button', { name: 'Entfernen bestätigen' }).click();
-  await expect(igdb.getByText('Noch keine Zugangsdaten hinterlegt.')).toBeVisible();
+  await expect(igdb.getByText('Nicht eingerichtet', { exact: true })).toBeVisible();
+  await expect(igdb.getByRole('button', { name: 'Zugang entfernen' })).toHaveCount(0);
 });
