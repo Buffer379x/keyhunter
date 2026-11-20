@@ -19,6 +19,16 @@ pub(crate) struct PriceBadge {
     pub checked_at: Option<i64>,
     pub stale: bool,
     pub pending: bool,
+    /// Cheapest current offer of any region, always reported for the comparison with the
+    /// target country (the core use case), independent of the badge setting.
+    pub world: Option<WorldBest>,
+}
+
+#[derive(Clone, Serialize)]
+pub(crate) struct WorldBest {
+    pub cents: i64,
+    pub region: Option<String>,
+    pub observed_at: i64,
 }
 
 pub(crate) async fn context(pool: &SqlitePool) -> ApiResult<(String, String)> {
@@ -102,6 +112,7 @@ fn compute(
         checked_at: job.and_then(|j| j.checked),
         stale: false,
         pending: job.is_some_and(|j| j.pending),
+        world: None,
     };
     let mut observed = false;
     let mut review = false;
@@ -128,13 +139,30 @@ fn compute(
             review = true;
             continue;
         }
-        candidates.push((link, product, verdict));
+        let anywhere =
+            pricing::evaluate(link, wish, Some(&product), &pricing::Scope::AllRegions, t);
+        candidates.push((link, product, verdict, anywhere));
     }
+    let world = pricing::best(
+        candidates
+            .iter()
+            .map(|(link, product, _, anywhere)| (*link, product, anywhere)),
+        pricing::base,
+    )
+    .current;
+    result.world = world.map(|best| WorldBest {
+        cents: best.cents,
+        region: candidates
+            .iter()
+            .find(|(link, ..)| link.id == best.link_id)
+            .and_then(|(_, product, ..)| product.region.clone()),
+        observed_at: best.observed_at,
+    });
     // A current price wins; otherwise the last known one is shown, marked as stale.
     let prices = pricing::best(
         candidates
             .iter()
-            .map(|(link, product, verdict)| (*link, product, verdict)),
+            .map(|(link, product, verdict, _)| (*link, product, verdict)),
         pricing::base,
     );
     if let Some((best, stale)) = prices

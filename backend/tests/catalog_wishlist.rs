@@ -1739,3 +1739,58 @@ async fn api_errors_carry_a_stable_code_next_to_the_message() {
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert_eq!(body["code"], "not_found");
 }
+
+#[tokio::test]
+async fn badges_always_compare_the_target_country_with_the_cheapest_region() {
+    let f = Fixture::new().await;
+    let (_, saved) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":1,"platform_id":169}),
+        )
+        .await;
+    let id = saved["item"]["id"].as_str().unwrap().to_string();
+    let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
+    settings["target_country"] = json!("DE");
+    f.call("PUT", "/api/v1/settings", settings).await;
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(
+            sqlx::sqlite::SqliteConnectOptions::new()
+                .filename(f.config.data_dir.join("keyhunter.db")),
+        )
+        .await
+        .unwrap();
+    let t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    let offers = format!("/api/v1/wishlist/{id}/offers");
+    for (product, region, allowed, cents) in [
+        ("de", "Global", json!(["DE"]), 2890),
+        ("in", "India", json!([]), 1290),
+    ] {
+        let latest = json!({"id":product,"name":"Example","title":"Example","platform_ids":[169],"key_game":true,"region":region,"allowed":allowed,"blocked":[],"purchase_country":"DE","offers":[{"id":product,"cents":cents,"seller":null}],"availability":"in_stock"});
+        let link: i64 = sqlx::query_scalar("INSERT INTO offer_link(wish_id,source,url,latest,observed_at) VALUES(?,'eneba',?,?,?) RETURNING id")
+            .bind(&id).bind(format!("https://www.eneba.com/de/xbox-example-{product}-key")).bind(latest.to_string()).bind(t)
+            .fetch_one(&pool).await.unwrap();
+        f.call(
+            "PUT",
+            &format!("{offers}/{link}"),
+            json!({"decision":"confirmed"}),
+        )
+        .await;
+    }
+    let (_, badges) = f
+        .call("GET", "/api/v1/wishlist/price-badges", Value::Null)
+        .await;
+    assert_eq!(
+        badges[&id]["cents"], 2890,
+        "the badge counts only offers valid in DE"
+    );
+    assert_eq!(badges[&id]["world"]["cents"], 1290);
+    assert_eq!(badges[&id]["world"]["region"], "India");
+    let (_, items) = f.call("GET", "/api/v1/wishlist", Value::Null).await;
+    assert_eq!(items[0]["price_badge"]["world"]["cents"], 1290);
+}
