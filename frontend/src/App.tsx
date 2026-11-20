@@ -9,6 +9,7 @@ import type { WishlistItem } from './api';
 import PriceAlerts from './features/PriceAlerts';
 import SettingsPage from './features/SettingsPage';
 import { shopNames } from './features/Offers';
+import { countryCodes } from './features/Country';
 import { Brand, Button, Icon, InfoDialog, Notice } from './components';
 import { formatFeePercent, parseFeePercent } from './fees';
 
@@ -65,10 +66,10 @@ export default function App() {
   }
   useEffect(() => { void initialize(); }, []); // The initial request only reads local app state.
 
-  async function signIn(password: string, token?: string) {
+  async function signIn(password: string, token?: string, targetCountry?: string) {
     setBusy(true); setError('');
     try {
-      const session = await api<{ csrf_token: string }>(token !== undefined ? '/setup' : '/session', 'POST', token !== undefined ? { token, password } : { password });
+      const session = await api<{ csrf_token: string }>(token !== undefined ? '/setup' : '/session', 'POST', token !== undefined ? { token, password, target_country: targetCountry } : { password });
       setCsrf(session.csrf_token); await loadSettings(); setScreen('ready');
     } catch (e) { setError(errorText(e)); }
     finally { setBusy(false); }
@@ -186,10 +187,18 @@ export default function App() {
   </div>;
 }
 
-function AuthForm({ setup, busy, error, onSubmit }: { setup: boolean; busy: boolean; error: string; onSubmit: (password: string, token?: string) => Promise<void> }) {
+function AuthForm({ setup, busy, error, onSubmit }: { setup: boolean; busy: boolean; error: string; onSubmit: (password: string, token?: string, targetCountry?: string) => Promise<void> }) {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [token, setToken] = useState('');
+  const [country, setCountry] = useState(() => {
+    const region = (navigator.language.split('-')[1] ?? '').toUpperCase();
+    return countryCodes.includes(region) ? region : 'DE';
+  });
+  const countryOptions = useMemo(() => {
+    const names = new Intl.DisplayNames(['de'], { type: 'region' });
+    return countryCodes.map(code => ({ code, name: names.of(code) ?? code })).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  }, []);
   const [localError, setLocalError] = useState('');
   async function submit(event: FormEvent) {
     event.preventDefault(); setLocalError('');
@@ -199,7 +208,7 @@ function AuthForm({ setup, busy, error, onSubmit }: { setup: boolean; busy: bool
       return;
     }
     if (setup && password !== confirm) { setLocalError('Die Passphrasen stimmen nicht überein.'); return; }
-    await onSubmit(password, setup ? token : undefined);
+    await onSubmit(password, setup ? token : undefined, setup ? country : undefined);
   }
   return <>
     <h1>{setup ? 'KeyHunter einrichten' : 'Anmelden'}</h1>
@@ -207,6 +216,7 @@ function AuthForm({ setup, busy, error, onSubmit }: { setup: boolean; busy: bool
       {(localError || error) && <Notice error>{localError || error}</Notice>}
       {setup && <div className="field"><label htmlFor="setup-token">Einrichtungscode</label><input id="setup-token" type="password" autoComplete="off" value={token} onChange={e => setToken(e.target.value)} required spellCheck={false} /><span className="field-help">Aus der lokalen Datei <code>bootstrap-token</code> im Datenverzeichnis.</span></div>}
       <div className="field"><label htmlFor="password">Passphrase</label><input id="password" type="password" autoComplete={setup ? 'new-password' : 'current-password'} value={password} onChange={e => setPassword(e.target.value)} required />{setup && <span className="field-help">12 bis 128 Zeichen, gerne mehrere Wörter.</span>}</div>
+      {setup && <div className="field"><label htmlFor="setup-country">Zielland</label><select id="setup-country" value={country} onChange={e => setCountry(e.target.value)}>{countryOptions.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}</select><span className="field-help">Für dieses Land werden Angebote als aktivierbar bewertet. Später in den Einstellungen änderbar.</span></div>}
       {setup && <div className="field"><label htmlFor="password-confirm">Passphrase wiederholen</label><input id="password-confirm" type="password" autoComplete="new-password" value={confirm} onChange={e => setConfirm(e.target.value)} required /></div>}
       <Button type="submit" disabled={busy}>{busy ? 'Bitte warten …' : setup ? 'Privaten Bereich einrichten' : 'Anmelden'}</Button>
     </form>

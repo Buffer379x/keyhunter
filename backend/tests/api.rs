@@ -602,6 +602,102 @@ async fn igdb_credentials_are_write_only_and_protected() {
 }
 
 #[tokio::test]
+async fn lan_hostnames_are_accepted_over_http_but_public_names_are_not() {
+    let f = Fixture::new().await;
+    let mut config = f.config.clone();
+    config.origin = None;
+    let app = create_app(config).await.unwrap();
+    let attempt = |host: &str, origin: &str| {
+        Request::builder()
+            .method("POST")
+            .uri("/api/v1/session")
+            .header("Host", host.to_string())
+            .header("Origin", origin.to_string())
+            .header("Content-Type", "application/json")
+            .body(Body::from(r#"{"password":"x"}"#))
+            .unwrap()
+    };
+    // Accepted names reach the login handler (not yet set up, so not 403).
+    for (host, origin) in [
+        ("tower:3000", "http://tower:3000"),
+        ("keyhunter.local:3000", "http://keyhunter.local:3000"),
+    ] {
+        let status = app
+            .clone()
+            .oneshot(attempt(host, origin))
+            .await
+            .unwrap()
+            .status();
+        assert_ne!(status, StatusCode::FORBIDDEN, "{origin}");
+    }
+    for (host, origin) in [
+        ("example.com", "http://example.com"),
+        ("tower:3000", "http://tower:4000"),
+        ("other:3000", "http://tower:3000"),
+    ] {
+        let response = app.clone().oneshot(attempt(host, origin)).await.unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN, "{origin}");
+        let bytes = to_bytes(response.into_body(), 4096).await.unwrap();
+        assert!(String::from_utf8_lossy(&bytes).contains("KEYHUNTER_ORIGIN"));
+    }
+}
+
+#[tokio::test]
+async fn setup_stores_optional_target_country_and_rejects_invalid_codes() {
+    for (country, expected) in [
+        (Some("AT"), Some("AT")),
+        (None, None),
+        (Some("XX"), Some("invalid")),
+    ] {
+        let f = Fixture::new().await;
+        let mut body = json!({"token": f.token.trim(), "password": "correct horse battery staple"});
+        if let Some(c) = country {
+            body["target_country"] = json!(c);
+        }
+        let (status, data, cookie) = call(
+            &f.app,
+            "POST",
+            "/api/v1/setup",
+            body,
+            None,
+            None,
+            Some("http://localhost:3000"),
+        )
+        .await;
+        if expected == Some("invalid") {
+            assert_eq!(status, StatusCode::BAD_REQUEST);
+            let (status, _, _) = call(
+                &f.app,
+                "GET",
+                "/api/v1/setup",
+                Value::Null,
+                None,
+                None,
+                None,
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK);
+            continue;
+        }
+        assert_eq!(status, StatusCode::CREATED);
+        let _ = data;
+        let (status, settings, _) = call(
+            &f.app,
+            "GET",
+            "/api/v1/settings",
+            Value::Null,
+            Some(cookie.unwrap().split(';').next().unwrap()),
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(settings["target_country"].as_str(), expected);
+        assert_eq!(settings["confirmed_activation_countries"], json!(["DE"]));
+    }
+}
+
+#[tokio::test]
 async fn automatic_origin_supports_lan_http_and_proxy_https() {
     const LAN: &str = "192.168.50.9:3000";
     const WEB: &str = "keyhunter.example";

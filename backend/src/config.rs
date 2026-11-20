@@ -62,9 +62,20 @@ pub(crate) fn parse_origin(origin: &str) -> Option<Url> {
         .then_some(url)
 }
 
+// Private-network names: "localhost", single-label names (e.g. "tower") and
+// well-known local-only suffixes.
+fn is_private_hostname(name: &str) -> bool {
+    let name = name.trim_end_matches('.').to_ascii_lowercase();
+    !name.is_empty()
+        && (!name.contains('.')
+            || [".local", ".lan", ".home.arpa", ".internal"]
+                .iter()
+                .any(|suffix| name.ends_with(suffix)))
+}
+
 pub(crate) fn is_local_http_origin(origin: &Url) -> bool {
     match origin.host() {
-        Some(Host::Domain("localhost")) => true,
+        Some(Host::Domain(name)) => is_private_hostname(name),
         Some(Host::Ipv4(ip)) => ip.is_private() || ip.is_loopback(),
         Some(Host::Ipv6(ip)) => ip.is_unique_local() || ip.is_loopback(),
         _ => false,
