@@ -70,6 +70,6 @@ test('phone layout: no breadcrumbs, the search fills the top bar and the drawer 
   expect(box!.width).toBeGreaterThan(250);
   await navTo(page, 'Bibliothek');
   await expect(page.getByRole('navigation', { name: 'Hauptnavigation' })).toBeHidden();
-  await expect(page.getByRole('heading', { name: 'Meine Bibliothek' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Bibliothek', level: 1, exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

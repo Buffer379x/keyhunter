@@ -6,33 +6,37 @@
 .cover-fallback .key-mark-fill { fill: var(--faint); }
 .cover-fallback span { color: var(--muted); font-size: var(--t-label); text-align: center; }
 .game-cover:not(.large) .cover-fallback span { display: none; }
+.cover-initials { height: 100%; display: grid; place-items: center; font: 600 11px/1 var(--f-sans); letter-spacing: .02em; color: rgb(255 255 255 / .85); }
+.game-cover.large .cover-initials { font-size: 22px; }
 .kind-badge { display: inline-block; color: var(--ok); font-size: var(--t-xs); }
 .kind-badge.unverified { color: var(--warn); }
 
-.catalog-dialog { width: min(760px, calc(100% - 32px)); }
-.catalog-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, .5fr); gap: 12px; margin-bottom: 8px; }
-.catalog-results { padding: 0; margin: 0; list-style: none; display: grid; gap: 2px; }
-.catalog-result { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px; border-radius: var(--r-md); }
+/* Result rows (popover and dialog): 34 × 44 cover, title, meta, action; like the prototype's search rows */
+.catalog-results { padding: 0 0 2px; margin: 0; list-style: none; display: grid; gap: 2px; }
+.catalog-result { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 7px 8px; border-radius: var(--r-sm); }
 .catalog-result:hover { background: var(--panel-3); }
-.result-info h3 { margin: 0 0 2px; font-size: var(--t-sm); font-weight: 500; }
-.result-info p, .catalog-attribution { margin: 0; color: var(--muted); font-size: var(--t-xs); }
+.catalog-result .game-cover { width: 34px; height: 44px; border-radius: 5px; }
+.catalog-result .cover-fallback .key-mark { width: 16px; height: 16px; }
+.result-info h3 { margin: 0 0 1px; font-size: var(--t-sm); font-weight: 500; }
+.result-info p { margin: 0; color: var(--muted); font-size: var(--t-xs); }
 .result-info .edition-note { margin-top: 2px; }
-.search-hint { margin: 10px 0; color: var(--muted); font-size: var(--t-xs); }
-.manual-fallback { padding: 12px; border: 1px solid var(--line-2); border-radius: var(--r-md); margin-block: 10px; }
-.manual-fallback h3 { margin: 0 0 4px; font-size: var(--t-sm); font-weight: 500; }
-.manual-fallback p { font-size: var(--t-xs); }
-.catalog-attribution { margin-top: 12px; }
+.search-hint { margin: 0; padding: 6px 8px; color: var(--muted); font-size: var(--t-xs); }
+.manual-fallback { padding: 10px 12px; border: 1px solid var(--line-2); border-radius: var(--r-md); margin: 6px 4px; display: grid; gap: 6px; justify-items: start; }
+.manual-fallback h3 { margin: 0; font-size: var(--t-sm); font-weight: 500; }
+.manual-fallback p { margin: 0; font-size: var(--t-xs); color: var(--text-2); }
+.catalog-attribution { margin: 6px 8px 4px; font-size: var(--t-label); color: var(--faint); }
 
-/* Inside the header search popover: compact rows like the prototype (34 × 44 cover, 7 px 8 px padding) */
-.search-pop .catalog-results { padding: 0 0 2px; }
-.search-pop .catalog-result { gap: 10px; padding: 7px 8px; border-radius: var(--r-sm); }
-.search-pop .game-cover { width: 34px; height: 44px; border-radius: 5px; }
-.search-pop .cover-fallback .key-mark { width: 16px; height: 16px; }
-.search-pop .manual-fallback { margin: 6px 4px; padding: 10px; }
-.search-pop .catalog-attribution { margin: 6px 8px 4px; font-size: var(--t-label); color: var(--faint); }
+/* The add dialog: panel surface, head row like .panel-head, search and results in an inset */
+dialog.catalog-dialog { width: min(640px, calc(100% - 32px)); padding: 0; background: var(--panel); border-color: var(--line-2); }
+.catalog-dialog .dialog-heading { min-height: 48px; padding: 8px 8px 8px 14px; margin: 0; }
+.catalog-dialog .dialog-heading h2 { font-size: var(--t-md); }
+.catalog-dialog .catalog-body { padding: 12px 8px 8px; }
+.catalog-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(160px, .45fr); gap: 12px; padding: 0 8px 10px; }
+.catalog-form .field input { height: auto; }
+.catalog-body > .notice { margin: 4px; }
 
 @media (max-width: 560px) {
   .catalog-form { grid-template-columns: 1fr; }
-  .catalog-result { grid-template-columns: auto minmax(0, 1fr); gap: 8px 12px; }
+  .catalog-result { grid-template-columns: auto minmax(0, 1fr); gap: 8px 10px; }
   .catalog-result > .btn { grid-column: 2; justify-self: start; }
 }

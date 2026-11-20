@@ -13,10 +13,20 @@ export function releaseYear(timestamp: number | null): string {
   const date = new Date(timestamp * 1000);
   return Number.isFinite(date.getTime()) ? String(date.getUTCFullYear()) : 'Jahr unbekannt';
 }
-export function Cover({ src, large = false }: { src: string | null; large?: boolean }) {
+const initials = (title: string) => title.replace(/[^\p{L}\p{N} ]/gu, '').split(' ').filter(Boolean).slice(0, 2).map(word => word[0]).join('').toUpperCase();
+/** A stable hue per title, so a game without cover art keeps its colour (prototype cover gradient). */
+const titleHue = (title: string) => [...title].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 7) % 360;
+/**
+ * Cover image. Without an image (or when it fails to load) it shows the key mark, or, with `title`, the prototype's
+ * gradient with the title's initials.
+ */
+export function Cover({ src, large = false, title }: { src: string | null; large?: boolean; title?: string }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [src]);
+  const hue = title ? titleHue(title) : 0;
   return <div className={`game-cover ${large ? 'large' : ''}`}>
-    {src && !failed ? <img src={src} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(true)} /> : <div className="cover-fallback"><KeyMark small /><span>Kein Cover</span></div>}
+    {src && !failed ? <img src={src} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
+      : title ? <div className="cover-initials" aria-hidden="true" style={{ background: `linear-gradient(150deg, hsl(${hue} 38% 30%), hsl(${(hue + 30) % 360} 30% 14%))` }}>{initials(title)}</div>
+        : <div className="cover-fallback"><KeyMark small /><span>Kein Cover</span></div>}
   </div>;
 }

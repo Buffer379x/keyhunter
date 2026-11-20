@@ -84,7 +84,7 @@ test('library navigation and confirmation fit a 320 pixel screen',async({page})=
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await removeCurrent(page);
   await navTo(page, 'Bibliothek');
-  await expect(page.getByRole('heading',{name:'Meine Bibliothek'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Bibliothek',level:1,exact:true})).toBeVisible();
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-  await page.reload();await expect(page.getByRole('heading',{name:'Meine Bibliothek'})).toBeVisible();
+  await page.reload();await expect(page.getByRole('heading',{name:'Bibliothek',level:1,exact:true})).toBeVisible();
 });

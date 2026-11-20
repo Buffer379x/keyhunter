@@ -6,6 +6,13 @@ export interface SourceSettings {
   fee_basis_points: number;
   configured: boolean;
   poll_interval_seconds: number;
+  /**
+   * Most fetches per day for this shop (effective value, 20 to 2000; null for IGDB, absent before 0.6.1).
+   * PUT replaces it: null clears the setting, so the default applies again.
+   */
+  daily_jobs?: number | null;
+  /** The default of `daily_jobs` (environment variable or 500), shown as placeholder; null for IGDB. */
+  daily_jobs_default?: number | null;
 }
 export interface Settings {
   target_country: string | null;
@@ -82,7 +89,7 @@ export async function api<T>(path: string, method = 'GET', body?: unknown, csrf?
 export interface FetchBudget {
   used: number;
   limit: number;
-  /** Where the limit comes from, e.g. 'default' or 'setting'. */
+  /** Where the limit comes from: 'setting' (Key-Shops), 'env' (environment variable) or 'default'. */
   limit_source?: string;
   /** Requests per day the current wishlist needs. */
   demand_per_day?: number;
