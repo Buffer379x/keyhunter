@@ -1,3 +1,4 @@
+import { shopNames } from './shop-names';
 import type { Ref } from 'react';
 import type { PriceBadgeData, WishlistItem } from '../api';
 import { Icon, Pill, Price, Reg, formatPrice } from '../components';
@@ -76,7 +77,7 @@ export default function WishlistRow({ item, badge, facts, code, compare, scopeLa
   const world = facts.world;
   const worldCheaper = world !== null && (facts.price === null || world.cents < facts.price);
   const reg = worldCheaper ? regCode(world.region) : null;
-  const origin = [badge?.source, badge?.region ? countryData(badge.region).name : null].filter(Boolean).join(' · ');
+  const origin = [badge?.source ? shopNames[badge.source] ?? badge.source : null, badge?.region ? countryData(badge.region).name : null].filter(Boolean).join(' · ');
   return <tr ref={rowRef} className="click" tabIndex={0} data-id={item.id} onClick={onOpen} onKeyDown={event => { if (event.key === 'Enter' && event.target === event.currentTarget) { event.preventDefault(); onOpen(); } }}>
     <td className="c-game"><div className="game-cell"><GameCover small src={item.game?.cover_url} title={title} /><div className="game-name"><b>{title}</b><small>{subline(item)}</small></div></div></td>
     <td className="c-de r" title={badge ? badgeTitle(badge, scopeLabel) : undefined}>
