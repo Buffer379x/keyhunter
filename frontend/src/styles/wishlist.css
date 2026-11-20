@@ -1,79 +1,68 @@
-/* Wishlist: list column and layout of list and detail. Detail screens: detail.css, offers.css, alerts.css (imported below). Tokens only. */
+/*
+ * Wishlist page (features/Wishlist.tsx, WishlistRow.tsx), ported 1:1 from the design v4 prototype
+ * (docs/modernization/design-v4/preview.html, viewWishlist): page head, KPI tiles, filter panel and the `table.wl` table,
+ * which becomes a list of cards up to 720 px. Tokens only. Additions the prototype does not show are marked "(added)".
+ * The game detail has its own files: detail.css, offers.css, alerts.css (imported here because the detail opens from the list).
+ */
 @import './detail.css';
 @import './alerts.css';
 
-.wishlist-feature { min-height: 0; }
-.list-panel { min-width: 0; padding: var(--space-4) var(--space-page) var(--space-5); }
-.empty-detail { display: none; }
+.wishlist-page h1:focus { outline: none; }
+.wl-loading { color: var(--muted); } /* (added) */
+.kpi-foot .warn { color: var(--warn); } /* (added) "zu knapp" */
 
-/* Header, count line, filter chips, sorting */
-.wishlist-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-3); }
-.wishlist-head h1 { margin: 0 0 var(--space-1); font-size: 1.75rem; line-height: 1.1; letter-spacing: var(--tracking-title); }
-.wishlist-head h1:focus { outline: none; }
-.list-count { display: block; line-height: 1.5; }
-.list-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); margin-block: var(--space-4) var(--space-3); }
-.filter-chips { display: flex; gap: 6px; }
-.filter-chip { display: inline-flex; align-items: center; gap: 6px; min-height: var(--control-h-sm); padding: 0 var(--space-3); border: 0; border-radius: var(--radius-pill); background: var(--color-raised); color: var(--color-text-soft); font-size: var(--text-sm); font-weight: var(--weight-medium); }
-.filter-chip span { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-text-muted); }
-.filter-chip:hover { background: var(--color-overlay); }
-.filter-chip[aria-pressed='true'] { background: var(--color-text); color: var(--color-bg); font-weight: var(--weight-semibold); }
-.filter-chip[aria-pressed='true'] span { color: var(--color-bg); }
-.wishlist-sort { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
-.wishlist-sort label { color: var(--color-text-muted); font-size: var(--text-xs); }
-.wishlist-sort select { width: auto; max-width: 11rem; min-height: var(--control-h-sm); padding: 0 var(--space-2); border: 0; background: transparent; color: var(--color-text-soft); font-size: var(--text-xs); text-overflow: ellipsis; }
-.wishlist-sort select:hover:not(:disabled) { color: var(--color-text); }
-.search-label { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
-.list-search { display: flex; align-items: center; gap: 10px; padding-inline: var(--space-3); margin-bottom: var(--space-3); background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-border-strong); border-radius: var(--radius-control); color: var(--color-text-muted); }
-.list-search:focus-within { outline: var(--focus-ring); outline-offset: 1px; }
-.list-search input { border: 0; background: transparent; padding: 0; outline: none; min-height: 40px; }
-.list-loading { padding: var(--space-3) 0; color: var(--color-text-soft); }
-.list-empty .empty { padding-block: var(--space-5); }
+/* Filter panel: chips, "Liste filtern …" and the sort select */
+.wishlist-page .wl-q { width: 200px; }
+.wishlist-page .wl-sort > span { font-size: var(--t-xs); white-space: nowrap; }
+.wishlist-page .wl-sort select { flex: none; width: auto; }
 
-/* Rows */
-.wishlist-items { padding: 0; margin: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
-.wishlist-entry { width: 100%; display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; grid-template-areas: 'cover main price' 'cover world world'; align-items: center; gap: var(--space-3); min-height: 44px; padding: 10px var(--space-2); border: 0; border-radius: var(--radius-control); background: transparent; color: var(--color-text); text-align: left; transition: background-color var(--motion-fast) var(--ease); }
-.wishlist-entry:hover { background: var(--color-surface); }
-.wishlist-entry.selected { background: var(--color-raised); box-shadow: inset 0 0 0 1px var(--color-border-strong); }
-.entry-cover { grid-area: cover; align-self: start; width: 42px; height: 56px; }
-.entry-main { grid-area: main; }
-.entry-price { grid-area: price; }
-.entry-world { grid-area: world; min-width: 0; }
-.entry-world:empty { display: none; }
-.entry-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.entry-main strong { font-weight: var(--weight-semibold); font-size: var(--text-md); line-height: 1.25; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.entry-sub { color: var(--color-text-muted); font-size: var(--text-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.entry-chips { display: flex; flex-wrap: wrap; gap: 4px; }
-.entry-chips:empty { display: none; }
-.entry-chips .pill { min-height: 22px; padding: 0 8px 0 6px; }
-.entry-price { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; min-width: 0; text-align: right; }
+/* Table cells */
+.game-cell { display: flex; align-items: center; gap: 12px; min-width: 220px; }
+.game-cell .game-name { min-width: 0; }
+.game-cell b { font-weight: 500; display: block; }
+.game-cell small { color: var(--muted); font-size: var(--t-xs); }
+/* The real cover at the prototype's 34 × 44 (`.cover`); without an image the initials, like the prototype. */
+table.wl .gcover { width: 34px; height: 44px; border-radius: 5px; border: 1px solid var(--cover-line); box-shadow: none; }
+table.wl .gcover .gcover-title { font: 600 11px/1 var(--f-sans); letter-spacing: .02em; color: var(--cover-text); }
+table.wl td.c-target { white-space: nowrap; }
+.wl-sub { color: var(--muted); font-size: var(--t-xs); white-space: nowrap; }
+.wl-note { font-size: var(--t-xs); }
+.world-cell { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.save { font: 500 var(--t-xs)/1.2 var(--f-mono); white-space: nowrap; }
+.save.big { color: var(--accent-2); }
+.save.none { color: var(--faint); }
+.save-pct { font-size: var(--t-label); }
+.wl-status { display: flex; flex-wrap: wrap; gap: 4px; } /* (added) more than one pill: state plus hints */
+.spark { display: flex; align-items: flex-end; gap: 2px; height: 22px; }
+.spark i { width: 3px; border-radius: 1px; background: var(--line-2); }
+.spark i.last { background: var(--accent); }
+.row-more { color: var(--faint); display: inline-flex; }
+.row-more svg { width: 16px; height: 16px; }
+table.wl tbody tr:focus-visible { outline-offset: -2px; } /* (added) the focus ring stays inside the inset */
+
+/* Used by the game detail (GameDetail.tsx: edition prices and the missing-country hint); unchanged from 0.6.0, 2b may move them to detail.css */
 .price-badge { display: inline-block; text-align: right; }
 .price-badge.unknown { color: var(--color-text-muted); font-size: var(--text-xs); }
 .price-badge .price { font-size: var(--text-lg); }
-.world-line { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; color: var(--color-text-soft); font-size: var(--text-xs); line-height: 1.3; }
-.world-line .flag-wrap { display: inline-flex; }
-.world-line strong { color: var(--color-text); font-weight: var(--weight-semibold); white-space: nowrap; }
-.list-footer { margin-top: var(--space-3); }
-
 .country-callout { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 10px var(--space-3); margin: var(--space-3) var(--space-page) 0; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-border); border-radius: var(--radius-control); }
 
-/* List and detail are separate views below 1024 */
-@media (max-width: 1023px) {
-  .wishlist-feature.has-selection > .list-panel { display: none; }
+/* Up to 720 px the rows become cards (prototype `table.wl`) */
+@media (max-width: 720px) {
+  table.wl thead { display: none; }
+  table.wl, table.wl tbody { display: block; }
+  table.wl tr {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "g g p" "w w s";
+    gap: 8px 10px; padding: 12px; border-bottom: 1px solid var(--line);
+  }
+  table.wl tr:last-child { border-bottom: 0; }
+  table.wl td { border: 0; padding: 0; }
+  table.wl td.c-game { grid-area: g; }
+  table.wl td.c-de { grid-area: p; text-align: right; }
+  table.wl td.c-world { grid-area: w; }
+  table.wl td.c-status { grid-area: s; text-align: right; }
+  table.wl td.c-save, table.wl td.c-target, table.wl td.c-trend, table.wl td.c-more { display: none; }
+  table.wl tbody tr.click:hover td { background: none; } /* (added) the card has no cell backgrounds */
+  table.wl tbody tr.click:hover { background: var(--panel-3); }
+  .game-cell { min-width: 0; }
+  .wl-status { justify-content: flex-end; }
 }
-/* 960 to 1023: the shell fixes the height, so the feature scrolls itself */
-@media (min-width: 960px) { .wishlist-feature { flex: 1; min-height: 0; overflow: auto; } }
-@media (min-width: 1024px) {
-  .wishlist-feature { display: grid; grid-template-columns: clamp(320px, 26vw, 400px) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); overflow: hidden; }
-  .list-panel { display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding-inline: var(--space-4); box-shadow: inset -1px 0 var(--color-border); }
-  .wishlist-items { overflow: auto; flex: 1; min-height: 0; margin-inline: calc(-1 * var(--space-2)); padding-inline: var(--space-2); }
-  .game-detail, .empty-detail { min-height: 0; overflow: auto; }
-  .empty-detail { display: grid; align-content: center; }
-}
-@media (max-width: 639px) {
-  .wishlist-head h1 { font-size: 2rem; }
-  .wishlist-entry { padding-inline: 2px; border-radius: 0; box-shadow: inset 0 -1px 0 var(--color-border); }
-  .wishlist-entry.selected { box-shadow: inset 0 -1px 0 var(--color-border); background: transparent; }
-  .wishlist-entry:hover { background: transparent; }
-  .wishlist-sort label { display: none; }
-}
-@media (max-width: 370px) { .wishlist-entry { grid-template-columns: 42px minmax(0, 1fr); grid-template-areas: 'cover main' 'cover price' 'cover world'; } .entry-price { align-items: flex-start; text-align: left; } }

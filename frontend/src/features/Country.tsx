@@ -6,7 +6,7 @@ const en = new Intl.DisplayNames(['en'], { type:'region' });
 const key = (name:string) => name.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
 const names = new Map<string,string>();
 for (const code of countryCodes) for (const name of [code,de.of(code),en.of(code)]) if (name) names.set(key(name),code);
-for (const [name,code] of Object.entries({USA:'US','United States of America':'US',UK:'GB','Great Britain':'GB',Türkiye:'TR',EU:'EU',Europe:'EU',Europa:'EU'})) names.set(key(name),code);
+for (const [name,code] of Object.entries({USA:'US','United States of America':'US',UK:'GB','Great Britain':'GB',Türkiye:'TR',Turkey:'TR',EU:'EU',Europe:'EU',Europa:'EU'})) names.set(key(name),code);
 export function countryData(region:string|null|undefined) {
   const raw=region?.trim() || 'Region ungeklärt';
   const normalized=key(raw);

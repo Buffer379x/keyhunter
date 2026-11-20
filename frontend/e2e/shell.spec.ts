@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { expectSettingsSaved, navItem, navTo, settingsCountry, signInToFixture } from './helpers';
-import { removeCurrent } from './detail-helpers';
+import { openWishlistRow, removeCurrent } from './detail-helpers';
 
 const now = () => Math.floor(Date.now() / 1000);
 const shop = (source: string, used: number, limit: number, pace?: number) => ({
@@ -41,7 +41,7 @@ test('top bar: breadcrumbs follow the page, the bell opens the alarms, "Spiel hi
   await crumbs.getByRole('button', { name: 'Wunschliste', exact: true }).click();
   await expect(page).not.toHaveURL(/item=/);
   await expect(crumbs).toHaveText(/KeyHunter.*Wunschliste/);
-  await page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('button', { name: /Forza Horizon 5/ }).click();
+  await openWishlistRow(page, 'Forza Horizon 5');
   await removeCurrent(page);
 });
 

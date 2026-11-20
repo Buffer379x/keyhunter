@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, HttpError } from './api';
 import type { Settings, SourceStatuses } from './api';
-import Wishlist from './features/Wishlist';
+import Wishlist, { returnToList } from './features/Wishlist';
 import Library from './features/Library';
 import CatalogSearch from './features/CatalogSearch';
 import type { WishlistItem } from './api';
@@ -114,7 +114,12 @@ export default function App() {
       } else if (next === 'alerts' || next === 'library') url.searchParams.set('view', next);
       else url.searchParams.delete('view');
       if (next !== 'settings') url.searchParams.delete('section');
-      if (url.href !== window.location.href) window.history.pushState(null, '', url);
+      // The game is a page of its own below the wishlist: every navigation entry leads to a list, never to the last game.
+      url.searchParams.delete('item'); url.searchParams.delete('tab');
+      if (url.href !== window.location.href) {
+        window.history.pushState(null, '', url);
+        if (page === 'wishlist' && next === 'wishlist') window.dispatchEvent(new PopStateEvent('popstate'));
+      }
     };
     // Leaving the settings: save open edits first, so the next page already sees the new target country and price scope.
     if (page === 'settings' && next !== 'settings' && auto.dirty) void auto.settle().then(go); else go();
@@ -139,6 +144,7 @@ export default function App() {
   }
   /** Breadcrumb "Wunschliste" in the game view: back to the list without a selection; URL-bound views follow through popstate. */
   function backToList() {
+    if (returnToList()) return; // Opened from the list: go back, so the list keeps its place.
     const url = new URL(window.location.href);
     url.searchParams.delete('item'); url.searchParams.delete('tab'); url.hash = '';
     if (url.href !== window.location.href) { window.history.pushState(null, '', url); window.dispatchEvent(new PopStateEvent('popstate')); }
@@ -249,7 +255,7 @@ export default function App() {
           <Button variant="primary" className="hide-sm" onClick={openAdd}><Icon name="plus" />Spiel hinzufügen</Button>
         </div>
       </header>
-      <main id="main-content" className={`content${page === 'wishlist' ? ' fill' : ''}`} tabIndex={-1}>
+      <main id="main-content" className="content" tabIndex={-1}>
         {error && <Notice error>{error}</Notice>}
         {page === 'wishlist' ? <Wishlist key={wishlistRevision} csrf={csrf} targetCountry={savedCountry} priceScope={savedPriceScope} targetLabel={targetLabel ?? 'Noch nicht gewählt'} addOpen={addOpen} onAddOpen={setAddOpen} onTitle={setGameTitle} onSettings={() => openSettings()} onCountChange={setWishlistCount} onError={handleProtectedError} />
           : page === 'library' ? <Library csrf={csrf} onRestored={selectSearchResult} onOpenWishlist={() => navigate('wishlist')} onCountChange={setLibraryCount} onError={handleProtectedError} />

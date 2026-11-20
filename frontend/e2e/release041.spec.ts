@@ -1,31 +1,35 @@
 import { test, expect } from '@playwright/test';
 import { expectSettingsSaved, signInToFixture, navTo } from './helpers';
-import { removeCurrent } from './detail-helpers';
+import { openWishlistRow, removeCurrent, wishlistRows } from './detail-helpers';
 
 test('price badge is permanent and its region setting persists',async({page})=>{
   await signInToFixture(page);
   await page.getByRole('searchbox',{name:'Nach Spielen suchen',exact:true}).fill('forza');
   await page.getByRole('region',{name:'Suchergebnisse'}).getByRole('button',{name:'Forza Horizon 5 vormerken',exact:true}).click();
-  const list=page.getByRole('list',{name:'Vorgemerkte Spiele'});
-  await expect(list.locator('.list-price')).toHaveText(/^(Noch nicht abgefragt|Wird gesucht …)$/);
+  await expect(page.getByRole('heading',{name:'Forza Horizon 5',exact:true})).toBeVisible();
+  await navTo(page, 'Wunschliste');
+  const row=wishlistRows(page).first();
+  await expect(row.locator('.c-world')).toHaveText('Noch nicht abgefragt');
+  await expect(row.locator('.c-status')).toHaveText(/^(Noch nicht abgefragt|Wird gesucht …)$/);
   const rows=await (await page.request.get('/api/v1/wishlist')).json();
   let price:number|null=1234;
   await page.route(/\/api\/v1\/wishlist\/price-badges(?:\?.*)?$/,route=>route.fulfill({json:Object.fromEntries(rows.map((row:{id:string})=>[row.id,{state:price===null?'no_offer':'price',cents:price,observed_at:1795107000,checked_at:price===null?1795108000:1795107000,stale:false,pending:false}]))}));
   await page.clock.install();await page.reload();
-  await expect(list.locator('.list-price')).toContainText('12,34');
+  await expect(row.locator('.c-de')).toContainText('12,34');
   price=null;await page.clock.fastForward(31000);
-  await expect(list.locator('.list-price')).toHaveText('Kein Angebot');
+  await expect(row.locator('.c-world')).toHaveText('In keinem Shop gefunden');
+  await expect(row.locator('.c-status')).toHaveText('Kein Angebot');
   await navTo(page, 'Allgemein');
   const scope=page.getByRole('radiogroup',{name:'Preis in der Wunschliste',exact:true});
   await expect(scope.getByRole('radio',{name:/Nur in .* aktivierbar/})).toBeChecked();
   await scope.getByText('Alle Regionen',{exact:true}).click();
   await expectSettingsSaved(page);
   await navTo(page, 'Wunschliste');
-  await expect(list.locator('.list-price')).toHaveAttribute('title',/Tiefster beobachteter Grundpreis · alle Regionen/);
+  await expect(row.locator('.c-de')).toHaveAttribute('title',/Tiefster beobachteter Grundpreis · alle Regionen/);
   await navTo(page, 'Allgemein');
   await page.reload();await expect(page.getByRole('radiogroup',{name:'Preis in der Wunschliste',exact:true}).getByRole('radio',{name:/Alle Regionen/})).toBeChecked();
   await navTo(page, 'Wunschliste');
-  await list.getByRole('button',{name:/Forza Horizon 5/}).click();
+  await openWishlistRow(page,/Forza Horizon 5/);
   await removeCurrent(page);
 });
 
@@ -35,7 +39,7 @@ test('purchase and restore move the saved edition; owned family additions requir
   const results=page.getByRole('region',{name:'Suchergebnisse'});
   await search.fill('forza');await results.getByRole('button',{name:'Forza Horizon 5 vormerken',exact:true}).click();
   await page.getByRole('button',{name:'Gekauft',exact:true}).click();
-  await expect(page.getByRole('list',{name:'Vorgemerkte Spiele'})).not.toBeVisible();
+  await expect(page.getByText(/^0 von 100 Plätzen/)).toBeVisible();
   await navTo(page, 'Bibliothek');
   const library=page.getByRole('list',{name:'Meine Spiele'});
   await expect(library.getByRole('listitem')).toHaveCount(1);
@@ -66,9 +70,10 @@ test('purchase and restore move the saved edition; owned family additions requir
   await library.getByRole('button',{name:'Forza Horizon 5 zurück in die Wunschliste',exact:true}).click();
   await restore.getByRole('button',{name:'In Wunschliste verschieben',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Forza Horizon 5',exact:true})).toBeVisible();
-  await expect(page.getByRole('list',{name:'Vorgemerkte Spiele'}).getByRole('listitem')).toHaveCount(2);
+  await navTo(page, 'Wunschliste');
+  await expect(wishlistRows(page)).toHaveCount(2);
   for(const name of ['Forza Horizon 5: Premium Edition','Forza Horizon 5']) {
-    await page.getByRole('list',{name:'Vorgemerkte Spiele'}).getByRole('button',{name:new RegExp(`^${name}`)}).first().click();
+    await openWishlistRow(page,name);
     await removeCurrent(page);
   }
 });

@@ -28,7 +28,7 @@ test('header search accepts text directly and selects a game from settings', asy
   await expect(results).toBeVisible();
   await results.getByRole('button', { name: 'Forza Horizon 5 öffnen', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Forza Horizon 5', exact: true })).toBeVisible();
-  await expect(page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('listitem')).toHaveCount(1);
+  expect(await (await page.request.get('/api/v1/wishlist')).json()).toHaveLength(1);
   await removeCurrent(page);
 });
 
@@ -50,7 +50,7 @@ test('returning to wishlist after using search never reopens an add dialog', asy
 test('settings use the content width up to a readable maximum and share the app typography', async ({ page }) => {
   await signInToFixture(page);
   await page.setViewportSize({ width: 1920, height: 1080 });
-  const family = await page.locator('.wishlist-head h1').evaluate(el => getComputedStyle(el).fontFamily);
+  const family = await wishlistHeading(page).evaluate(el => getComputedStyle(el).fontFamily);
   await navTo(page, 'Allgemein');
   const dimensions = await page.locator('main').evaluate(el => {
     const rect = el.getBoundingClientRect();

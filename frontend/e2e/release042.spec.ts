@@ -1,6 +1,6 @@
 import { test,expect } from '@playwright/test';
 import { signInToFixture, navTo } from './helpers';
-import { openEditionPicker, openTab, removeCurrent } from './detail-helpers';
+import { openEditionPicker, openTab, openWishlistRow, removeCurrent, wishlistRows } from './detail-helpers';
 
 test('saved prices appear on the first list response and edition tags are prepared before switching',async({page})=>{
   await signInToFixture(page);
@@ -16,19 +16,23 @@ test('saved prices appear on the first list response and edition tags are prepar
     const response=await route.fetch();const data=await response.json();
     await route.fulfill({json:{...data,items:data.items.map((item:{game?:{kind:string}})=>({...item,price_badge:{...badge,cents:item.game?.kind==='edition'?2000:1234}}))}});
   });
+  await navTo(page, 'Wunschliste');
   await page.reload();
-  await expect(page.locator('.wishlist-entry .list-price')).toContainText('12,34');
+  await expect(wishlistRows(page).first().locator('.c-de')).toContainText('12,34');
+  await expect(wishlistRows(page).first().locator('.c-status')).toContainText('Veraltet');
+  await page.waitForTimeout(600);
+  await expect(wishlistRows(page).first().locator('.c-de')).toContainText('12,34');
+  await openWishlistRow(page, 'Forza Horizon 5');
   // The edition picker lists both editions with their saved prices before the owner switches.
   await openEditionPicker(page);
   await expect(page.locator('.edition-row')).toHaveCount(2);
   await expect(page.locator('.edition-row .price-badge')).toHaveCount(2);
-  await expect(page.locator('.wishlist-entry .list-price')).toContainText('12,34');
   const premium=page.locator('.edition-row').filter({hasText:'Premium Edition'});
   await expect(premium.locator('.price-badge')).toContainText('20,00');
   await page.getByRole('button',{name:'Premium Edition ansehen',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Forza Horizon 5: Premium Edition',level:2,exact:true})).toBeVisible();
   await openEditionPicker(page);
-  await expect(page.getByRole('list',{name:'Vorgemerkte Spiele'}).getByRole('listitem')).toHaveCount(1);
+  expect(await (await page.request.get('/api/v1/wishlist')).json()).toHaveLength(1);
   for(const width of [320,1320]) {
   await page.setViewportSize({width,height:844});
   await expect.poll(()=>page.locator('.edition-row').evaluateAll(rows=>rows.every(row=>{
