@@ -61,6 +61,10 @@
   --shadow-pop: 0 16px 40px rgb(0 0 0 / .45);
   --shadow-tip: 0 12px 30px rgb(0 0 0 / .4);
 
+  /* Game covers (prototype `.cover`): hairline over the image and the initials when there is none */
+  --cover-line: rgb(255 255 255 / .06);
+  --cover-text: rgb(255 255 255 / .85);
+
   /* Layers */
   --z-sticky: 10;
   --z-pop: 30;

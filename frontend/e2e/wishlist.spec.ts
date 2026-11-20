@@ -54,7 +54,24 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
     { source: 'eneba', enabled: true, last_success_at: now, last_error: null, paused_until: null, budget: { used: 300, limit: 400, demand_per_day: 450, by_hour: hours }, backlog: { due: 0, requested: 0, products: 0, searches: 0 }, oldest_due_at: null, next_due_at: null, worker_seen_at: now },
     { source: 'driffle', enabled: true, last_success_at: now, last_error: null, paused_until: null, budget: { used: 12, limit: 100 }, backlog: { due: 0, requested: 0, products: 0, searches: 0 }, oldest_due_at: null, next_due_at: null, worker_seen_at: now },
   ] } }));
+  // The game view reports the real (unpriced) badges of the fixture; keep the mocked ones so the list does not change meanwhile.
+  await page.route('**/api/v1/wishlist/*/offers', async route => {
+    if (route.request().method() !== 'GET') return route.continue();
+    const { price_badge: _badge, ...data } = await (await route.fetch()).json();
+    await route.fulfill({ json: data });
+  });
+  const targets: Record<string, number> = { [forza.id]: 2900, [premium.id]: 3500 };
+  await page.route('**/api/v1/wishlist/*/alert', route => {
+    const id = new URL(route.request().url()).pathname.split('/').at(-2)!;
+    if (route.request().method() !== 'GET') return route.continue();
+    return route.fulfill({ json: { configured: true, rule: targets[id] ? { mode: 'target', basis: 'base', target_cents: targets[id], enabled: true } : null } });
+  });
+  await page.route('**/api/v1/wishlist/*/editions', async route => {
+    const data = await (await route.fetch()).json();
+    await route.fulfill({ json: { ...data, items: data.items.map(({ price_badge: _badge, ...item }: Record<string, unknown>) => item) } });
+  });
   await navTo(page, 'Wunschliste');
+  await page.reload(); // alarm rules and the fetch status are read when the page loads
   await expect(page).not.toHaveURL(/item=/);
   await expect(page.locator('.page-head p')).toHaveText(/^3 von 100 Plätzen · Zielland .+ · Preise verglichen mit allen Regionen$/);
 
@@ -164,6 +181,7 @@ test('KPI tiles leave out what an older server or a failed read does not provide
   await page.route('**/api/v1/alerts', route => route.request().method() === 'GET' ? route.fulfill({ json: { configured: false, rules: [], events: [] } }) : route.continue());
   await page.route('**/api/v1/status/fetch', route => route.fulfill({ status: 500, json: { error: 'Test' } }));
   await navTo(page, 'Wunschliste');
+  await page.reload();
   await expect(wishlistRows(page)).toHaveCount(3);
   await expect(kpi(page, 'Wünsche').locator('.kpi-val')).toHaveText('3Spiele');
   await expect(kpi(page, 'Wünsche').locator('.ticks')).toHaveCount(1); // added today: one cumulative bar

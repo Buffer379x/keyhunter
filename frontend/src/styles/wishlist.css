@@ -22,8 +22,8 @@
 .game-cell b { font-weight: 500; display: block; }
 .game-cell small { color: var(--muted); font-size: var(--t-xs); }
 /* The real cover at the prototype's 34 × 44 (`.cover`); without an image the initials, like the prototype. */
-table.wl .gcover { width: 34px; height: 44px; border-radius: 5px; border: 1px solid rgb(255 255 255 / .06); box-shadow: none; }
-table.wl .gcover .gcover-title { font: 600 11px/1 var(--f-sans); letter-spacing: .02em; color: rgb(255 255 255 / .85); }
+table.wl .gcover { width: 34px; height: 44px; border-radius: 5px; border: 1px solid var(--cover-line); box-shadow: none; }
+table.wl .gcover .gcover-title { font: 600 11px/1 var(--f-sans); letter-spacing: .02em; color: var(--cover-text); }
 table.wl td.c-target { white-space: nowrap; }
 .wl-sub { color: var(--muted); font-size: var(--t-xs); white-space: nowrap; }
 .wl-note { font-size: var(--t-xs); }
