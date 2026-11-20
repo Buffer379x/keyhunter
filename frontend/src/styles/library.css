@@ -1,0 +1,30 @@
+/* Library page: cover grid with the title under the cover. Tokens only, scoped under .library-page (see settings.css for why). */
+.library-page { display: grid; gap: var(--space-5); max-width: 1450px; min-width: 0; align-content: start; }
+.library-page .lib-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-3) var(--space-5); }
+.library-page .lib-head h1 { margin: 0; font-size: var(--text-2xl); }
+.library-page .lib-head p { margin: var(--space-1) 0 0; color: var(--color-text-muted); font-size: var(--text-sm); }
+.library-page .lib-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3) var(--space-4); }
+.library-page .lib-controls .field { min-width: 0; }
+.library-page .lib-controls select { min-width: 190px; }
+.library-page .lib-label { font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.library-page > .notice { margin: 0; }
+
+.library-page .lib-grid { list-style: none; display: grid; gap: var(--space-5) var(--space-4); grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 1fr)); padding: 0; margin: 0; }
+@media (max-width: 639px) { .library-page .lib-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: var(--space-4) var(--space-3); } }
+@media (max-width: 359px) { .library-page .lib-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.library-page .lib-card { display: grid; gap: var(--space-3); align-content: start; min-width: 0; }
+.library-page .lib-card .game-cover { width: 100%; height: auto; aspect-ratio: 3 / 4; border-radius: var(--radius-lg); }
+.library-page .lib-card .cover-fallback .key-mark { width: 40px; height: 40px; }
+.library-page .lib-info { display: grid; gap: 3px; min-width: 0; }
+.library-page .lib-title { font-size: var(--text-md); font-weight: var(--weight-semibold); line-height: 1.25; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.library-page .lib-meta { color: var(--color-text-soft); font-size: var(--text-sm); }
+.library-page .lib-date { color: var(--color-text-muted); font-size: var(--text-xs); }
+.library-page .lib-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: auto; }
+.library-page .lib-actions .button { flex: 1 1 auto; }
+
+.library-page .lib-skeleton { pointer-events: none; }
+.library-page .lib-ghost { display: block; border-radius: var(--radius-md); background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-border); }
+.library-page .lib-ghost.cover { aspect-ratio: 3 / 4; border-radius: var(--radius-lg); margin-bottom: var(--space-3); }
+.library-page .lib-ghost.line { height: 12px; width: 80%; margin-bottom: var(--space-2); }
+.library-page .lib-ghost.line.short { width: 50%; }
+.library-page .lib-empty { border-radius: var(--radius-sheet); background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-border); padding-block: var(--space-6); }

@@ -8,9 +8,13 @@ import CatalogSearch from './features/CatalogSearch';
 import type { WishlistItem } from './api';
 import PriceAlerts from './features/PriceAlerts';
 import SettingsPage from './features/SettingsPage';
-import { shopNames } from './features/Offers';
-import { Brand, Button, Icon, InfoDialog, Notice } from './components';
-import { formatFeePercent, parseFeePercent } from './fees';
+import { countryCodes } from './features/Country';
+import { Brand, Button, Icon, IconButton, InfoDialog, Notice } from './components';
+import FetchStatus from './FetchStatus';
+import { mediaQuery } from './breakpoints';
+import { useMediaQuery } from './useMediaQuery';
+import { useSettingsAutosave } from './features/settings/autosave';
+import { appVersion } from './version';
 
 type Page = 'wishlist' | 'settings' | 'alerts' | 'library';
 function routePage(): Page {
@@ -28,15 +32,12 @@ export default function App() {
   const [wishlistRevision, setWishlistRevision] = useState(0);
   const [page, setPage] = useState<Page>(routePage);
   const [wishlistCount, setWishlistCount] = useState<number | null>(null);
+  const [libraryCount, setLibraryCount] = useState<number | null>(null);
+  const desktop = useMediaQuery(mediaQuery.desktop);
   const [sourceStatus, setSourceStatus] = useState<SourceStatuses | null>(null);
-  const [settings, setSettings] = useState<Settings | null>(null);
-  const [savedCountry, setSavedCountry] = useState<string | null>(null);
-  const [savedPriceScope,setSavedPriceScope]=useState<Settings['wishlist_price_scope']>('preferred');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [feeDraft, setFeeDraft] = useState<Record<string, string>>({});
 
   const refreshSources = useCallback(() => {
     void api<SourceStatuses>('/sources/status').then(setSourceStatus).catch(() => setSourceStatus(null));
@@ -44,10 +45,8 @@ export default function App() {
 
   async function loadSettings() {
     const data = await api<Settings>('/settings');
-    setSettings(data);
+    auto.reset(data);
     refreshSources();
-    setSavedCountry(data.target_country); setSavedPriceScope(data.wishlist_price_scope);
-    setFeeDraft(Object.fromEntries(data.sources.map(source => [source.id, formatFeePercent(source.fee_basis_points)])));
   }
   async function initialize() {
     setScreen('loading'); setError('');
@@ -65,10 +64,10 @@ export default function App() {
   }
   useEffect(() => { void initialize(); }, []); // The initial request only reads local app state.
 
-  async function signIn(password: string, token?: string) {
+  async function signIn(password: string, token?: string, targetCountry?: string) {
     setBusy(true); setError('');
     try {
-      const session = await api<{ csrf_token: string }>(token !== undefined ? '/setup' : '/session', 'POST', token !== undefined ? { token, password } : { password });
+      const session = await api<{ csrf_token: string }>(token !== undefined ? '/setup' : '/session', 'POST', token !== undefined ? { token, password, target_country: targetCountry } : { password });
       setCsrf(session.csrf_token); await loadSettings(); setScreen('ready');
     } catch (e) { setError(errorText(e)); }
     finally { setBusy(false); }
@@ -76,47 +75,36 @@ export default function App() {
   async function logout() {
     setBusy(true); setError('');
     try {
+      await auto.settle(); // Never sign out with an unsaved edit.
       await api('/session', 'DELETE', undefined, csrf);
-      setCsrf(''); setSettings(null); setWishlistCount(null); setMessage(''); setSearchOpen(false); setPage('wishlist'); setScreen('login');
+      setCsrf(''); setWishlistCount(null); setLibraryCount(null); setSearchOpen(false); setPage('wishlist'); setScreen('login');
       window.history.replaceState(null, '', window.location.pathname);
     } catch (e) { handleProtectedError(e); }
     finally { setBusy(false); }
   }
   const handleProtectedError = useCallback((e: unknown) => {
     setError(errorText(e));
-    if (e instanceof HttpError && e.status === 401) { setCsrf(''); setSettings(null); setWishlistCount(null); setSearchOpen(false); setScreen('login'); }
+    if (e instanceof HttpError && e.status === 401) { setCsrf(''); setWishlistCount(null); setSearchOpen(false); setScreen('login'); }
   }, []);
-  async function saveSettings(event: FormEvent) {
-    event.preventDefault();
-    if (!settings) return;
-    const sources = [];
-    for (const source of settings.sources) {
-      const value = source.kind === 'shop' && source.enabled && source.fee_estimation_enabled
-        ? parseFeePercent(feeDraft[source.id] ?? '') : source.fee_basis_points;
-      if (value === null) { setError(`${shopNames[source.id]}: Gebühren bitte als Zahl von 0 bis 100 mit höchstens zwei Nachkommastellen eingeben.`); return; }
-      sources.push({ ...source, fee_basis_points: value });
-    }
-    setBusy(true); setError(''); setMessage('');
-    try {
-      const saved = await api<Settings>('/settings', 'PUT', {
-        ...settings, sources,
-      }, csrf);
-      setSettings(saved); setSavedCountry(saved.target_country); setSavedPriceScope(saved.wishlist_price_scope); setFeeDraft(Object.fromEntries(saved.sources.map(s => [s.id, formatFeePercent(s.fee_basis_points)]))); setMessage('Einstellungen gespeichert.');
-      refreshSources();
-    } catch (e) { handleProtectedError(e); }
-    finally { setBusy(false); }
-  }
+  const auto = useSettingsAutosave({ csrf, onSaved: refreshSources, onProtectedError: handleProtectedError });
+  const savedCountry = auto.saved?.target_country ?? null;
+  const savedPriceScope = auto.saved?.wishlist_price_scope ?? 'preferred';
   const navigate = useCallback((next: Page) => {
-    setSearchOpen(false);
-    setPage(next); setMessage(''); setError('');
-    const url = new URL(window.location.href);
-    url.hash = '';
-    if (next === 'settings') { url.searchParams.set('view', 'settings'); refreshSources(); }
-    else if (next === 'alerts' || next === 'library') url.searchParams.set('view', next);
-    else url.searchParams.delete('view');
-    if (next !== 'settings') url.searchParams.delete('section');
-    if (url.href !== window.location.href) window.history.pushState(null, '', url);
-  }, [refreshSources]);
+    const go = () => {
+      setSearchOpen(false);
+      setPage(next); setError('');
+      const url = new URL(window.location.href);
+      url.hash = '';
+      if (next === 'settings') { url.searchParams.set('view', 'settings'); refreshSources(); }
+      else if (next === 'alerts' || next === 'library') url.searchParams.set('view', next);
+      else url.searchParams.delete('view');
+      if (next !== 'settings') url.searchParams.delete('section');
+      if (url.href !== window.location.href) window.history.pushState(null, '', url);
+    };
+    // Leaving the settings: save open edits first, so the next page already sees the new target country and price scope.
+    if (page === 'settings' && next !== 'settings' && auto.dirty) void auto.settle().then(go); else go();
+  }, [refreshSources, page, auto.dirty, auto.settle]);
+  useEffect(() => { if (page !== 'settings') void auto.settle(); }, [page, auto.settle]); // Also covers browser back and forward.
   useEffect(() => {
     const restore = () => { setPage(routePage()); setSearchOpen(false); };
     window.addEventListener('popstate', restore); return () => window.removeEventListener('popstate', restore);
@@ -128,7 +116,7 @@ export default function App() {
     url.hash = '';
     url.searchParams.delete('view'); url.searchParams.delete('section'); url.searchParams.delete('filter'); url.searchParams.set('item', item.id);
     if (url.href !== window.location.href) window.history.pushState(null, '', url);
-    setPage('wishlist'); setMessage(''); setError(''); setWishlistRevision(n => n + 1);
+    setPage('wishlist'); setError(''); setWishlistRevision(n => n + 1);
   }, []);
   useEffect(() => {
     function keyboard(event: KeyboardEvent) {
@@ -142,9 +130,27 @@ export default function App() {
     return () => window.removeEventListener('keydown', keyboard);
   }, [openSearch]);
   const openSettings = useCallback(() => navigate('settings'), [navigate]);
+  // The library count in the navigation: one cheap read after sign-in and whenever the wishlist or the page changes.
+  useEffect(() => {
+    if (screen !== 'ready' || page === 'library') return;
+    const controller = new AbortController();
+    api<unknown[]>('/library', 'GET', undefined, undefined, controller.signal)
+      .then(rows => { if (!controller.signal.aborted) setLibraryCount(rows.length); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [screen, page, wishlistCount]);
+  // Opened directly on another page (reload, link): read the wishlist size once for the navigation.
+  useEffect(() => {
+    if (screen !== 'ready' || page === 'wishlist' || wishlistCount !== null) return;
+    const controller = new AbortController();
+    api<unknown[]>('/wishlist', 'GET', undefined, undefined, controller.signal)
+      .then(rows => { if (!controller.signal.aborted) setWishlistCount(rows.length); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [screen, page, wishlistCount]);
 
   const countryNames = useMemo(() => new Intl.DisplayNames(['de'], { type: 'region' }), []);
-  const countries = useMemo(() => (settings?.countries ?? []).map(code => ({ code, name: countryNames.of(code) ?? code })).sort((a, b) => a.name.localeCompare(b.name, 'de')), [settings?.countries, countryNames]);
+  const countries = useMemo(() => (auto.settings?.countries ?? []).map(code => ({ code, name: countryNames.of(code) ?? code })).sort((a, b) => a.name.localeCompare(b.name, 'de')), [auto.settings?.countries, countryNames]);
   const targetLabel = savedCountry ? countryNames.of(savedCountry) : 'Noch nicht gewählt';
 
   if (screen !== 'ready') return <main className="auth-layout">
@@ -155,41 +161,52 @@ export default function App() {
     </div>
   </main>;
 
+  const navItems: { page: Page; label: string; icon: string; count?: number | null }[] = [
+    { page: 'wishlist', label: 'Wunschliste', icon: 'heart', count: wishlistCount },
+    { page: 'library', label: 'Bibliothek', icon: 'library', count: libraryCount },
+    { page: 'alerts', label: 'Alarme', icon: 'bell' },
+    { page: 'settings', label: 'Einstellungen', icon: 'settings' },
+  ];
   return <div className={`app-shell ${page === 'wishlist' ? 'dashboard-page' : 'settings-page'}`}>
     <a href="#main-content" className="skip-link">Zum Inhalt</a>
-    <aside className="sidebar"><Brand />
-
-      <nav aria-label="Hauptnavigation">
-        <button className={`nav-item ${page === 'wishlist' ? 'active' : ''}`} aria-current={page === 'wishlist' ? 'page' : undefined} onClick={() => navigate('wishlist')}><Icon name="heart" />Wunschliste<span className="count" aria-hidden="true">{wishlistCount ?? '–'}</span></button>
-        <button className={`nav-item ${page === 'library' ? 'active' : ''}`} aria-current={page === 'library' ? 'page' : undefined} onClick={() => navigate('library')}><Icon name="library" />Bibliothek</button>
-        <button className={`nav-item ${page === 'alerts' ? 'active' : ''}`} aria-current={page === 'alerts' ? 'page' : undefined} onClick={() => navigate('alerts')}><Icon name="bell" />Preisalarme</button>
-        <button className={`nav-item ${page === 'settings' ? 'active' : ''}`} aria-current={page === 'settings' ? 'page' : undefined} onClick={() => navigate('settings')}><Icon name="settings" />Einstellungen</button>
+    <aside className="sidebar">
+      <a className="shell-brand" href={window.location.pathname} aria-label="KeyHunter, zur Wunschliste" onClick={event => { event.preventDefault(); navigate('wishlist'); }}><Brand /></a>
+      <div className="shell-search"><CatalogSearch inline csrf={csrf} open={searchOpen} onOpen={openSearch} onClose={closeSearch} onAdded={selectSearchResult} onError={handleProtectedError} /></div>
+      <nav className="main-nav" aria-label="Hauptnavigation">
+        {navItems.map(item => <button key={item.page} className="nav-item" aria-current={page === item.page ? 'page' : undefined} onClick={() => navigate(item.page)}>
+          <Icon name={item.icon} /><span className="label">{item.label}</span>{item.count !== undefined && <span className="count" aria-hidden="true">{item.count ?? '–'}</span>}
+        </button>)}
       </nav>
-      <div className="sidebar-bottom">
-        <small className="version">0.5.0</small>
-        <Button secondary className="logout" aria-label="Abmelden" title="Abmelden" onClick={() => void logout()} disabled={busy}><Icon name="logout" /></Button>
+      {desktop && <FetchStatus />}
+      <button className="target-pill" aria-label="Zielland ändern" onClick={openSettings}><Icon name="globe" /><span className="target-key">Zielland</span>{' '}<span className="target-value">{savedCountry ? targetLabel : 'wählen'}</span></button>
+      <div className="sidebar-foot">
+        <small className="version ui-mono">{appVersion}</small>
+        <IconButton variant="ghost" className="logout" label="Abmelden" onClick={() => void logout()} disabled={busy}><Icon name="logout" /></IconButton>
       </div>
     </aside>
     <div className="workspace">
-      <header className="topbar"><CatalogSearch inline csrf={csrf} open={searchOpen} onOpen={openSearch} onClose={closeSearch} onAdded={selectSearchResult} onError={handleProtectedError} /><div className="topbar-right"><button className="target-pill" aria-label="Zielland ändern" onClick={openSettings}><Icon name="globe" /><span>{savedCountry ? targetLabel : 'Zielland wählen'}</span></button></div></header>
       <main id="main-content" tabIndex={-1}>
         {error && <Notice error>{error}</Notice>}
-        {message && <Notice>{message}</Notice>}
-        {page === 'wishlist' ? <Wishlist key={wishlistRevision} csrf={csrf} targetCountry={savedCountry} priceScope={savedPriceScope} targetLabel={targetLabel ?? 'Noch nicht gewählt'} onSettings={openSettings} onCountChange={setWishlistCount} onError={handleProtectedError} /> : page === 'library' ? <Library csrf={csrf} onRestored={selectSearchResult} onError={handleProtectedError}/> : page === 'alerts' ? <PriceAlerts csrf={csrf} onError={handleProtectedError} /> : settings && <SettingsPage settings={settings} setSettings={next=>{setSettings(next);setMessage('');}} csrf={csrf} busy={busy} countries={countries} feeDraft={feeDraft} setFeeDraft={next=>{setFeeDraft(next);setMessage('');}} status={sourceStatus} onSave={saveSettings} onChanged={refreshSources} onError={handleProtectedError} onHelp={()=>setDialogOpen(true)} onShopChanged={next=>{
-          const changed=next.sources.filter(source=>settings.sources.find(old=>old.id===source.id)?.configured!==source.configured);
-          setSettings({...settings,sources:settings.sources.map(source=>changed.find(row=>row.id===source.id)??source)});
-          setFeeDraft({...feeDraft,...Object.fromEntries(changed.map(source=>[source.id,formatFeePercent(source.fee_basis_points)]))});
-        }}/>}
+        {page === 'wishlist' ? <Wishlist key={wishlistRevision} csrf={csrf} targetCountry={savedCountry} priceScope={savedPriceScope} targetLabel={targetLabel ?? 'Noch nicht gewählt'} onSettings={openSettings} onCountChange={setWishlistCount} onError={handleProtectedError} /> : page === 'library' ? <Library csrf={csrf} onRestored={selectSearchResult} onOpenWishlist={() => navigate('wishlist')} onCountChange={setLibraryCount} onError={handleProtectedError} /> : page === 'alerts' ? <PriceAlerts csrf={csrf} onError={handleProtectedError} /> : auto.settings && <SettingsPage settings={auto.settings} auto={auto} csrf={csrf} busy={busy} countries={countries} sourceStatus={sourceStatus}
+          onSourcesChanged={refreshSources} onShopsChanged={saved => { auto.reset(saved); refreshSources(); }} onError={handleProtectedError} onHelp={() => setDialogOpen(true)} onLogout={() => void logout()} />}
       </main>
     </div>
     <InfoDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
   </div>;
 }
 
-function AuthForm({ setup, busy, error, onSubmit }: { setup: boolean; busy: boolean; error: string; onSubmit: (password: string, token?: string) => Promise<void> }) {
+function AuthForm({ setup, busy, error, onSubmit }: { setup: boolean; busy: boolean; error: string; onSubmit: (password: string, token?: string, targetCountry?: string) => Promise<void> }) {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [token, setToken] = useState('');
+  const [country, setCountry] = useState(() => {
+    const region = (navigator.language.split('-')[1] ?? '').toUpperCase();
+    return countryCodes.includes(region) ? region : 'DE';
+  });
+  const countryOptions = useMemo(() => {
+    const names = new Intl.DisplayNames(['de'], { type: 'region' });
+    return countryCodes.map(code => ({ code, name: names.of(code) ?? code })).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  }, []);
   const [localError, setLocalError] = useState('');
   async function submit(event: FormEvent) {
     event.preventDefault(); setLocalError('');
@@ -199,7 +216,7 @@ function AuthForm({ setup, busy, error, onSubmit }: { setup: boolean; busy: bool
       return;
     }
     if (setup && password !== confirm) { setLocalError('Die Passphrasen stimmen nicht überein.'); return; }
-    await onSubmit(password, setup ? token : undefined);
+    await onSubmit(password, setup ? token : undefined, setup ? country : undefined);
   }
   return <>
     <h1>{setup ? 'KeyHunter einrichten' : 'Anmelden'}</h1>
@@ -208,7 +225,8 @@ function AuthForm({ setup, busy, error, onSubmit }: { setup: boolean; busy: bool
       {setup && <div className="field"><label htmlFor="setup-token">Einrichtungscode</label><input id="setup-token" type="password" autoComplete="off" value={token} onChange={e => setToken(e.target.value)} required spellCheck={false} /><span className="field-help">Aus der lokalen Datei <code>bootstrap-token</code> im Datenverzeichnis.</span></div>}
       <div className="field"><label htmlFor="password">Passphrase</label><input id="password" type="password" autoComplete={setup ? 'new-password' : 'current-password'} value={password} onChange={e => setPassword(e.target.value)} required />{setup && <span className="field-help">12 bis 128 Zeichen, gerne mehrere Wörter.</span>}</div>
       {setup && <div className="field"><label htmlFor="password-confirm">Passphrase wiederholen</label><input id="password-confirm" type="password" autoComplete="new-password" value={confirm} onChange={e => setConfirm(e.target.value)} required /></div>}
-      <Button type="submit" disabled={busy}>{busy ? 'Bitte warten …' : setup ? 'Privaten Bereich einrichten' : 'Anmelden'}</Button>
+      {setup && <div className="field"><label htmlFor="setup-country">Zielland</label><select id="setup-country" value={country} onChange={e => setCountry(e.target.value)}>{countryOptions.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}</select><span className="field-help">Für dieses Land werden Angebote als aktivierbar bewertet. Später in den Einstellungen änderbar.</span></div>}
+      <Button type="submit" loading={busy}>{busy ? 'Bitte warten …' : setup ? 'Privaten Bereich einrichten' : 'Anmelden'}</Button>
     </form>
   </>;
 }

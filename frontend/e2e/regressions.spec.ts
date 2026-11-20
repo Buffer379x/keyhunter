@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { signInToFixture } from './helpers';
+import { removeCurrent, wishlistHeading } from './detail-helpers';
 
 test('header search accepts text directly and selects a game from settings', async ({ page }) => {
   await signInToFixture(page);
@@ -13,7 +14,7 @@ test('header search accepts text directly and selects a game from settings', asy
   await expect(page.getByRole('heading', { name: 'Forza Horizon 5', exact: true })).toBeVisible();
   await expect(results).not.toBeVisible();
   await expect(input).toHaveValue('');
-  await page.getByRole('button', { name: 'Preisalarme', exact: true }).click();
+  await page.getByRole('button', { name: 'Alarme', exact: true }).click();
   await page.keyboard.press('Control+k');
   await expect(input).toBeFocused();
   await expect(page.getByRole('heading', { name: 'Preisalarme', exact: true })).toBeVisible();
@@ -28,18 +29,17 @@ test('header search accepts text directly and selects a game from settings', asy
   await results.getByRole('button', { name: 'Forza Horizon 5 öffnen', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Forza Horizon 5', exact: true })).toBeVisible();
   await expect(page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('listitem')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Auf der Wunschliste' }).click();
-  await page.getByRole('button', { name: 'Entfernen bestätigen' }).click();
+  await removeCurrent(page);
 });
 
 test('returning to wishlist after using search never reopens an add dialog', async ({ page }) => {
   await signInToFixture(page);
   await page.keyboard.press('Control+k');
   await page.keyboard.press('Escape');
-  for (const name of ['Einstellungen', 'Preisalarme']) {
+  for (const name of ['Einstellungen', 'Alarme']) {
     await page.getByRole('button', { name, exact: true }).click();
     await page.getByRole('button', { name: /^Wunschliste/ }).click();
-    await expect(page.getByRole('heading', { name: 'Meine Wunschliste' })).toBeVisible();
+    await expect(wishlistHeading(page)).toBeVisible();
     await expect(page.getByRole('dialog')).not.toBeVisible();
   }
   await page.getByRole('button', { name: 'Spiel hinzufügen', exact: true }).click();
@@ -47,7 +47,7 @@ test('returning to wishlist after using search never reopens an add dialog', asy
   await page.keyboard.press('Escape');
 });
 
-test('settings fill the content width and typography is consistent across pages', async ({ page }) => {
+test('settings use the content width up to a readable maximum and share the app typography', async ({ page }) => {
   await signInToFixture(page);
   await page.setViewportSize({ width: 1920, height: 1080 });
   const family = await page.locator('.wishlist-head h1').evaluate(el => getComputedStyle(el).fontFamily);
@@ -55,20 +55,19 @@ test('settings fill the content width and typography is consistent across pages'
   const dimensions = await page.locator('main').evaluate(el => {
     const rect = el.getBoundingClientRect();
     const styles = getComputedStyle(el);
-    const form = el.querySelector('.settings-form')!.getBoundingClientRect();
-    return { main: rect.width, available: innerWidth - rect.left, form: form.width, content: rect.width - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight) };
+    const layout = el.querySelector('.settings-layout')!.getBoundingClientRect();
+    return { main: rect.width, available: innerWidth - rect.left, layout: layout.width, content: rect.width - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight) };
   });
+  // The settings use the content width up to a readable maximum (1240 px) and never overflow it.
   expect(dimensions.main).toBeCloseTo(dimensions.available, 0);
-  expect(dimensions.form).toBeCloseTo(dimensions.content, 0);
-  const settingsHeading = page.locator('.settings-card h2').first();
-  const headingSize = await settingsHeading.evaluate(el => getComputedStyle(el).fontSize);
-  const paragraphSize = await page.locator('.settings-card p').first().evaluate(el => getComputedStyle(el).fontSize);
-  for (const el of [page.locator('.page-heading h1'), settingsHeading, page.getByLabel('Zielland', { exact: true }), page.getByRole('button', { name: 'Änderungen speichern' })]) {
+  expect(dimensions.layout).toBeCloseTo(Math.min(dimensions.content, 1240), 0);
+  const settingsHeading = page.locator('.set-card h2').first();
+  for (const el of [page.locator('.set-head h1'), settingsHeading, page.getByLabel('Zielland', { exact: true }), page.getByRole('tab', { name: 'Key-Shops', exact: true })]) {
     expect(await el.evaluate(el => getComputedStyle(el).fontFamily)).toBe(family);
   }
-  await page.getByRole('button', { name: 'Preisalarme', exact: true }).click();
-  expect(await page.locator('#channel-title').evaluate(el => getComputedStyle(el).fontSize)).toBe(headingSize);
-  expect(await page.locator('.offer-section p').first().evaluate(el => getComputedStyle(el).fontSize)).toBe(paragraphSize);
+  await page.getByRole('button', { name: 'Alarme', exact: true }).click();
+  expect(await page.locator('#channel-title').evaluate(el => getComputedStyle(el).fontFamily)).toBe(family);
+  expect(await page.locator('.page-heading h1').evaluate(el => getComputedStyle(el).fontFamily)).toBe(family);
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 844 });
     await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();

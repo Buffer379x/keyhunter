@@ -59,17 +59,20 @@ pub(crate) async fn list(
     headers: HeaderMap,
 ) -> ApiResult<Json<Vec<WishlistItem>>> {
     auth::authenticate(&state, &headers).await?;
-    let rows = sqlx::query(items_sql!(" WHERE NOT EXISTS(SELECT 1 FROM edition_preview p WHERE p.track_id=w.id) AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id) ORDER BY w.created_at DESC, w.rowid DESC"))
-        .fetch_all(&state.pool)
-        .await?;
+    let rows = sqlx::query(items_sql!(
+        " WHERE w.state='wished' ORDER BY w.created_at DESC, w.rowid DESC"
+    ))
+    .fetch_all(&state.pool)
+    .await?;
     let mut items = rows
         .into_iter()
         .map(decode)
         .collect::<ApiResult<Vec<_>>>()?;
     let (target, scope) = crate::price_badges::context(&state.pool).await?;
+    let ids: Vec<String> = items.iter().map(|item| item.id.clone()).collect();
+    let mut badges = crate::price_badges::load_many(&state.pool, &ids, &target, &scope).await?;
     for item in &mut items {
-        item.price_badge =
-            Some(crate::price_badges::load(&state.pool, &item.id, &target, &scope).await?);
+        item.price_badge = badges.remove(&item.id);
     }
     Ok(Json(items))
 }
@@ -99,11 +102,13 @@ pub(crate) async fn add(
     let mut family = None;
     let (igdb_id, manual_title, manual_key) = match (input.igdb_id, input.manual_title) {
         (Some(id), None) if id > 0 => {
-            let existing = sqlx::query(items_sql!(" WHERE g.igdb_id = ? AND w.platform_id = ? AND NOT EXISTS(SELECT 1 FROM edition_preview p WHERE p.track_id=w.id) AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id)"))
-                .bind(id)
-                .bind(input.platform_id)
-                .fetch_optional(&state.pool)
-                .await?;
+            let existing = sqlx::query(items_sql!(
+                " WHERE g.igdb_id = ? AND w.platform_id = ? AND w.state='wished'"
+            ))
+            .bind(id)
+            .bind(input.platform_id)
+            .fetch_optional(&state.pool)
+            .await?;
             if let Some(row) = existing {
                 return Ok((
                     StatusCode::OK,
@@ -161,14 +166,14 @@ pub(crate) async fn add(
             .await?
     };
     if !input.confirm_owned {
-        let owned: Option<String> = sqlx::query_scalar("SELECT COALESCE(g.manual_title,json_extract(c.payload,'$.name'),'Spiel') FROM library_item b JOIN wishlist_item w ON w.id=b.track_id JOIN game g ON g.id=w.game_id LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id WHERE g.id=? OR (? IS NOT NULL AND COALESCE(json_extract(c.payload,'$.version_parent'),g.igdb_id)=?) LIMIT 1")
+        let owned: Option<String> = sqlx::query_scalar("SELECT COALESCE(g.manual_title,json_extract(c.payload,'$.name'),'Spiel') FROM wishlist_item w JOIN game g ON g.id=w.game_id LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id WHERE w.state='owned' AND (g.id=? OR (? IS NOT NULL AND COALESCE(json_extract(c.payload,'$.version_parent'),g.igdb_id)=?)) LIMIT 1")
             .bind(&game_id).bind(family).bind(family).fetch_optional(&mut *tx).await?;
         if let Some(title) = owned {
             return Ok((StatusCode::CONFLICT, Json(serde_json::json!({"error":format!("„{title}“ ist bereits in deiner Bibliothek. Wirklich fortfahren?"),"code":"owned_game"}))).into_response());
         }
     }
     let item_id = random_token().map_err(|_| internal())?[..32].to_string();
-    let inserted = sqlx::query("INSERT INTO wishlist_item (id, game_id, platform_id, created_at) SELECT ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM wishlist_item w WHERE NOT EXISTS(SELECT 1 FROM edition_preview p WHERE p.track_id=w.id) AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id)) < 100 ON CONFLICT(game_id, platform_id) DO NOTHING")
+    let inserted = sqlx::query("INSERT INTO wishlist_item (id, game_id, platform_id, created_at) SELECT ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM wishlist_item w WHERE w.state='wished') < 100 ON CONFLICT(game_id, platform_id) DO NOTHING")
         .bind(item_id).bind(&game_id).bind(input.platform_id).bind(now()).execute(&mut *tx).await?;
     let row = sqlx::query(items_sql!(" WHERE w.game_id = ? AND w.platform_id = ?"))
         .bind(&game_id)
@@ -182,40 +187,30 @@ pub(crate) async fn add(
         ));
     };
     let mut item = decode(row)?;
-    let preview: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM edition_preview WHERE track_id=?)")
-            .bind(&item.id)
-            .fetch_one(&mut *tx)
-            .await?;
-    let owned: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM library_item WHERE track_id=?)")
-            .bind(&item.id)
-            .fetch_one(&mut *tx)
-            .await?;
-    if preview || owned {
-        let count:i64=sqlx::query_scalar("SELECT COUNT(*) FROM wishlist_item w WHERE NOT EXISTS(SELECT 1 FROM edition_preview p WHERE p.track_id=w.id) AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id)").fetch_one(&mut *tx).await?;
+    let item_state: String = sqlx::query_scalar("SELECT state FROM wishlist_item WHERE id=?")
+        .bind(&item.id)
+        .fetch_one(&mut *tx)
+        .await?;
+    let moved = item_state != "wished";
+    if moved {
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM wishlist_item w WHERE w.state='wished'")
+                .fetch_one(&mut *tx)
+                .await?;
         if count >= 100 {
             return Err(ApiError(
                 StatusCode::CONFLICT,
                 "Die Wunschliste enthält bereits 100 Einträge.",
             ));
         }
-        sqlx::query("DELETE FROM edition_preview WHERE track_id=?")
-            .bind(&item.id)
-            .execute(&mut *tx)
-            .await?;
-        sqlx::query("DELETE FROM library_item WHERE track_id=?")
-            .bind(&item.id)
-            .execute(&mut *tx)
-            .await?;
         item.created_at = now();
-        sqlx::query("UPDATE wishlist_item SET created_at=? WHERE id=?")
+        sqlx::query("UPDATE wishlist_item SET state='wished',viewed_at=NULL,acquired_at=NULL,created_at=? WHERE id=?")
             .bind(item.created_at)
             .bind(&item.id)
             .execute(&mut *tx)
             .await?;
     }
-    let created = inserted.rows_affected() == 1 || preview || owned;
+    let created = inserted.rows_affected() == 1 || moved;
     tx.commit().await?;
     crate::jobs::schedule_wish(&state.pool, &item.id).await?;
     item = with_badge(&state.pool, item).await?;
@@ -243,16 +238,14 @@ pub(crate) async fn preview(
 ) -> ApiResult<Json<serde_json::Value>> {
     let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
-    let row = sqlx::query(items_sql!(
-        " WHERE w.id=? AND NOT EXISTS(SELECT 1 FROM edition_preview p WHERE p.track_id=w.id) AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id)"
-    ))
-    .bind(&id)
-    .fetch_optional(&state.pool)
-    .await?
-    .ok_or(ApiError(
-        StatusCode::NOT_FOUND,
-        "Wunschlisteneintrag nicht gefunden.",
-    ))?;
+    let row = sqlx::query(items_sql!(" WHERE w.id=? AND w.state='wished'"))
+        .bind(&id)
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or(ApiError(
+            StatusCode::NOT_FOUND,
+            "Wunschlisteneintrag nicht gefunden.",
+        ))?;
     let anchor = decode(row)?;
     let base = anchor.game.as_ref().ok_or(ApiError(
         StatusCode::UNPROCESSABLE_ENTITY,
@@ -280,7 +273,7 @@ pub(crate) async fn preview(
             .execute(&mut *tx)
             .await?;
     }
-    sqlx::query("UPDATE edition_preview SET viewed_at=? WHERE track_id=?")
+    sqlx::query("UPDATE wishlist_item SET viewed_at=? WHERE id=? AND state='preview'")
         .bind(now())
         .bind(&track)
         .execute(&mut *tx)
@@ -312,16 +305,23 @@ pub(crate) async fn remove(
     }
     let mut tx = state.pool.begin().await?;
     crate::edition_tracking::cancel_children(&mut tx, &id).await?;
-    let active:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM wishlist_item w WHERE w.id=? AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id) AND NOT EXISTS(SELECT 1 FROM edition_preview p WHERE p.track_id=w.id))").bind(&id).fetch_one(&mut *tx).await?;
-    if active {
-        let needed:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM edition_watch e JOIN wishlist_item w ON w.id=e.wish_id WHERE e.track_id=? AND e.wish_id!=? AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id) AND NOT EXISTS(SELECT 1 FROM edition_preview p WHERE p.track_id=w.id))").bind(&id).bind(&id).fetch_one(&mut *tx).await?;
+    // Wishes and library entries can be removed; hidden previews are not the user's entries.
+    let item_state: Option<String> =
+        sqlx::query_scalar("SELECT state FROM wishlist_item WHERE id=?")
+            .bind(&id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    if matches!(item_state.as_deref(), Some("wished" | "owned")) {
+        let needed:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM edition_watch e JOIN wishlist_item w ON w.id=e.wish_id WHERE e.track_id=? AND e.wish_id!=? AND w.state='wished')").bind(&id).bind(&id).fetch_one(&mut *tx).await?;
         if needed {
             // Preserve observations shared with another game's edition selector.
-            sqlx::query("INSERT OR IGNORE INTO edition_preview(track_id,viewed_at) VALUES(?,?)")
-                .bind(&id)
-                .bind(now())
-                .execute(&mut *tx)
-                .await?;
+            sqlx::query(
+                "UPDATE wishlist_item SET state='preview',viewed_at=?,acquired_at=NULL WHERE id=?",
+            )
+            .bind(now())
+            .bind(&id)
+            .execute(&mut *tx)
+            .await?;
             sqlx::query("DELETE FROM edition_watch WHERE wish_id=?")
                 .bind(&id)
                 .execute(&mut *tx)
@@ -360,7 +360,7 @@ pub(crate) async fn library(
     headers: HeaderMap,
 ) -> ApiResult<Json<Vec<LibraryItem>>> {
     auth::authenticate(&state, &headers).await?;
-    let rows = sqlx::query("SELECT w.id,w.game_id,w.platform_id,w.created_at,g.manual_title,c.payload,b.acquired_at FROM wishlist_item w JOIN game g ON g.id=w.game_id LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id JOIN library_item b ON b.track_id=w.id ORDER BY b.acquired_at DESC,w.rowid DESC")
+    let rows = sqlx::query("SELECT w.id,w.game_id,w.platform_id,w.created_at,g.manual_title,c.payload,COALESCE(w.acquired_at,0) AS acquired_at FROM wishlist_item w JOIN game g ON g.id=w.game_id LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id WHERE w.state='owned' ORDER BY w.acquired_at DESC,w.rowid DESC")
     .fetch_all(&state.pool)
     .await?;
     Ok(Json(
@@ -384,8 +384,13 @@ pub(crate) async fn purchase(
     let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     let mut tx = state.pool.begin().await?;
-    let result=sqlx::query("INSERT OR IGNORE INTO library_item(track_id,acquired_at) SELECT id,? FROM wishlist_item w WHERE id=? AND NOT EXISTS(SELECT 1 FROM edition_preview p WHERE p.track_id=w.id)")
-        .bind(now()).bind(&id).execute(&mut *tx).await?;
+    let result = sqlx::query(
+        "UPDATE wishlist_item SET state='owned',acquired_at=? WHERE id=? AND state='wished'",
+    )
+    .bind(now())
+    .bind(&id)
+    .execute(&mut *tx)
+    .await?;
     if result.rows_affected() == 0 {
         return Err(ApiError(
             StatusCode::NOT_FOUND,
@@ -424,30 +429,26 @@ pub(crate) async fn restore(
         ));
     }
     let mut tx = state.pool.begin().await?;
-    let deleted=sqlx::query("DELETE FROM library_item WHERE track_id=? AND (SELECT COUNT(*) FROM wishlist_item w WHERE NOT EXISTS(SELECT 1 FROM edition_preview p WHERE p.track_id=w.id) AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id))<100")
-        .bind(&id).execute(&mut *tx).await?;
+    let deleted=sqlx::query("UPDATE wishlist_item SET state='wished',acquired_at=NULL,created_at=? WHERE id=? AND state='owned' AND (SELECT COUNT(*) FROM wishlist_item w WHERE w.state='wished')<100")
+        .bind(now()).bind(&id).execute(&mut *tx).await?;
     if deleted.rows_affected() == 0 {
         return Err(ApiError(
             StatusCode::CONFLICT,
             "Bibliothekseintrag nicht gefunden oder Wunschliste bereits voll.",
         ));
     }
-    sqlx::query("UPDATE wishlist_item SET created_at=? WHERE id=?")
-        .bind(now())
-        .bind(&id)
-        .execute(&mut *tx)
-        .await?;
     tx.commit().await?;
     crate::jobs::schedule_wish(&state.pool, &id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
 pub(crate) async fn require_unowned(pool: &sqlx::SqlitePool, id: &str) -> ApiResult<()> {
-    let owned: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM library_item WHERE track_id=?)")
-            .bind(id)
-            .fetch_one(pool)
-            .await?;
+    let owned: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM wishlist_item WHERE id=? AND state='owned')",
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await?;
     if owned {
         return Err(ApiError(
             StatusCode::CONFLICT,
@@ -480,9 +481,10 @@ pub(crate) async fn track_edition(
     let track = if let Some(track) = existing {
         track
     } else {
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM edition_preview")
-            .fetch_one(&mut *conn)
-            .await?;
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM wishlist_item WHERE state='preview'")
+                .fetch_one(&mut *conn)
+                .await?;
         if count >= 3000 {
             return Err(ApiError(
                 StatusCode::CONFLICT,
@@ -501,15 +503,11 @@ pub(crate) async fn track_edition(
             .fetch_one(&mut *conn)
             .await?;
         let track = random_token().map_err(|_| internal())?[..32].to_string();
-        sqlx::query("INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES(?,?,?,?)")
+        sqlx::query("INSERT INTO wishlist_item(id,game_id,platform_id,created_at,state,viewed_at) VALUES(?,?,?,?,'preview',?)")
             .bind(&track)
             .bind(game_id)
             .bind(platform_id)
             .bind(now())
-            .execute(&mut *conn)
-            .await?;
-        sqlx::query("INSERT INTO edition_preview VALUES(?,?)")
-            .bind(&track)
             .bind(now())
             .execute(&mut *conn)
             .await?;

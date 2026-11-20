@@ -1,0 +1,53 @@
+import { useCallback, useEffect, useState } from 'react';
+import { api } from '../../api';
+import type { AlertOverview, FetchStatusResponse } from '../../api';
+import { whenVisible } from '../../poll';
+
+export const FETCH_REFRESH_MS = 30_000;
+
+/**
+ * GET /status/fetch: read once when the settings open; while `poll` is true (a section that shows it is open)
+ * it is read again every 30 s, never while the tab is hidden. `reload` reads at once.
+ * A failed read keeps the last data and sets `failed`.
+ */
+export function useFetchStatus(poll: boolean) {
+  const [data, setData] = useState<FetchStatusResponse | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [loadedAt, setLoadedAt] = useState<number | null>(null);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    let cancel = () => {};
+    const load = () => {
+      api<FetchStatusResponse>('/status/fetch', 'GET', undefined, undefined, controller.signal)
+        .then(next => { if (!controller.signal.aborted) { setData(next); setFailed(false); setLoadedAt(Date.now()); } })
+        .catch(() => { if (!controller.signal.aborted) setFailed(true); })
+        .finally(() => { if (!controller.signal.aborted && poll) cancel = whenVisible(load, FETCH_REFRESH_MS); });
+    };
+    load();
+    return () => { controller.abort(); cancel(); };
+  }, [poll, tick]);
+  const reload = useCallback(() => setTick(n => n + 1), []);
+  return { data, failed, loadedAt, reload };
+}
+
+/** GET /alerts: whether ntfy is set up and the delivery log. While a test message is pending it is read again every 5 s. */
+export function useAlertOverview() {
+  const [data, setData] = useState<AlertOverview | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    let cancel = () => {};
+    api<AlertOverview>('/alerts', 'GET', undefined, undefined, controller.signal)
+      .then(next => {
+        if (controller.signal.aborted) return;
+        setData(next); setFailed(false);
+        if (next.configured && next.events.some(event => event.wish_id === null && event.state === 'pending')) cancel = whenVisible(() => setTick(n => n + 1), 5000);
+      })
+      .catch(() => { if (!controller.signal.aborted) setFailed(true); });
+    return () => { controller.abort(); cancel(); };
+  }, [tick]);
+  const reload = useCallback(() => setTick(n => n + 1), []);
+  return { data, failed, reload };
+}

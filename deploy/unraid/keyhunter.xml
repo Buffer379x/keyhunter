@@ -7,11 +7,11 @@
   <Privileged>false</Privileged>
   <Support/>
   <Project>https://github.com/Buffer379x/keyhunter</Project>
-  <Overview>Private Xbox wishlist with IGDB search, Eneba and Driffle offers, price history and ntfy alerts. Pull the linux/amd64 image from GitHub Container Registry. See the repository installation guide.</Overview>
+  <Overview>Private Xbox wishlist that compares the best key valid in your country with the cheapest region worldwide. IGDB search, Eneba and Driffle offers, price history and ntfy alerts. Pull the linux/amd64 image from GitHub Container Registry. See the repository installation guide.</Overview>
   <Category>GameServers: Other:</Category>
   <WebUI>http://[IP]:[PORT:3000]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/Buffer379x/keyhunter/main/deploy/unraid/keyhunter.xml</TemplateURL>
-  <Icon/>
+  <Icon>https://raw.githubusercontent.com/Buffer379x/keyhunter/main/frontend/public/keyhunter-appicon-512.png</Icon>
   <ExtraParams>--user=0:0 --security-opt=no-new-privileges:true --cap-drop=ALL --cap-add=CHOWN --cap-add=DAC_OVERRIDE --cap-add=FOWNER --cap-add=SETGID --cap-add=SETUID --cap-add=SETPCAP --read-only --tmpfs /tmp:size=16m,mode=1777 --memory=512m</ExtraParams>
   <PostArgs>--init-unraid-data</PostArgs>
   <Config Name="Web port" Target="3000" Default="3000" Mode="tcp" Description="HTTP for a private LAN IP. For HTTPS use a reverse proxy." Type="Port" Display="always" Required="true" Mask="false">3000</Config>

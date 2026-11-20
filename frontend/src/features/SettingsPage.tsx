@@ -1,45 +1,115 @@
-import { useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
-import { api, HttpError } from '../api';
-import type { Settings, SourceSettings, SourceStatuses } from '../api';
-import { Button, Icon, Notice, PageHeading } from '../components';
-import IgdbAccess from './IgdbAccess';
-import { shopNames } from './Offers';
-const states:Record<string,string>={ready:'Abruf erfolgreich',idle:'Bereit für die Angebotssuche',paused:'Abrufe pausiert',error:'Letzter Abruf fehlgeschlagen',configured:'Zugang konfiguriert',not_configured:'Zugang noch nicht eingerichtet',disabled:'Deaktiviert',rate_limited:'Abruflimit erreicht'};
-type Section='general'|'shops'|'index';
-const route=():Section => {const value=new URL(location.href).searchParams.get('section');return value==='shops'||value==='index'?value:'general';};
+import { useEffect, useRef, useState } from 'react';
+import type { KeyboardEvent } from 'react';
+import type { Settings, SourceStatuses } from '../api';
+import { Button, Icon } from '../components';
+import General from './settings/General';
+import Shops from './settings/Shops';
+import Index from './settings/Index';
+import Notifications from './settings/Notifications';
+import FetchPanel from './settings/FetchPanel';
+import System from './settings/System';
+import { useAlertOverview, useFetchStatus } from './settings/data';
+import type { Autosave } from './settings/autosave';
+import '../styles/settings.css';
+
+type Section = 'general' | 'shops' | 'index' | 'notifications' | 'status' | 'system';
+const sections: { id: Section; label: string }[] = [
+  { id: 'general', label: 'Allgemein' }, { id: 'shops', label: 'Key-Shops' }, { id: 'index', label: 'Spieleindex' },
+  { id: 'notifications', label: 'Benachrichtigungen' }, { id: 'status', label: 'Abrufstatus' }, { id: 'system', label: 'System' },
+];
+const ids = sections.map(s => s.id);
+/** The URL carries the section: ?view=settings&section=shops. Allgemein has no parameter. */
+const route = (): Section => {
+  const value = new URL(location.href).searchParams.get('section');
+  return ids.includes(value as Section) ? value as Section : 'general';
+};
+const OPERATIONS_GUIDE = 'https://github.com/Buffer379x/keyhunter/blob/main/docs/operations.md';
+
 interface Props {
-  settings:Settings; setSettings:(settings:Settings)=>void; csrf:string; busy:boolean;
-  countries:{code:string;name:string}[]; feeDraft:Record<string,string>; setFeeDraft:(draft:Record<string,string>)=>void;
-  status:SourceStatuses|null; onSave:(event:FormEvent)=>void; onChanged:()=>void; onError:(error:unknown)=>void; onHelp:()=>void;
-  onShopChanged:(settings:Settings)=>void;
+  settings: Settings; auto: Autosave; csrf: string; countries: { code: string; name: string }[];
+  sourceStatus: SourceStatuses | null; busy: boolean;
+  onSourcesChanged: () => void; onShopsChanged: (saved: Settings) => void; onError: (error: unknown) => void; onHelp: () => void; onLogout: () => void;
 }
-export default function SettingsPage({settings,setSettings,csrf,busy,countries,feeDraft,setFeeDraft,status,onSave,onChanged,onError,onHelp,onShopChanged}:Props) {
-  const [section,setSection]=useState<Section>(route);
-  const [url,setUrl]=useState('');const [working,setWorking]=useState(false);const [error,setError]=useState('');const [message,setMessage]=useState('');
-  useEffect(()=>{const restore=()=>setSection(route());window.addEventListener('popstate',restore);return()=>window.removeEventListener('popstate',restore);},[]);
-  function navigate(next:Section) {setSection(next);const page=new URL(location.href);if(next==='general')page.searchParams.delete('section');else page.searchParams.set('section',next);window.history.pushState(null,'',page);}
-  function change(id:string,patch:Partial<SourceSettings>) {setSettings({...settings,sources:settings.sources.map(s=>s.id===id?{...s,...patch}:s)});}
-  async function register(event:FormEvent) {event.preventDefault();await update('POST','/settings/shops',{url});}
-  async function update(method:string,path:string,body?:unknown) {
-    setWorking(true);setError('');setMessage('');
-    try {const saved=await api<Settings>(path,method,body,csrf);onShopChanged(saved);setUrl('');onChanged();setMessage(method==='POST'?'Dienst hinzugefügt.':'Dienst entfernt. Vorhandene Messungen bleiben gespeichert.');}
-    catch(error) {setError(error instanceof Error?error.message:'Dienst konnte nicht geändert werden.');if(error instanceof HttpError&&error.status===401)onError(error);}
-    finally {setWorking(false);}
+
+function SaveIndicator({ auto }: { auto: Autosave }) {
+  const { state, error, retryable, retry } = auto;
+  return <div className={`set-save ${state}`}>
+    <span role="status" className="ui-mono">
+      {state === 'saved' ? <><span className="set-dot ok" aria-hidden="true" />Alle Änderungen gespeichert</>
+        : state === 'error' ? <><Icon name="alert" size={14} />Nicht gespeichert</>
+          : <><span className="ui-spinner" aria-hidden="true" />Wird gespeichert …</>}
+    </span>
+    {state === 'error' && <span className="set-save-error" role="alert">{error}{retryable && <Button variant="ghost" size="sm" onClick={retry}>Erneut versuchen</Button>}</span>}
+  </div>;
+}
+
+export default function SettingsPage({ settings, auto, csrf, countries, sourceStatus, busy, onSourcesChanged, onShopsChanged, onError, onHelp, onLogout }: Props) {
+  const [section, setSection] = useState<Section>(route);
+  const tabs = useRef(new Map<Section, HTMLButtonElement>());
+  useEffect(() => { const restore = () => setSection(route()); window.addEventListener('popstate', restore); return () => window.removeEventListener('popstate', restore); }, []);
+  // On phones the section list scrolls sideways: keep the open section in view.
+  useEffect(() => { tabs.current.get(section)?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' }); }, [section]);
+  const fetched = useFetchStatus(section === 'shops' || section === 'status');
+  const alerts = useAlertOverview();
+
+  function open(next: Section, focus = false) {
+    setSection(next);
+    const page = new URL(location.href);
+    if (next === 'general') page.searchParams.delete('section'); else page.searchParams.set('section', next);
+    if (page.href !== location.href) window.history.pushState(null, '', page);
+    document.getElementById('main-content')?.scrollTo?.({ top: 0 });
+    if (focus) tabs.current.get(next)?.focus();
   }
-  const igdb=settings.sources.find(s=>s.id==='igdb');
-  return <>
-    <PageHeading title="Einstellungen" />
-    <nav className="section-nav settings-tabs" role="tablist" aria-label="Einstellungsbereiche">{[['general','settings','Allgemein'],['shops','tag','Key-Shops'],['index','game','Spieleindex']].map(([id,icon,label])=><button type="button" role="tab" key={id} aria-selected={section===id} aria-controls="settings-panel" onClick={()=>navigate(id as Section)}><Icon name={icon}/>{label}</button>)}</nav>
-    <div id="settings-panel" role="tabpanel" aria-label={section==='general'?'Allgemein':section==='shops'?'Key-Shops':'Spieleindex'}>
-      <form className="settings-form" onSubmit={onSave}>
-        {section==='general'?<section className="settings-card"><div className="section-content"><h2>Region & Anzeige</h2><p>Das Zielland bestimmt, welche Angebote als aktivierbar gelten.</p><div className="field-grid"><div className="field"><label htmlFor="target-country">Zielland</label><select id="target-country" value={settings.target_country??''} onChange={e=>setSettings({...settings,target_country:e.target.value||null})}><option value="">Bitte wählen</option>{countries.map(c=><option key={c.code} value={c.code}>{c.name}</option>)}</select></div><div className="field"><label htmlFor="currency">Vergleichswährung</label><input id="currency" value="EUR · Euro" readOnly/><span className="field-help">Alle beobachteten Preise werden in Euro dargestellt.</span></div></div><div className="field wishlist-price-setting"><label htmlFor="wishlist-price-scope">Preis-Badge in der Wunschliste</label><select id="wishlist-price-scope" value={settings.wishlist_price_scope} onChange={event=>setSettings({...settings,wishlist_price_scope:event.target.value as 'preferred'|'all'})}><option value="preferred">Aktivierbar in meinem Zielland</option><option value="all">Tiefster Preis über alle Regionen</option></select><span className="field-help">Grundpreis ohne geschätzte Gebühren. Preise aller Regionen können Angebote enthalten, die im Zielland nicht aktivierbar sind.</span></div></div></section>:
-        section==='shops'?<section className="settings-card"><div className="section-content"><h2>Key-Shops</h2><div className="source-list">{settings.sources.filter(s=>s.kind==='shop'&&s.configured).map(source=><article key={source.id} className="source-card" aria-label={shopNames[source.id]}><div className="source-heading"><div className={`source-logo ${source.id}`}>{shopNames[source.id]?.[0]}</div><div><h3>{shopNames[source.id]}</h3><span>{source.id==='eneba'?'Standard-Preisquelle':'Zusätzliche Preisquelle'} · öffentlicher Shop</span></div><label className="source-toggle"><input type="checkbox" aria-label={`${shopNames[source.id]} aktivieren`} checked={source.enabled} onChange={e=>change(source.id,{enabled:e.target.checked})}/>Aktiv</label></div><span className="source-state">{states[status?.[source.id]?.state??'']??'Status wird gelesen …'}</span><div className="source-interval field"><label htmlFor={`${source.id}-interval`}>Abfrageintervall (Stunden)</label><input id={`${source.id}-interval`} type="number" min="0.25" max="168" step="0.25" value={source.poll_interval_seconds/3600} onChange={e=>change(source.id,{poll_interval_seconds:Number(e.target.value)*3600})}/><span className="field-help">Empfohlen sind 8 Stunden pro Produktseite. Neue Produkte und manuelle Abfragen können früher geprüft werden.</span></div><div className="fee-options"><label className="check-label"><input type="checkbox" checked={source.fee_estimation_enabled} disabled={!source.enabled} onChange={e=>change(source.id,{fee_estimation_enabled:e.target.checked})}/>Geschätzte Gebühren berücksichtigen</label><div className="fee-row"><div className="field"><label htmlFor={`${source.id}-fee`}>Geschätzte Gebühren (%)</label><input id={`${source.id}-fee`} inputMode="decimal" value={feeDraft[source.id]??''} disabled={!source.enabled||!source.fee_estimation_enabled} onChange={e=>setFeeDraft({...feeDraft,[source.id]:e.target.value})}/></div><p>Optionaler Aufschlag; der Gesamtpreis bleibt als Schätzung gekennzeichnet.</p></div></div><button type="button" className="text-button remove-source" disabled={working||busy} onClick={()=>void update('DELETE',`/settings/shops/${source.id}`)}>{shopNames[source.id]} entfernen</button></article>)}</div><button type="button" className="text-button" onClick={onHelp}>Wie werden Gebühren behandelt?</button></div></section>:
-        <section className="settings-card"><div className="section-content"><h2>IGDB · Spieleindex</h2><p>Titel, Plattformen, Bilder und zugehörige Editionen. IGDB ist unabhängig von den Key-Shops.</p>{igdb&&<label className="check-label"><input type="checkbox" aria-label="IGDB aktivieren" checked={igdb.enabled} onChange={e=>change('igdb',{enabled:e.target.checked})}/>Spieleindex aktiv</label>}</div></section>}
-        <div className="settings-actions"><Button type="submit" disabled={busy||working}>{busy?'Wird gespeichert …':'Änderungen speichern'}</Button></div>
-      </form>
-      {section==='shops'&&<section className="settings-card shop-register"><div className="section-content"><h2>Weiteren Dienst hinzufügen</h2><p>Unterstützte Shops sind Eneba und Driffle.</p>{error&&<Notice error>{error}</Notice>}{message&&<Notice>{message}</Notice>}<form className="shop-register-form" onSubmit={register}><div className="field"><label htmlFor="shop-url">Shop-URL</label><input id="shop-url" type="url" placeholder="https://driffle.com" value={url} onChange={e=>setUrl(e.target.value)} required maxLength={300}/></div><Button type="submit" disabled={working||busy}>{working?'Wird geprüft …':'Dienst hinzufügen'}</Button></form></div></section>}
-      {section==='index'&&<><div className="settings-form"><IgdbAccess configured={status?.igdb?.configured} csrf={csrf} onChanged={onChanged} onError={onError}/></div><section className="settings-card enrichment-card"><div className="section-content"><h2>Editionsinhalte von Microsoft / Xbox</h2><p>Offizielle Bundle-Inhalte ergänzen den Spieleindex für die Vergleichstabelle. Die Zuordnung erfolgt über die bei IGDB belegte Xbox-Store-Version. Dafür sind keine zusätzlichen Zugangsdaten nötig.</p><span className="source-state">Wird beim Editionsvergleich geladen · mit Quellenangabe</span></div></section></>}
+  function keys(event: KeyboardEvent) {
+    const focused = (event.target as HTMLElement).closest('[role="tab"]')?.id.replace('settings-tab-', '') as Section | undefined;
+    const at = ids.indexOf(focused && ids.includes(focused) ? focused : section);
+    const target = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? ids[(at + 1) % ids.length]
+      : event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? ids[(at - 1 + ids.length) % ids.length]
+        : event.key === 'Home' ? ids[0] : event.key === 'End' ? ids[ids.length - 1] : undefined;
+    if (target) { event.preventDefault(); open(target, true); }
+  }
+
+  const shopsActive = settings.sources.filter(s => s.kind === 'shop' && s.configured && s.enabled).length;
+  const igdbState = sourceStatus?.igdb?.state;
+  const igdbOn = settings.sources.find(s => s.id === 'igdb')?.enabled ?? true;
+  const due = fetched.data ? fetched.data.shops.filter(s => s.enabled).reduce((sum, s) => sum + s.backlog.due, 0) : null;
+  const hints: Record<Section, string> = {
+    general: 'Zielland, Preisanzeige, Export',
+    shops: shopsActive === 0 ? 'Kein Shop aktiv' : `${shopsActive} aktiv`,
+    index: !igdbState ? '' : !igdbOn ? 'IGDB deaktiviert' : igdbState === 'ready' ? 'IGDB verbunden' : igdbState === 'configured' ? 'IGDB hinterlegt' : igdbState === 'not_configured' ? 'IGDB nicht eingerichtet' : 'IGDB mit Problem',
+    notifications: alerts.data ? (alerts.data.configured ? 'ntfy eingerichtet' : 'ntfy nicht eingerichtet') : '',
+    status: due === null ? '' : due === 0 ? 'Nichts ausstehend' : `${due} ausstehend`,
+    system: 'Sicherheit, Backup, Version',
+  };
+
+  return <div className="settings-layout">
+    <header className="set-head">
+      <div><h1>Einstellungen</h1><p>Zielland, Shops, Spieleindex und Benachrichtigungen</p></div>
+      <SaveIndicator auto={auto} />
+    </header>
+    {location.protocol === 'http:' && <div className="set-banner" role="note">
+      <Icon name="alert" />
+      <span>Verbindung ohne HTTPS. Passphrase und Sitzung sind im Heimnetz mitlesbar. <span className="set-banner-more">Für den Dauerbetrieb einen Reverse Proxy mit HTTPS einrichten.</span></span>
+      <a href={OPERATIONS_GUIDE} target="_blank" rel="noopener noreferrer">Anleitung<span className="sr-only"> (öffnet in neuem Tab)</span></a>
+    </div>}
+    <div className="set-body">
+      <div className="set-nav" role="tablist" aria-label="Einstellungsbereiche" aria-orientation="vertical" onKeyDown={keys}>
+        {sections.map(item => <button key={item.id} ref={node => { if (node) tabs.current.set(item.id, node); else tabs.current.delete(item.id); }}
+          type="button" role="tab" id={`settings-tab-${item.id}`} aria-label={item.label} aria-describedby={`settings-hint-${item.id}`} aria-selected={section === item.id}
+          aria-controls="settings-panel" tabIndex={section === item.id ? 0 : -1} onClick={() => open(item.id)}>
+          <span className="set-nav-label">{item.label}</span>
+          <span className="set-nav-hint" id={`settings-hint-${item.id}`}>{hints[item.id]}</span>
+        </button>)}
+      </div>
+      <div id="settings-panel" className="set-panel" role="tabpanel" aria-labelledby={`settings-tab-${section}`} tabIndex={0} data-section={section}>
+        {section === 'general' && <General settings={settings} countries={countries} edit={auto.edit} onError={onError} />}
+        {section === 'shops' && <Shops settings={settings} feeDraft={auto.feeDraft} edit={auto.edit} editFee={auto.editFee} settle={auto.settle} status={fetched.data?.shops}
+          csrf={csrf} onShopsChanged={onShopsChanged} onHelp={onHelp} onError={onError} />}
+        {section === 'index' && <Index settings={settings} edit={auto.edit} igdbState={igdbState} igdbConfigured={sourceStatus?.igdb?.configured} csrf={csrf} onChanged={onSourcesChanged} onError={onError} />}
+        {section === 'notifications' && <Notifications overview={alerts.data} failed={alerts.failed} csrf={csrf} reload={alerts.reload} onError={onError} />}
+        {section === 'status' && <FetchPanel data={fetched.data} failed={fetched.failed} loadedAt={fetched.loadedAt} reload={fetched.reload} />}
+        {section === 'system' && <System onLogout={onLogout} busy={busy} />}
+      </div>
     </div>
-  </>;
+  </div>;
 }

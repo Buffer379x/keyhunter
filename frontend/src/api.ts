@@ -13,6 +13,7 @@ export interface Settings {
   wishlist_price_scope: 'preferred' | 'all';
   sources: SourceSettings[];
   countries: string[];
+  confirmed_activation_countries?: string[];
 }
 export class HttpError extends Error {
   status: number;
@@ -41,6 +42,8 @@ export interface PriceBadgeData {
   checked_at:number|null;
   stale:boolean;
   pending:boolean;
+  /** Cheapest current offer of any region (valid in the target country or not). */
+  world?:{cents:number;region:string|null;observed_at:number|null}|null;
 }
 export interface WishlistItem {
   price_badge?:PriceBadgeData;
@@ -71,3 +74,33 @@ export async function api<T>(path: string, method = 'GET', body?: unknown, csrf?
   if (!response.ok) throw new HttpError(response.status, data?.error ?? 'Die Anfrage konnte nicht abgeschlossen werden.', data?.code);
   return data as T;
 }
+
+/** GET /status/fetch: queue, budget and pauses per shop (times in Unix seconds). */
+export interface FetchShopStatus {
+  source: string;
+  enabled: boolean;
+  last_success_at: number | null;
+  last_error: string | null;
+  paused_until: number | null;
+  budget: { used: number; limit: number };
+  backlog: { due: number; requested: number; products: number; searches: number };
+  oldest_due_at: number | null;
+  next_due_at: number | null;
+  worker_seen_at: number | null;
+}
+/** One row of the job log: kind is 'product' | 'search' | 'discovery', outcome is 'ok' or an error code (network, not_found, rate_limited, access_denied, invalid_response). */
+export interface FetchRun {
+  source: string;
+  kind: string;
+  wish_id: string | null;
+  link_id: number | null;
+  started_at: number;
+  duration_ms: number;
+  outcome: string;
+  detail: string | null;
+}
+export interface FetchStatusResponse { shops: FetchShopStatus[]; errors_24h: number; recent_runs: FetchRun[] }
+
+/** GET /alerts: ntfy channel state and the delivery log (wish_id is null for test messages). */
+export interface AlertEvent { id: number; wish_id: string | null; state: string; observed_at: number; sent_at: number | null; cents: number | null; attempts: number }
+export interface AlertOverview { configured: boolean; rules: unknown[]; events: AlertEvent[] }

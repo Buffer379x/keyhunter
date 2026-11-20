@@ -18,7 +18,7 @@ pub(crate) struct Session {
 pub(crate) fn require_origin(state: &Shared, headers: &HeaderMap) -> ApiResult<bool> {
     checked_transport(&state.config, headers).ok_or(ApiError(
         StatusCode::FORBIDDEN,
-        "Anfrage von einer fremden oder fehlenden Origin abgewiesen.",
+        "Anfrage abgewiesen: Die Adresse im Browser passt nicht zur App. Öffne KeyHunter über die IP-Adresse oder setze KEYHUNTER_ORIGIN auf die genutzte Adresse.",
     ))
 }
 
@@ -156,6 +156,8 @@ pub(crate) async fn setup_status(State(state): State<Shared>) -> ApiResult<Json<
 pub(crate) struct SetupInput {
     token: String,
     password: String,
+    #[serde(default)]
+    target_country: Option<String>,
 }
 pub(crate) async fn setup(
     State(state): State<Shared>,
@@ -170,6 +172,16 @@ pub(crate) async fn setup(
         return Err(ApiError(
             StatusCode::CONFLICT,
             "Einrichtung bereits abgeschlossen.",
+        ));
+    }
+    if input
+        .target_country
+        .as_deref()
+        .is_some_and(|c| !crate::settings::valid_country(c))
+    {
+        return Err(ApiError(
+            StatusCode::BAD_REQUEST,
+            "Das gewählte Zielland ist ungültig.",
         ));
     }
     reserve_attempt(&state).await?;
@@ -214,6 +226,12 @@ pub(crate) async fn setup(
             StatusCode::CONFLICT,
             "Einrichtung bereits abgeschlossen.",
         ));
+    }
+    if let Some(country) = &input.target_country {
+        sqlx::query("UPDATE app_settings SET target_country = ? WHERE id = 1")
+            .bind(country)
+            .execute(&state.pool)
+            .await?;
     }
     issue_session(&state, StatusCode::CREATED, secure).await
 }

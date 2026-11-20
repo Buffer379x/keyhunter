@@ -7,6 +7,7 @@ mod history;
 mod jobs;
 mod offers;
 mod price_badges;
+mod pricing;
 mod settings;
 mod shops;
 mod wishlist;
@@ -43,14 +44,36 @@ pub(crate) struct AppState {
     password_slots: Arc<tokio::sync::Semaphore>,
     catalog: Arc<dyn catalog::provider::CatalogProvider>,
     ntfy: Option<Arc<alerts::Ntfy>>,
+    heartbeat: Arc<jobs::Heartbeat>,
+    background: bool,
 }
 type Shared = Arc<AppState>;
 type ApiResult<T> = std::result::Result<T, ApiError>;
 
 pub(crate) struct ApiError(pub StatusCode, pub &'static str);
+impl ApiError {
+    /// Stable machine-readable class of the error; `error` stays the German message.
+    fn code(&self) -> &'static str {
+        match self.0 {
+            StatusCode::BAD_REQUEST => "invalid_request",
+            StatusCode::UNAUTHORIZED => "unauthenticated",
+            StatusCode::FORBIDDEN => "forbidden",
+            StatusCode::NOT_FOUND => "not_found",
+            StatusCode::CONFLICT => "conflict",
+            StatusCode::PAYLOAD_TOO_LARGE => "too_large",
+            StatusCode::UNPROCESSABLE_ENTITY => "unprocessable",
+            StatusCode::TOO_MANY_REQUESTS => "rate_limited",
+            StatusCode::SERVICE_UNAVAILABLE
+            | StatusCode::BAD_GATEWAY
+            | StatusCode::GATEWAY_TIMEOUT => "unavailable",
+            _ => "internal",
+        }
+    }
+}
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let mut response = (self.0, Json(json!({"error": self.1}))).into_response();
+        let mut response =
+            (self.0, Json(json!({"error": self.1, "code": self.code()}))).into_response();
         if self.0 == StatusCode::TOO_MANY_REQUESTS {
             response
                 .headers_mut()
@@ -60,8 +83,9 @@ impl IntoResponse for ApiError {
     }
 }
 impl From<sqlx::Error> for ApiError {
-    fn from(_: sqlx::Error) -> Self {
-        tracing::error!("Database request failed");
+    fn from(error: sqlx::Error) -> Self {
+        // sqlx messages name the failing constraint or I/O cause, never bound values.
+        tracing::error!(%error, "Database request failed");
         internal()
     }
 }
@@ -126,10 +150,15 @@ async fn create_app_inner(
         .max_connections(4)
         .connect_with(options)
         .await?;
-    sqlx::migrate!("./migrations")
+    let migrator = sqlx::migrate!("./migrations");
+    backup_before_migration(&pool, &migrator, &config.data_dir).await?;
+    migrator
         .run(&pool)
         .await
         .context("Database migration failed")?;
+    shops::upgrade_fingerprints(&pool)
+        .await
+        .context("Fingerprint upgrade failed")?;
     let exists: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM owner")
         .fetch_one(&pool)
         .await?;
@@ -168,9 +197,11 @@ async fn create_app_inner(
         password_slots: Arc::new(tokio::sync::Semaphore::new(4)),
         catalog,
         ntfy: ntfy.clone(),
+        heartbeat: Arc::default(),
+        background: run_background,
     });
     if run_background {
-        jobs::start(&state.pool);
+        jobs::start(&state.pool, Arc::clone(&state.heartbeat));
         edition_tracking::start(&state);
         if let Some(ntfy) = ntfy {
             alerts::start(&state.pool, ntfy);
@@ -188,6 +219,7 @@ async fn create_app_inner(
             get(catalog::edition_comparison),
         )
         .route("/sources/status", get(catalog::source_status))
+        .route("/status/fetch", get(jobs::status))
         .route("/wishlist", get(wishlist::list).post(wishlist::add))
         .route("/library", get(wishlist::library))
         .route("/wishlist/{id}/purchase", post(wishlist::purchase))
@@ -197,7 +229,6 @@ async fn create_app_inner(
             "/wishlist/{id}/editions",
             get(edition_tracking::get).post(edition_tracking::prepare),
         )
-        .route("/wishlist/prices", get(offers::wishlist_prices))
         .route("/wishlist/{id}/preview", post(wishlist::preview))
         .route("/settings/shop-readers", get(settings::shop_readers))
         .route("/settings/shops", post(settings::register_shop))
@@ -255,6 +286,12 @@ async fn create_app_inner(
 
 async fn ready(State(state): State<Shared>) -> ApiResult<Json<serde_json::Value>> {
     sqlx::query("SELECT 1").execute(&state.pool).await?;
+    if state.background && state.heartbeat.stalled(now()) {
+        return Err(ApiError(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Ein Abrufdienst reagiert nicht. Container-Protokoll prüfen.",
+        ));
+    }
     Ok(Json(
         json!({"status":"ready","version":env!("CARGO_PKG_VERSION")}),
     ))
@@ -284,4 +321,230 @@ async fn security_headers(req: Request<Body>, next: Next) -> Response {
         headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     }
     response
+}
+
+/// Copy the database before pending migrations change an existing schema. The newest three
+/// copies are kept in `<data>/backups`; restoring one is a plain file copy (docs/operations.md).
+async fn backup_before_migration(
+    pool: &SqlitePool,
+    migrator: &sqlx::migrate::Migrator,
+    data_dir: &std::path::Path,
+) -> Result<()> {
+    let initialized: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='_sqlx_migrations')",
+    )
+    .fetch_one(pool)
+    .await?;
+    if !initialized {
+        return Ok(());
+    }
+    let applied: i64 =
+        sqlx::query_scalar("SELECT COALESCE(MAX(version),0) FROM _sqlx_migrations WHERE success")
+            .fetch_one(pool)
+            .await?;
+    let latest = migrator.iter().map(|m| m.version).max().unwrap_or(0);
+    if applied >= latest {
+        return Ok(());
+    }
+    let dir = data_dir.join("backups");
+    if !dir.exists() {
+        fs::create_dir(&dir).context("Cannot create backup directory")?;
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o700))?;
+    }
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis());
+    let file = dir.join(format!("keyhunter-schema-{applied:04}-{stamp}.db"));
+    let path = file.to_str().context("Backup path is not valid UTF-8")?;
+    sqlx::query("VACUUM INTO ?")
+        .bind(path)
+        .execute(pool)
+        .await
+        .context("Backup before migration failed")?;
+    fs::set_permissions(&file, fs::Permissions::from_mode(0o600))?;
+    tracing::info!(from = applied, to = latest, file = %file.display(), "Database backed up before migration");
+    let mut copies: Vec<_> = fs::read_dir(&dir)?
+        .filter_map(|entry| entry.ok().map(|e| e.path()))
+        .filter(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with("keyhunter-schema-") && n.ends_with(".db"))
+        })
+        .collect();
+    copies.sort();
+    for old in copies.iter().rev().skip(3) {
+        fs::remove_file(old)?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod migration_tests {
+    use sqlx::sqlite::SqlitePoolOptions;
+
+    /// Apply the embedded migrations up to `version` (inclusive) as plain SQL.
+    async fn up_to(pool: &sqlx::SqlitePool, version: i64) {
+        for migration in sqlx::migrate!("./migrations").iter() {
+            if migration.version <= version {
+                sqlx::raw_sql(sqlx::AssertSqlSafe(migration.sql.as_str().to_owned()))
+                    .execute(pool)
+                    .await
+                    .unwrap();
+            }
+        }
+    }
+
+    async fn legacy_pool() -> sqlx::SqlitePool {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        up_to(&pool, 11).await;
+        sqlx::raw_sql(
+            "INSERT INTO game(id,manual_title,manual_key,created_at) VALUES('g','Game','game',0),('h','Other','other',0);
+            INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES('wish','g',169,1),('preview','g',49,2),('owned','h',169,3);
+            INSERT INTO edition_preview VALUES('preview',20);
+            INSERT INTO library_item VALUES('owned',30);
+            INSERT INTO edition_watch VALUES('wish','preview');",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        pool
+    }
+
+    fn item_state_sql() -> String {
+        sqlx::migrate!("./migrations")
+            .iter()
+            .find(|m| m.version == 12)
+            .unwrap()
+            .sql
+            .as_str()
+            .to_owned()
+    }
+
+    #[tokio::test]
+    async fn item_state_migration_moves_previews_and_library_into_one_column() {
+        let pool = legacy_pool().await;
+        sqlx::raw_sql(sqlx::AssertSqlSafe(item_state_sql()))
+            .execute(&pool)
+            .await
+            .unwrap();
+        let rows: Vec<(String, String, Option<i64>, Option<i64>)> = sqlx::query_as(
+            "SELECT id,state,viewed_at,acquired_at FROM wishlist_item ORDER BY created_at",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            rows,
+            [
+                ("wish".into(), "wished".into(), None, None),
+                ("preview".into(), "preview".into(), Some(20), None),
+                ("owned".into(), "owned".into(), None, Some(30)),
+            ]
+        );
+        let side_tables: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM sqlite_master WHERE name IN ('edition_preview','library_item')",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(side_tables, 0);
+        let watches: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM edition_watch")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(watches, 1);
+    }
+
+    #[tokio::test]
+    async fn pending_migrations_back_up_the_database_and_keep_three_copies() {
+        let dir = tempfile::tempdir().unwrap();
+        let pool = SqlitePoolOptions::new()
+            .connect_with(
+                sqlx::sqlite::SqliteConnectOptions::new()
+                    .filename(dir.path().join("keyhunter.db"))
+                    .create_if_missing(true),
+            )
+            .await
+            .unwrap();
+        let migrator = sqlx::migrate!("./migrations");
+        // A fresh database has nothing to protect.
+        super::backup_before_migration(&pool, &migrator, dir.path())
+            .await
+            .unwrap();
+        assert!(!dir.path().join("backups").exists());
+        sqlx::raw_sql("CREATE TABLE _sqlx_migrations(version INTEGER, success BOOLEAN); INSERT INTO _sqlx_migrations VALUES(11,1); CREATE TABLE marker(v); INSERT INTO marker VALUES('kept');")
+            .execute(&pool)
+            .await
+            .unwrap();
+        for _ in 0..4 {
+            super::backup_before_migration(&pool, &migrator, dir.path())
+                .await
+                .unwrap();
+            tokio::time::sleep(std::time::Duration::from_millis(3)).await;
+        }
+        let mut copies: Vec<_> = std::fs::read_dir(dir.path().join("backups"))
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .collect();
+        copies.sort();
+        assert_eq!(copies.len(), 3);
+        assert!(
+            copies[0]
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .starts_with("keyhunter-schema-0011-")
+        );
+        let copy = SqlitePoolOptions::new()
+            .connect_with(sqlx::sqlite::SqliteConnectOptions::new().filename(&copies[2]))
+            .await
+            .unwrap();
+        let marker: String = sqlx::query_scalar("SELECT v FROM marker")
+            .fetch_one(&copy)
+            .await
+            .unwrap();
+        assert_eq!(marker, "kept");
+        // Up to date: no further copy.
+        sqlx::query("UPDATE _sqlx_migrations SET version=?")
+            .bind(migrator.iter().map(|m| m.version).max().unwrap())
+            .execute(&pool)
+            .await
+            .unwrap();
+        super::backup_before_migration(&pool, &migrator, dir.path())
+            .await
+            .unwrap();
+        assert_eq!(
+            std::fs::read_dir(dir.path().join("backups"))
+                .unwrap()
+                .count(),
+            3
+        );
+    }
+
+    #[tokio::test]
+    async fn item_state_migration_refuses_contradictory_rows() {
+        let pool = legacy_pool().await;
+        sqlx::query("INSERT INTO library_item VALUES('preview',40)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let mut tx = pool.begin().await.unwrap();
+        assert!(
+            sqlx::raw_sql(sqlx::AssertSqlSafe(item_state_sql()))
+                .execute(&mut *tx)
+                .await
+                .is_err()
+        );
+        tx.rollback().await.unwrap();
+        let previews: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM edition_preview")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(previews, 1, "the old tables stay untouched");
+    }
 }

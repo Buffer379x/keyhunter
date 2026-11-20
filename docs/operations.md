@@ -16,7 +16,7 @@ Bei Compose oder einem eigenen `docker run` läuft das Image standardmäßig dir
 
 ### Webadresse und HTTPS
 
-`KEYHUNTER_ORIGIN` ist optional. Leer oder weggelassen funktioniert HTTP auf privaten IPv4- und IPv6-Adressen sowie auf Loopback. Verwende HTTP nur in einem vertrauenswürdigen LAN oder VPN. Passphrase, Sitzung und Zugangsdaten werden dabei ohne TLS übertragen.
+`KEYHUNTER_ORIGIN` ist optional. Leer oder weggelassen funktioniert HTTP auf privaten IPv4- und IPv6-Adressen, auf Loopback und auf lokalen Hostnamen (ohne Punkt wie `tower` oder mit `.local`, `.lan`, `.home.arpa`, `.internal`). Verwende HTTP nur in einem vertrauenswürdigen LAN oder VPN. Passphrase, Sitzung und Zugangsdaten werden dabei ohne TLS übertragen.
 
 Für HTTPS leite mit einem Reverse Proxy an Port 3000 weiter. Der Proxy muss den ursprünglichen Host einschließlich eines nicht standardmäßigen Ports weiterreichen. Falls der Proxy den Host umschreibt oder du genau eine Adresse erlauben möchtest, setze `KEYHUNTER_ORIGIN` auf die vollständige Browser-URL ohne Pfad. Wenn HTTP-Anmeldung und Änderungen gesperrt bleiben sollen, setze `KEYHUNTER_ALLOW_INSECURE_HTTP=false`.
 
@@ -40,7 +40,9 @@ Für ntfy verwende optional die [ntfy.env.example](../deploy/ntfy.env.example) a
 
 ## Jobs und Speicher
 
-Bekannte Produktseiten werden standardmäßig alle acht Stunden eingeplant; pro Shop ist das Intervall einstellbar. Die Discovery läuft frühestens täglich (bei längeren Produktintervallen entsprechend später) mit begrenzter Abdeckung. Der Standard deckelt jeden Shop auf 120 Jobs pro UTC-Tag. Der Betreiber kann `KEYHUNTER_SHOP_DAILY_JOBS` anpassen. Manuelle Prüfungen halten 15 Minuten Abstand zum letzten Abruf. Compose und Unraid begrenzen den App-Speicher auf 512 MiB.
+Bekannte Produktseiten werden standardmäßig alle acht Stunden eingeplant; pro Shop ist das Intervall einstellbar. Die Discovery läuft frühestens täglich (bei längeren Produktintervallen entsprechend später) mit begrenzter Abdeckung. Der Standard deckelt jeden Shop auf 120 Jobs pro UTC-Tag. Der Betreiber kann `KEYHUNTER_SHOP_DAILY_JOBS` anpassen. Das Budget geht zuerst an angeforderte Aktualisierungen und erste Suchen, dann an Preise aktiver Wünsche, die im Zielland gelten können; jeder vierte Abruf eines Tages geht an den am längsten wartenden übrigen Job (Wiederholungssuchen, andere Regionen, Editionsvorschauen, Discovery). Vorübergehende Fehler werden nach 2, 10 und 60 Minuten wiederholt, danach im normalen Intervall. Manuelle Prüfungen halten 15 Minuten Abstand zum letzten Abruf und schließen zuvor fehlgeschlagene Links ein.
+
+`GET /api/v1/status/fetch` (angemeldet) zeigt je Shop Budget, fällige Jobs, Pausen und die letzten 25 Abrufe; die Historie wird 30 Tage aufbewahrt. `/health/ready` meldet 503, wenn ein Abrufdienst länger als fünf Minuten nicht reagiert. Compose und Unraid begrenzen den App-Speicher auf 512 MiB.
 
 ## Backup und Update
 
@@ -84,3 +86,11 @@ Erneutes bestätigtes Vormerken genau derselben vorhandenen Edition verschiebt s
 Datenvolume beibehalten und `latest` aktualisieren. Die additive Migration ergänzt Zuordnungen zwischen gemerkten Spielen und vorbereiteten Editionen sowie den Planungsstand der Editionssuche. Wünsche, Bibliothek, Preisbeobachtungen und Einstellungen bleiben bestehen. API-Zugangsdaten werden weiterhin ausschließlich im Datenvolume gespeichert.
 
 Die Bibliothek zeigt das System unter dem Titel. Der Systemfilter enthält nur vorhandene Systeme; Filter und Sortierung bleiben im Browser erhalten. „Hinzugefügt am“ bezieht sich auf den gespeicherten Zeitpunkt der Übernahme in die Bibliothek, unabhängig vom früheren Wunschlistendatum.
+
+## Sicherung vor Migrationen
+
+Bevor ein Update das Datenbankschema ändert, legt KeyHunter automatisch eine Kopie unter `<Datenverzeichnis>/backups/keyhunter-schema-<alte Version>-<Zeit>.db` an; die drei neuesten bleiben erhalten. Rückweg: Container stoppen, die Kopie als `keyhunter.db` zurückkopieren (vorhandene `keyhunter.db-wal` und `-shm` vorher entfernen) und das vorherige Image starten.
+
+## Upgrade auf 0.6.0
+
+Datenvolume beibehalten. Migration 0011 ergänzt Abrufpriorität, Relevanz und eine Abrufhistorie. Beim Start werden Produktbestätigungen und Preisverlauf auf einen titelunabhängigen Fingerabdruck übertragen; umbenannte Shopprodukte bleiben dadurch bestätigt. Preisalarme beginnen ihre Auswertung einmalig neu, weil der Bereich eines Alarms nicht mehr von einzelnen Link-IDs abhängt: Liegt der Preis bereits unter einem Zielpreis, kann eine Benachrichtigung einmal erneut kommen (mit der üblichen Sperrzeit). Eneba-Aktivierungen stammen aus der strukturierten Länderliste; Angebote anderer Länder als Deutschland bleiben sichtbar, zählen aber weiterhin nicht als gültiger Bestpreis. Neue Installationen fragen das Zielland bei der Einrichtung ab. Migration 0012 überführt Wunschliste, Editionsvorschauen und Bibliothek in eine Zustandsspalte, 0013 merkt sich den Shop-Titel bestätigter Produkte. Editionsvorschauen, die 14 Tage nicht angesehen wurden, ruhen bis zum nächsten Öffnen.
