@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { signInToFixture, navTo } from './helpers';
-import { removeCurrent } from './detail-helpers';
+import { removeCurrent, wishlistRows, wishlistTable } from './detail-helpers';
 
 test('tablet opens the labeled navigation as a drawer and gives the selected game its own view in portrait', async ({ page }) => {
   await page.setViewportSize({ width: 820, height: 1180 });
@@ -23,10 +23,10 @@ test('tablet opens the labeled navigation as a drawer and gives the selected gam
   await page.getByRole('searchbox').fill('forza');
   await page.getByRole('button', { name: 'Forza Horizon 5 vormerken', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Forza Horizon 5', exact: true, level: 2 })).toBeVisible();
-  await expect(page.getByRole('list', { name: 'Vorgemerkte Spiele' })).toBeHidden();
+  await expect(wishlistTable(page)).toBeHidden();
   await page.getByRole('button', { name: 'Zur Wunschliste', exact: true }).click();
-  await expect(page.getByRole('list', { name: 'Vorgemerkte Spiele' })).toBeVisible();
-  await page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('button').click();
+  await expect(wishlistTable(page)).toBeVisible();
+  await wishlistRows(page).first().click();
   await removeCurrent(page);
   await expect(page.getByRole('status').filter({ hasText: 'aus der Wunschliste entfernt' })).toBeVisible();
 });
