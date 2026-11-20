@@ -34,6 +34,17 @@ jobs:
           KEYHUNTER_TEST_BROWSER_CHANNEL: chrome
         timeout-minutes: 5
         run: sh deploy/browser-check.sh
+      - name: Compare core views visually
+        timeout-minutes: 8
+        run: sh deploy/visual-check.sh
+      - name: Upload visual diffs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: visual-diffs
+          path: frontend/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Check Unraid template and Compose configuration
         run: |
           python3 -c "import xml.etree.ElementTree as ET; ET.parse('deploy/unraid/keyhunter.xml')"
