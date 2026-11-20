@@ -32,6 +32,8 @@ export function parseDailyJobs(text: string): number | null {
 
 export type Tone = 'ok' | 'warn' | 'error' | 'off';
 const clock = (seconds: number) => new Date(seconds * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+/** "20:35 Uhr" within the next 20 hours, otherwise with the date ("21.11., 20:35 Uhr"). */
+const pauseEnd = (seconds: number, nowSeconds: number) => seconds - nowSeconds < 20 * 3600 ? `${clock(seconds)} Uhr` : `${dateTimeText(seconds)} Uhr`;
 export const dateTimeText = (seconds: number) => new Date(seconds * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 /** Short German name of an error code in `last_error` and `outcome`. */
@@ -53,7 +55,7 @@ export function durationText(ms: number): string {
 /** `ago(seconds)` turns a timestamp into "vor 2 Std." (src/time.ts relativeTime). */
 export function shopState(shop: Pick<FetchShopStatus, 'enabled' | 'paused_until' | 'last_error' | 'last_success_at'>, nowSeconds: number, ago: (seconds: number) => string): { tone: Tone; text: string } {
   if (!shop.enabled) return { tone: 'off', text: 'Deaktiviert' };
-  if (shop.paused_until !== null && shop.paused_until > nowSeconds) return { tone: 'warn', text: `Pausiert bis ${clock(shop.paused_until)} Uhr` };
+  if (shop.paused_until !== null && shop.paused_until > nowSeconds) return { tone: 'warn', text: `Pausiert bis ${pauseEnd(shop.paused_until, nowSeconds)}` };
   if (shop.last_error) return { tone: 'error', text: `Letzter Abruf fehlgeschlagen${shop.last_success_at === null ? '' : ` · zuletzt erfolgreich ${ago(shop.last_success_at)}`}` };
   if (shop.last_success_at === null) return { tone: 'off', text: 'Aktiv · noch kein Abruf' };
   return { tone: 'ok', text: `Aktiv · letzter Abruf ${ago(shop.last_success_at)}` };

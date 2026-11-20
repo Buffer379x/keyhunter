@@ -86,3 +86,10 @@ test('interval labels name hours and minutes in German', () => {
   assert.equal(intervalLabel(1800), '30 Minuten');
   assert.equal(intervalLabel(5400), '1,5 Stunden');
 });
+
+test('a pause beyond today names its date', () => {
+  const now = Date.UTC(2026, 10, 20, 12) / 1000;
+  const paused = (until: number) => shopState({ enabled: true, paused_until: until, last_error: null, last_success_at: now - 60 }, now, () => 'vor 1 Min.').text;
+  assert.match(paused(now + 3600), /^Pausiert bis \d\d:\d\d Uhr$/);
+  assert.match(paused(now + 3 * 86400), /^Pausiert bis \d\d\.\d\d\., \d\d:\d\d Uhr$/);
+});
