@@ -187,11 +187,11 @@ test('KPI tiles leave out what an older server or a failed read does not provide
   await expect(kpi(page, 'Wünsche').locator('.ticks')).toHaveCount(1); // added today: one cumulative bar
   await expect(kpi(page, 'Ziel erreicht').locator('.kpi-val')).toHaveText('0Spiele');
   await expect(kpi(page, 'Ziel erreicht').locator('.ticks')).toHaveCount(0);
-  await expect(kpi(page, 'Ziel erreicht').locator('.kpi-foot')).toHaveCount(0);
+  await expect(kpi(page, 'Ziel erreicht').locator('.kpi-foot')).toHaveText(/^\s*$/); // an empty row keeps the tiles level
   await expect(kpi(page, 'Weltweit günstiger').locator('.kpi-val')).toHaveText('0ab 20 %');
-  await expect(kpi(page, 'Weltweit günstiger').locator('.kpi-foot')).toHaveCount(0);
+  await expect(kpi(page, 'Weltweit günstiger').locator('.kpi-foot')).toHaveText(/^\s*$/); // an empty row keeps the tiles level
   await expect(kpi(page, 'Abrufe heute').locator('.kpi-val')).toHaveText('–');
-  await expect(kpi(page, 'Abrufe heute').locator('.kpi-foot')).toHaveCount(0);
+  await expect(kpi(page, 'Abrufe heute').locator('.kpi-foot')).toHaveText(/^\s*$/); // an empty row keeps the tiles level
   await expect(wishlistTable(page).locator('.spark')).toHaveCount(0);
   await expect(wishlistRows(page).first().locator('.c-world')).toHaveText('–');
   await expect(wishlistRows(page).first().locator('.c-target')).toHaveText('–');

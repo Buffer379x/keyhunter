@@ -51,6 +51,8 @@ const scroller = () => document.getElementById('main-content');
 type AlertRules = Record<string, Rule>;
 const chipLabels: [ChipFilter, string][] = [['alle', 'Alle'], ['ziel', 'Ziel erreicht'], ['welt', 'Weltweit günstiger'], ['offen', 'Ohne Preis']];
 const count = (value: number) => value.toLocaleString('de-DE');
+/** A tile without a footer value keeps an empty footer row, so all four tiles stay the same height. */
+const emptyFoot = <span aria-hidden="true">{'\u00a0'}</span>;
 
 /**
  * Wishlist page: the list (KPI tiles, filter chips, table) or, with `?item=`, the game detail as its own full-width page.
@@ -321,11 +323,11 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, priceScope,
       <Kpi label="Wünsche" value={count(items.length)} unit="Spiele" ticks={addedTicks(items)}
         foot={<><span>{count(priced)} mit Preis</span><span>{count(items.length - priced)} offen</span></>} />
       <Kpi label="Ziel erreicht" value={count(reachedCount)} unit="Spiele" ticks={reached.ticks}
-        foot={(!!reached.since || sentToday) && <><span className="good">{reached.since ? `+${count(reached.since)} seit gestern` : ''}</span>{sentToday && <span>Alarm gesendet</span>}</>} />
+        foot={!reached.since && !sentToday ? emptyFoot : <><span className="good">{reached.since ? `+${count(reached.since)} seit gestern` : ''}</span>{sentToday && <span>Alarm gesendet</span>}</>} />
       <Kpi label="Weltweit günstiger" value={count(cheaper.count)} unit="ab 20 %" ticks={cheaper.ticks}
-        foot={best && <><span>bis</span><span className="hot">−{formatPrice(best.facts.saving!)} · {shortTitle(itemName(best.item))}</span></>} />
+        foot={!best ? emptyFoot : <><span>bis</span><span className="hot">−{formatPrice(best.facts.saving!)} · {shortTitle(itemName(best.item))}</span></>} />
       <Kpi label="Abrufe heute" value={budget ? count(budget.used) : '–'} unit={budget ? `/ ${count(budget.limit)}` : undefined} ticks={budget?.ticks}
-        foot={budget && budget.demand !== null && <><span>Bedarf ≈ {count(budget.demand)} pro Tag</span>{budget.demand > budget.limit ? <span className="warn">zu knapp</span> : <span className="good">reicht</span>}</>} />
+        foot={!budget || budget.demand === null ? emptyFoot : <><span>Bedarf ≈ {count(budget.demand)} pro Tag</span>{budget.demand > budget.limit ? <span className="warn">zu knapp</span> : <span className="good">reicht</span>}</>} />
     </div>}
     <Panel aria-label="Spiele">
       <PanelHead>
