@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, HttpError } from '../api';
-import type { PriceBadgeData } from '../api';
-import { Button, EmptyState, Label, Notice, PageHeading, Panel, Pill, Price, Seg, Switch } from '../components';
+import type { PriceBadgeData, WishlistItem } from '../api';
+import { Button, EmptyState, Icon, Inset, Label, Notice, PageHeading, Panel, PanelHead, Pill, Price, Seg, Switch } from '../components';
+import { alarmRows } from './alerts-model';
+import type { AlarmRow } from './alerts-model';
+import { Cover } from './catalog-ui';
 import { whenVisible } from '../poll';
 import { relativeTime } from '../time';
 import { money } from './price-format';
@@ -129,10 +132,29 @@ export function AlertEditor({ id, alert, editionName, targetLabel, onSettings, o
   </div>;
 }
 
-export default function PriceAlerts({ csrf, onError }: { csrf: string; onError: (error: unknown) => void }) {
+/** In-app link to the alarm tab of a wishlist item: the wishlist reads ?item and ?tab, App follows the URL through popstate. */
+const alarmHref = (id: string) => `?item=${encodeURIComponent(id)}&tab=alarm`;
+function openAlarm(id: string) {
+  const url = new URL(window.location.href);
+  url.search = alarmHref(id); url.hash = '';
+  window.history.pushState(null, '', url);
+  window.dispatchEvent(new PopStateEvent('popstate'));
+}
+
+function AlarmStatus({ row, mode }: { row: AlarmRow; mode: Rule['mode'] }) {
+  if (row.reached) return <Pill tone="ok" icon="check">Ziel erreicht</Pill>;
+  if (!row.enabled) return <Pill tone="dim" icon="clock">Pausiert</Pill>;
+  if (mode === 'low') return <Pill tone="dim" icon="bell">Neuer Tiefstpreis</Pill>;
+  if (row.current === null) return <Pill tone="dim">Kein Preis</Pill>;
+  return <Pill>{money(row.distance ?? 0)} über Ziel</Pill>;
+}
+
+/** Preisalarme (prototype viewAlarms): every target sorted by distance, each row opens the alarm tab of the game. Channel test and delivery log below. */
+export default function PriceAlerts({ csrf, targetCountry, targetLabel, onError }: { csrf: string; targetCountry: string | null; targetLabel: string; onError: (error: unknown) => void }) {
   const [loadError, setLoadError] = useState('');
   const [data, setData] = useState<Overview | null>(null);
   const [badges, setBadges] = useState<Record<string, PriceBadgeData>>({});
+  const [items, setItems] = useState<Record<string, WishlistItem>>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [reload, setReload] = useState(0);
@@ -154,6 +176,8 @@ export default function PriceAlerts({ csrf, onError }: { csrf: string; onError: 
     }
     void load();
     api<Record<string, PriceBadgeData>>('/wishlist/price-badges', 'GET', undefined, undefined, controller.signal).then(rows => { if (!controller.signal.aborted) setBadges(rows); }).catch(() => {});
+    // Covers and editions for the game column.
+    api<WishlistItem[]>('/wishlist', 'GET', undefined, undefined, controller.signal).then(rows => { if (!controller.signal.aborted) setItems(Object.fromEntries(rows.map(row => [row.id, row]))); }).catch(() => {});
     return () => { controller.abort(); cancel(); };
   }, [reload, onError]);
   async function testChannel() {
@@ -162,50 +186,56 @@ export default function PriceAlerts({ csrf, onError }: { csrf: string; onError: 
     catch (error) { onError(error); }
     finally { setBusy(false); }
   }
-  const lastEvent = (wishId: string) => data?.events.find(event => event.wish_id === wishId);
-  return <section className="alerts-page">
-    <PageHeading title="Preisalarme" />
-    {loadError && <Notice error>{loadError} <Button onClick={() => setReload(n => n + 1)}>Erneut laden</Button></Notice>}
-    <Panel padded className="alert-card channel-card" aria-labelledby="channel-title">
-      <div>
-        <h2 id="channel-title">ntfy</h2>
-        <p className="channel-state"><span className={`channel-dot ${data?.configured ? 'on' : 'off'}`} aria-hidden="true" />{data?.configured ? 'Kanal eingerichtet' : data ? 'Kanal noch nicht eingerichtet' : 'Kanalstatus wird geladen …'}</p>
-      </div>
-      <Button disabled={!data?.configured || busy} onClick={() => void testChannel()}>Testnachricht senden</Button>
-      {message && <Notice>{message}</Notice>}
+  const rules = data?.rules ?? [];
+  const rows = alarmRows(rules, badges);
+  const ruleOf = (id: string) => rules.find(rule => rule.wish_id === id);
+  const country = targetCountry ?? 'Zielland';
+  const channel = data ? <Pill tone={data.configured ? 'ok' : 'dim'} icon={data.configured ? 'check' : 'minus'}>{data.configured ? 'ntfy eingerichtet' : 'ntfy nicht eingerichtet'}</Pill> : null;
+  return <section className="page alerts-page" aria-labelledby="alerts-title">
+    <PageHeading id="alerts-title" title="Preisalarme" sub={`Benachrichtigung über ntfy, sobald ein in ${targetLabel} aktivierbarer Key das Ziel erreicht`}
+      actions={<>{channel}<Button disabled={!data?.configured || busy} loading={busy} onClick={() => void testChannel()}><Icon name="send" />Testnachricht senden</Button></>} />
+    {loadError && <Notice error>{loadError} <Button size="sm" onClick={() => setReload(n => n + 1)}>Erneut laden</Button></Notice>}
+    {message && <Notice>{message}</Notice>}
+    <Panel aria-labelledby="rules-title">
+      <PanelHead><Label as="h2" tone="soft" id="rules-title">Alle Ziele · nach Abstand</Label></PanelHead>
+      <Inset className="table-wrap">
+        {!data ? <p className="hint alarm-pad" role="status">{loadError ? 'Nicht geladen.' : 'Preisalarme werden geladen …'}</p>
+          : rows.length === 0 ? <EmptyState icon="bell" title="Noch kein Alarm" headingLevel={3}>Lege im Detail eines Wunschspiels einen Alarm an. Er meldet sich, wenn ein Preis dein Ziel erreicht.</EmptyState>
+            : <table className="alarm-table" aria-label="Preisalarme nach Abstand">
+              <thead><tr><th>Spiel</th><th className="r">Ziel</th><th className="r">Jetzt {country}</th><th className="r">Abstand</th><th>Status</th></tr></thead>
+              <tbody>{rows.map(row => {
+                const rule = ruleOf(row.id);
+                const item = items[row.id];
+                const sub = [item?.game?.edition_name, rule?.basis === 'estimate' && basisName(rule.basis)].filter(Boolean).join(' · ');
+                return <tr key={row.id} className="click" onClick={() => openAlarm(row.id)}>
+                  <td className="c-game"><div className="game-cell"><Cover src={item?.game?.cover_url ?? null} title={row.title} />
+                    <div><a className="alarm-title" href={alarmHref(row.id)} onClick={event => { event.preventDefault(); event.stopPropagation(); openAlarm(row.id); }}>{row.title}</a><small>{sub}</small></div></div></td>
+                  <td className="r mono c-target">{row.target !== null ? money(row.target) : '–'}</td>
+                  <td className="r c-now"><Price cents={row.current} tone={row.stale ? 'stale' : 'default'} missing="–" /></td>
+                  <td className="r c-dist">{row.distance !== null ? <span className={`save${row.distance <= 0 ? ' reached' : ''}`}>{row.distance <= 0 ? '−' : '+'}{money(Math.abs(row.distance))}</span> : <span className="save none">–</span>}</td>
+                  <td className="c-status">{rule && <AlarmStatus row={row} mode={rule.mode} />}</td>
+                </tr>;
+              })}</tbody>
+            </table>}
+      </Inset>
     </Panel>
-    <h2 id="rules-title" className="alerts-heading">Alarmregeln</h2>
-    {data && data.rules.length === 0 && <EmptyState icon="bell" title="Noch kein Alarm">Lege im Detail eines Wunschspiels einen Alarm an. Er meldet sich, wenn ein Preis dein Ziel erreicht.</EmptyState>}
-    <ul className="rule-list" aria-labelledby="rules-title">{data?.rules.map(rule => {
-      const badge = badges[rule.wish_id];
-      const current = badge?.state === 'price' && badge.cents ? badge.cents : null;
-      const target = ruleTarget(rule);
-      const reached = rule.enabled && target !== null && current !== null && current <= target;
-      const event = lastEvent(rule.wish_id);
-      return <li key={rule.wish_id}><Panel padded as="div" className="rule-card">
-        <div className="rule-main">
-          <a className="rule-title" href={`?item=${encodeURIComponent(rule.wish_id)}&tab=alarm`}>{rule.title}</a>
-          <span className="rule-meta">{rule.enabled ? 'Aktiv' : 'Pausiert'} · {target !== null ? `Ziel ${money(target)}` : 'Neuer Tiefstpreis'} · {basisName(rule.basis)}</span>
-          <span className="rule-chips">{reached && <Pill tone="hot" icon="target">Ziel erreicht</Pill>}{!rule.enabled && <Pill tone="default" icon="clock">Pausiert</Pill>}{badge?.stale && <Pill tone="dim" icon="clock">Veraltet</Pill>}</span>
-        </div>
-        <div className="rule-price">
-          <span className="rule-price-label"><Label>Aktuell</Label></span>
-          <Price cents={current} tone={badge?.stale ? 'stale' : 'default'} missing={badge ? 'kein aktueller Preis' : 'wird geladen …'} />
-          {target !== null && current !== null && <span className={`rule-delta ${reached ? 'reached' : ''}`}>{current <= target ? `${money(target - current)} unter Ziel` : `${money(current - target)} über Ziel`}</span>}
-        </div>
-        <div className="rule-delivery">
-          <span className="rule-price-label"><Label>Letzte Auslösung</Label></span>
-          {event ? <><span>{shortDate(event.sent_at ?? event.observed_at)} · {event.cents !== null ? money(event.cents) : ''}</span>{deliveryChip(event.state)}</> : <span className="field-help">noch keine</span>}
-          {!event && rule.delivery && deliveryChip(rule.delivery)}
-        </div>
-      </Panel></li>;
-    })}</ul>
-    <h2 id="deliveries-title" className="alerts-heading">Letzte Zustellungen</h2>
-    {data && data.events.length === 0 && <p className="field-help">Es liegt noch kein Zustellversuch vor.</p>}
-    <ul className="event-list wide" aria-labelledby="deliveries-title">{data?.events.map(event => <li key={event.id}>
-      <span><strong>{event.wish_id ? data.rules.find(rule => rule.wish_id === event.wish_id)?.title ?? 'Ehemaliger Wunschlisteneintrag' : 'Testnachricht'}</strong>
-        <Label title={new Date((event.sent_at ?? event.observed_at) * 1000).toLocaleString('de-DE')}>{relativeTime(event.sent_at ?? event.observed_at)}{event.attempts > 0 && ` · ${event.attempts} Versuch(e)`}</Label></span>
-      {deliveryChip(event.state)}
-    </li>)}</ul>
+    <Panel aria-labelledby="deliveries-title">
+      <PanelHead><Label as="h2" tone="soft" id="deliveries-title">Letzte Zustellungen</Label></PanelHead>
+      <Inset className="table-wrap">
+        {!data || data.events.length === 0 ? <p className="hint alarm-pad">{data ? 'Es liegt noch kein Zustellversuch vor.' : 'Wird geladen …'}</p>
+          : <table className="delivery-table" aria-label="Letzte Zustellungen">
+            <thead><tr><th>Zeit</th><th>Spiel</th><th className="r">Preis</th><th>Zustellung</th></tr></thead>
+            <tbody>{data.events.map(event => {
+              const at = event.sent_at ?? event.observed_at;
+              return <tr key={event.id}>
+                <td className="mono c-time" title={new Date(at * 1000).toLocaleString('de-DE')}>{relativeTime(at)}{event.attempts > 1 && <span className="faint"> · {event.attempts} Versuche</span>}</td>
+                <td className="c-game">{event.wish_id ? ruleOf(event.wish_id)?.title ?? 'Ehemaliger Wunschlisteneintrag' : 'Testnachricht'}</td>
+                <td className="r mono c-price">{event.cents !== null ? money(event.cents) : '–'}</td>
+                <td className="c-status">{deliveryChip(event.state)}</td>
+              </tr>;
+            })}</tbody>
+          </table>}
+      </Inset>
+    </Panel>
   </section>;
 }
