@@ -1794,3 +1794,85 @@ async fn badges_always_compare_the_target_country_with_the_cheapest_region() {
     let (_, items) = f.call("GET", "/api/v1/wishlist", Value::Null).await;
     assert_eq!(items[0]["price_badge"]["world"]["cents"], 1290);
 }
+
+async fn fetch_budget(f: &Fixture) -> Value {
+    let (_, status) = f.call("GET", "/api/v1/status/fetch", Value::Null).await;
+    status["shops"][0]["budget"].clone()
+}
+
+#[tokio::test]
+async fn daily_jobs_setting_overrides_the_default_and_shows_in_the_fetch_status() {
+    let f = Fixture::new().await;
+    let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
+    let eneba = |settings: &Value| {
+        settings["sources"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["id"] == "eneba")
+            .unwrap()
+            .clone()
+    };
+    let default = eneba(&settings)["daily_jobs_default"].as_i64().unwrap();
+    assert_eq!(eneba(&settings)["daily_jobs"], default);
+    let igdb = settings["sources"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["id"] == "igdb")
+        .unwrap();
+    assert!(igdb["daily_jobs"].is_null() && igdb["daily_jobs_default"].is_null());
+    let budget = fetch_budget(&f).await;
+    assert_eq!(budget["limit"], default);
+    assert!(matches!(
+        budget["limit_source"].as_str(),
+        Some("env" | "default")
+    ));
+    assert_eq!(budget["by_hour"].as_array().unwrap().len(), 24);
+    for key in ["used", "demand_per_day", "pace_seconds"] {
+        assert!(budget[key].is_i64(), "{key}");
+    }
+
+    let set = |settings: &mut Value, value: Value| {
+        for source in settings["sources"].as_array_mut().unwrap() {
+            if source["id"] == "eneba" {
+                source["daily_jobs"] = value.clone();
+            }
+        }
+    };
+    set(&mut settings, json!(800));
+    let (code, saved) = f.call("PUT", "/api/v1/settings", settings.clone()).await;
+    assert_eq!(code, StatusCode::OK);
+    assert_eq!(eneba(&saved)["daily_jobs"], 800);
+    let budget = fetch_budget(&f).await;
+    assert_eq!(
+        (budget["limit"].clone(), budget["limit_source"].clone()),
+        (json!(800), json!("setting"))
+    );
+    for invalid in [json!(19), json!(2001), json!("viel")] {
+        let mut changed = settings.clone();
+        set(&mut changed, invalid);
+        let code = f.call("PUT", "/api/v1/settings", changed).await.0;
+        assert!(code.is_client_error(), "{code}");
+    }
+    let mut catalog = settings.clone();
+    for source in catalog["sources"].as_array_mut().unwrap() {
+        if source["id"] == "igdb" {
+            source["daily_jobs"] = json!(100);
+        }
+    }
+    assert_eq!(
+        f.call("PUT", "/api/v1/settings", catalog).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    // Null (or the default) clears the setting; the shop follows the default again.
+    for clear in [Value::Null, json!(default)] {
+        set(&mut settings, json!(800));
+        f.call("PUT", "/api/v1/settings", settings.clone()).await;
+        set(&mut settings, clear);
+        let (code, saved) = f.call("PUT", "/api/v1/settings", settings.clone()).await;
+        assert_eq!(code, StatusCode::OK);
+        assert_eq!(eneba(&saved)["daily_jobs"], default);
+        assert_ne!(fetch_budget(&f).await["limit_source"], "setting");
+    }
+}

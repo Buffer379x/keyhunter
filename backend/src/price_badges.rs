@@ -74,7 +74,7 @@ pub(crate) async fn load_many(
     let ids_json = serde_json::to_string(ids).map_err(|_| crate::internal())?;
     let wishes = offers::wishes(pool, &ids_json).await?;
     let mut links = offers::links_of_items(pool, &ids_json, t).await?;
-    let jobs: Vec<JobSummary> = sqlx::query_as("SELECT COALESCE(j.wish_id,l.wish_id) AS item,MAX(j.checked_at) AS checked,COALESCE(MAX(j.last_error IS NOT NULL),0) AS failed,COALESCE(MAX((j.lease_until>?1 OR j.due<=?1) AND s.enabled AND s.configured AND (j.link_id IS NULL OR l.review!='rejected') AND COALESCE(w.state,'wished')!='owned' AND p.retry_at<=?1 AND (p.budget_day!=?2 OR p.jobs_today<?3)),0) AS pending
+    let jobs: Vec<JobSummary> = sqlx::query_as("SELECT COALESCE(j.wish_id,l.wish_id) AS item,MAX(j.checked_at) AS checked,COALESCE(MAX(j.last_error IS NOT NULL),0) AS failed,COALESCE(MAX((j.lease_until>?1 OR j.due<=?1) AND s.enabled AND s.configured AND (j.link_id IS NULL OR l.review!='rejected') AND COALESCE(w.state,'wished')!='owned' AND p.retry_at<=?1 AND (p.budget_day!=?2 OR p.jobs_today<COALESCE(s.daily_jobs,?3))),0) AS pending
         FROM shop_job j JOIN source_settings s ON s.id=j.source JOIN shop_state p ON p.source=j.source LEFT JOIN offer_link l ON l.id=j.link_id
         LEFT JOIN wishlist_item w ON w.id=COALESCE(j.wish_id,l.wish_id)
         WHERE COALESCE(j.wish_id,l.wish_id) IN (SELECT value FROM json_each(?4)) GROUP BY 1")

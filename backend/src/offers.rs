@@ -180,7 +180,7 @@ pub(crate) async fn links<'e>(
     ts: i64,
 ) -> sqlx::Result<Vec<Link>> {
     sqlx::query_as("SELECT l.*, (s.enabled AND s.configured) AS enabled, s.fee_estimation_enabled, s.fee_basis_points, p.retry_at,
-        COALESCE(j.lease_until>?,0) OR COALESCE(j.due<=? AND s.enabled AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<?),0) AS queued
+        COALESCE(j.lease_until>?,0) OR COALESCE(j.due<=? AND s.enabled AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<COALESCE(s.daily_jobs,?)),0) AS queued
         FROM offer_link l JOIN source_settings s ON s.id=l.source JOIN shop_state p ON p.source=l.source
         LEFT JOIN shop_job j ON j.link_id=l.id WHERE l.wish_id=? ORDER BY l.id")
         .bind(ts).bind(ts).bind(ts).bind(ts/86400).bind(crate::jobs::daily_budget()).bind(id).fetch_all(executor).await
@@ -193,7 +193,7 @@ pub(crate) async fn links_of_items(
     ts: i64,
 ) -> sqlx::Result<BTreeMap<String, Vec<Link>>> {
     let rows: Vec<ItemLink> = sqlx::query_as("SELECT l.*, (s.enabled AND s.configured) AS enabled, s.fee_estimation_enabled, s.fee_basis_points, p.retry_at,
-        COALESCE(j.lease_until>?,0) OR COALESCE(j.due<=? AND s.enabled AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<?),0) AS queued
+        COALESCE(j.lease_until>?,0) OR COALESCE(j.due<=? AND s.enabled AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<COALESCE(s.daily_jobs,?)),0) AS queued
         FROM offer_link l JOIN source_settings s ON s.id=l.source JOIN shop_state p ON p.source=l.source
         LEFT JOIN shop_job j ON j.link_id=l.id WHERE l.wish_id IN (SELECT value FROM json_each(?)) ORDER BY l.id")
         .bind(ts).bind(ts).bind(ts).bind(ts/86400).bind(crate::jobs::daily_budget()).bind(ids_json).fetch_all(pool).await?;
@@ -355,7 +355,7 @@ pub(crate) async fn list(
     }
     history.sort_unstable_by_key(|a| std::cmp::Reverse(a.observed_at));
     let discovery_running: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM shop_job j JOIN shop_state p ON p.source=j.source JOIN source_settings s ON s.id=j.source
-        WHERE j.link_id IS NULL AND j.wish_id IS NULL AND s.enabled AND s.configured AND p.retry_at<=? AND j.due<=? AND (p.budget_day!=? OR p.jobs_today<?))").bind(t).bind(t).bind(t/86400).bind(crate::jobs::daily_budget()).fetch_one(&state.pool).await?;
+        WHERE j.link_id IS NULL AND j.wish_id IS NULL AND s.enabled AND s.configured AND p.retry_at<=? AND j.due<=? AND (p.budget_day!=? OR p.jobs_today<COALESCE(s.daily_jobs,?)))").bind(t).bind(t).bind(t/86400).bind(crate::jobs::daily_budget()).fetch_one(&state.pool).await?;
     type SearchRow = (
         String,
         bool,
@@ -368,7 +368,7 @@ pub(crate) async fn list(
     );
     let search_rows:Vec<SearchRow> = sqlx::query_as(
         "SELECT j.source,s.enabled,j.due,j.lease_until,j.checked_at,COALESCE(j.last_error,p.last_error),j.result_count,
-        (p.retry_at>? OR (p.budget_day=? AND p.jobs_today>=?)) FROM shop_job j
+        (p.retry_at>? OR (p.budget_day=? AND p.jobs_today>=COALESCE(s.daily_jobs,?))) FROM shop_job j
         JOIN source_settings s ON s.id=j.source JOIN shop_state p ON p.source=j.source WHERE j.wish_id=?")
         .bind(t).bind(t/86400).bind(crate::jobs::daily_budget()).bind(&id).fetch_all(&state.pool).await?;
     let searches=search_rows.into_iter().map(|(source,enabled,due,lease,checked,error,count,paused)| {
@@ -442,7 +442,8 @@ pub(crate) async fn add_link(
     .fetch_optional(&mut *tx)
     .await?;
     if let Some(link) = link {
-        sqlx::query("INSERT INTO shop_job(source,link_id,due) VALUES(?,?,?)")
+        // The first price of a link added by hand is a direct user action (jobs.rs).
+        sqlx::query("INSERT INTO shop_job(source,link_id,due,initial) VALUES(?,?,?,1)")
             .bind(shop.id())
             .bind(link)
             .bind(now())
@@ -527,8 +528,9 @@ pub(crate) async fn refresh(
     wish(&state.pool, &id).await?;
     let t = now();
     crate::jobs::schedule_wish(&state.pool, &id).await?;
-    // A requested refresh gets top priority, also for links whose last fetch failed.
-    sqlx::query("UPDATE shop_job SET due=MIN(due,?),requested_at=?,search_page=1,result_count=0 WHERE wish_id=? AND lease_until<=? AND COALESCE(checked_at,0)<=?")
+    // A requested refresh gets top priority, also for links whose last fetch failed. The whole
+    // search run is a direct user action and bypasses pacing (jobs.rs).
+    sqlx::query("UPDATE shop_job SET due=MIN(due,?),requested_at=?,search_page=1,result_count=0,initial=1 WHERE wish_id=? AND lease_until<=? AND COALESCE(checked_at,0)<=?")
         .bind(t).bind(t).bind(&id).bind(t).bind(t-900).execute(&state.pool).await?;
     sqlx::query("UPDATE shop_job SET due=MIN(due,?),requested_at=? WHERE lease_until<=?
         AND link_id IN (SELECT id FROM offer_link WHERE wish_id=? AND review!='rejected' AND COALESCE(attempted_at,0)<=?)")
