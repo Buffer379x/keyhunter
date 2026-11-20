@@ -51,9 +51,29 @@ type Shared = Arc<AppState>;
 type ApiResult<T> = std::result::Result<T, ApiError>;
 
 pub(crate) struct ApiError(pub StatusCode, pub &'static str);
+impl ApiError {
+    /// Stable machine-readable class of the error; `error` stays the German message.
+    fn code(&self) -> &'static str {
+        match self.0 {
+            StatusCode::BAD_REQUEST => "invalid_request",
+            StatusCode::UNAUTHORIZED => "unauthenticated",
+            StatusCode::FORBIDDEN => "forbidden",
+            StatusCode::NOT_FOUND => "not_found",
+            StatusCode::CONFLICT => "conflict",
+            StatusCode::PAYLOAD_TOO_LARGE => "too_large",
+            StatusCode::UNPROCESSABLE_ENTITY => "unprocessable",
+            StatusCode::TOO_MANY_REQUESTS => "rate_limited",
+            StatusCode::SERVICE_UNAVAILABLE
+            | StatusCode::BAD_GATEWAY
+            | StatusCode::GATEWAY_TIMEOUT => "unavailable",
+            _ => "internal",
+        }
+    }
+}
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let mut response = (self.0, Json(json!({"error": self.1}))).into_response();
+        let mut response =
+            (self.0, Json(json!({"error": self.1, "code": self.code()}))).into_response();
         if self.0 == StatusCode::TOO_MANY_REQUESTS {
             response
                 .headers_mut()
@@ -63,8 +83,9 @@ impl IntoResponse for ApiError {
     }
 }
 impl From<sqlx::Error> for ApiError {
-    fn from(_: sqlx::Error) -> Self {
-        tracing::error!("Database request failed");
+    fn from(error: sqlx::Error) -> Self {
+        // sqlx messages name the failing constraint or I/O cause, never bound values.
+        tracing::error!(%error, "Database request failed");
         internal()
     }
 }

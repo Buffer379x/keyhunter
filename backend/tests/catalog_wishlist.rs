@@ -1720,3 +1720,22 @@ async fn a_renamed_confirmed_product_keeps_its_price_and_shows_a_hint() {
         Value::Null
     );
 }
+
+#[tokio::test]
+async fn api_errors_carry_a_stable_code_next_to_the_message() {
+    let f = Fixture::new().await;
+    let (status, body, _) =
+        request(&f.app, "GET", "/api/v1/wishlist", Value::Null, None, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(body["code"], "unauthenticated");
+    assert!(body["error"].as_str().is_some_and(|m| !m.is_empty()));
+    let (status, body) = f
+        .call(
+            "GET",
+            "/api/v1/wishlist/00000000000000000000000000000000/offers",
+            Value::Null,
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["code"], "not_found");
+}
