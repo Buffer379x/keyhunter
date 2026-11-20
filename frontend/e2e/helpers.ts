@@ -1,6 +1,7 @@
 import { expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+import { wishlistHeading } from './detail-helpers';
 
 export async function signInToFixture(page: Page) {
   await page.goto('/');
@@ -16,5 +17,5 @@ export async function signInToFixture(page: Page) {
     await page.getByLabel('Passphrase', { exact: true }).fill('browser test passphrase only');
     await page.getByLabel('Passphrase', { exact: true }).press('Enter');
   }
-  await expect(page.getByRole('heading', { name: 'Meine Wunschliste' })).toBeVisible();
+  await expect(wishlistHeading(page)).toBeVisible();
 }

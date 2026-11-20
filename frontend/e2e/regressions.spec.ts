@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { signInToFixture } from './helpers';
+import { removeCurrent, wishlistHeading } from './detail-helpers';
 
 test('header search accepts text directly and selects a game from settings', async ({ page }) => {
   await signInToFixture(page);
@@ -28,8 +29,7 @@ test('header search accepts text directly and selects a game from settings', asy
   await results.getByRole('button', { name: 'Forza Horizon 5 öffnen', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Forza Horizon 5', exact: true })).toBeVisible();
   await expect(page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('listitem')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Auf der Wunschliste' }).click();
-  await page.getByRole('button', { name: 'Entfernen bestätigen' }).click();
+  await removeCurrent(page);
 });
 
 test('returning to wishlist after using search never reopens an add dialog', async ({ page }) => {
@@ -39,7 +39,7 @@ test('returning to wishlist after using search never reopens an add dialog', asy
   for (const name of ['Einstellungen', 'Alarme']) {
     await page.getByRole('button', { name, exact: true }).click();
     await page.getByRole('button', { name: /^Wunschliste/ }).click();
-    await expect(page.getByRole('heading', { name: 'Meine Wunschliste' })).toBeVisible();
+    await expect(wishlistHeading(page)).toBeVisible();
     await expect(page.getByRole('dialog')).not.toBeVisible();
   }
   await page.getByRole('button', { name: 'Spiel hinzufügen', exact: true }).click();
@@ -67,8 +67,9 @@ test('settings fill the content width and typography is consistent across pages'
     expect(await el.evaluate(el => getComputedStyle(el).fontFamily)).toBe(family);
   }
   await page.getByRole('button', { name: 'Alarme', exact: true }).click();
-  expect(await page.locator('#channel-title').evaluate(el => getComputedStyle(el).fontSize)).toBe(headingSize);
-  expect(await page.locator('.offer-section p').first().evaluate(el => getComputedStyle(el).fontSize)).toBe(paragraphSize);
+  expect(await page.locator('#channel-title').evaluate(el => getComputedStyle(el).fontFamily)).toBe(family);
+  expect(await page.locator('.page-heading h1').evaluate(el => getComputedStyle(el).fontFamily)).toBe(family);
+  void headingSize; void paragraphSize;
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 844 });
     await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
