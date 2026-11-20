@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, HttpError } from '../api';
-import { Button, Chip, ConfirmDialog, Notice, Switch } from '../components';
-import type { ChipKind } from '../ui';
-import { SectionCard } from './settings/parts';
+import { Button, ConfirmDialog, Notice, Pill, Switch } from '../components';
+import type { IconName, PillTone } from '../ui';
+import { SettingsPanel } from './settings/parts';
 
 interface Props {
   /** State from /sources/status: not_configured, configured, ready, rate_limited, invalid_credentials, unavailable, disabled. */
@@ -16,14 +16,14 @@ interface Props {
   onError: (error: unknown) => void;
 }
 
-const chips: Record<string, { kind: ChipKind; text: string; icon?: string }> = {
-  ready: { kind: 'best', text: 'Verbunden' },
-  configured: { kind: 'valid', text: 'Zugang hinterlegt' },
-  not_configured: { kind: 'neutral', text: 'Nicht eingerichtet', icon: 'minus' },
-  disabled: { kind: 'neutral', text: 'Deaktiviert', icon: 'minus' },
-  rate_limited: { kind: 'warn', text: 'Abruflimit erreicht' },
-  invalid_credentials: { kind: 'danger', text: 'Zugang ungültig' },
-  unavailable: { kind: 'warn', text: 'Nicht erreichbar' },
+const chips: Record<string, { tone: PillTone; text: string; icon: IconName }> = {
+  ready: { tone: 'ok', text: 'Verbunden', icon: 'check' },
+  configured: { tone: 'ok', text: 'Zugang hinterlegt', icon: 'check' },
+  not_configured: { tone: 'dim', text: 'Nicht eingerichtet', icon: 'minus' },
+  disabled: { tone: 'dim', text: 'Deaktiviert', icon: 'minus' },
+  rate_limited: { tone: 'warn', text: 'Abruflimit erreicht', icon: 'alert' },
+  invalid_credentials: { tone: 'danger', text: 'Zugang ungültig', icon: 'alert' },
+  unavailable: { tone: 'warn', text: 'Nicht erreichbar', icon: 'alert' },
 };
 
 export default function IgdbAccess({ state, configured, enabled, onEnabledChange, csrf, onChanged, onError }: Props) {
@@ -59,28 +59,29 @@ export default function IgdbAccess({ state, configured, enabled, onEnabledChange
     event.preventDefault();
     void change('PUT', event.currentTarget);
   }
-  const chip = state === undefined ? null : chips[enabled ? state : 'disabled'] ?? { kind: 'neutral' as const, text: state, icon: 'minus' };
+  const chip = state === undefined ? null : chips[enabled ? state : 'disabled'] ?? { tone: 'default' as const, text: state, icon: 'minus' as const };
 
-  return <SectionCard title="IGDB-Zugang" titleId="igdb-access-title" sub="Spielesuche, Editionen, Cover und Artwork. IGDB ist unabhängig von den Key-Shops."
-    aside={chip ? <Chip kind={chip.kind} icon={chip.icon}>{chip.text}</Chip> : <span className="set-muted">Status wird geladen …</span>}>
-    {error && <Notice error>{error}</Notice>}
-    {message && <Notice>{message}</Notice>}
-    <form className="set-igdb-form" method="post" onSubmit={save} autoComplete="off">
+  return <SettingsPanel title="IGDB-Zugang" titleId="igdb-access-title"
+    aside={chip ? <Pill tone={chip.tone} icon={chip.icon}>{chip.text}</Pill> : <span className="hint">Status wird geladen …</span>}>
+    <form className="form-grid" method="post" onSubmit={save} autoComplete="off">
+      <p className="hint">Spielesuche, Editionen, Cover und Artwork. IGDB ist unabhängig von den Key-Shops.</p>
+      {error && <Notice error>{error}</Notice>}
+      {message && <Notice>{message}</Notice>}
       <div className="set-two">
-        <div className="field"><label htmlFor="igdb-client-id">Client-ID</label>
+        <div className="form-row"><label htmlFor="igdb-client-id">Client-ID</label>
           <input id="igdb-client-id" name="client_id" required maxLength={512} spellCheck={false} autoCapitalize="none" disabled={busy}
             placeholder={configured ? 'gespeichert · zum Ändern neu eingeben' : ''} /></div>
-        <div className="field"><label htmlFor="igdb-client-secret">Client Secret</label>
+        <div className="form-row"><label htmlFor="igdb-client-secret">Client Secret</label>
           <input id="igdb-client-secret" name="client_secret" type="password" required maxLength={512} autoComplete="off" disabled={busy}
             placeholder={configured ? 'gespeichert · zum Ändern neu eingeben' : ''} /></div>
       </div>
       <div className="set-actions">
         <Button type="submit" disabled={busy || confirmRemoval}>{busy && !confirmRemoval ? 'Wird geprüft …' : 'Prüfen und speichern'}</Button>
         {configured && !confirmRemoval && <Button type="button" variant="danger" disabled={busy} onClick={() => setConfirmRemoval(true)}>Zugang entfernen</Button>}
-        <Switch checked={enabled} onChange={onEnabledChange}>Spieleindex aktiv</Switch>
       </div>
+      <Switch checked={enabled} onChange={onEnabledChange}>Spieleindex aktiv</Switch>
+      <p className="hint">Hinterlege die Client-ID und das Client Secret deiner Twitch-Anwendung. Die Werte liegen geschützt im Datenverzeichnis und werden nie angezeigt. Backups des Datenverzeichnisses enthalten sie.</p>
     </form>
-    <p className="set-hint">Hinterlege die Client-ID und das Client Secret deiner Twitch-Anwendung. Die Werte liegen geschützt im Datenverzeichnis und werden nie angezeigt. Backups des Datenverzeichnisses enthalten sie.</p>
     <ConfirmDialog
       open={confirmRemoval}
       title="IGDB-Zugang entfernen?"
@@ -93,5 +94,5 @@ export default function IgdbAccess({ state, configured, enabled, onEnabledChange
       <p>Für neue Katalogabfragen sind anschließend wieder Zugangsdaten nötig.</p>
       {error && <Notice error>{error}</Notice>}
     </ConfirmDialog>
-  </SectionCard>;
+  </SettingsPanel>;
 }

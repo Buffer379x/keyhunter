@@ -1,5 +1,29 @@
 # Änderungen
 
+## 0.6.1 – 2026-11-20
+
+Neue, kompaktere Oberfläche (Entwurf v4) und Abrufe, die gleichmäßig über den ganzen Tag laufen statt am Stück bis zum Tageslimit; das Budget ist in der App einstellbar ([Upgrade-Hinweise](docs/operations.md#upgrade-auf-061)).
+
+### Oberfläche
+- **Kompakter und ruhiger:** Grundschrift 13 px, Schaltflächen 32 px, Überschriften in normaler Stärke, Preise und Kennzahlen in JetBrains Mono, warmes Anthrazit statt Blauschwarz.
+- **Navigation:** Seitenleiste mit den Gruppen Übersicht und Einstellungen (alle sechs Bereiche direkt erreichbar), Abrufstatus-Karte und Zielland-Auswahl; Kopfzeile mit Pfad, Suche (`Ctrl K`), Preisalarme und „Spiel hinzufügen“. Unter 900 px öffnet ☰ die Navigation.
+- **Wunschliste als Tabelle:** vier Kennzahlen (Wünsche, Ziel erreicht, weltweit günstiger, Abrufe heute), Filter, Sortierung nach Ersparnis oder Abstand zum Ziel, je Spiel Preis im Zielland mit Shop und Region, günstigste Region weltweit mit Ersparnis und 14-Tage-Verlauf. Auf dem Smartphone werden die Zeilen zu Karten.
+- **Spiel als eigene Seite:** Preisvergleich Zielland ↔ weltweit mit Einschätzung, ob sich der Umweg lohnt; Preis-Visier; Angebotstabelle nach Preis; Verlauf als Raster-Diagramm mit beiden Reihen, Ziellinie, Tooltip und 30/90/180 Tagen; Editionen mit Preis im Zielland und weltweit.
+- **Immer beide Preise:** Die Wunschliste zeigt immer den Preis im Zielland und daneben die günstigste Region weltweit. Die Einstellung „Preis in der Wunschliste: Alle Regionen“ entfällt, weil sie den Vergleich verdeckt hat.
+- **Einstellungen, Bibliothek, Preisalarme, Einrichtung und Anmeldung** im selben Stil; Preisalarme als Tabelle nach Abstand zum Ziel. Regionen erscheinen als Kürzel statt Flaggen.
+
+### Neu
+- **Tagesbudget je Shop** unter **Einstellungen → Key-Shops** (20–2000 Abrufe pro UTC-Tag). Der Wert hat Vorrang vor `KEYHUNTER_SHOP_DAILY_JOBS` und wirkt ohne Neustart.
+- **Abrufstatus** zeigt je Shop, woher das Limit stammt, den geschätzten Tagesbedarf des aktuellen Plans, den aktuellen Abstand zwischen Abrufen, den nächsten möglichen Abruf und die Abrufe je Stunde.
+- **Wunschlisten-Badges** enthalten den Verlauf der letzten 14 Tage: je Tag der beste im Zielland gültige Preis.
+
+### Verbessert
+- **Gleichmäßige Abrufe:** Das verbleibende Budget wird über den Rest des UTC-Tages verteilt (20 Sekunden bis 1 Stunde Abstand); der nächste Zeitpunkt übersteht Neustarts. Angeforderte Aktualisierungen, die erste Suche eines neuen Wunsches samt Folgeseiten und die ersten Preise der dabei gefundenen Produkte starten weiterhin sofort und zählen zum Budget.
+- **Standardbudget 500** statt 120 Jobs pro Shop und Tag, damit auch größere Wunschlisten im eingestellten Intervall aktuell bleiben.
+
+### Hinweise zum Update
+- **Unraid:** Die bisherige Vorlage setzt `KEYHUNTER_SHOP_DAILY_JOBS=120` fest im Container. Lege das Budget unter **Einstellungen → Key-Shops** fest (oder setze die Variable auf 500), sonst bleibt es bei 120.
+
 ## 0.6.0 – 2026-11-20
 
 Größtes Update seit dem ersten Release: neue Oberfläche, verlässliche Preisregeln und ein Abrufbudget, das bei den wichtigen Preisen ankommt. Datenvolume beibehalten; vor der Migration legt die App automatisch eine Sicherung an ([Upgrade-Hinweise](docs/operations.md#upgrade-auf-060)).

@@ -2,70 +2,88 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, HttpError } from '../../api';
 import type { FetchShopStatus, Settings, SourceSettings } from '../../api';
-import { Button, Card, ConfirmDialog, Notice, Switch } from '../../components';
+import { Button, ConfirmDialog, Notice, Switch } from '../../components';
 import { parseFeePercent } from '../../fees';
-import { relativeTime } from '../../time';
-import { Dot, RowCard, ShopMark, UsageBar } from './parts';
-import { intervalOptions, shopState, shopTitle } from './format';
+import { SettingsPanel } from './parts';
+import { DAILY_JOBS_MAX, DAILY_JOBS_MIN, intervalOptions, parseDailyJobs, shopTitle } from './format';
 import type { Autosave } from './autosave';
 
 const SUPPORTED = ['eneba', 'driffle'];
 
-function ShopCard({ source, status, feeText, edit, editFee, settle, onRemove }: {
+/** "Abrufe pro Tag (höchstens)": a valid number is saved like any text field (700 ms after the last key); anything else stays a local draft with a hint. */
+function DailyJobs({ source, status, change }: { source: SourceSettings; status: FetchShopStatus | undefined; change: (patch: Partial<SourceSettings>, wait?: boolean) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [blurred, setBlurred] = useState(false);
+  const id = `${source.id}-daily-jobs`;
+  const shown = draft ?? (typeof source.daily_jobs === 'number' ? String(source.daily_jobs) : '');
+  const invalid = draft !== null && draft.trim() !== '' && parseDailyJobs(draft) === null;
+  const fallback = typeof source.daily_jobs_default === 'number' ? source.daily_jobs_default : undefined;
+  const env = status?.budget.limit_source === 'env';
+  function type(text: string) {
+    setDraft(text); setBlurred(false);
+    // Empty clears the setting (null), so the default applies again.
+    const value = text.trim() === '' ? null : parseDailyJobs(text);
+    if ((value !== null || text.trim() === '') && value !== source.daily_jobs) change({ daily_jobs: value }, true);
+  }
+  function leave() {
+    setBlurred(true);
+    // Empty or valid: show the saved value again. An invalid value stays so it can be corrected.
+    if (draft === null || draft.trim() === '' || parseDailyJobs(draft) !== null) { setDraft(null); setBlurred(false); }
+  }
+  return <div className="form-row">
+    <label htmlFor={id}>Abrufe pro Tag (höchstens)</label>
+    <input id={id} className="set-w-200" inputMode="numeric" autoComplete="off" value={shown} placeholder={fallback === undefined ? '' : String(fallback)}
+      aria-invalid={invalid && blurred ? true : undefined} aria-describedby={`${id}-hint`} disabled={!source.enabled}
+      onChange={event => type(event.target.value)} onBlur={leave} />
+    <span id={`${id}-hint`} className={`hint${invalid && blurred ? ' bad' : ''}`}>
+      {invalid && blurred ? `Bitte eine ganze Zahl von ${DAILY_JOBS_MIN} bis ${DAILY_JOBS_MAX} eingeben.`
+        : <>Die Abrufe werden gleichmäßig über den Tag verteilt.{fallback !== undefined && ` Standard: ${fallback}${env ? ' (aus einer Umgebungsvariable)' : ''}; leer lassen für den Standard.`}</>}
+    </span>
+  </div>;
+}
+
+function ShopPanel({ source, status, feeText, edit, editFee, settle, onRemove }: {
   source: SourceSettings; status: FetchShopStatus | undefined; feeText: string;
   edit: Autosave['edit']; editFee: Autosave['editFee']; settle: Autosave['settle']; onRemove: () => void;
 }) {
   const name = shopTitle(source.id);
   const [feeBlurred, setFeeBlurred] = useState(false);
-  const change = (patch: Partial<SourceSettings>) => edit(current => ({ ...current, sources: current.sources.map(s => s.id === source.id ? { ...s, ...patch } : s) }));
-  const state = status ? shopState({ ...status, enabled: source.enabled }, Date.now() / 1000, relativeTime) : { tone: source.enabled ? 'ok' as const : 'off' as const, text: source.enabled ? 'Aktiv' : 'Deaktiviert' };
+  const change = (patch: Partial<SourceSettings>, wait = false) => edit(current => ({ ...current, sources: current.sources.map(s => s.id === source.id ? { ...s, ...patch } : s) }), wait);
   const feeActive = source.enabled && source.fee_estimation_enabled;
   const feeInvalid = feeActive && parseFeePercent(feeText) === null;
-  const intervals = intervalOptions(source.poll_interval_seconds);
-  return <Card as="article" className="set-card set-shop" aria-label={name}>
-    <div className="set-shop-head">
-      <span className="set-shop-id"><ShopMark id={source.id} /><span><strong>{name}</strong>
-        <span className="set-shop-state"><Dot tone={state.tone} />{state.text}</span></span></span>
-      <Switch checked={source.enabled} onChange={enabled => change({ enabled })}>
-        <span className="sr-only">{name} </span>{source.enabled ? 'Aktiv' : 'Aus'}
-      </Switch>
-    </div>
-    <div className="set-shop-fields">
-      <div className="field">
-        <label htmlFor={`${source.id}-interval`}>Abfrageintervall</label>
-        <select id={`${source.id}-interval`} value={source.poll_interval_seconds} onChange={event => change({ poll_interval_seconds: Number(event.target.value) })}>
-          {intervals.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+  const intervalId = `${source.id}-interval`;
+  return <SettingsPanel as="article" aria-label={name} title={name}
+    aside={<Switch checked={source.enabled} onChange={enabled => change({ enabled })}><span className="sr-only">{name} </span>Aktiv</Switch>}>
+    <div className="form-grid">
+      <div className="form-row">
+        <label htmlFor={intervalId}>Produktseiten abfragen alle</label>
+        <select id={intervalId} className="set-w-200" value={source.poll_interval_seconds} onChange={event => change({ poll_interval_seconds: Number(event.target.value) })}>
+          {intervalOptions(source.poll_interval_seconds).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
       </div>
-      <div className="field" role="group" aria-labelledby={`${source.id}-fee-title`}>
-        <span id={`${source.id}-fee-title`} className="set-label">Gebühren schätzen</span>
+      <DailyJobs source={source} status={status} change={change} />
+      <div className="form-row" role="group" aria-labelledby={`${source.id}-fee-title`}>
+        <span id={`${source.id}-fee-title`}>Geschätzte Gebühren</span>
         <div className="set-fee">
           <Switch checked={source.fee_estimation_enabled} disabled={!source.enabled} onChange={on => change({ fee_estimation_enabled: on })}>
             <span className="sr-only">Geschätzte Gebühren berücksichtigen, </span>{source.fee_estimation_enabled ? 'an' : 'aus'}
           </Switch>
-          <span className="set-fee-input">
+          <span className="field set-fee-input">
             <input inputMode="decimal" autoComplete="off" aria-label="Geschätzte Gebühren (%)" value={feeText} disabled={!feeActive}
               aria-invalid={feeInvalid && feeBlurred ? true : undefined} aria-describedby={`${source.id}-fee-help`}
               onChange={event => editFee(source.id, event.target.value)}
               onBlur={() => { setFeeBlurred(true); void settle(); }} />
-            <span aria-hidden="true">%</span>
+            <span className="muted" aria-hidden="true">%</span>
           </span>
         </div>
+        <span id={`${source.id}-fee-help`} className={`hint${feeInvalid && feeBlurred ? ' bad' : ''}`}>
+          {feeInvalid && feeBlurred ? 'Bitte eine Zahl von 0 bis 100 mit höchstens zwei Nachkommastellen eingeben.' : 'Aufschlag auf den Grundpreis; der Gesamtpreis bleibt als Schätzung gekennzeichnet.'}
+        </span>
       </div>
-      <div className="field" role="group" aria-labelledby={`${source.id}-usage-title`}>
-        <span id={`${source.id}-usage-title`} className="set-label">Abrufe heute</span>
-        {status && status.budget.limit > 0
-          ? <UsageBar used={status.budget.used} limit={status.budget.limit} label={`${name}: ${status.budget.used} von ${status.budget.limit} Abrufen heute`} />
-          : <span className="set-usage-text set-muted">{status ? 'Kein Tageslimit' : 'Wird gelesen …'}</span>}
-      </div>
+      <p className="hint">Empfohlen: 8 Stunden pro Produktseite; neue Produkte und manuelle Abfragen kommen früher dran. Bei Fehlern oder einer Pausenbitte des Shops wartet KeyHunter automatisch.</p>
+      <div><Button variant="danger" size="sm" onClick={onRemove}>Entfernen</Button></div>
     </div>
-    <p id={`${source.id}-fee-help`} className={`set-hint${feeInvalid && feeBlurred ? ' bad' : ''}`}>
-      {feeInvalid && feeBlurred ? 'Bitte eine Zahl von 0 bis 100 mit höchstens zwei Nachkommastellen eingeben.' : 'Optionaler Aufschlag auf den Grundpreis. Der Gesamtpreis bleibt als Schätzung gekennzeichnet. Empfohlen sind 8 Stunden pro Produktseite; neue Produkte und manuelle Abfragen können früher geprüft werden.'}
-    </p>
-    <div className="set-shop-foot">
-      <Button variant="danger" size="sm" onClick={onRemove}>Entfernen</Button>
-    </div>
-  </Card>;
+  </SettingsPanel>;
 }
 
 export default function Shops({ settings, feeDraft, edit, editFee, settle, status, csrf, onShopsChanged, onHelp, onError }: {
@@ -96,20 +114,23 @@ export default function Shops({ settings, feeDraft, edit, editFee, settle, statu
   function register(event: FormEvent) { event.preventDefault(); void change('POST', '/settings/shops', { url }); }
 
   return <>
-    {shops.length === 0 && <RowCard title="Noch kein Key-Shop eingerichtet" sub="Füge unten einen Shop hinzu, damit Preise abgerufen werden." />}
-    {shops.map(source => <ShopCard key={source.id} source={source} status={status?.find(s => s.source === source.id)} feeText={feeDraft[source.id] ?? ''}
-      edit={edit} editFee={editFee} settle={settle} onRemove={() => { setError(''); setRemoving(source); }} />)}
+    {shops.length === 0
+      ? <div className="note" role="note"><span><b>Noch kein Key-Shop eingerichtet.</b> Füge unten einen Shop hinzu, damit Preise abgerufen werden.</span></div>
+      : <div className="shops">{shops.map(source => <ShopPanel key={source.id} source={source} status={status?.find(s => s.source === source.id)} feeText={feeDraft[source.id] ?? ''}
+        edit={edit} editFee={editFee} settle={settle} onRemove={() => { setError(''); setRemoving(source); }} />)}</div>}
     {(message || error) && !removing && (error ? <Notice error>{error}</Notice> : <Notice>{message}</Notice>)}
-    <Card as="form" className="set-row-card set-add" onSubmit={register}>
-      <div><h2>Weiteren Shop hinzufügen</h2><p>Jeder Shop braucht einen geprüften Reader. Verfügbar: Eneba, Driffle.</p></div>
-      {allActive
-        ? <Button variant="secondary" disabled>Alle verfügbaren aktiv</Button>
-        : <div className="set-add-fields">
-          <div className="field"><label htmlFor="shop-url">Shop-URL</label><input id="shop-url" type="url" placeholder="https://driffle.com" value={url} onChange={e => setUrl(e.target.value)} required maxLength={300} /></div>
-          <Button type="submit" loading={working && !removing}>{working && !removing ? 'Wird geprüft …' : 'Dienst hinzufügen'}</Button>
-        </div>}
-    </Card>
-    <div><button type="button" className="text-button" onClick={onHelp}>Wie werden Gebühren behandelt?</button></div>
+    <SettingsPanel title="Weiteren Shop hinzufügen" titleId="shop-add-title">
+      <form className="form-grid" onSubmit={register}>
+        <p className="hint">Jeder Shop braucht einen geprüften Reader. Verfügbar: Eneba, Driffle.</p>
+        {allActive
+          ? <div><Button disabled>Alle verfügbaren aktiv</Button></div>
+          : <div className="set-add">
+            <div className="form-row"><label htmlFor="shop-url">Shop-URL</label><input id="shop-url" type="url" placeholder="https://driffle.com" value={url} onChange={e => setUrl(e.target.value)} required maxLength={300} /></div>
+            <Button type="submit" loading={working && !removing}>{working && !removing ? 'Wird geprüft …' : 'Dienst hinzufügen'}</Button>
+          </div>}
+        <div><button type="button" className="text-button" onClick={onHelp}>Wie werden Gebühren behandelt?</button></div>
+      </form>
+    </SettingsPanel>
     <ConfirmDialog open={removing !== null} title={removing ? `${shopTitle(removing.id)} entfernen?` : ''} confirmLabel="Entfernen bestätigen" danger busy={working}
       onCancel={() => setRemoving(null)} onConfirm={() => removing && void change('DELETE', `/settings/shops/${removing.id}`)}>
       <p>Von {removing ? shopTitle(removing.id) : 'diesem Shop'} werden keine Preise mehr abgerufen. Vorhandene Messungen bleiben gespeichert, und du kannst den Shop jederzeit wieder hinzufügen.</p>

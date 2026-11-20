@@ -1,33 +1,45 @@
-// Line icons, 24 px grid, stroke 1.8, drawn as one path each. Decorative: always pair with text or an aria-label on the control.
-const paths: Record<string, string> = {
-  home: 'm3 10 9-7 9 7v11H3V10Zm6 11v-7h6v7',
-  library: 'M5 4h3v16H5zM10 4h3v16h-3zM15.5 4.5l2.9-.8 3.6 15.4-2.9.7z',
-  heart: 'M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z',
-  bell: 'M6 16V11a6 6 0 0 1 12 0v5l1.5 2H4.5zM10 20a2 2 0 0 0 4 0',
-  settings: 'M4 7h10M18 7h2M4 17h4M12 17h8M14 7a2 2 0 1 0 4 0 2 2 0 1 0-4 0M8 17a2 2 0 1 0 4 0 2 2 0 1 0-4 0',
-  search: 'M4.5 11a6.5 6.5 0 1 0 13 0 6.5 6.5 0 1 0-13 0M16 16l4 4',
-  close: 'm6 6 12 12M6 18 18 6',
-  game: 'M7 6h10c5 0 7 13 4 13-2 0-3-4-5-4H8c-2 0-3 4-5 4C0 19 2 6 7 6ZM5 10h6m-3-3v6m7-3h.1m3 2h.1',
-  tag: 'm3 3 9 0 9 9-9 9-9-9V3Zm5 5h.1',
-  layers: 'm12 3 10 6-10 6L2 9l10-6Zm-10 11 10 6 10-6M2 18l10 6 10-6',
-  globe: 'M22 12A10 10 0 1 1 2 12a10 10 0 0 1 20 0ZM2 12h20M12 2c-6 5-6 15 0 20 6-5 6-15 0-20Z',
-  chart: 'M3 3v18h18M6 16l5-5 4 2 5-8',
-  info: 'M22 12A10 10 0 1 1 2 12a10 10 0 0 1 20 0ZM12 11v6m0-10v.1',
-  plus: 'M12 4v16M4 12h16',
-  arrow: 'M9 5l7 7-7 7',
-  external: 'M14 3h7v7m0-7L10 14M10 3H3v18h18v-7',
-  refresh: 'M21 10a9 9 0 0 0-16-5L2 8m0-5v5h5M3 14a9 9 0 0 0 16 5l3-3m0 5v-5h-5',
-  logout: 'M9 3H3v18h6M9 12h13m-5-5 5 5-5 5',
-  download: 'M12 3v12m-5-5 5 5 5-5M3 16v5h18v-5',
-  check: 'm5 12.5 4.5 4.5L19 7.5',
-  clock: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 7v5l3 2',
-  target: 'M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0ZM12 2v5m0 10v5M2 12h5m10 0h5',
-  alert: 'M12 4 2.5 20h19L12 4ZM12 10v5m0 3v.1',
-  cross: 'M6 6l12 12M18 6 6 18',
-  minus: 'M6 12h12',
-  tabs: 'M4 8h16M4 16h16',
-};
-/** `name` picks a path from the set above (unknown names show the info icon); `size` is in px. */
-export function Icon({ name, size = 18 }: { name: string; size?: number }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name] ?? paths.info} /></svg>;
+import type { ReactNode } from 'react';
+
+// Line icons from the design v4 prototype: 24 px grid, stroke 1.7, round caps and joins.
+// Decorative: always pair with text or an aria-label on the control.
+const shapes = {
+  heart: <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />,
+  library: <path d="M5 4v16M9 4v16M13 5l4 15M19 19l-4-15" />,
+  bell: <><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" /><path d="M10 20a2 2 0 0 0 4 0" /></>,
+  sliders: <><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></>,
+  activity: <path d="M3 12h4l3-7 4 14 3-7h4" />,
+  store: <><path d="M4 9l1.5-5h13L20 9M4 9v11h16V9M4 9h16" /><path d="M9 20v-6h6v6" /></>,
+  search: <><circle cx="11" cy="11" r="6.5" /><path d="M20 20l-4-4" /></>,
+  plus: <path d="M12 5v14M5 12h14" />,
+  chev: <path d="M9 6l6 6-6 6" />,
+  back: <path d="M15 6l-6 6 6 6" />,
+  down: <path d="M6 9l6 6 6-6" />,
+  more: <><circle cx="6" cy="12" r="1.3" /><circle cx="12" cy="12" r="1.3" /><circle cx="18" cy="12" r="1.3" /></>,
+  ext: <path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6" />,
+  check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+  x: <path d="M6 6l12 12M18 6L6 18" />,
+  info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7.5v.5" /></>,
+  alert: <><path d="M12 4l9 16H3z" /><path d="M12 10v4M12 17v.5" /></>,
+  globe: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18" /></>,
+  menu: <path d="M4 7h16M4 12h16M4 17h16" />,
+  download: <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />,
+  logout: <path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" />,
+  target: <><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3" /><path d="M12 2v4M12 18v4M2 12h4M18 12h4" /></>,
+  bag: <><path d="M5 8h14l-1 12H6z" /><path d="M9 8V6a3 3 0 0 1 6 0v2" /></>,
+  refresh: <path d="M20 11a8 8 0 0 0-14.5-4.5L4 8M4 4v4h4M4 13a8 8 0 0 0 14.5 4.5L20 16M20 20v-4h-4" />,
+  // Added in the same style for screens the prototype does not show.
+  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  minus: <path d="M6 12h12" />,
+  layers: <path d="M12 4l9 5-9 5-9-5zM3 14l9 5 9-5" />,
+  chart: <path d="M4 4v16h16M7 15l4-4 3 2 5-6" />,
+  book: <><path d="M5 5a2 2 0 0 1 2-2h12v15H7a2 2 0 0 0-2 2z" /><path d="M5 20a2 2 0 0 0 2 2h12v-4" /></>,
+  send: <path d="M20 4L3 11l7 3 3 7zM10 14l10-10" />,
+  shield: <><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z" /><path d="M9 12l2 2 4-4" /></>,
+} satisfies Record<string, ReactNode>;
+
+export type IconName = keyof typeof shapes;
+
+/** `name` picks a shape from the set above; `size` is in px (default 16, CSS may override it). */
+export function Icon({ name, size = 16, className }: { name: IconName; size?: number; className?: string }) {
+  return <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{shapes[name]}</svg>;
 }

@@ -8,6 +8,8 @@ import './styles/app.css';
 import './styles/ui.css';
 import './styles/catalog.css';
 import './styles/pages.css';
+import './styles/detail.css';
+import './styles/alerts.css';
 import './styles/wishlist.css';
 import './styles/offers.css';
 import './styles/shell.css';

@@ -28,6 +28,13 @@ pub(crate) struct SourceSettings {
     configured: bool,
     #[serde(default = "default_interval")]
     poll_interval_seconds: i64,
+    /// Shops only: effective daily job budget. On PUT, null, an absent value or the default
+    /// clears the setting, so the shop follows `daily_jobs_default` again.
+    #[serde(default)]
+    daily_jobs: Option<i64>,
+    /// Shops only, read-only: `KEYHUNTER_SHOP_DAILY_JOBS` if valid, else 500.
+    #[serde(default)]
+    daily_jobs_default: Option<i64>,
 }
 fn default_configured() -> bool {
     true
@@ -65,14 +72,19 @@ async fn load(state: &Shared) -> ApiResult<Settings> {
         wishlist_price_scope: row.get("wishlist_price_scope"),
         sources: rows
             .into_iter()
-            .map(|r| SourceSettings {
-                id: r.get("id"),
-                kind: r.get("kind"),
-                enabled: r.get("enabled"),
-                fee_estimation_enabled: r.get("fee_estimation_enabled"),
-                fee_basis_points: r.get("fee_basis_points"),
-                configured: r.get("configured"),
-                poll_interval_seconds: r.get("poll_interval_seconds"),
+            .map(|r| {
+                let shop = r.get::<String, _>("kind") == "shop";
+                SourceSettings {
+                    id: r.get("id"),
+                    kind: r.get("kind"),
+                    enabled: r.get("enabled"),
+                    fee_estimation_enabled: r.get("fee_estimation_enabled"),
+                    fee_basis_points: r.get("fee_basis_points"),
+                    configured: r.get("configured"),
+                    poll_interval_seconds: r.get("poll_interval_seconds"),
+                    daily_jobs: shop.then(|| crate::jobs::daily_limit(r.get("daily_jobs"))),
+                    daily_jobs_default: shop.then(crate::jobs::daily_budget),
+                }
             })
             .collect(),
         countries: COUNTRY_CODES
@@ -104,7 +116,7 @@ pub(crate) async fn put_settings(
     let bad = || {
         ApiError(
             StatusCode::BAD_REQUEST,
-            "Ungültige Einstellungen. Land und Gebühren (0–100 %) prüfen.",
+            "Ungültige Einstellungen. Land, Gebühren (0–100 %) und Tagesbudget (20–2000 Abrufe) prüfen.",
         )
     };
     if !matches!(input.wishlist_price_scope.as_str(), "preferred" | "all")
@@ -132,6 +144,8 @@ pub(crate) async fn put_settings(
             || !(0..=10000).contains(&s.fee_basis_points)
             || !(900..=604800).contains(&s.poll_interval_seconds)
             || (kind == "catalog" && (s.fee_estimation_enabled || s.fee_basis_points != 0))
+            || (kind == "catalog" && s.daily_jobs.is_some())
+            || stored_daily_jobs(s).is_some_and(|v| !crate::jobs::DAILY_JOBS_SETTING.contains(&v))
         {
             return Err(bad());
         }
@@ -145,14 +159,23 @@ pub(crate) async fn put_settings(
     .execute(&mut *tx)
     .await?;
     for source in input.sources {
-        let previous: i64 =
-            sqlx::query_scalar("SELECT poll_interval_seconds FROM source_settings WHERE id=?")
-                .bind(&source.id)
-                .fetch_one(&mut *tx)
-                .await?;
-        sqlx::query("UPDATE source_settings SET enabled=?,fee_estimation_enabled=?,fee_basis_points=?,configured=?,poll_interval_seconds=? WHERE id=?")
+        let (previous, previous_jobs): (i64, Option<i64>) = sqlx::query_as(
+            "SELECT poll_interval_seconds,daily_jobs FROM source_settings WHERE id=?",
+        )
+        .bind(&source.id)
+        .fetch_one(&mut *tx)
+        .await?;
+        let daily_jobs = stored_daily_jobs(&source);
+        sqlx::query("UPDATE source_settings SET enabled=?,fee_estimation_enabled=?,fee_basis_points=?,configured=?,poll_interval_seconds=?,daily_jobs=? WHERE id=?")
             .bind(source.enabled).bind(source.fee_estimation_enabled).bind(source.fee_basis_points)
-            .bind(source.configured).bind(source.poll_interval_seconds).bind(&source.id).execute(&mut *tx).await?;
+            .bind(source.configured).bind(source.poll_interval_seconds).bind(daily_jobs).bind(&source.id).execute(&mut *tx).await?;
+        if previous_jobs != daily_jobs {
+            // The next paced job follows the new budget at once instead of the old slot.
+            sqlx::query("UPDATE shop_state SET paced_until=0 WHERE source=?")
+                .bind(&source.id)
+                .execute(&mut *tx)
+                .await?;
+        }
         if previous != source.poll_interval_seconds {
             sqlx::query(
             "UPDATE shop_job SET due=MAX(?,(SELECT observed_at FROM offer_link WHERE id=link_id)+?)
@@ -169,6 +192,13 @@ pub(crate) async fn put_settings(
     }
     tx.commit().await?;
     Ok(Json(load(&state).await?))
+}
+
+/// The value to store for `daily_jobs`: NULL when absent or equal to the operator default.
+fn stored_daily_jobs(source: &SourceSettings) -> Option<i64> {
+    source
+        .daily_jobs
+        .filter(|v| *v != crate::jobs::daily_budget())
 }
 
 #[derive(Deserialize)]

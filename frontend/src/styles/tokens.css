@@ -1,154 +1,153 @@
 /*
- * Design tokens, KeyHunter design v3 (docs/modernization/03_UI_UX_REDESIGN.md section 7).
+ * Design tokens, KeyHunter design v4 (docs/modernization/design-v4/preview.html, warm charcoal, dark only).
  * This is the only file that may contain colour literals. Components use tokens only.
- * Naming: --color-*, --font-*, --text-*, --space-*, --radius-*, --shadow-*, --z-*, --motion-*.
+ * The first block is a 1:1 copy of the prototype's :root; keep the values in sync with it.
  */
 :root {
   color-scheme: dark;
 
-  /* Surfaces: dark first, tonal (every level a little lighter instead of a shadow) */
-  --color-bg: #090d12;
-  --color-surface: #0f141a;
-  --color-raised: #141b23;
-  --color-overlay: #1a222c;
-  --color-overlay-hover: #222c38;
-  --color-border: rgb(255 255 255 / 0.06);
-  --color-border-strong: rgb(255 255 255 / 0.1);
-  --color-control-border: rgb(255 255 255 / 0.34); /* form control outline, 3:1 against the page (WCAG 1.4.11) */
-  --color-track: #1a222c; /* empty part of bars and switches */
-  --color-track-fill: #5e6873;
-  --color-backdrop: rgb(2 9 19 / 0.8);
-  --color-glass: rgb(20 27 35 / 0.86);
+  /* Surfaces, darkest to lightest */
+  --ground: #161514;
+  --shell: #1b1a19;
+  --panel: #211f1e;
+  --panel-2: #272524;
+  --panel-3: #2e2c2a;
+  --cell: #2b2927;
+  --line: #322f2d;
+  --line-2: #3d3a37;
 
   /* Text */
-  --color-text: #f1f4f7;
-  --color-text-soft: #b8c2cc;
-  --color-text-muted: #8c97a3;
-  --color-text-disabled: #5e6873;
+  --text: #edeae6;
+  --text-2: #bdb8b1;
+  --muted: #8d8780;
+  --faint: #625d58;
 
-  /* Brand and interaction. Orange means: you (brand, your action, your target price). */
-  --color-accent: #ff7a1a;
-  --color-accent-hover: #ff9a4d;
-  --color-accent-text: #ff9a4d; /* orange as text on dark surfaces */
-  --color-on-accent: #0b1016;
-  --color-accent-bg: rgb(255 122 26 / 0.12);
-  --color-accent-ring: rgb(255 122 26 / 0.3);
-  --color-focus: #ffb27a;
+  /* Accent: orange means you (brand, your action, your target country and target price) */
+  --accent: #ff7a1a;
+  --accent-2: #ff9a4d;
+  --accent-bg: rgb(255 122 26 / .12);
+  --accent-line: rgb(255 122 26 / .35);
+  --on-accent: #1b1004;
+  --world: #d8d1c6; /* the cheapest region worldwide */
 
-  /* Status (separate from the brand, always with text) */
-  --color-best: #2ed3c0;
-  --color-best-text: #5fe3d3;
-  --color-best-bg: rgb(46 211 192 / 0.14);
-  --color-best-ring: rgb(46 211 192 / 0.4);
-  --color-warn: #f2c14e;
-  --color-warn-bg: rgb(242 193 78 / 0.13);
-  --color-danger: #ff6b6b;
-  --color-danger-text: #ff8a8a;
-  --color-danger-bg: rgb(255 107 107 / 0.12);
-  --color-danger-bg-hover: rgb(255 107 107 / 0.2);
-  --color-stale: #8f9ba8;
-  --color-neutral-bg: rgb(140 151 163 / 0.14);
-  --color-neutral-ring: rgb(255 255 255 / 0.14);
-  --color-dot-muted: #5e6873;
+  /* Status */
+  --ok: #4fd18b;
+  --ok-bg: rgb(79 209 139 / .12);
+  --warn: #f2c14e;
+  --warn-bg: rgb(242 193 78 / .12);
+  --danger: #ff7b7b;
+  --danger-bg: rgb(255 123 123 / .12);
+  --scrim: rgb(10 9 8 / .6);
 
-  /* Typefaces */
-  --font-brand: 'Archivo', 'Segoe UI', sans-serif; /* wordmark only; rendered from outlined SVG paths, no font file */
-  --font-ui: 'Inter', 'Segoe UI', system-ui, sans-serif; /* UI and all prices */
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace; /* short uppercase data labels */
+  /* Type */
+  --f-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --t-label: 11px;
+  --t-xs: 12px;
+  --t-sm: 13px;
+  --t-md: 14px;
+  --t-lg: 16px;
+  --t-title: 20px;
+  --t-kpi: 24px;
+  --t-price: 34px;
 
-  /* Type scale (1.2), base 16 px, minimum 12 px */
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --text-md: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.375rem;
-  --text-2xl: 1.75rem;
-  --text-title: 2rem;
-  --text-price: 1.5rem;
-  --text-price-xl: 4.75rem;
-  --price-xl-tracking: -0.05em; /* the cents part is set at 45 % of the size */
-  --price-tracking: -0.045em;
-  --tracking-title: -0.03em;
-  --tracking-mono: 0.08em;
-  --leading-tight: 1.2;
-  --leading-normal: 1.5;
+  /* Shape and size */
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --h-btn: 32px;
+
+  /* Shadows of floating layers (search popover, dialogs, tooltips, toast) */
+  --shadow-pop: 0 16px 40px rgb(0 0 0 / .45);
+  --shadow-tip: 0 12px 30px rgb(0 0 0 / .4);
+
+  /* Game covers (prototype `.cover`): hairline over the image and the initials when there is none */
+  --cover-line: rgb(255 255 255 / .06);
+  --cover-text: rgb(255 255 255 / .85);
+
+  /* Layers */
+  --z-sticky: 10;
+  --z-pop: 30;
+  --z-scrim: 35;
+  --z-drawer: 40;
+  --z-toast: 50;
+
+  /* Breakpoints of the prototype: custom properties cannot be used in media queries, so the CSS repeats
+     these values literally. src/breakpoints.ts holds the same numbers and tests/breakpoints.test.ts
+     fails when one of the two copies drifts. sm: phone layout, md: sidebar becomes a drawer, lg: one column. */
+  --bp-sm: 720px;
+  --bp-md: 900px;
+  --bp-lg: 1180px;
+
+  /*
+   * Legacy aliases for screens that are not rebuilt on design v4 yet. They resolve to the tokens above.
+   * Do not use them in new code; delete each one when nothing references it any more.
+   */
+  --color-bg: var(--ground);
+  --color-surface: var(--panel);
+  --color-raised: var(--panel-2);
+  --color-overlay: var(--panel-3);
+  --color-overlay-hover: var(--line-2);
+  --color-border: var(--line);
+  --color-border-strong: var(--line-2);
+  --color-track: var(--panel-3);
+  --color-track-fill: var(--muted);
+  --color-text: var(--text);
+  --color-text-soft: var(--text-2);
+  --color-text-muted: var(--muted);
+  --color-text-disabled: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-text: var(--accent-2);
+  --color-on-accent: var(--on-accent);
+  --color-accent-bg: var(--accent-bg);
+  --color-accent-ring: var(--accent-line);
+  --color-best: var(--ok);
+  --color-best-text: var(--ok);
+  --color-best-bg: var(--ok-bg);
+  --color-best-ring: rgb(79 209 139 / .35);
+  --color-glass: rgb(33 31 30 / .86);
+  --color-backdrop: var(--scrim);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-danger: var(--danger);
+  --color-danger-text: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-neutral-bg: var(--panel-3);
+  --color-neutral-ring: var(--line-2);
+  --color-dot-muted: var(--faint);
+  --font-mono: var(--f-mono);
+  --text-xs: var(--t-xs);
+  --text-sm: var(--t-sm);
+  --text-md: var(--t-md);
+  --text-lg: var(--t-lg);
+  --text-xl: 18px;
+  --text-2xl: var(--t-title);
+  --tracking-title: -.01em;
+  --tracking-mono: .08em;
   --weight-regular: 400;
   --weight-medium: 500;
-  --weight-semibold: 600;
-  --weight-bold: 700;
-
-  /* Spacing (4 px grid) */
+  --weight-semibold: 500;
+  --weight-bold: 600;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
   --space-5: 24px;
   --space-6: 32px;
-  --space-7: 48px;
-
-  /* Radius */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-control: 12px; /* buttons, inputs */
-  --radius-card: 16px;
-  --radius-sheet: 20px; /* large panels, floating bars */
+  --space-page: 20px;
+  --space-panel: 16px;
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-control: var(--r-md);
+  --radius-card: var(--r-lg);
+  --radius-sheet: var(--r-lg);
   --radius-pill: 999px;
-
-  /* Elevation and layers */
-  --shadow-overlay: 0 12px 32px rgb(0 0 0 / 0.45);
-  --shadow-raised: inset 0 1px 0 rgb(255 255 255 / 0.05);
-  --z-sticky: 10;
-  --z-nav: 20;
-  --z-overlay: 30;
-  --z-toast: 40;
-
-  /* Motion */
+  --shadow-overlay: var(--shadow-pop);
   --motion-fast: 120ms;
-  --motion-base: 200ms;
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-
-  /* Controls */
-  --control-h: 40px;
-  --control-h-sm: 32px;
-  --control-h-touch: 44px;
-  --focus-ring: 2px solid var(--color-focus);
-
-  /* Breakpoints: custom properties cannot be used in media queries, so the CSS repeats these
-     values literally. src/breakpoints.ts holds the same numbers and tests/breakpoints.test.ts
-     fails when one of the two copies drifts. */
-  --bp-sm: 640px;
-  --bp-md: 1024px;
-  --bp-lg: 1440px;
-
-  /* Legacy names used by screens that have not been restyled yet. They resolve to the new tokens. */
-  --font-body-size: var(--text-sm);
-  --font-section-size: var(--text-md);
-  --bg: var(--color-bg);
-  --sidebar: var(--color-surface);
-  --surface: var(--color-surface);
-  --raised: var(--color-raised);
-  --border: var(--color-border-strong);
-  --text: var(--color-text);
-  --muted: var(--color-text-soft);
-  --accent: var(--color-accent);
-  --turquoise: var(--color-best-text);
-  --focus: var(--color-focus);
-  --radius-panel: var(--radius-card);
-  --space-page: clamp(12px, 2.2vw, 32px);
-  --space-panel: clamp(12px, 1.5vw, 22px);
-
-  font-family: var(--font-ui);
-  font-optical-sizing: auto;
-  color: var(--color-text);
-  background: var(--color-bg);
-  line-height: var(--leading-normal);
-}
-
-@media (pointer: coarse) {
-  :root { --control-h: var(--control-h-touch); --control-h-sm: var(--control-h-touch); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root { --motion-fast: 0ms; --motion-base: 0ms; }
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --control-h: var(--h-btn);
+  --control-h-sm: 28px;
+  --control-h-touch: var(--h-btn);
+  --focus-ring: 2px solid var(--accent);
 }

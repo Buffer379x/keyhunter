@@ -6,13 +6,24 @@ export async function removeCurrent(page: Page) {
   await page.getByRole('menuitem', { name: 'Von Wunschliste entfernen' }).click();
   await page.getByRole('button', { name: 'Entfernen bestätigen' }).click();
 }
-/** Open the edition picker in the game header. */
-export async function openEditionPicker(page: Page) {
-  await page.locator('button.gd-edition').click();
+/** The edition select in the game header; choosing an option opens that edition (saved one or preview). */
+export const editionSelect = (page: Page) => page.getByRole('combobox', { name: 'Edition', exact: true });
+/** Back to the list through the breadcrumb of the top bar (the detail has no back button of its own). */
+export async function backToList(page: Page) {
+  await page.getByRole('navigation', { name: 'Pfad' }).getByRole('button', { name: 'Wunschliste', exact: true }).click();
 }
 /** The wishlist heading (h1), also the target of focus after a removal. */
 export const wishlistHeading = (page: Page) => page.getByRole('heading', { name: 'Wunschliste', level: 1, exact: true });
 /** Switch the detail tab by its visible name. */
 export async function openTab(page: Page, name: string) {
   await page.getByRole('tab', { name: new RegExp(`^${name}`) }).click();
+}
+/** The wishlist table (list page). */
+export const wishlistTable = (page: Page) => page.getByRole('table', { name: 'Vorgemerkte Spiele', exact: true });
+/** Rows of the wishlist table (one per game; cards up to 720 px). */
+export const wishlistRows = (page: Page) => wishlistTable(page).locator('tbody tr');
+/** Open a game from the wishlist table by its title (a string matches the whole title, a RegExp any part). */
+export async function openWishlistRow(page: Page, name: string | RegExp) {
+  const title = typeof name === 'string' ? new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) : name;
+  await wishlistRows(page).locator('.game-cell b').filter({ hasText: title }).first().click();
 }

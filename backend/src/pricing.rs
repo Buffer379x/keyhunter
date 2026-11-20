@@ -16,7 +16,7 @@ use serde::Serialize;
 
 /// An observation older than this no longer counts as a current price.
 pub(crate) const FRESH: i64 = 24 * 3600;
-const MAX_CENTS: i64 = 10_000_000;
+pub(crate) const MAX_CENTS: i64 = 10_000_000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]

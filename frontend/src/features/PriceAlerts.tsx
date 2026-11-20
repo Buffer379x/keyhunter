@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
 import { api, HttpError } from '../api';
-import type { PriceBadgeData } from '../api';
-import { Button, Card, Chip, EmptyState, Icon, MonoLabel, Notice, PageHeading, Price, SegmentedControl, Switch } from '../components';
+import type { PriceBadgeData, WishlistItem } from '../api';
+import { Button, EmptyState, Icon, Inset, Label, Notice, PageHeading, Panel, PanelHead, Pill, Price } from '../components';
+import { alarmRows } from './alerts-model';
+import type { AlarmRow } from './alerts-model';
+import { Cover } from './catalog-ui';
 import { whenVisible } from '../poll';
 import { relativeTime } from '../time';
 import { money } from './price-format';
@@ -12,8 +14,7 @@ type RuleView = Rule & { wish_id: string; title: string; delivery: string | null
 export type AlertEvent = { id: number; wish_id: string | null; state: string; observed_at: number; sent_at: number | null; cents: number | null; attempts: number };
 type Overview = { configured: boolean; rules: RuleView[]; events: AlertEvent[] };
 const deliveryNames: Record<string, string> = { pending: 'Wartet auf Zustellung', sent: 'Zugestellt', failed: 'Zustellung fehlgeschlagen', cancelled: 'Verworfen' };
-const deliveryChip = (state: string) => <Chip kind={state === 'sent' ? 'best' : state === 'failed' ? 'danger' : state === 'pending' ? 'warn' : 'neutral'} icon={state === 'sent' ? 'check' : state === 'pending' ? 'clock' : undefined}>{deliveryNames[state] ?? state}</Chip>;
-const shortDate = (seconds: number) => new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(seconds * 1000).replace(',', ' ·');
+const deliveryChip = (state: string) => <Pill tone={state === 'sent' ? 'ok' : state === 'failed' ? 'danger' : state === 'pending' ? 'warn' : 'default'} icon={state === 'sent' ? 'check' : state === 'pending' ? 'clock' : state === 'failed' ? 'alert' : 'minus'}>{deliveryNames[state] ?? state}</Pill>;
 const basisName = (basis: Rule['basis']) => basis === 'base' ? 'Grundpreis' : 'Gesamtpreis geschätzt';
 
 /** Cents of a rule's target, when it is a price alert. */
@@ -46,93 +47,29 @@ export function useAlertRule(id: string, csrf: string, onError: (error: unknown)
 }
 export type AlertState = ReturnType<typeof useAlertRule>;
 
-function parseEuro(text: string): number {
-  const raw = text.trim().replace(',', '.');
-  const [whole, fraction = ''] = raw.split('.');
-  return /^\d{1,6}(\.\d{1,2})?$/.test(raw) ? Number(whole) * 100 + Number(fraction.padEnd(2, '0')) : 0;
+/** In-app link to the alarm tab of a wishlist item: the wishlist reads ?item and ?tab, App follows the URL through popstate. */
+const alarmHref = (id: string) => `?item=${encodeURIComponent(id)}&tab=alarm`;
+function openAlarm(id: string) {
+  const url = new URL(window.location.href);
+  url.search = alarmHref(id); url.hash = '';
+  window.history.pushState(null, '', url);
+  window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
-export function AlertEditor({ id, alert, editionName, targetLabel, onSettings, onError }: { id: string; alert: AlertState; editionName: string; targetLabel: string; onSettings: () => void; onError: (error: unknown) => void }) {
-  const { rule, ready, configured } = alert;
-  const [mode, setMode] = useState<Rule['mode']>('target');
-  const [basis, setBasis] = useState<Rule['basis']>('base');
-  const [target, setTarget] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
-  const [events, setEvents] = useState<AlertEvent[] | null>(null);
-  const [reload, setReload] = useState(0);
-  useEffect(() => {
-    if (!ready) return;
-    if (rule) {
-      setMode(rule.mode); setBasis(rule.basis);
-      setTarget(rule.target_cents !== null ? (rule.target_cents / 100).toFixed(2).replace('.', ',') : '');
-    }
-  }, [ready, rule]);
-  useEffect(() => {
-    const controller = new AbortController();
-    void api<Overview>('/alerts', 'GET', undefined, undefined, controller.signal)
-      .then(data => { if (!controller.signal.aborted) setEvents(data.events.filter(event => event.wish_id === id)); })
-      .catch(() => { if (!controller.signal.aborted) setEvents([]); });
-    return () => controller.abort();
-  }, [id, reload]);
-
-  async function run(action: () => Promise<void>, success: string) {
-    setBusy(true); setError(''); setMessage('');
-    try { await action(); setMessage(success); setReload(n => n + 1); }
-    catch (err) { setError(err instanceof Error ? err.message : 'Alarmregel konnte nicht gespeichert werden.'); if (err instanceof HttpError && err.status === 401) onError(err); }
-    finally { setBusy(false); }
-  }
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    const cents = parseEuro(target);
-    if (mode === 'target' && (cents < 1 || cents > 10_000_000)) { setError('Gib einen Zielpreis zwischen 0,01 und 100.000,00 Euro ein.'); return; }
-    await run(() => alert.save({ mode, basis, enabled: rule?.enabled ?? true, target_cents: mode === 'target' ? cents : null }), 'Alarmregel gespeichert.');
-  }
-  const toggle = (enabled: boolean) => rule && void run(() => alert.save({ ...rule, enabled }), enabled ? 'Alarm ist aktiv.' : 'Alarm ist pausiert.');
-
-  return <div className="alert-layout">
-    <Card className="alert-card" aria-labelledby="alert-editor-title">
-      <div className="alert-card-head">
-        <h3 id="alert-editor-title">Preisalarm für {editionName}</h3>
-        {rule && <Switch checked={rule.enabled} onChange={toggle} disabled={busy}>Alarm aktiv</Switch>}
-      </div>
-      <p className="field-help">Gilt für die gewählte Edition und das Zielland {targetLabel}. Nur Angebote, die dort aktivierbar sind, lösen aus.</p>
-      {alert.error && <Notice error>{alert.error}</Notice>}
-      {error && <Notice error>{error}</Notice>}{message && <Notice>{message}</Notice>}
-      {ready ? <form className="alert-form" onSubmit={submit}>
-        <div className="field"><span className="field-label" id="alert-mode-label">Auslösen, wenn</span>
-          <SegmentedControl label="Auslöser" className="wide" value={mode} onChange={setMode} options={[{ value: 'target', label: 'Zielpreis erreicht' }, { value: 'low', label: 'Neuer Tiefstpreis' }]} /></div>
-        <div className="alert-row">
-          {mode === 'target' && <div className="field"><label htmlFor="alert-price">Zielpreis</label><span className="euro-input"><input id="alert-price" inputMode="decimal" maxLength={10} value={target} onChange={e => setTarget(e.target.value)} required aria-describedby="alert-price-unit" /><span id="alert-price-unit" aria-label="Euro">€</span></span></div>}
-          <div className="field"><span className="field-label">Preisgrundlage</span>
-            <SegmentedControl label="Preisgrundlage" className="wide" value={basis} onChange={setBasis} options={[{ value: 'base', label: 'Grundpreis' }, { value: 'estimate', label: 'Gesamtpreis geschätzt' }]} /></div>
-        </div>
-        <div className="channel-note"><span className={`channel-dot ${configured ? 'on' : 'off'}`} aria-hidden="true" />
-          <span>{configured ? 'Benachrichtigung über ntfy · eingerichtet' : 'ntfy ist noch nicht eingerichtet. Du kannst die Regel trotzdem speichern.'}</span>
-          <button type="button" className="text-button" onClick={onSettings}>Kanal verwalten</button></div>
-        <div className="alert-actions">
-          <Button type="submit" loading={busy}>{rule ? 'Speichern' : 'Alarm anlegen'}</Button>
-          {rule && <Button variant="danger" disabled={busy} onClick={() => void run(alert.remove, 'Alarmregel entfernt.')}>Alarm entfernen</Button>}
-        </div>
-      </form> : !alert.error && <p role="status">Alarmregel wird geladen …</p>}
-    </Card>
-    <Card className="alert-card" aria-labelledby="alert-events-title">
-      <h3 id="alert-events-title">Auslösungen</h3>
-      {events === null ? <p role="status">Wird geladen …</p> : events.length === 0 ? <p className="field-help">Dieser Alarm hat noch nicht ausgelöst.</p> :
-        <ul className="event-list">{events.map(event => <li key={event.id}>
-          <span><MonoLabel>{shortDate(event.sent_at ?? event.observed_at)}</MonoLabel><strong>{event.cents !== null ? money(event.cents) : 'Preis unbekannt'}</strong></span>
-          {deliveryChip(event.state)}
-        </li>)}</ul>}
-      <p className="field-help">Höchstens eine Nachricht je Spiel und 24 Stunden.</p>
-    </Card>
-  </div>;
+function AlarmStatus({ row, mode }: { row: AlarmRow; mode: Rule['mode'] }) {
+  if (row.reached) return <Pill tone="ok" icon="check">Ziel erreicht</Pill>;
+  if (!row.enabled) return <Pill tone="dim" icon="clock">Pausiert</Pill>;
+  if (mode === 'low') return <Pill tone="dim" icon="bell">Neuer Tiefstpreis</Pill>;
+  if (row.current === null) return <Pill tone="dim">Kein Preis</Pill>;
+  return <Pill>{money(row.distance ?? 0)} über Ziel</Pill>;
 }
 
-export default function PriceAlerts({ csrf, onError }: { csrf: string; onError: (error: unknown) => void }) {
+/** Preisalarme (prototype viewAlarms): every target sorted by distance, each row opens the alarm tab of the game. Channel test and delivery log below. */
+export default function PriceAlerts({ csrf, targetCountry, targetLabel, onError }: { csrf: string; targetCountry: string | null; targetLabel: string; onError: (error: unknown) => void }) {
   const [loadError, setLoadError] = useState('');
   const [data, setData] = useState<Overview | null>(null);
   const [badges, setBadges] = useState<Record<string, PriceBadgeData>>({});
+  const [items, setItems] = useState<Record<string, WishlistItem>>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [reload, setReload] = useState(0);
@@ -154,6 +91,8 @@ export default function PriceAlerts({ csrf, onError }: { csrf: string; onError: 
     }
     void load();
     api<Record<string, PriceBadgeData>>('/wishlist/price-badges', 'GET', undefined, undefined, controller.signal).then(rows => { if (!controller.signal.aborted) setBadges(rows); }).catch(() => {});
+    // Covers and editions for the game column.
+    api<WishlistItem[]>('/wishlist', 'GET', undefined, undefined, controller.signal).then(rows => { if (!controller.signal.aborted) setItems(Object.fromEntries(rows.map(row => [row.id, row]))); }).catch(() => {});
     return () => { controller.abort(); cancel(); };
   }, [reload, onError]);
   async function testChannel() {
@@ -162,50 +101,56 @@ export default function PriceAlerts({ csrf, onError }: { csrf: string; onError: 
     catch (error) { onError(error); }
     finally { setBusy(false); }
   }
-  const lastEvent = (wishId: string) => data?.events.find(event => event.wish_id === wishId);
-  return <section className="alerts-page">
-    <PageHeading title="Preisalarme" />
-    {loadError && <Notice error>{loadError} <Button secondary onClick={() => setReload(n => n + 1)}>Erneut laden</Button></Notice>}
-    <Card className="alert-card channel-card" aria-labelledby="channel-title">
-      <div>
-        <h2 id="channel-title">ntfy</h2>
-        <p className="channel-state"><span className={`channel-dot ${data?.configured ? 'on' : 'off'}`} aria-hidden="true" />{data?.configured ? 'Kanal eingerichtet' : data ? 'Kanal noch nicht eingerichtet' : 'Kanalstatus wird geladen …'}</p>
-      </div>
-      <Button secondary disabled={!data?.configured || busy} onClick={() => void testChannel()}>Testnachricht senden</Button>
-      {message && <Notice>{message}</Notice>}
-    </Card>
-    <h2 id="rules-title" className="alerts-heading">Alarmregeln</h2>
-    {data && data.rules.length === 0 && <EmptyState icon="bell" title="Noch kein Alarm">Lege im Detail eines Wunschspiels einen Alarm an. Er meldet sich, wenn ein Preis dein Ziel erreicht.</EmptyState>}
-    <ul className="rule-list" aria-labelledby="rules-title">{data?.rules.map(rule => {
-      const badge = badges[rule.wish_id];
-      const current = badge?.state === 'price' && badge.cents ? badge.cents : null;
-      const target = ruleTarget(rule);
-      const reached = rule.enabled && target !== null && current !== null && current <= target;
-      const event = lastEvent(rule.wish_id);
-      return <li key={rule.wish_id}><Card as="div" className="rule-card">
-        <div className="rule-main">
-          <a className="rule-title" href={`?item=${encodeURIComponent(rule.wish_id)}&tab=alarm`}>{rule.title}</a>
-          <span className="rule-meta">{rule.enabled ? 'Aktiv' : 'Pausiert'} · {target !== null ? `Ziel ${money(target)}` : 'Neuer Tiefstpreis'} · {basisName(rule.basis)}</span>
-          <span className="rule-chips">{reached && <Chip kind="target">Ziel erreicht</Chip>}{!rule.enabled && <Chip kind="neutral" icon="clock">Pausiert</Chip>}{badge?.stale && <Chip kind="stale">Veraltet</Chip>}</span>
-        </div>
-        <div className="rule-price">
-          <span className="rule-price-label"><MonoLabel>Aktuell</MonoLabel></span>
-          <Price cents={current} size="sm" tone={badge?.stale ? 'stale' : 'default'} missing={badge ? 'kein aktueller Preis' : 'wird geladen …'} />
-          {target !== null && current !== null && <span className={`rule-delta ${reached ? 'reached' : ''}`}>{current <= target ? `${money(target - current)} unter Ziel` : `${money(current - target)} über Ziel`}</span>}
-        </div>
-        <div className="rule-delivery">
-          <span className="rule-price-label"><MonoLabel>Letzte Auslösung</MonoLabel></span>
-          {event ? <><span>{shortDate(event.sent_at ?? event.observed_at)} · {event.cents !== null ? money(event.cents) : ''}</span>{deliveryChip(event.state)}</> : <span className="field-help">noch keine</span>}
-          {!event && rule.delivery && deliveryChip(rule.delivery)}
-        </div>
-      </Card></li>;
-    })}</ul>
-    <h2 id="deliveries-title" className="alerts-heading">Letzte Zustellungen</h2>
-    {data && data.events.length === 0 && <p className="field-help">Es liegt noch kein Zustellversuch vor.</p>}
-    <ul className="event-list wide" aria-labelledby="deliveries-title">{data?.events.map(event => <li key={event.id}>
-      <span><strong>{event.wish_id ? data.rules.find(rule => rule.wish_id === event.wish_id)?.title ?? 'Ehemaliger Wunschlisteneintrag' : 'Testnachricht'}</strong>
-        <MonoLabel title={new Date((event.sent_at ?? event.observed_at) * 1000).toLocaleString('de-DE')}>{relativeTime(event.sent_at ?? event.observed_at)}{event.attempts > 0 && ` · ${event.attempts} Versuch(e)`}</MonoLabel></span>
-      {deliveryChip(event.state)}
-    </li>)}</ul>
+  const rules = data?.rules ?? [];
+  const rows = alarmRows(rules, badges);
+  const ruleOf = (id: string) => rules.find(rule => rule.wish_id === id);
+  const country = targetCountry ?? 'Zielland';
+  const channel = data ? <Pill tone={data.configured ? 'ok' : 'dim'} icon={data.configured ? 'check' : 'minus'}>{data.configured ? 'ntfy eingerichtet' : 'ntfy nicht eingerichtet'}</Pill> : null;
+  return <section className="page alerts-page" aria-labelledby="alerts-title">
+    <PageHeading id="alerts-title" title="Preisalarme" sub={`Benachrichtigung über ntfy, sobald ein in ${targetLabel} aktivierbarer Key das Ziel erreicht`}
+      actions={<>{channel}<Button disabled={!data?.configured || busy} loading={busy} onClick={() => void testChannel()}><Icon name="send" />Testnachricht senden</Button></>} />
+    {loadError && <Notice error>{loadError} <Button size="sm" onClick={() => setReload(n => n + 1)}>Erneut laden</Button></Notice>}
+    {message && <Notice>{message}</Notice>}
+    <Panel aria-labelledby="rules-title">
+      <PanelHead><Label as="h2" tone="soft" id="rules-title">Alle Ziele · nach Abstand</Label></PanelHead>
+      <Inset className="table-wrap">
+        {!data ? <p className="hint alarm-pad" role="status">{loadError ? 'Nicht geladen.' : 'Preisalarme werden geladen …'}</p>
+          : rows.length === 0 ? <EmptyState icon="bell" title="Noch kein Alarm" headingLevel={3}>Lege im Detail eines Wunschspiels einen Alarm an. Er meldet sich, wenn ein Preis dein Ziel erreicht.</EmptyState>
+            : <table className="alarm-table" aria-label="Preisalarme nach Abstand">
+              <thead><tr><th>Spiel</th><th className="r">Ziel</th><th className="r">Jetzt {country}</th><th className="r">Abstand</th><th>Status</th></tr></thead>
+              <tbody>{rows.map(row => {
+                const rule = ruleOf(row.id);
+                const item = items[row.id];
+                const sub = [item?.game?.edition_name, rule?.basis === 'estimate' && basisName(rule.basis)].filter(Boolean).join(' · ');
+                return <tr key={row.id} className="click" onClick={() => openAlarm(row.id)}>
+                  <td className="c-game"><div className="game-cell"><Cover src={item?.game?.cover_url ?? null} title={row.title} />
+                    <div><a className="alarm-title" href={alarmHref(row.id)} onClick={event => { event.preventDefault(); event.stopPropagation(); openAlarm(row.id); }}>{row.title}</a><small>{sub}</small></div></div></td>
+                  <td className="r mono c-target">{row.target !== null ? money(row.target) : '–'}</td>
+                  <td className="r c-now"><Price cents={row.current} tone={row.stale ? 'stale' : 'default'} missing="–" /></td>
+                  <td className="r c-dist">{row.distance !== null ? <span className={`save${row.distance <= 0 ? ' reached' : ''}`}>{row.distance <= 0 ? '−' : '+'}{money(Math.abs(row.distance))}</span> : <span className="save none">–</span>}</td>
+                  <td className="c-status">{rule && <AlarmStatus row={row} mode={rule.mode} />}</td>
+                </tr>;
+              })}</tbody>
+            </table>}
+      </Inset>
+    </Panel>
+    <Panel aria-labelledby="deliveries-title">
+      <PanelHead><Label as="h2" tone="soft" id="deliveries-title">Letzte Zustellungen</Label></PanelHead>
+      <Inset className="table-wrap">
+        {!data || data.events.length === 0 ? <p className="hint alarm-pad">{data ? 'Es liegt noch kein Zustellversuch vor.' : 'Wird geladen …'}</p>
+          : <table className="delivery-table" aria-label="Letzte Zustellungen">
+            <thead><tr><th>Zeit</th><th>Spiel</th><th className="r">Preis</th><th>Zustellung</th></tr></thead>
+            <tbody>{data.events.map(event => {
+              const at = event.sent_at ?? event.observed_at;
+              return <tr key={event.id}>
+                <td className="mono c-time" title={new Date(at * 1000).toLocaleString('de-DE')}>{relativeTime(at)}{event.attempts > 1 && <span className="faint"> · {event.attempts} Versuche</span>}</td>
+                <td className="c-game">{event.wish_id ? ruleOf(event.wish_id)?.title ?? 'Ehemaliger Wunschlisteneintrag' : 'Testnachricht'}</td>
+                <td className="r mono c-price">{event.cents !== null ? money(event.cents) : '–'}</td>
+                <td className="c-status">{deliveryChip(event.state)}</td>
+              </tr>;
+            })}</tbody>
+          </table>}
+      </Inset>
+    </Panel>
   </section>;
 }

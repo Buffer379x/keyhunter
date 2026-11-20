@@ -1,87 +1,96 @@
-import { Chip, EmptyState, Icon, Button } from '../../components';
-import { Card } from '../../ui';
+import { EmptyState, Icon, Panel, Pill } from '../../components';
 import type { FetchRun, FetchShopStatus, FetchStatusResponse } from '../../api';
 import { relativeTime } from '../../time';
-import { Dot, Facts, ShopMark, UsageBar } from './parts';
-import { dateTimeText, durationText, kindText, outcomeText, outcomeTone, shopState, shopTitle, summarize, workerState } from './format';
+import { paceText } from '../../FetchStatus';
+import { SettingsPanel } from './parts';
+import { DAILY_JOBS_MAX, budgetView, intervalLabel, clockText, dateTimeText, durationText, fetchPill, kindText, outcomeText, outcomeTone, shopState, shopTitle, untilText, workerState } from './format';
 
-function Tile({ label, value, note, tone }: { label: string; value: string; note: string; tone?: 'warn' | 'error' }) {
-  return <div className={`set-tile${tone ? ` ${tone}` : ''}`}>
-    <span className="ui-mono">{label}</span>
-    <strong>{value}</strong>
-    <span className="set-tile-note">{note}</span>
-  </div>;
-}
+const pct = (share: number) => `${(share * 100).toFixed(1)}%`;
 
-function ShopFacts({ shop, now }: { shop: FetchShopStatus; now: number }) {
+/** One shop: state pill, Heute / Nächster Abruf / Letzter, and the daily budget bar with the demand marker (prototype viewFetch). */
+function ShopStatus({ shop, now }: { shop: FetchShopStatus; now: number }) {
+  const name = shopTitle(shop.source);
+  const pill = fetchPill(shop, now);
+  const budget = budgetView(shop.budget);
+  const next = shop.budget.next_at ?? shop.next_due_at;
   const state = shopState(shop, now, relativeTime);
   const worker = workerState(shop, now, relativeTime);
-  const name = shopTitle(shop.source);
-  const paused = shop.paused_until !== null && shop.paused_until > now;
-  const { due, requested, products, searches } = shop.backlog;
-  const kind = state.tone === 'ok' ? 'best' : state.tone === 'off' ? 'neutral' : state.tone === 'warn' ? 'warn' : 'danger';
-  return <Card as="article" className="set-shop" aria-label={`Abrufstatus ${name}`}>
-    <div className="set-shop-head">
-      <span className="set-shop-id"><ShopMark id={shop.source} /><span><strong>{name}</strong><span className="set-shop-state"><Dot tone={state.tone} />{state.text}</span></span></span>
-      <Chip kind={kind} icon={state.tone === 'ok' ? 'check' : state.tone === 'off' ? 'minus' : state.tone === 'warn' ? 'clock' : 'alert'}>
-        {state.tone === 'ok' ? 'In Ordnung' : state.tone === 'off' ? (shop.enabled ? 'Noch kein Abruf' : 'Aus') : state.tone === 'warn' ? 'Pausiert' : 'Fehler'}
-      </Chip>
+  // Only what is not normal gets a line of its own: a pause, an error or a worker without heartbeat.
+  const problem = state.tone === 'warn' || state.tone === 'error' ? [state.text, shop.last_error ? outcomeText(shop.last_error) : ''].filter(Boolean).join(' · ')
+    : worker.tone === 'error' ? `Worker ${worker.text}` : '';
+  return <SettingsPanel as="article" aria-label={`Abrufstatus ${name}`} title={name} insetClassName="shop-body"
+    aside={<Pill tone={pill.tone}><i className={`dot${pill.tone === 'ok' ? '' : pill.tone === 'danger' ? ' error' : pill.tone === 'dim' ? ' off' : ' warn'}`} aria-hidden="true" />{pill.text}</Pill>}>
+    <div className="shop-stats">
+      <div><span className="label">Heute</span><b>{budget.used}</b></div>
+      <div><span className="label">Nächster Abruf</span><b title={next ? dateTimeText(next) : undefined}>{!shop.enabled || next === null || next === undefined ? '–' : untilText(next, now)}</b></div>
+      <div><span className="label">Letzter</span><b title={shop.last_success_at ? dateTimeText(shop.last_success_at) : undefined}>{shop.last_success_at === null ? 'noch keiner' : relativeTime(shop.last_success_at)}</b></div>
     </div>
-    <Facts items={[
-      { label: 'Worker', value: <span className="set-inline"><Dot tone={worker.tone} />{worker.text}</span> },
-      { label: 'Letzter Erfolg', value: shop.last_success_at === null ? 'Noch keiner' : <time dateTime={new Date(shop.last_success_at * 1000).toISOString()} title={dateTimeText(shop.last_success_at)}>{relativeTime(shop.last_success_at)}</time> },
-      { label: 'Letzter Fehler', value: shop.last_error ? <span className="set-bad">{outcomeText(shop.last_error)}</span> : 'Keiner' },
-      { label: 'Pausiert bis', value: paused ? `${new Date(shop.paused_until! * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr` : 'Nicht pausiert' },
-      { label: 'Abrufe heute', value: shop.budget.limit > 0 ? <UsageBar used={shop.budget.used} limit={shop.budget.limit} label={`${name}: ${shop.budget.used} von ${shop.budget.limit} Abrufen heute`} /> : 'Kein Tageslimit' },
-      { label: 'Rückstau', value: due === 0 ? 'Nichts fällig' : `${due} fällig · ${requested} angefordert · ${products} Produkte · ${searches} Suchen` },
-      { label: 'Ältester fälliger Abruf', value: shop.oldest_due_at === null ? 'Keiner' : <span title={dateTimeText(shop.oldest_due_at)}>{relativeTime(shop.oldest_due_at)}</span> },
-      { label: 'Nächster Abruf', value: shop.next_due_at === null ? 'Nichts geplant' : <span title={dateTimeText(shop.next_due_at)}>{shop.next_due_at <= now ? 'Fällig' : `${dateTimeText(shop.next_due_at)} Uhr`}</span> },
-    ]} />
-  </Card>;
+    {budget.limit > 0
+      ? <div className="budget">
+        <div className="budget-l">
+          <span>{budget.used} von {budget.limit} Abrufen{budget.pace ? ` · gleichmäßig verteilt, etwa ${paceText(budget.pace)}` : ' heute'}</span>
+          {budget.demand !== null && <span>Bedarf ≈ {budget.demand} pro Tag</span>}
+        </div>
+        <span className="bar" role="progressbar" aria-label={`${name}: ${budget.used} von ${budget.limit} Abrufen heute`} aria-valuemin={0} aria-valuemax={budget.limit} aria-valuenow={Math.min(budget.used, budget.limit)}>
+          <i style={{ width: pct(budget.share) }} />
+          {budget.demandShare !== null && <span className="need" style={{ left: pct(budget.demandShare) }} title={`Bedarf ≈ ${budget.demand} pro Tag`} />}
+        </span>
+      </div>
+      : <p className="hint">{budget.used} Abrufe heute · kein Tageslimit</p>}
+    {problem && <p className="hint set-problem">{problem}</p>}
+  </SettingsPanel>;
+}
+
+/** Warning above the shops when the wishlist needs more fetches than a shop may make per day. */
+function DemandNote({ shop, interval, onShops }: { shop: FetchShopStatus; interval?: number; onShops: () => void }) {
+  const budget = budgetView(shop.budget);
+  if (!shop.enabled || !budget.over || budget.needed === null) return null;
+  const name = shopTitle(shop.source);
+  const tooMany = budget.needed > DAILY_JOBS_MAX;
+  return <div className="note warn" role="note" data-testid={`demand-note-${shop.source}`}>
+    <Icon name="alert" />
+    <span>
+      <b>{name} braucht etwa {budget.demand} Abrufe pro Tag, erlaubt sind {budget.limit}.</b>{' '}
+      {tooMany
+        ? <>Das ist mehr als die höchstens möglichen {DAILY_JOBS_MAX}. Setze „Abrufe pro Tag (höchstens)“ auf {DAILY_JOBS_MAX} und verlängere das Intervall, damit alle Wünsche rechtzeitig abgefragt werden.</>
+        : <>Damit alle Wünsche rechtzeitig abgefragt werden, setze „Abrufe pro Tag (höchstens)“ auf mindestens <b>{budget.needed}</b>.</>}
+      {interval !== undefined && interval < RECOMMENDED_INTERVAL && <> Alternativ das Intervall von {intervalLabel(interval)} auf die empfohlenen 8 Stunden verlängern; das senkt den Bedarf auf grob {Math.max(1, Math.round(Number(budget.demand) * interval / RECOMMENDED_INTERVAL))} pro Tag.</>}
+      {budget.fromEnv && ' Das Limit kommt derzeit aus einer Umgebungsvariable.'}{' '}
+      <button type="button" className="text-button" onClick={onShops}>Zu den Key-Shops</button>
+    </span>
+  </div>;
 }
 
 function RunsTable({ runs }: { runs: FetchRun[] }) {
-  if (runs.length === 0) return <p className="set-hint">Noch keine Abrufe aufgezeichnet.</p>;
-  return <div className="set-table" role="table" aria-label="Letzte Abrufe">
-    <div role="rowgroup" className="set-thead"><div role="row">
-      {['Zeit', 'Shop', 'Art', 'Detail', 'Ergebnis', 'Dauer'].map(head => <span key={head} role="columnheader" className="ui-mono">{head}</span>)}
-    </div></div>
-    <div role="rowgroup">{runs.map((run, index) => {
+  if (runs.length === 0) return <p className="hint set-pad">Noch keine Abrufe aufgezeichnet.</p>;
+  return <div className="table-wrap"><table aria-label="Letzte Abrufe">
+    <thead><tr><th>Zeit</th><th>Shop</th><th>Art</th><th>Ziel</th><th>Ergebnis</th></tr></thead>
+    <tbody>{runs.map((run, index) => {
       const tone = outcomeTone(run.outcome);
-      return <div role="row" key={`${run.started_at}-${index}`}>
-        <span role="cell" className="set-c-time ui-mono" title={dateTimeText(run.started_at)}>{relativeTime(run.started_at)}</span>
-        <span role="cell" className="set-c-shop">{shopTitle(run.source)}</span>
-        <span role="cell" className="set-c-kind">{kindText(run.kind)}</span>
-        <span role="cell" className="set-c-detail" title={run.detail ?? undefined}>{run.detail ?? '–'}</span>
-        <span role="cell" className="set-c-result"><Chip kind={tone === 'ok' ? 'best' : tone === 'warn' ? 'warn' : 'danger'}>{outcomeText(run.outcome)}</Chip></span>
-        <span role="cell" className="set-c-duration ui-mono">{durationText(run.duration_ms)}</span>
-      </div>;
-    })}</div>
-  </div>;
+      return <tr key={`${run.started_at}-${index}`}>
+        <td className="mono" title={dateTimeText(run.started_at)}>{clockText(run.started_at)}</td>
+        <td>{shopTitle(run.source)}</td>
+        <td>{kindText(run.kind)}</td>
+        <td className="set-run-target" title={run.detail ?? undefined}>{run.detail ?? '–'}</td>
+        <td><Pill tone={tone === 'ok' ? 'ok' : tone === 'warn' ? 'warn' : 'danger'} icon={tone === 'ok' ? 'check' : 'alert'}>{tone === 'ok' ? durationText(run.duration_ms) : outcomeText(run.outcome)}</Pill></td>
+      </tr>;
+    })}</tbody>
+  </table></div>;
 }
 
-export default function FetchPanel({ data, failed, loadedAt, reload }: { data: FetchStatusResponse | null; failed: boolean; loadedAt: number | null; reload: () => void }) {
-  if (!data) return <p role="status" className="set-muted">{failed ? 'Der Abrufstatus konnte nicht gelesen werden.' : 'Abrufstatus wird geladen …'}</p>;
-  if (data.shops.length === 0) return <Card><EmptyState icon="refresh" title="Noch kein Shop eingerichtet" headingLevel={3}>Sobald ein Key-Shop eingerichtet ist, siehst du hier Warteschlange, Tagesbudget und letzte Abrufe.</EmptyState></Card>;
+/** Recommended product interval of both shops (settings::shop_readers). */
+const RECOMMENDED_INTERVAL = 28800;
+
+export default function FetchPanel({ data, failed, loadedAt, intervals = {}, onShops }: { data: FetchStatusResponse | null; failed: boolean; loadedAt: number | null; intervals?: Record<string, number>; onShops: () => void }) {
+  if (!data) return <p role="status" className="hint">{failed ? 'Der Abrufstatus konnte nicht gelesen werden.' : 'Abrufstatus wird geladen …'}</p>;
+  if (data.shops.length === 0) return <Panel><EmptyState icon="activity" title="Noch kein Shop eingerichtet" headingLevel={3}>Sobald ein Key-Shop eingerichtet ist, siehst du hier Tagesbudget, nächste und letzte Abrufe.</EmptyState></Panel>;
   const now = Date.now() / 1000;
-  const sum = summarize(data.shops, data.errors_24h);
-  const clock = loadedAt === null ? '' : new Date(loadedAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   return <>
-    <div className="set-fetch-bar">
-      <span className="set-muted">{failed ? 'Aktualisierung fehlgeschlagen, Stand ' : 'Stand '}{clock} Uhr · aktualisiert sich alle 30 Sekunden</span>
-      <Button variant="ghost" size="sm" onClick={reload}><Icon name="refresh" size={15} />Aktualisieren</Button>
-    </div>
-    <div className="set-tiles">
-      <Tile label="Ausstehend" value={String(sum.due)} note={sum.due === 0 ? 'Nichts fällig' : `davon ${sum.requested} angefordert`} />
-      <Tile label="Abrufe heute" value={sum.limit > 0 ? `${sum.used} von ${sum.limit}` : String(sum.used)} note={sum.limit > 0 && sum.used >= sum.limit ? 'Tagesbudget aufgebraucht' : 'Tagesbudget aller aktiven Shops'} tone={sum.limit > 0 && sum.used >= sum.limit ? 'warn' : undefined} />
-      <Tile label="Ältester Abruf" value={sum.oldest ? relativeTime(sum.oldest.at) : 'Keiner'} note={sum.oldest ? `Seit dann fällig · ${shopTitle(sum.oldest.source)}` : 'Nichts überfällig'} />
-      <Tile label="Fehler in 24 h" value={String(sum.errors24h)} note={sum.errors24h === 0 ? 'Keine fehlgeschlagenen Abrufe' : 'Fehlgeschlagene Abrufe'} tone={sum.errors24h > 0 ? 'error' : undefined} />
-    </div>
-    {data.shops.map(shop => <ShopFacts key={shop.source} shop={shop} now={now} />)}
-    <Card className="set-card" aria-labelledby="runs-title">
-      <header className="set-card-head"><div><h2 id="runs-title">Letzte Abrufe</h2></div></header>
+    {failed && loadedAt !== null && <p className="hint" role="status">Aktualisierung fehlgeschlagen · Stand {new Date(loadedAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr</p>}
+    {data.shops.map(shop => <DemandNote key={shop.source} shop={shop} interval={intervals[shop.source]} onShops={onShops} />)}
+    <div className="shops">{data.shops.map(shop => <ShopStatus key={shop.source} shop={shop} now={now} />)}</div>
+    <SettingsPanel title="Letzte Abrufe" titleId="runs-title" insetClassName="set-runs">
       <RunsTable runs={data.recent_runs} />
-      <p className="set-hint">Jeder Shop wird nacheinander abgefragt, mit Pause zwischen Anfragen und unter Beachtung von robots.txt.</p>
-    </Card>
+    </SettingsPanel>
   </>;
 }

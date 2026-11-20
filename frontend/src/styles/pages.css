@@ -1,9 +1,20 @@
-/* Shared leftovers used by the alert and offer screens. The settings and library screens have their own files: settings.css, library.css. */
-.shop-logo { width: 32px; height: 32px; display: grid; place-items: center; flex-shrink: 0; border-radius: var(--radius-control); background: #473a78; color: #f4ebff; font-weight: 750; }
-.offer-link-form, .alert-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
-.offer-link-form .field, .alert-form .field { flex: 1 1 min(100%,200px); }
-.offer-section { margin-bottom: var(--space-panel); }
-.offer-section p, .settings-card p { font-size: var(--font-body-size); }
-.alert-list { display: grid; padding: 0; margin: 0; list-style: none; }
-.alert-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding-block: 10px; border-top: 1px solid var(--border); }
-.alert-form .check-label { flex-basis: 100%; }
+/* Sign-in and setup (features/AuthScreen.tsx) and a leftover shared by the alert editor. Tokens only. */
+.alert-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.alert-form .form-row { flex: 1 1 min(100%, 200px); }
+
+/* A centred 400 px panel: the logo in the head, the form in the inset (prototype panel language). */
+.auth-layout {
+  min-height: 100%; display: grid; place-items: center; background: var(--ground);
+  padding: max(20px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+}
+.auth-card { width: min(100%, 400px); }
+.auth-brand { display: flex; align-items: center; min-height: 48px; padding: 16px 16px 14px; }
+.auth-brand .brand { height: 30px; }
+.auth-body { display: grid; gap: 16px; padding: 18px 16px 16px; }
+.auth-body > .notice { margin: 0; }
+.auth-body > .btn { justify-self: start; }
+.auth-title { display: grid; gap: 2px; }
+.auth-title h1 { margin: 0; font-size: var(--t-title); font-weight: 500; letter-spacing: -.01em; }
+.auth-body form { display: grid; gap: 14px; }
+.auth-body form .notice { margin: 0; }
+.auth-body form > .btn { margin-top: 2px; width: 100%; }

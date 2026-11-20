@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { signInToFixture } from '../helpers';
 
-// Visual regression of the six core views at three viewports. Run only through deploy/visual-check.sh.
+// Visual regression of the seven core views at three viewports. Run only through deploy/visual-check.sh.
 // Determinism: fixed clock, all price data mocked (the fixture has no shop prices), animations and caret off.
 
 const NOW_MS = Date.UTC(2026, 10, 20, 12, 0, 0); // fixed "now" for page.clock and for every mocked timestamp
@@ -31,11 +31,12 @@ const offers = {
   history: [], best_base: 2890, best_estimate: 2948, last_known: null, target_country: 'DE',
   searches: [{ source: 'eneba', status: 'complete', checked_at: now - 2 * H, result_count: 3, last_error: null }], sources: [], discovery_running: false,
 };
-const badge = { state: 'price', cents: 2890, observed_at: now - 2 * H, checked_at: now - 2 * H, stale: false, pending: false, world: { cents: 1290, region: 'India', observed_at: now - 2 * H } };
+const badge = { state: 'price', cents: 2890, observed_at: now - 2 * H, checked_at: now - 2 * H, stale: false, pending: false, source: 'eneba', region: 'Global', world: { cents: 1290, source: 'eneba', region: 'India', observed_at: now - 2 * H },
+  trend: [3499, 3499, 3299, 3299, 3299, 3299, 3299, 3099, 3099, 3099, 3099, 3099, 3099, 2890] };
 const fetchStatus = {
   shops: [
-    { source: 'eneba', enabled: true, last_success_at: now - 60, last_error: null, paused_until: null, budget: { used: 64, limit: 120 }, backlog: { due: 14, requested: 3, products: 9, searches: 5 }, oldest_due_at: now - 1500, next_due_at: now + 900, worker_seen_at: now - 2 },
-    { source: 'driffle', enabled: true, last_success_at: now - 7200, last_error: 'rate_limited', paused_until: now + 2400, budget: { used: 41, limit: 120 }, backlog: { due: 6, requested: 0, products: 4, searches: 2 }, oldest_due_at: now - 5400, next_due_at: now + 3200, worker_seen_at: now - 1 },
+    { source: 'eneba', enabled: true, last_success_at: now - 60, last_error: null, paused_until: null, budget: { used: 64, limit: 500, limit_source: 'setting', demand_per_day: 430, pace_seconds: 170, next_at: now + 170, by_hour: [3, 4, 3, 2, 3, 4, 5, 4, 5, 6, 6, 5, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, backlog: { due: 14, requested: 3, products: 9, searches: 5 }, oldest_due_at: now - 1500, next_due_at: now + 900, worker_seen_at: now - 2 },
+    { source: 'driffle', enabled: true, last_success_at: now - 7200, last_error: 'rate_limited', paused_until: now + 2400, budget: { used: 41, limit: 120, limit_source: 'env', demand_per_day: 160, pace_seconds: 540, next_at: now + 2400, by_hour: [2, 2, 3, 3, 3, 4, 3, 4, 4, 5, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, backlog: { due: 6, requested: 0, products: 4, searches: 2 }, oldest_due_at: now - 5400, next_due_at: now + 3200, worker_seen_at: now - 1 },
   ],
   errors_24h: 5,
   recent_runs: [
@@ -114,6 +115,14 @@ for (const vp of viewports) {
       await settle(page);
       await expect(page).toHaveScreenshot(`${file}-${vp.name}.png`, { mask: masks(page) });
     });
+    test('wishlist list', async ({ page }) => {
+      await prepare(page);
+      await page.goto('/');
+      await expect(page.getByRole('main').getByRole('heading', { name: 'Wunschliste', level: 1 })).toBeVisible();
+      await expect(page.locator('table.wl tbody tr')).toHaveCount(1);
+      await settle(page);
+      await expect(page).toHaveScreenshot(`wishlist-${vp.name}.png`, { mask: masks(page) });
+    });
     detail('', 'wishlist-preis');
     detail('angebote', 'angebote');
     detail('verlauf', 'verlauf');
@@ -121,12 +130,12 @@ for (const vp of viewports) {
     const settings = (section: string, file: string, tabName: string, ready = '') => test(`settings ${file}`, async ({ page }) => {
       await prepare(page);
       await page.goto(`/?view=settings${section ? `&section=${section}` : ''}`);
-      await expect(page.getByRole('tab', { name: tabName, exact: true })).toHaveAttribute('aria-selected', 'true');
+      await expect(page.getByRole('main').getByRole('heading', { name: tabName, level: 1 })).toBeVisible();
       if (ready) await expect(page.getByText(ready).first()).toBeVisible();
       await settle(page);
       await expect(page).toHaveScreenshot(`${file}-${vp.name}.png`, { mask: masks(page) });
     });
     settings('', 'settings-allgemein', 'Allgemein');
-    settings('status', 'settings-abrufstatus', 'Abrufstatus', 'Fehler in 24 h');
+    settings('status', 'settings-abrufstatus', 'Abrufstatus', 'Letzte Abrufe');
   });
 }

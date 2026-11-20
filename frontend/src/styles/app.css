@@ -1,69 +1,28 @@
-/* Shared panels, notices, dialogs and legacy navigation helpers. Buttons, chips, tabs and prices live in ui.css. */
-.field { display: grid; gap: 6px; min-width: 0; }
-.field label, .check-label { font-size: var(--text-sm); font-weight: var(--weight-semibold); }
-.field-help { color: var(--color-text-muted); font-size: var(--text-xs); line-height: 1.4; }
-.check-label { display: flex; align-items: center; gap: var(--space-2); min-height: var(--control-h-touch); }
-.notice { padding: var(--space-3) 14px; border: 1px solid var(--color-best-ring); border-radius: var(--radius-control); background: var(--color-best-bg); color: var(--color-text); margin: 0 0 14px; overflow-wrap: anywhere; }
-.notice.error { border-color: var(--color-danger); background: var(--color-danger-bg); color: var(--color-danger-text); }
-.notice .button { margin-inline-start: var(--space-2); }
-.page-heading { margin-bottom: var(--space-panel); }
-.page-heading h1 { margin: 0; }
-.panel, .dashboard-card, .settings-card, .offer-section {
-  min-width: 0;
-  padding: var(--space-panel);
-  border: 0;
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  box-shadow: inset 0 0 0 1px var(--color-border);
-  overflow-wrap: anywhere;
+/* Shared form rows, notices, dialogs and the skip link (the sign-in screen is in pages.css). Primitives live in ui.css, the shell in shell.css. Tokens only. */
+.form-row > label, .field-label { font-size: var(--t-xs); color: var(--text-2); }
+.field-help { color: var(--muted); font-size: var(--t-xs); line-height: 1.4; }
+.notice { padding: 10px 14px; border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--panel-2); color: var(--text); font-size: var(--t-sm); margin: 0 0 14px; overflow-wrap: anywhere; }
+.notice.error { border-color: transparent; background: var(--danger-bg); color: var(--danger); }
+.notice .btn { margin-inline-start: 8px; }
+.card-footnote { color: var(--muted); font-size: var(--t-xs); margin-top: 12px; }
+.source-link { color: var(--accent-2); text-underline-offset: .2em; }
+.text-button { color: var(--accent-2); background: transparent; border: 0; padding: 0; min-height: var(--h-btn); text-decoration: underline; text-underline-offset: .2em; }
+.status-dot { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: var(--ok); }
+.status-dot.searching { background: var(--warn); }
+
+/* Dialogs (ConfirmDialog, InfoDialog, the add dialog): a floating panel like the search popover */
+dialog {
+  color: var(--text); background: var(--panel-2); border: 1px solid var(--line-2); border-radius: var(--r-lg); box-shadow: var(--shadow-pop);
+  width: min(480px, calc(100% - 32px)); max-height: calc(100dvh - 32px); padding: 18px; overflow: auto;
 }
-.panel > :last-child, .dashboard-card > :last-child, .settings-card > :last-child, .offer-section > :last-child { margin-bottom: 0; }
-.card-heading { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); flex-wrap: wrap; }
-.card-heading svg { color: var(--color-text-muted); }
-.card-heading h3 { flex: 1 1 auto; margin: 0; font-size: var(--font-section-size); }
-.card-heading > span { color: var(--muted); font-size: var(--text-xs); }
-.card-heading > .icon-action { margin-left: auto; }
-.card-empty { min-height: 90px; display: grid; justify-items: center; align-content: center; gap: 10px; text-align: center; padding-block: 14px; color: var(--muted); }
-.card-empty p { margin: 0; }
-.card-footnote { color: var(--muted); font-size: var(--text-xs); margin-top: var(--space-3); }
-.section-nav { display: flex; gap: 5px; flex-wrap: wrap; }
-.section-nav button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  min-height: var(--control-h-touch);
-  padding: 6px var(--space-3);
-  border: 1px solid transparent;
-  border-radius: var(--radius-control);
-  background: transparent;
-  color: var(--muted);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-}
-.section-nav button:hover { background: var(--color-raised); color: var(--color-text); }
-.section-nav button.active, .section-nav button[aria-selected='true'] { background: var(--color-raised); color: var(--color-text); border-color: var(--color-border-strong); box-shadow: inset 0 -2px 0 var(--color-accent); }
-.section-nav .compact-label { display: none; }
-dialog { color: var(--color-text); background: var(--color-overlay); border: 0; box-shadow: var(--shadow-overlay), inset 0 0 0 1px var(--color-border-strong); border-radius: var(--radius-sheet); width: min(540px, calc(100% - 28px)); max-height: calc(100dvh - 32px); padding: var(--space-panel); overflow: auto; }
-dialog::backdrop { background: var(--color-backdrop); }
-dialog p { overflow-wrap: anywhere; }
-.dialog-heading, .dialog-actions { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+dialog::backdrop { background: var(--scrim); }
+dialog h2 { margin: 0 0 10px; font-size: var(--t-lg); font-weight: 500; }
+dialog p { overflow-wrap: anywhere; color: var(--text-2); }
+.dialog-heading, .dialog-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.dialog-heading { margin-bottom: 14px; }
 .dialog-heading h2 { margin: 0; }
-.dialog-heading { margin-bottom: var(--space-4); }
-.dialog-heading > button { flex-shrink: 0; min-width: var(--control-h-touch); }
-.dialog-actions { justify-content: flex-end; flex-wrap: wrap; margin-top: 20px; }
-.source-link { color: var(--color-best-text); text-underline-offset: 0.2em; }
-.text-button { color: var(--color-best-text); background: transparent; border: 0; padding: 0; min-height: var(--control-h-touch); text-decoration: underline; text-underline-offset: 0.2em; }
-.status-dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: var(--color-best); }
-.status-dot.searching { background: var(--color-warn); }
-.skip-link { position: fixed; left: var(--space-3); top: -100px; background: var(--color-accent); color: var(--color-on-accent); padding: 10px; z-index: var(--z-toast); border-radius: var(--radius-control); font-weight: var(--weight-semibold); }
+.dialog-actions { justify-content: flex-end; flex-wrap: wrap; margin-top: 18px; gap: 8px; }
+
+.skip-link { position: fixed; left: 12px; top: -100px; background: var(--accent); color: var(--on-accent); padding: 8px 12px; z-index: var(--z-toast); border-radius: var(--r-md); font-weight: 500; }
 .skip-link:focus { top: 10px; }
 .skip-link:not(:focus) { clip-path: inset(50%); width: 1px; height: 1px; overflow: hidden; white-space: nowrap; }
-.auth-layout { min-height: 100dvh; display: grid; place-items: center; padding: 20px; background: radial-gradient(ellipse at 50% 0%, var(--color-accent-bg), transparent 55%), var(--color-bg); }
-.auth-card { width: min(100%, 430px); padding: clamp(20px, 5vw, 32px); border-radius: var(--radius-sheet); background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-border-strong), var(--shadow-overlay); }
-.auth-card .brand { height: 40px; margin-bottom: var(--space-5); }
-.auth-card h1 { margin-bottom: 20px; font-size: var(--text-2xl); }
-.auth-card form { display: grid; gap: var(--space-4); }
-.auth-card .notice { margin: 0; }
-.auth-card .button { margin-top: 4px; width: 100%; }
-.auth-card > p { margin: 0; }

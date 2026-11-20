@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { expectSettingsSaved, signInToFixture } from './helpers';
-import { openTab, removeCurrent, wishlistHeading } from './detail-helpers';
+import { expectSettingsSaved, signInToFixture, navTo, settingsCountry } from './helpers';
+import { openTab, openWishlistRow, removeCurrent, wishlistHeading, wishlistRows } from './detail-helpers';
 
 test('catalog choice persists, editions stay distinct, filters and removal work on mobile', async ({ page }) => {
   const errors: string[] = [];
@@ -21,26 +21,29 @@ test('catalog choice persists, editions stay distinct, filters and removal work 
   await dialog.getByLabel('Spiel im Katalog suchen').fill('forza');
   await expect(dialog.getByRole('button', { name: 'Forza Horizon 5: Premium Edition vormerken', exact: true })).toBeDisabled();
   await dialog.getByRole('button', { name: 'Forza Horizon 5 vormerken', exact: true }).click();
-  await expect(page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('listitem')).toHaveCount(2);
-  await page.getByLabel('Wunschliste filtern').fill('Alternativer Testtitel');
-  await expect(page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('listitem')).toHaveCount(2);
-  await page.getByLabel('Wunschliste filtern').fill('Premium');
-  await expect(page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('listitem')).toHaveCount(1);
-  await page.getByLabel('Wunschliste filtern').fill('');
+  await expect(page.getByRole('heading', { name: 'Forza Horizon 5', exact: true })).toBeVisible();
+  // The game is a page of its own: "Wunschliste" in the breadcrumb leads back to the list.
+  await page.getByRole('navigation', { name: 'Pfad' }).getByRole('button', { name: 'Wunschliste', exact: true }).click();
+  await expect(wishlistRows(page)).toHaveCount(2);
+  await page.getByLabel('Liste filtern').fill('Alternativer Testtitel');
+  await expect(wishlistRows(page)).toHaveCount(2);
+  await page.getByLabel('Liste filtern').fill('Premium');
+  await expect(wishlistRows(page)).toHaveCount(1);
+  await page.getByLabel('Liste filtern').fill('');
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'test-results/wishlist-fixture-desktop.png', fullPage: true });
-  await page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('button', { name: /Premium Edition/ }).click();
+  await openWishlistRow(page, /Premium Edition/);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: 'test-results/wishlist-fixture-mobile.png', fullPage: true });
-  await expect(page.getByRole('button', { name: 'Zur Wunschliste', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Forza Horizon 5: Premium Edition', level: 1 })).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.setViewportSize({ width: 320, height: 800 });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await removeCurrent(page);
-  await expect(page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('listitem')).toHaveCount(1);
-  await page.getByRole('list', { name: 'Vorgemerkte Spiele' }).getByRole('button', { name: /Forza Horizon 5/ }).click();
+  await expect(wishlistRows(page)).toHaveCount(1);
+  await openWishlistRow(page, /Forza Horizon 5/);
   await removeCurrent(page);
-  await expect(page.getByText('0 von 100 Spielen', { exact: true })).toBeVisible();
+  await expect(page.getByText(/^0 von 100 Plätzen/)).toBeVisible();
   await expect(wishlistHeading(page)).toBeFocused();
   expect(errors).toEqual([]);
 });
@@ -67,7 +70,7 @@ test('old search cannot replace newer results, outage differs from empty and man
   await expect(page.getByRole('heading', { name: 'ausfall', exact: true })).toBeVisible();
   await expect(page.getByText('Manueller Titel · Zuordnungen werden vor dem Preisvergleich geprüft.', { exact: true })).toBeVisible();
   await removeCurrent(page);
-  await expect(page.getByText('0 von 100 Spielen', { exact: true })).toBeVisible();
+  await expect(page.getByText(/^0 von 100 Plätzen/)).toBeVisible();
   await expect(wishlistHeading(page)).toBeFocused();
 });
 
@@ -76,7 +79,7 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
   await signInToFixture(page);
   await page.getByRole('searchbox', { name: 'Nach Spielen suchen', exact: true }).fill('forza');
   await page.getByRole('region', { name: 'Suchergebnisse' }).getByRole('button', { name: 'Forza Horizon 5 vormerken', exact: true }).click();
-  await expect(page.getByRole('heading', { name: /^Bester gültiger Preis/ })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Preisvergleich' })).toContainText('Bester Preis');
   await openTab(page, 'Angebote');
   await expect(page.getByText('Suche eingeplant', { exact: true })).toBeVisible();
   await openTab(page, 'Preis');
@@ -96,13 +99,14 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
       target_country: target, discovery_running: false, searches: [{ source: 'eneba', status: 'complete', checked_at: 1794950000, result_count: 4, last_error: null }], sources: [] },
   }) : route.continue());
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Bester gültiger Preis · DE' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Preisvergleich' })).toContainText('Bester Preis · DE');
   await openTab(page, 'Angebote');
   const rows = page.getByRole('table', { name: 'Angebote nach Preis' }).locator('tbody tr');
   await expect(rows).toHaveCount(4);
   // Cheaper foreign offers stay visible, ordered by price, each with the reason why it does not count.
   await expect(rows.first()).toContainText('Vereinigte Staaten');
-  await expect(rows.first()).toContainText('In DE nicht aktivierbar');
+  await expect(rows.first()).toContainText('in DE nicht aktivierbar');
+  await expect(rows.first().getByRole('link', { name: /^Zum Shop/ })).toHaveAttribute('rel', 'noopener noreferrer');
   await expect(rows.filter({ hasText: 'Deutschland' })).toContainText('in DE aktivierbar');
   await expect(page.getByRole('tab', { name: /^Angebote/ })).toContainText('4');
   await openTab(page, 'Editionen');
@@ -110,7 +114,7 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
   await openTab(page, 'Verlauf');
   await expect(page.getByText('Noch keine Preismessung vorhanden.')).toBeVisible();
   await openTab(page, 'Infos');
-  await expect(page.getByRole('heading', { name: 'Über das Spiel' })).toBeVisible();
+  await expect(page.getByText('Erscheinungsjahr', { exact: true })).toBeVisible();
   await expect(page).toHaveURL(/[?&]tab=infos/);
   await page.goBack();
   await expect(page).toHaveURL(/[?&]tab=verlauf/);
@@ -118,19 +122,20 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
   await page.reload();
   await expect(page.getByRole('tab', { name: /^Verlauf/ })).toHaveAttribute('aria-selected', 'true');
   await openTab(page, 'Angebote');
-  await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
-  await page.getByLabel('Zielland', { exact: true }).selectOption('US');
+  await navTo(page, 'Allgemein');
+  await settingsCountry(page).selectOption('US');
   await expectSettingsSaved(page);
   target = 'US';
-  await page.getByRole('button', { name: /^Wunschliste/ }).click();
+  // The sidebar always opens the list; browser back returns to the game and its tab.
+  await page.goBack();
   await expect(page.getByRole('tab', { name: /^Angebote/ })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('table', { name: 'Angebote nach Preis' }).locator('tbody tr')).toHaveCount(4);
   await openTab(page, 'Preis');
-  await expect(page.getByRole('heading', { name: 'Bester gültiger Preis · US' })).toBeVisible();
-  await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
-  await page.getByLabel('Zielland', { exact: true }).selectOption('DE');
+  await expect(page.getByRole('group', { name: 'Preisvergleich' })).toContainText('Bester Preis · US');
+  await navTo(page, 'Allgemein');
+  await settingsCountry(page).selectOption('DE');
   await expectSettingsSaved(page);
   target = 'DE';
-  await page.getByRole('button', { name: /^Wunschliste/ }).click();
+  await page.goBack();
   await removeCurrent(page);
 });

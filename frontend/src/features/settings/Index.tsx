@@ -1,6 +1,6 @@
-import { RowCard } from './parts';
 import IgdbAccess from '../IgdbAccess';
 import type { Settings } from '../../api';
+import { SettingsPanel } from './parts';
 import type { Autosave } from './autosave';
 
 export default function Index({ settings, edit, igdbState, igdbConfigured, csrf, onChanged, onError }: {
@@ -12,9 +12,11 @@ export default function Index({ settings, edit, igdbState, igdbConfigured, csrf,
     <IgdbAccess state={igdbState} configured={igdbConfigured} enabled={igdb?.enabled ?? true}
       onEnabledChange={enabled => edit(current => ({ ...current, sources: current.sources.map(s => s.id === 'igdb' ? { ...s, enabled } : s) }))}
       csrf={csrf} onChanged={onChanged} onError={onError} />
-    <RowCard title="Editionsinhalte von Microsoft / Xbox" headingId="edition-contents-title"
-      sub="Offizielle Bundle-Inhalte ergänzen den Spieleindex für die Vergleichstabelle. Die Zuordnung erfolgt über die bei IGDB belegte Xbox-Store-Version. Zugangsdaten sind dafür nicht nötig." >
-      <span className="set-muted set-aside">Wird beim Editionsvergleich geladen · mit Quellenangabe</span>
-    </RowCard>
+    <SettingsPanel title="Editionsinhalte von Microsoft / Xbox" titleId="edition-contents-title">
+      <div className="form-grid">
+        <p className="hint">Offizielle Bundle-Inhalte ergänzen den Spieleindex für die Vergleichstabelle. Die Zuordnung erfolgt über die bei IGDB belegte Xbox-Store-Version. Zugangsdaten sind dafür nicht nötig.</p>
+        <p className="hint">Wird beim Editionsvergleich geladen · mit Quellenangabe</p>
+      </div>
+    </SettingsPanel>
   </>;
 }

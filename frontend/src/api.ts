@@ -6,6 +6,13 @@ export interface SourceSettings {
   fee_basis_points: number;
   configured: boolean;
   poll_interval_seconds: number;
+  /**
+   * Most fetches per day for this shop (effective value, 20 to 2000; null for IGDB, absent before 0.6.1).
+   * PUT replaces it: null clears the setting, so the default applies again.
+   */
+  daily_jobs?: number | null;
+  /** The default of `daily_jobs` (environment variable or 500), shown as placeholder; null for IGDB. */
+  daily_jobs_default?: number | null;
 }
 export interface Settings {
   target_country: string | null;
@@ -43,7 +50,15 @@ export interface PriceBadgeData {
   stale:boolean;
   pending:boolean;
   /** Cheapest current offer of any region (valid in the target country or not). */
-  world?:{cents:number;region:string|null;observed_at:number|null}|null;
+  world?:{cents:number;source?:string;region:string|null;observed_at:number|null}|null;
+  /**
+   * Best price valid in the target country at the end of each of the last 14 UTC days (cents, oldest → newest, today = now);
+   * null for a day without a valid price. Comes with 0.6.1; optional so older servers keep working.
+   */
+  trend?:(number|null)[];
+  /** Shop and region of the target-country price, when the server reports them . */
+  source?:string|null;
+  region?:string|null;
 }
 export interface WishlistItem {
   price_badge?:PriceBadgeData;
@@ -75,6 +90,24 @@ export async function api<T>(path: string, method = 'GET', body?: unknown, csrf?
   return data as T;
 }
 
+/**
+ * Daily request budget of one shop. `used` and `limit` always exist; the other fields come with the paced worker (0.6.1)
+ * and are optional so the frontend keeps working against an older backend.
+ */
+export interface FetchBudget {
+  used: number;
+  limit: number;
+  /** Where the limit comes from: 'setting' (Key-Shops), 'env' (environment variable) or 'default'. */
+  limit_source?: string;
+  /** Requests per day the current wishlist needs. */
+  demand_per_day?: number;
+  /** Planned spacing between two requests in seconds ("alle 3 Min."). */
+  pace_seconds?: number | null;
+  /** Unix seconds of the next planned request. */
+  next_at?: number | null;
+  /** Requests per hour of today, 24 entries (index 0 = 00:00 local server time). */
+  by_hour?: number[];
+}
 /** GET /status/fetch: queue, budget and pauses per shop (times in Unix seconds). */
 export interface FetchShopStatus {
   source: string;
@@ -82,7 +115,7 @@ export interface FetchShopStatus {
   last_success_at: number | null;
   last_error: string | null;
   paused_until: number | null;
-  budget: { used: number; limit: number };
+  budget: FetchBudget;
   backlog: { due: number; requested: number; products: number; searches: number };
   oldest_due_at: number | null;
   next_due_at: number | null;
