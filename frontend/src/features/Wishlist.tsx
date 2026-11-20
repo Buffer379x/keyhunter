@@ -13,6 +13,7 @@ import { sortWishlist } from './wishlist-sort';
 import type { SortMode } from './wishlist-sort';
 import { itemName, platformName } from './catalog-ui';
 import { whenVisible } from '../poll';
+import { downloadJson, wishlistExport } from './wishlist-export';
 
 interface Props { csrf: string; targetCountry: string | null; targetLabel: string; priceScope: 'preferred' | 'all'; onSettings: () => void; onCountChange: (count: number) => void; onError: (error: unknown) => void }
 // List and detail are separate views below 1024 px.
@@ -184,16 +185,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, priceScope,
     } catch (error) { onError(error); } finally { setPurchasing(false); }
   }
   function exportList() {
-    const data = { version: 1, exported_at: new Date().toISOString(), items: items.map(item => ({
-      title: itemName(item), platform: platformName(item.platform_id), igdb_id: item.game?.igdb_id ?? null,
-      kind: item.game?.kind ?? null, verification: item.verification,
-    })) };
-    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'keyhunter-wunschliste.json';
-    link.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    downloadJson('keyhunter-wunschliste.json', wishlistExport(items));
   }
   const text = filter.toLocaleLowerCase('de-DE');
   const matching = items.filter(item => [itemName(item), ...(item.game?.aliases ?? [])].some(name => name.toLocaleLowerCase('de-DE').includes(text)));
@@ -243,7 +235,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, priceScope,
         <EmptyState icon="heart" title={items.length ? 'Spiel auswählen' : 'Wunschliste leer'} action={!items.length && <Button onClick={() => setSearchOpen(true)} disabled={loading || !!listError}>Im Katalog suchen</Button>}>{items.length ? 'Wähle links ein Spiel, um Preise, Verlauf und Alarm zu sehen.' : ''}</EmptyState>
       </section>}
     <CatalogSearch open={searchOpen} csrf={csrf} items={items} onClose={closeSearch} onAdded={added} onError={onError} />
-    <ConfirmDialog open={removeItem !== null} title="Titel entfernen?" confirmLabel="Entfernen bestätigen" cancelLabel="Behalten" busy={removing} onCancel={() => setRemoveItem(null)} onConfirm={() => void remove()}>
+    <ConfirmDialog open={removeItem !== null} title="Titel entfernen?" confirmLabel="Entfernen bestätigen" danger cancelLabel="Behalten" busy={removing} onCancel={() => setRemoveItem(null)} onConfirm={() => void remove()}>
       <p>„{removeItem ? itemName(removeItem) : ''}“ wird aus deiner Wunschliste entfernt.</p>
       {removeError && <Notice error>{removeError}</Notice>}
     </ConfirmDialog>

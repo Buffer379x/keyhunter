@@ -110,7 +110,7 @@ export default function Shops({ settings, feeDraft, edit, editFee, settle, statu
         </div>}
     </Card>
     <div><button type="button" className="text-button" onClick={onHelp}>Wie werden Gebühren behandelt?</button></div>
-    <ConfirmDialog open={removing !== null} title={removing ? `${shopTitle(removing.id)} entfernen?` : ''} confirmLabel="Entfernen bestätigen" busy={working}
+    <ConfirmDialog open={removing !== null} title={removing ? `${shopTitle(removing.id)} entfernen?` : ''} confirmLabel="Entfernen bestätigen" danger busy={working}
       onCancel={() => setRemoving(null)} onConfirm={() => removing && void change('DELETE', `/settings/shops/${removing.id}`)}>
       <p>Von {removing ? shopTitle(removing.id) : 'diesem Shop'} werden keine Preise mehr abgerufen. Vorhandene Messungen bleiben gespeichert, und du kannst den Shop jederzeit wieder hinzufügen.</p>
       {error && <Notice error>{error}</Notice>}

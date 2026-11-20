@@ -85,7 +85,7 @@ export default function IgdbAccess({ state, configured, enabled, onEnabledChange
       open={confirmRemoval}
       title="IGDB-Zugang entfernen?"
       cancelLabel="Zugang behalten"
-      confirmLabel="Entfernen bestätigen"
+      confirmLabel="Entfernen bestätigen" danger
       busy={busy}
       onCancel={() => setConfirmRemoval(false)}
       onConfirm={() => void change('DELETE')}

@@ -139,6 +139,15 @@ export default function App() {
       .catch(() => {});
     return () => controller.abort();
   }, [screen, page, wishlistCount]);
+  // Opened directly on another page (reload, link): read the wishlist size once for the navigation.
+  useEffect(() => {
+    if (screen !== 'ready' || page === 'wishlist' || wishlistCount !== null) return;
+    const controller = new AbortController();
+    api<unknown[]>('/wishlist', 'GET', undefined, undefined, controller.signal)
+      .then(rows => { if (!controller.signal.aborted) setWishlistCount(rows.length); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [screen, page, wishlistCount]);
 
   const countryNames = useMemo(() => new Intl.DisplayNames(['de'], { type: 'region' }), []);
   const countries = useMemo(() => (auto.settings?.countries ?? []).map(code => ({ code, name: countryNames.of(code) ?? code })).sort((a, b) => a.name.localeCompare(b.name, 'de')), [auto.settings?.countries, countryNames]);

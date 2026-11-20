@@ -115,7 +115,7 @@ export default function Library({ csrf, onRestored, onOpenWishlist, onCountChang
     </ul>}
     <ConfirmDialog open={action !== null} busy={busy} onCancel={() => setAction(null)} onConfirm={() => void confirm()}
       title={action?.kind === 'remove' ? 'Aus der Bibliothek entfernen?' : 'Zurück in die Wunschliste?'}
-      confirmLabel={action?.kind === 'remove' ? 'Entfernen bestätigen' : 'In Wunschliste verschieben'}>
+      confirmLabel={action?.kind === 'remove' ? 'Entfernen bestätigen' : 'In Wunschliste verschieben'} danger={action?.kind === 'remove'}>
       {action?.kind === 'remove'
         ? <p>„{itemName(action.item)}“ wird dauerhaft aus der Bibliothek entfernt. Das lässt sich nicht rückgängig machen.</p>
         : <p>„{action ? itemName(action.item) : ''}“ wird aus der Bibliothek wieder in die Wunschliste verschoben. Der gespeicherte Preisverlauf bleibt erhalten.</p>}
