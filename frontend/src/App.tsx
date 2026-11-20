@@ -10,7 +10,10 @@ import PriceAlerts from './features/PriceAlerts';
 import SettingsPage from './features/SettingsPage';
 import { shopNames } from './features/Offers';
 import { countryCodes } from './features/Country';
-import { Brand, Button, Icon, InfoDialog, Notice } from './components';
+import { Brand, Button, Icon, IconButton, InfoDialog, Notice } from './components';
+import FetchStatus from './FetchStatus';
+import { mediaQuery } from './breakpoints';
+import { useMediaQuery } from './useMediaQuery';
 import { formatFeePercent, parseFeePercent } from './fees';
 
 type Page = 'wishlist' | 'settings' | 'alerts' | 'library';
@@ -29,6 +32,8 @@ export default function App() {
   const [wishlistRevision, setWishlistRevision] = useState(0);
   const [page, setPage] = useState<Page>(routePage);
   const [wishlistCount, setWishlistCount] = useState<number | null>(null);
+  const [libraryCount, setLibraryCount] = useState<number | null>(null);
+  const desktop = useMediaQuery(mediaQuery.desktop);
   const [sourceStatus, setSourceStatus] = useState<SourceStatuses | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [savedCountry, setSavedCountry] = useState<string | null>(null);
@@ -78,7 +83,7 @@ export default function App() {
     setBusy(true); setError('');
     try {
       await api('/session', 'DELETE', undefined, csrf);
-      setCsrf(''); setSettings(null); setWishlistCount(null); setMessage(''); setSearchOpen(false); setPage('wishlist'); setScreen('login');
+      setCsrf(''); setSettings(null); setWishlistCount(null); setLibraryCount(null); setMessage(''); setSearchOpen(false); setPage('wishlist'); setScreen('login');
       window.history.replaceState(null, '', window.location.pathname);
     } catch (e) { handleProtectedError(e); }
     finally { setBusy(false); }
@@ -143,6 +148,15 @@ export default function App() {
     return () => window.removeEventListener('keydown', keyboard);
   }, [openSearch]);
   const openSettings = useCallback(() => navigate('settings'), [navigate]);
+  // The library count in the navigation: one cheap read after sign-in and whenever the wishlist or the page changes.
+  useEffect(() => {
+    if (screen !== 'ready' || page === 'library') return;
+    const controller = new AbortController();
+    api<unknown[]>('/library', 'GET', undefined, undefined, controller.signal)
+      .then(rows => { if (!controller.signal.aborted) setLibraryCount(rows.length); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [screen, page, wishlistCount]);
 
   const countryNames = useMemo(() => new Intl.DisplayNames(['de'], { type: 'region' }), []);
   const countries = useMemo(() => (settings?.countries ?? []).map(code => ({ code, name: countryNames.of(code) ?? code })).sort((a, b) => a.name.localeCompare(b.name, 'de')), [settings?.countries, countryNames]);
@@ -156,23 +170,30 @@ export default function App() {
     </div>
   </main>;
 
+  const navItems: { page: Page; label: string; icon: string; count?: number | null }[] = [
+    { page: 'wishlist', label: 'Wunschliste', icon: 'heart', count: wishlistCount },
+    { page: 'library', label: 'Bibliothek', icon: 'library', count: libraryCount },
+    { page: 'alerts', label: 'Alarme', icon: 'bell' },
+    { page: 'settings', label: 'Einstellungen', icon: 'settings' },
+  ];
   return <div className={`app-shell ${page === 'wishlist' ? 'dashboard-page' : 'settings-page'}`}>
     <a href="#main-content" className="skip-link">Zum Inhalt</a>
-    <aside className="sidebar"><Brand />
-
-      <nav aria-label="Hauptnavigation">
-        <button className={`nav-item ${page === 'wishlist' ? 'active' : ''}`} aria-current={page === 'wishlist' ? 'page' : undefined} onClick={() => navigate('wishlist')}><Icon name="heart" />Wunschliste<span className="count" aria-hidden="true">{wishlistCount ?? '–'}</span></button>
-        <button className={`nav-item ${page === 'library' ? 'active' : ''}`} aria-current={page === 'library' ? 'page' : undefined} onClick={() => navigate('library')}><Icon name="library" />Bibliothek</button>
-        <button className={`nav-item ${page === 'alerts' ? 'active' : ''}`} aria-current={page === 'alerts' ? 'page' : undefined} onClick={() => navigate('alerts')}><Icon name="bell" />Preisalarme</button>
-        <button className={`nav-item ${page === 'settings' ? 'active' : ''}`} aria-current={page === 'settings' ? 'page' : undefined} onClick={() => navigate('settings')}><Icon name="settings" />Einstellungen</button>
+    <aside className="sidebar">
+      <a className="shell-brand" href={window.location.pathname} aria-label="KeyHunter, zur Wunschliste" onClick={event => { event.preventDefault(); navigate('wishlist'); }}><Brand /></a>
+      <div className="shell-search"><CatalogSearch inline csrf={csrf} open={searchOpen} onOpen={openSearch} onClose={closeSearch} onAdded={selectSearchResult} onError={handleProtectedError} /></div>
+      <nav className="main-nav" aria-label="Hauptnavigation">
+        {navItems.map(item => <button key={item.page} className="nav-item" aria-current={page === item.page ? 'page' : undefined} onClick={() => navigate(item.page)}>
+          <Icon name={item.icon} /><span className="label">{item.label}</span>{item.count !== undefined && <span className="count" aria-hidden="true">{item.count ?? '–'}</span>}
+        </button>)}
       </nav>
-      <div className="sidebar-bottom">
-        <small className="version">0.5.0</small>
-        <Button secondary className="logout" aria-label="Abmelden" title="Abmelden" onClick={() => void logout()} disabled={busy}><Icon name="logout" /></Button>
+      {desktop && <FetchStatus />}
+      <button className="target-pill" aria-label="Zielland ändern" onClick={openSettings}><Icon name="globe" /><span className="target-key">Zielland</span>{' '}<span className="target-value">{savedCountry ? targetLabel : 'wählen'}</span></button>
+      <div className="sidebar-foot">
+        <small className="version ui-mono">0.5.0</small>
+        <IconButton variant="ghost" className="logout" label="Abmelden" onClick={() => void logout()} disabled={busy}><Icon name="logout" /></IconButton>
       </div>
     </aside>
     <div className="workspace">
-      <header className="topbar"><CatalogSearch inline csrf={csrf} open={searchOpen} onOpen={openSearch} onClose={closeSearch} onAdded={selectSearchResult} onError={handleProtectedError} /><div className="topbar-right"><button className="target-pill" aria-label="Zielland ändern" onClick={openSettings}><Icon name="globe" /><span>{savedCountry ? targetLabel : 'Zielland wählen'}</span></button></div></header>
       <main id="main-content" tabIndex={-1}>
         {error && <Notice error>{error}</Notice>}
         {message && <Notice>{message}</Notice>}
@@ -218,7 +239,7 @@ function AuthForm({ setup, busy, error, onSubmit }: { setup: boolean; busy: bool
       <div className="field"><label htmlFor="password">Passphrase</label><input id="password" type="password" autoComplete={setup ? 'new-password' : 'current-password'} value={password} onChange={e => setPassword(e.target.value)} required />{setup && <span className="field-help">12 bis 128 Zeichen, gerne mehrere Wörter.</span>}</div>
       {setup && <div className="field"><label htmlFor="password-confirm">Passphrase wiederholen</label><input id="password-confirm" type="password" autoComplete="new-password" value={confirm} onChange={e => setConfirm(e.target.value)} required /></div>}
       {setup && <div className="field"><label htmlFor="setup-country">Zielland</label><select id="setup-country" value={country} onChange={e => setCountry(e.target.value)}>{countryOptions.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}</select><span className="field-help">Für dieses Land werden Angebote als aktivierbar bewertet. Später in den Einstellungen änderbar.</span></div>}
-      <Button type="submit" disabled={busy}>{busy ? 'Bitte warten …' : setup ? 'Privaten Bereich einrichten' : 'Anmelden'}</Button>
+      <Button type="submit" loading={busy}>{busy ? 'Bitte warten …' : setup ? 'Privaten Bereich einrichten' : 'Anmelden'}</Button>
     </form>
   </>;
 }

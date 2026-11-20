@@ -33,7 +33,7 @@ test('an alarm rule opens the editor and offers recover after a temporary read f
   await page.getByLabel('Zielpreis (€)').fill('15,00');
   await page.getByRole('button', { name: 'Alarm anlegen' }).click();
   await expect(page.getByText('Alarmregel gespeichert.')).toBeVisible();
-  await page.getByRole('button', { name: 'Preisalarme', exact: true }).click();
+  await page.getByRole('button', { name: 'Alarme', exact: true }).click();
   await page.getByRole('link', { name: 'Forza Horizon 5', exact: true }).click();
   await expect(page.getByLabel('Zielpreis (€)')).toHaveValue('15,00');
 

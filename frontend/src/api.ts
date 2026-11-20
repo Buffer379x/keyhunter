@@ -72,3 +72,18 @@ export async function api<T>(path: string, method = 'GET', body?: unknown, csrf?
   if (!response.ok) throw new HttpError(response.status, data?.error ?? 'Die Anfrage konnte nicht abgeschlossen werden.', data?.code);
   return data as T;
 }
+
+/** GET /status/fetch: queue, budget and pauses per shop (times in Unix seconds). */
+export interface FetchShopStatus {
+  source: string;
+  enabled: boolean;
+  last_success_at: number | null;
+  last_error: string | null;
+  paused_until: number | null;
+  budget: { used: number; limit: number };
+  backlog: { due: number; requested: number; products: number; searches: number };
+  oldest_due_at: number | null;
+  next_due_at: number | null;
+  worker_seen_at: number | null;
+}
+export interface FetchStatusResponse { shops: FetchShopStatus[]; errors_24h: number; recent_runs: unknown[] }

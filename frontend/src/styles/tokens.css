@@ -1,50 +1,154 @@
+/*
+ * Design tokens, KeyHunter design v3 (docs/modernization/03_UI_UX_REDESIGN.md section 7).
+ * This is the only file that may contain colour literals. Components use tokens only.
+ * Naming: --color-*, --font-*, --text-*, --space-*, --radius-*, --shadow-*, --z-*, --motion-*.
+ */
 :root {
   color-scheme: dark;
-  --font-ui: 'Segoe UI', system-ui, sans-serif;
-  --font-body-size: 14px;
-  --font-section-size: 16px;
-  --bg: #081321;
-  --sidebar: #0b1826;
-  --surface: #102131;
-  --raised: #172b3e;
-  --border: #32495e;
-  --text: #f5f6fa;
-  --muted: #acbacb;
-  --accent: #ff9933;
-  --turquoise: #43ddc4;
-  --focus: #a9d8ff;
-  --radius-control: 8px;
-  --radius-panel: 12px;
+
+  /* Surfaces: dark first, tonal (every level a little lighter instead of a shadow) */
+  --color-bg: #090d12;
+  --color-surface: #0f141a;
+  --color-raised: #141b23;
+  --color-overlay: #1a222c;
+  --color-overlay-hover: #222c38;
+  --color-border: rgb(255 255 255 / 0.06);
+  --color-border-strong: rgb(255 255 255 / 0.1);
+  --color-control-border: rgb(255 255 255 / 0.34); /* form control outline, 3:1 against the page (WCAG 1.4.11) */
+  --color-track: #1a222c; /* empty part of bars and switches */
+  --color-track-fill: #5e6873;
+  --color-backdrop: rgb(2 9 19 / 0.8);
+  --color-glass: rgb(20 27 35 / 0.86);
+
+  /* Text */
+  --color-text: #f1f4f7;
+  --color-text-soft: #b8c2cc;
+  --color-text-muted: #8c97a3;
+  --color-text-disabled: #5e6873;
+
+  /* Brand and interaction. Orange means: you (brand, your action, your target price). */
+  --color-accent: #ff7a1a;
+  --color-accent-hover: #ff9a4d;
+  --color-accent-text: #ff9a4d; /* orange as text on dark surfaces */
+  --color-on-accent: #0b1016;
+  --color-accent-bg: rgb(255 122 26 / 0.12);
+  --color-accent-ring: rgb(255 122 26 / 0.3);
+  --color-focus: #ffb27a;
+
+  /* Status (separate from the brand, always with text) */
+  --color-best: #2ed3c0;
+  --color-best-text: #5fe3d3;
+  --color-best-bg: rgb(46 211 192 / 0.14);
+  --color-best-ring: rgb(46 211 192 / 0.4);
+  --color-warn: #f2c14e;
+  --color-warn-bg: rgb(242 193 78 / 0.13);
+  --color-danger: #ff6b6b;
+  --color-danger-text: #ff8a8a;
+  --color-danger-bg: rgb(255 107 107 / 0.12);
+  --color-danger-bg-hover: rgb(255 107 107 / 0.2);
+  --color-stale: #8f9ba8;
+  --color-neutral-bg: rgb(140 151 163 / 0.14);
+  --color-neutral-ring: rgb(255 255 255 / 0.14);
+  --color-dot-muted: #5e6873;
+
+  /* Typefaces */
+  --font-brand: 'Archivo', 'Segoe UI', sans-serif; /* wordmark only; rendered from outlined SVG paths, no font file */
+  --font-ui: 'Inter', 'Segoe UI', system-ui, sans-serif; /* UI and all prices */
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace; /* short uppercase data labels */
+
+  /* Type scale (1.2), base 16 px, minimum 12 px */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-title: 2rem;
+  --text-price: 1.5rem;
+  --text-price-xl: 4.75rem;
+  --price-xl-tracking: -0.05em; /* the cents part is set at 45 % of the size */
+  --price-tracking: -0.045em;
+  --tracking-title: -0.03em;
+  --tracking-mono: 0.08em;
+  --leading-tight: 1.2;
+  --leading-normal: 1.5;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Spacing (4 px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-control: 12px; /* buttons, inputs */
+  --radius-card: 16px;
+  --radius-sheet: 20px; /* large panels, floating bars */
+  --radius-pill: 999px;
+
+  /* Elevation and layers */
+  --shadow-overlay: 0 12px 32px rgb(0 0 0 / 0.45);
+  --shadow-raised: inset 0 1px 0 rgb(255 255 255 / 0.05);
+  --z-sticky: 10;
+  --z-nav: 20;
+  --z-overlay: 30;
+  --z-toast: 40;
+
+  /* Motion */
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Controls */
+  --control-h: 40px;
+  --control-h-sm: 32px;
+  --control-h-touch: 44px;
+  --focus-ring: 2px solid var(--color-focus);
+
+  /* Breakpoints: custom properties cannot be used in media queries, so the CSS repeats these
+     values literally. src/breakpoints.ts holds the same numbers and tests/breakpoints.test.ts
+     fails when one of the two copies drifts. */
+  --bp-sm: 640px;
+  --bp-md: 1024px;
+  --bp-lg: 1440px;
+
+  /* Legacy names used by screens that have not been restyled yet. They resolve to the new tokens. */
+  --font-body-size: var(--text-sm);
+  --font-section-size: var(--text-md);
+  --bg: var(--color-bg);
+  --sidebar: var(--color-surface);
+  --surface: var(--color-surface);
+  --raised: var(--color-raised);
+  --border: var(--color-border-strong);
+  --text: var(--color-text);
+  --muted: var(--color-text-soft);
+  --accent: var(--color-accent);
+  --turquoise: var(--color-best-text);
+  --focus: var(--color-focus);
+  --radius-panel: var(--radius-card);
   --space-page: clamp(12px, 2.2vw, 32px);
   --space-panel: clamp(12px, 1.5vw, 22px);
+
   font-family: var(--font-ui);
-  color: var(--text);
-  background: var(--bg);
-  line-height: 1.5;
+  font-optical-sizing: auto;
+  color: var(--color-text);
+  background: var(--color-bg);
+  line-height: var(--leading-normal);
 }
-* { box-sizing: border-box; }
-body { margin: 0; }
-button, input, select, textarea { font: inherit; }
-button, summary { cursor: pointer; }
-button:disabled, input:disabled, select:disabled { cursor: not-allowed; opacity: .65; }
-:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-h1, h2, h3, p { margin: 0 0 12px; }
-h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
-h1 { font-size: clamp(23px, 3vw, 30px); letter-spacing: -.025em; }
-h2, h3 { font-size: var(--font-section-size); }
-p { color: var(--muted); }
-input, select {
-  width: 100%;
-  min-width: 0;
-  min-height: 44px;
-  padding: 8px 10px;
-  color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
+
+@media (pointer: coarse) {
+  :root { --control-h: var(--control-h-touch); --control-h-sm: var(--control-h-touch); }
 }
-input[type="checkbox"] { width: 19px; min-height: 19px; flex-shrink: 0; accent-color: var(--accent); }
-input[readonly] { color: var(--muted); }
-code { font-size: .9em; }
-@media (pointer: coarse) { input:not([type="checkbox"]), select { font-size: 16px; } }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; } }
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --motion-fast: 0ms; --motion-base: 0ms; }
+}
