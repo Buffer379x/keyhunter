@@ -285,10 +285,12 @@ mod tests {
         .execute(&pool)
         .await
         .unwrap();
-        sqlx::query("INSERT INTO wishlist_item VALUES('w','g',169,0)")
-            .execute(&pool)
-            .await
-            .unwrap();
+        sqlx::query(
+            "INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES('w','g',169,0)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
         let latest = serde_json::to_string(&product).unwrap();
         for (id, fingerprint) in [(1, product.legacy_fingerprint()), (2, "manual".to_string())] {
             sqlx::query("INSERT INTO offer_link(id,wish_id,source,url,review,fingerprint,latest) VALUES(?,'w','eneba',?,'confirmed',?,?)")

@@ -10,7 +10,7 @@ use axum::{
 use serde::Serialize;
 use std::time::Duration;
 
-const ACTIVE: &str = "SELECT w.id FROM wishlist_item w WHERE w.id=? AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id) AND NOT EXISTS(SELECT 1 FROM edition_preview p WHERE p.track_id=w.id)";
+const ACTIVE: &str = "SELECT w.id FROM wishlist_item w WHERE w.id=? AND w.state='wished'";
 const MISSING: ApiError = ApiError(StatusCode::NOT_FOUND, "Wunschlisteneintrag nicht gefunden.");
 #[derive(Serialize)]
 pub(crate) struct Prepared {
@@ -32,6 +32,14 @@ async fn anchor(state: &Shared, id: &str) -> ApiResult<WishlistItem> {
 }
 async fn snapshot(state: &Shared, id: &str) -> ApiResult<Prepared> {
     let saved = anchor(state, id).await?;
+    // Opening a game counts as viewing its editions: their previews keep being fetched.
+    let t = now();
+    sqlx::query("UPDATE wishlist_item SET viewed_at=? WHERE state='preview' AND COALESCE(viewed_at,0)<? AND id IN (SELECT track_id FROM edition_watch WHERE wish_id=?)")
+        .bind(t)
+        .bind(t - 300)
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
     let mut items = vec![saved];
     let ids: Vec<String> =
         sqlx::query_scalar("SELECT track_id FROM edition_watch WHERE wish_id=? ORDER BY track_id")
@@ -116,7 +124,7 @@ pub(crate) fn start(state: &Shared) {
     tokio::spawn(async move {
         loop {
             if state.catalog.status().await.configured {
-                let id=sqlx::query_scalar::<_,String>("SELECT w.id FROM wishlist_item w JOIN game g ON g.id=w.game_id LEFT JOIN edition_scan e ON e.wish_id=w.id WHERE g.igdb_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM edition_preview p WHERE p.track_id=w.id) AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id) AND COALESCE(e.lease_until,0)<=? AND COALESCE(e.next_attempt,0)<=? AND EXISTS(SELECT 1 FROM source_settings WHERE id='igdb' AND enabled) ORDER BY COALESCE(e.next_attempt,0),w.created_at LIMIT 1")
+                let id=sqlx::query_scalar::<_,String>("SELECT w.id FROM wishlist_item w JOIN game g ON g.id=w.game_id LEFT JOIN edition_scan e ON e.wish_id=w.id WHERE g.igdb_id IS NOT NULL AND w.state='wished' AND COALESCE(e.lease_until,0)<=? AND COALESCE(e.next_attempt,0)<=? AND EXISTS(SELECT 1 FROM source_settings WHERE id='igdb' AND enabled) ORDER BY COALESCE(e.next_attempt,0),w.created_at LIMIT 1")
                     .bind(now()).bind(now()).fetch_optional(&state.pool).await;
                 if let Ok(Some(id)) = id
                     && prepare_one(&state, &id).await.is_err()
@@ -133,7 +141,7 @@ pub(crate) async fn cancel_children(
     conn: &mut sqlx::SqliteConnection,
     anchor: &str,
 ) -> sqlx::Result<()> {
-    sqlx::query("UPDATE shop_job SET lease_until=0,lease_token=NULL WHERE COALESCE(wish_id,(SELECT wish_id FROM offer_link WHERE id=link_id)) IN (SELECT e.track_id FROM edition_watch e JOIN edition_preview p ON p.track_id=e.track_id WHERE e.wish_id=? AND NOT EXISTS(SELECT 1 FROM edition_watch other JOIN wishlist_item w ON w.id=other.wish_id WHERE other.track_id=e.track_id AND other.wish_id!=? AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id) AND NOT EXISTS(SELECT 1 FROM edition_preview ep WHERE ep.track_id=w.id)))")
+    sqlx::query("UPDATE shop_job SET lease_until=0,lease_token=NULL WHERE COALESCE(wish_id,(SELECT wish_id FROM offer_link WHERE id=link_id)) IN (SELECT e.track_id FROM edition_watch e JOIN wishlist_item p ON p.id=e.track_id AND p.state='preview' WHERE e.wish_id=? AND NOT EXISTS(SELECT 1 FROM edition_watch other JOIN wishlist_item w ON w.id=other.wish_id WHERE other.track_id=e.track_id AND other.wish_id!=? AND w.state='wished'))")
         .bind(anchor).bind(anchor).execute(conn).await?;
     Ok(())
 }

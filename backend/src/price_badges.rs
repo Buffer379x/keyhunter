@@ -38,7 +38,7 @@ pub(crate) async fn load(
 ) -> ApiResult<PriceBadge> {
     let t = now();
     let wish = offers::wish(pool, id).await?;
-    let (checked,failed,pending):(Option<i64>,bool,bool)=sqlx::query_as("SELECT MAX(j.checked_at),COALESCE(MAX(j.last_error IS NOT NULL),0),COALESCE(MAX((j.lease_until>? OR j.due<=?) AND s.enabled AND s.configured AND (j.link_id IS NULL OR l.review!='rejected') AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=COALESCE(j.wish_id,l.wish_id)) AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<?)),0) FROM shop_job j JOIN source_settings s ON s.id=j.source JOIN shop_state p ON p.source=j.source LEFT JOIN offer_link l ON l.id=j.link_id WHERE j.wish_id=? OR l.wish_id=?")
+    let (checked,failed,pending):(Option<i64>,bool,bool)=sqlx::query_as("SELECT MAX(j.checked_at),COALESCE(MAX(j.last_error IS NOT NULL),0),COALESCE(MAX((j.lease_until>? OR j.due<=?) AND s.enabled AND s.configured AND (j.link_id IS NULL OR l.review!='rejected') AND COALESCE((SELECT state FROM wishlist_item WHERE id=COALESCE(j.wish_id,l.wish_id)),'wished')!='owned' AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<?)),0) FROM shop_job j JOIN source_settings s ON s.id=j.source JOIN shop_state p ON p.source=j.source LEFT JOIN offer_link l ON l.id=j.link_id WHERE j.wish_id=? OR l.wish_id=?")
         .bind(t).bind(t).bind(t).bind(t/86400).bind(crate::jobs::daily_budget()).bind(id).bind(id).fetch_one(pool).await?;
     let mut result = PriceBadge {
         cents: None,
@@ -122,7 +122,7 @@ pub(crate) async fn list(
 ) -> ApiResult<Json<BTreeMap<String, PriceBadge>>> {
     auth::authenticate(&state, &headers).await?;
     let (target, scope) = context(&state.pool).await?;
-    let ids:Vec<String>=sqlx::query_scalar("SELECT w.id FROM wishlist_item w WHERE NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id) AND (NOT EXISTS(SELECT 1 FROM edition_preview p WHERE p.track_id=w.id) OR EXISTS(SELECT 1 FROM edition_watch e JOIN wishlist_item a ON a.id=e.wish_id WHERE e.track_id=w.id AND (?1 IS NULL OR a.id=?1) AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=a.id) AND NOT EXISTS(SELECT 1 FROM edition_preview p WHERE p.track_id=a.id)))").bind(query.anchor).fetch_all(&state.pool).await?;
+    let ids:Vec<String>=sqlx::query_scalar("SELECT w.id FROM wishlist_item w WHERE w.state!='owned' AND (w.state='wished' OR EXISTS(SELECT 1 FROM edition_watch e JOIN wishlist_item a ON a.id=e.wish_id WHERE e.track_id=w.id AND (?1 IS NULL OR a.id=?1) AND a.state='wished'))").bind(query.anchor).fetch_all(&state.pool).await?;
     let mut entries = BTreeMap::new();
     for id in ids {
         match load(&state.pool, &id, &target, &scope).await {

@@ -213,7 +213,7 @@ pub(crate) async fn list(
     let target = target(&state.pool).await?;
     let t = now();
     // Refresh the activity window of a currently viewed preview; saved wishes are unaffected.
-    sqlx::query("UPDATE edition_preview SET viewed_at=? WHERE track_id=? AND viewed_at<?")
+    sqlx::query("UPDATE wishlist_item SET viewed_at=? WHERE id=? AND state='preview' AND COALESCE(viewed_at,0)<?")
         .bind(t)
         .bind(&id)
         .bind(t - 300)

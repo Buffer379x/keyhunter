@@ -1253,12 +1253,14 @@ async fn library_restore_at_capacity_keeps_ownership_until_space_is_available() 
             .execute(&pool)
             .await
             .unwrap();
-        sqlx::query("INSERT INTO wishlist_item VALUES(?,?,169,1)")
-            .bind(&key)
-            .bind(&key)
-            .execute(&pool)
-            .await
-            .unwrap();
+        sqlx::query(
+            "INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES(?,?,169,1)",
+        )
+        .bind(&key)
+        .bind(&key)
+        .execute(&pool)
+        .await
+        .unwrap();
     }
     let path = format!("/api/v1/library/{id}/restore");
     assert_eq!(
@@ -1615,4 +1617,40 @@ async fn fetch_status_reports_queue_budget_and_requested_refreshes() {
 
     let (s, ready, _) = request(&fx.app, "GET", "/health/ready", Value::Null, None, None).await;
     assert_eq!(s, StatusCode::OK, "{ready}");
+}
+
+#[tokio::test]
+async fn removing_a_library_entry_deletes_it_instead_of_doing_nothing() {
+    let f = Fixture::new().await;
+    let (_, saved) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":1,"platform_id":169}),
+        )
+        .await;
+    let id = saved["item"]["id"].as_str().unwrap().to_string();
+    let purchase = format!("/api/v1/wishlist/{id}/purchase");
+    assert_eq!(
+        f.call("POST", &purchase, json!({})).await.0,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        f.call("GET", "/api/v1/library", Value::Null).await.1[0]["id"],
+        id
+    );
+    assert_eq!(
+        f.call("DELETE", &format!("/api/v1/wishlist/{id}"), Value::Null)
+            .await
+            .0,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        f.call("GET", "/api/v1/library", Value::Null).await.1,
+        json!([])
+    );
+    assert_eq!(
+        f.call("GET", "/api/v1/wishlist", Value::Null).await.1,
+        json!([])
+    );
 }

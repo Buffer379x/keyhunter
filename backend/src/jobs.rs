@@ -103,14 +103,16 @@ pub(crate) fn start(pool: &SqlitePool, heartbeat: Arc<Heartbeat>) {
     }
 }
 
-// Shared SQL conditions; `j` is shop_job and `l` the joined offer_link.
-const NOT_OWNED: &str =
-    "NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=COALESCE(j.wish_id,l.wish_id))";
-const WATCHED_IF_PREVIEW: &str = "NOT EXISTS(SELECT 1 FROM edition_preview ep WHERE ep.track_id=COALESCE(j.wish_id,l.wish_id) AND NOT EXISTS(SELECT 1 FROM edition_watch ew JOIN wishlist_item aw ON aw.id=ew.wish_id WHERE ew.track_id=ep.track_id AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=aw.id) AND NOT EXISTS(SELECT 1 FROM edition_preview ap WHERE ap.track_id=aw.id)))";
-const ANY_ACTIVE_WISH: &str = "EXISTS(SELECT 1 FROM wishlist_item w WHERE NOT EXISTS(SELECT 1 FROM edition_preview ep WHERE ep.track_id=w.id) AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id))";
+// Shared SQL conditions; `j` is shop_job, `l` the joined offer_link and `t` the item the job
+// belongs to (NULL for discovery). `?2` is the current time.
+const ITEM: &str = "LEFT JOIN wishlist_item t ON t.id=COALESCE(j.wish_id,l.wish_id)";
+const NOT_OWNED: &str = "COALESCE(t.state,'wished')!='owned'";
+/// A preview is fetched while an active wish watches it and it was viewed in the last 14 days.
+const WATCHED_IF_PREVIEW: &str = "(COALESCE(t.state,'wished')!='preview' OR (COALESCE(t.viewed_at,0)>?2-1209600 AND EXISTS(SELECT 1 FROM edition_watch ew JOIN wishlist_item aw ON aw.id=ew.wish_id WHERE ew.track_id=t.id AND aw.state='wished')))";
+const ANY_ACTIVE_WISH: &str = "EXISTS(SELECT 1 FROM wishlist_item w WHERE w.state='wished')";
 const CLASS: &str = "CASE
     WHEN j.requested_at>?5 THEN 0
-    WHEN EXISTS(SELECT 1 FROM edition_preview ep WHERE ep.track_id=COALESCE(j.wish_id,l.wish_id)) THEN 4
+    WHEN t.state='preview' THEN 4
     WHEN j.wish_id IS NOT NULL AND j.checked_at IS NULL THEN 0
     WHEN j.link_id IS NULL AND j.wish_id IS NULL THEN 5
     WHEN j.link_id IS NOT NULL THEN CASE WHEN j.relevance=1 THEN 1 ELSE 3 END
@@ -120,7 +122,7 @@ const CLASS: &str = "CASE
 fn claimable() -> String {
     format!(
         "FROM shop_job j JOIN source_settings s ON s.id=j.source JOIN shop_state p ON p.source=j.source
-        LEFT JOIN offer_link l ON l.id=j.link_id
+        LEFT JOIN offer_link l ON l.id=j.link_id {ITEM}
         WHERE j.source=?1 AND s.enabled AND s.configured AND p.retry_at<=?2 AND (p.budget_day!=?3 OR p.jobs_today<?4)
         AND j.due<=?2 AND j.lease_until<=?2 AND (j.link_id IS NULL OR l.review!='rejected')
         AND {NOT_OWNED} AND {WATCHED_IF_PREVIEW} AND {ANY_ACTIVE_WISH}"
@@ -310,7 +312,7 @@ async fn complete(
     .fetch_one(pool)
     .await?;
     let target = target.unwrap_or_default();
-    let preview: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM edition_preview WHERE track_id=COALESCE(?,(SELECT wish_id FROM offer_link WHERE id=?)))")
+    let preview: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM wishlist_item WHERE state='preview' AND id=COALESCE(?,(SELECT wish_id FROM offer_link WHERE id=?)))")
         .bind(&job.wish_id).bind(job.link_id).fetch_one(pool).await?;
     let relevance = match &result {
         Ok(Work::Product(product)) => Some(relevance(product, &target)),
@@ -509,9 +511,10 @@ async fn confirm_discovered(
 
 /// Attach indexed candidates to every non-owned item (after start and after discovery).
 async fn attach(pool: &SqlitePool, shop: Shop) -> anyhow::Result<()> {
-    let ids: Vec<String> = sqlx::query_scalar("SELECT id FROM wishlist_item w WHERE NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id)")
-        .fetch_all(pool)
-        .await?;
+    let ids: Vec<String> =
+        sqlx::query_scalar("SELECT id FROM wishlist_item w WHERE w.state!='owned'")
+            .fetch_all(pool)
+            .await?;
     for id in ids {
         attach_wish(pool, shop, &id).await?;
     }
@@ -555,7 +558,7 @@ async fn attach_wish(pool: &SqlitePool, shop: Shop, id: &str) -> anyhow::Result<
 }
 
 pub(crate) async fn schedule_wish(pool: &SqlitePool, id: &str) -> sqlx::Result<()> {
-    sqlx::query("INSERT OR IGNORE INTO shop_job(source,wish_id,due) SELECT 'eneba',id,? FROM wishlist_item w WHERE id=? AND NOT EXISTS(SELECT 1 FROM library_item b WHERE b.track_id=w.id)")
+    sqlx::query("INSERT OR IGNORE INTO shop_job(source,wish_id,due) SELECT 'eneba',id,? FROM wishlist_item w WHERE id=? AND w.state!='owned'")
         .bind(now()).bind(id).execute(pool).await?;
     for shop in Shop::ALL {
         if let Err(error) = attach_wish(pool, shop, id).await {
@@ -589,14 +592,14 @@ pub(crate) async fn status(
         };
         type Backlog = (i64, Option<i64>, Option<i64>, Option<i64>, Option<i64>);
         let (due, oldest, requested, products, searches): Backlog = sqlx::query_as(AssertSqlSafe(format!(
-            "SELECT COUNT(*),MIN(j.due),SUM(j.requested_at>?2),SUM(j.link_id IS NOT NULL),SUM(j.wish_id IS NOT NULL)
-            FROM shop_job j LEFT JOIN offer_link l ON l.id=j.link_id
-            WHERE j.source=?1 AND j.due<=?3 AND j.lease_until<=?3 AND (j.link_id IS NULL OR l.review!='rejected')
+            "SELECT COUNT(*),MIN(j.due),SUM(j.requested_at>?3),SUM(j.link_id IS NOT NULL),SUM(j.wish_id IS NOT NULL)
+            FROM shop_job j LEFT JOIN offer_link l ON l.id=j.link_id {ITEM}
+            WHERE j.source=?1 AND j.due<=?2 AND j.lease_until<=?2 AND (j.link_id IS NULL OR l.review!='rejected')
             AND {NOT_OWNED} AND {WATCHED_IF_PREVIEW}"
         )))
         .bind(&source)
-        .bind(t - REQUEST_WINDOW)
         .bind(t)
+        .bind(t - REQUEST_WINDOW)
         .fetch_one(&state.pool)
         .await?;
         let next_due: Option<i64> =
@@ -662,7 +665,7 @@ mod tests {
         .execute(&pool)
         .await
         .unwrap();
-        sqlx::query("INSERT INTO wishlist_item VALUES('saved','g',169,0)")
+        sqlx::query("INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES('saved','g',169,0)")
             .execute(&pool)
             .await
             .unwrap();
@@ -699,8 +702,9 @@ mod tests {
         .await
         .unwrap();
         sqlx::query("INSERT INTO game(id,manual_title,manual_key,created_at) VALUES('g2','Other','other',0)").execute(&pool).await.unwrap();
-        sqlx::query("INSERT INTO wishlist_item VALUES('anchor','g',169,0),('preview','g',49,0),('other','g2',169,0)").execute(&pool).await.unwrap();
-        sqlx::query("INSERT INTO edition_preview VALUES('preview',0)")
+        sqlx::query("INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES('anchor','g',169,0),('preview','g',49,0),('other','g2',169,0)").execute(&pool).await.unwrap();
+        sqlx::query("UPDATE wishlist_item SET state='preview',viewed_at=? WHERE id='preview'")
+            .bind(now())
             .execute(&pool)
             .await
             .unwrap();
@@ -727,12 +731,12 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        sqlx::query("UPDATE edition_preview SET viewed_at=?")
+        sqlx::query("UPDATE wishlist_item SET viewed_at=? WHERE state='preview'")
             .bind(now())
             .execute(&pool)
             .await
             .unwrap();
-        sqlx::query("INSERT INTO library_item VALUES('anchor',0)")
+        sqlx::query("UPDATE wishlist_item SET state='owned',acquired_at=0 WHERE id='anchor'")
             .execute(&pool)
             .await
             .unwrap();
@@ -804,12 +808,12 @@ mod tests {
         .execute(&pool)
         .await
         .unwrap();
-        sqlx::query("INSERT INTO wishlist_item VALUES('owned','g',169,0),('active','g',49,0)")
+        sqlx::query("INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES('owned','g',169,0),('active','g',49,0)")
             .execute(&pool)
             .await
             .unwrap();
         schedule_wish(&pool, "owned").await.unwrap();
-        sqlx::query("INSERT INTO library_item VALUES('owned',0)")
+        sqlx::query("UPDATE wishlist_item SET state='owned',acquired_at=0 WHERE id='owned'")
             .execute(&pool)
             .await
             .unwrap();
@@ -839,11 +843,11 @@ mod tests {
         .execute(&pool)
         .await
         .unwrap();
-        sqlx::query("INSERT INTO wishlist_item VALUES('saved','g',169,0),('preview','g',49,0)")
+        sqlx::query("INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES('saved','g',169,0),('preview','g',49,0)")
             .execute(&pool)
             .await
             .unwrap();
-        sqlx::query("INSERT INTO edition_preview VALUES('preview',?)")
+        sqlx::query("UPDATE wishlist_item SET state='preview',viewed_at=? WHERE id='preview'")
             .bind(now() - 2 * DAY)
             .execute(&pool)
             .await
@@ -865,7 +869,7 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        sqlx::query("UPDATE edition_preview SET viewed_at=?")
+        sqlx::query("UPDATE wishlist_item SET viewed_at=? WHERE state='preview'")
             .bind(now())
             .execute(&pool)
             .await
@@ -875,6 +879,18 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(job.wish_id.as_deref(), Some("preview"));
+        // A watched preview nobody opened for 14 days rests until it is viewed again.
+        sqlx::query("UPDATE shop_job SET lease_until=0,lease_token=NULL,checked_at=NULL")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE wishlist_item SET viewed_at=? WHERE id='preview'")
+            .bind(now() - 15 * DAY)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let job = claim(&pool, Shop::Eneba, "idle", now(), 120).await.unwrap();
+        assert_ne!(job.and_then(|j| j.wish_id).as_deref(), Some("preview"));
     }
     #[tokio::test]
     async fn automatic_products_confirm_only_matching_discovered_links_and_preserve_reviews() {
@@ -896,10 +912,12 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        sqlx::query("INSERT INTO wishlist_item VALUES('wish','g',169,0)")
-            .execute(&pool)
-            .await
-            .unwrap();
+        sqlx::query(
+            "INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES('wish','g',169,0)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
         let product = Product {
             id: "fixture".into(),
             name: "Forza Horizon 5".into(),
@@ -972,10 +990,12 @@ mod tests {
             .unwrap();
         sqlx::migrate!("./migrations").run(&pool).await.unwrap();
         sqlx::query("INSERT INTO game(id,manual_title,manual_key,created_at) VALUES('g','Forza Horizon 5','forza horizon 5',0)").execute(&pool).await.unwrap();
-        sqlx::query("INSERT INTO wishlist_item VALUES('wish','g',169,0)")
-            .execute(&pool)
-            .await
-            .unwrap();
+        sqlx::query(
+            "INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES('wish','g',169,0)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
         sqlx::query("UPDATE app_settings SET target_country='DE'")
             .execute(&pool)
             .await
@@ -1013,10 +1033,12 @@ mod tests {
             .unwrap();
         sqlx::migrate!("./migrations").run(&pool).await.unwrap();
         sqlx::query("INSERT INTO game(id,manual_title,manual_key,created_at) VALUES('g','Example','example',0)").execute(&pool).await.unwrap();
-        sqlx::query("INSERT INTO wishlist_item VALUES('wish','g',169,0)")
-            .execute(&pool)
-            .await
-            .unwrap();
+        sqlx::query(
+            "INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES('wish','g',169,0)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
         schedule_wish(&pool, "wish").await.unwrap();
         schedule_wish(&pool, "wish").await.unwrap();
         assert_eq!(
@@ -1058,10 +1080,12 @@ mod tests {
         .execute(&pool)
         .await
         .unwrap();
-        sqlx::query("INSERT INTO wishlist_item VALUES('wish','g',169,0)")
-            .execute(&pool)
-            .await
-            .unwrap();
+        sqlx::query(
+            "INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES('wish','g',169,0)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
         sqlx::query("UPDATE source_settings SET configured=1 WHERE id='driffle'")
             .execute(&pool)
             .await
@@ -1145,12 +1169,14 @@ mod tests {
                 .execute(pool)
                 .await
                 .unwrap();
-            sqlx::query("INSERT INTO wishlist_item VALUES(?,?,169,0)")
-                .bind(id)
-                .bind(id)
-                .execute(pool)
-                .await
-                .unwrap();
+            sqlx::query(
+                "INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES(?,?,169,0)",
+            )
+            .bind(id)
+            .bind(id)
+            .execute(pool)
+            .await
+            .unwrap();
             sqlx::query("INSERT INTO shop_job(source,wish_id,due) VALUES('eneba',?,?)")
                 .bind(id)
                 .bind(T0)
@@ -1189,7 +1215,8 @@ mod tests {
             for e in 0..2 {
                 let preview = format!("p{w}x{e}");
                 item(&pool, &preview).await;
-                sqlx::query("INSERT INTO edition_preview VALUES(?,0)")
+                sqlx::query("UPDATE wishlist_item SET state='preview',viewed_at=? WHERE id=?")
+                    .bind(T0)
                     .bind(&preview)
                     .execute(&pool)
                     .await
