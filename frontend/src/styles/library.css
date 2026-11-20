@@ -2,19 +2,32 @@
 .library-page > .notice { margin: 0; }
 .library-page .head-actions { align-items: center; }
 .library-page .lib-system { width: auto; max-width: 200px; }
-.library-page .lib { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-.library-page .lib-item { display: grid; gap: 8px; align-content: start; min-width: 0; }
-.library-page .lib-item .game-cover { width: 100%; height: auto; aspect-ratio: 3 / 4; border-radius: 10px; }
-.library-page .lib-item .cover-fallback .key-mark { width: 32px; height: 32px; }
-.library-page .lib-info { display: grid; gap: 2px; min-width: 0; }
-.library-page .lib-info b { font-weight: 500; overflow-wrap: anywhere; }
-.library-page .lib-meta { color: var(--muted); font-size: var(--t-xs); }
-.library-page .lib-actions { display: flex; align-items: center; gap: 4px; }
-.library-page .lib-actions .btn { flex: 1 1 auto; }
-.library-page .lib-actions .icon-btn { width: 28px; height: 28px; }
+.library-page .lib { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 16px 12px; }
+.library-page .lib-item { display: grid; grid-template-rows: auto auto; gap: 8px; align-content: start; min-width: 0; }
+.library-page .lib-cover { position: relative; min-width: 0; }
+.library-page .lib-item .game-cover { width: 100%; height: auto; aspect-ratio: 3 / 4; border-radius: 8px; }
+.library-page .lib-item .cover-fallback .key-mark { width: 28px; height: 28px; }
+/* Every tile has the same text block: two title lines, edition or system, purchase date; so the grid never shifts. */
+.library-page .lib-info { display: grid; grid-template-rows: calc(2 * 1.3em) 1.4em 1.4em; gap: 2px; min-width: 0; font-size: var(--t-sm); }
+.library-page .lib-info b {
+  font-weight: 500; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere;
+}
+.library-page .lib-meta { position: relative; color: var(--muted); font-size: var(--t-xs); line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Restore and delete sit in the top right corner of the cover, outlined, only while the lock is open. */
+.library-page .lib-tools { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; }
+.library-page .lib-tools .icon-btn { width: 28px; height: 28px; background: var(--panel); border-color: var(--line-2); box-shadow: 0 1px 3px rgb(0 0 0 / .35); }
+.library-page .lib-tools .icon-btn svg { width: 15px; height: 15px; }
+.library-page .lib-tools .icon-btn.danger { border-color: var(--danger); }
+.library-page .lib-tools .icon-btn.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--danger); border-color: var(--danger); }
+.library-page .lib-lock.open { border-color: var(--accent); color: var(--accent); }
 
 .library-page .lib-skeleton { pointer-events: none; }
 .library-page .lib-ghost { display: block; border-radius: var(--r-sm); background: var(--panel); border: 1px solid var(--line); }
 .library-page .lib-ghost.cover { aspect-ratio: 3 / 4; border-radius: 10px; }
 .library-page .lib-ghost.line { height: 12px; width: 70%; }
+/* Phones: three smaller covers per row (two below 360 px). */
+@media (max-width: 720px) {
+  .library-page .lib { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 14px 10px; }
+  .library-page .lib-bought { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } /* read out, not shown: the date alone fits */
+}
 @media (max-width: 359px) { .library-page .lib { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

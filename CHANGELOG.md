@@ -1,5 +1,13 @@
 # Änderungen
 
+## 0.6.2 – 2026-11-20
+
+Kleine Bedienverbesserungen an Wunschliste und Bibliothek. Keine Datenbankänderung.
+
+### Oberfläche
+- **Wunschliste sortiert über die Spaltenköpfe:** Spiel, Preis im Zielland, günstigste Region, Ersparnis, Ziel und Status. Erster Klick sortiert in der naheliegenden Richtung (Ersparnis: größte zuerst), der zweite dreht um, der dritte kehrt zu „zuletzt hinzugefügt“ zurück. Das Auswahlfeld „Sortieren“ entfällt; auf dem Smartphone stehen die Spaltenköpfe als Sortierleiste über den Karten. Die gewählte Sortierung bleibt erhalten, auch die aus 0.6.1.
+- **Bibliothek:** kleinere Cover und ein einheitlicher Textblock (zwei Zeilen Titel, eine Zeile Edition und Kaufdatum), damit das Raster nicht verspringt. „Zurück in die Wunschliste“ und „Entfernen“ (roter Papierkorb) sitzen als Symbole oben rechts auf dem Cover und erscheinen erst, wenn das Schloss oben auf der Seite geöffnet ist.
+
 ## 0.6.1 – 2026-11-20
 
 Neue, kompaktere Oberfläche (Entwurf v4) und Abrufe, die gleichmäßig über den ganzen Tag laufen statt am Stück bis zum Tageslimit; das Budget ist in der App einstellbar ([Upgrade-Hinweise](docs/operations.md#upgrade-auf-061)).
