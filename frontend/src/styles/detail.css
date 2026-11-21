@@ -212,3 +212,5 @@ dialog.link-review[open] { display: grid; gap: 14px; }
 /* Delete a completely wrong mapping (0.7.3): a small icon button in the top right corner of the mapping. */
 .matches .match-delete { width: 28px; height: 28px; margin-left: auto; flex: none; }
 .matches .match-delete svg { width: 14px; height: 14px; }
+/* Cart button on the game page (0.8.0): pressed while the wish is in the cart. */
+.game-actions .in-cart-btn { border-color: var(--accent); color: var(--accent); }

@@ -91,6 +91,8 @@ export interface WishlistItem {
   verification: 'catalog' | 'needs_review' | 'manual_unverified';
   game: CatalogGame | null;
   manual_title: string | null;
+  /** In the shopping cart (0.8.0); absent from older servers. */
+  in_cart?: boolean;
 }
 export interface LibraryItem extends WishlistItem { acquired_at:number; }
 export type SourceStatuses = Record<string, { state: string; enabled: boolean; configured?: boolean; last_success_at: number | null; retry_at: number | null }>;
@@ -158,6 +160,8 @@ export interface FetchRun {
 export interface FetchStatusResponse { paused_at?: number | null; shops: FetchShopStatus[]; errors_24h: number; recent_runs: FetchRun[] }
 /** Event on window after the automatic checks were paused or resumed, so every status view reloads at once. */
 export const FETCH_STATUS_CHANGED = 'keyhunter:fetch-status';
+/** The shopping cart changed (0.8.0): the navigation reads its count again. */
+export const CART_CHANGED = 'keyhunter:cart';
 
 /** GET /alerts: ntfy channel state and the delivery log (wish_id is null for test messages). */
 export interface AlertEvent { id: number; wish_id: string | null; state: string; observed_at: number; sent_at: number | null; cents: number | null; attempts: number }

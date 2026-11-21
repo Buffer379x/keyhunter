@@ -1,5 +1,6 @@
 mod alerts;
 mod auth;
+mod cart;
 pub mod catalog;
 pub mod config;
 mod edition_tracking;
@@ -251,6 +252,8 @@ async fn create_app_inner(
         .route("/alerts", get(alerts::list))
         .route("/alerts/test", post(alerts::test_message))
         .route("/wishlist/{id}", axum::routing::delete(wishlist::remove))
+        .route("/cart", get(cart::list).post(cart::add))
+        .route("/cart/{id}", axum::routing::delete(cart::remove))
         .route(
             "/settings",
             get(settings::get_settings).put(settings::put_settings),

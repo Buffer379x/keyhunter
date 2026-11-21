@@ -74,6 +74,10 @@ Zu einem gemerkten Katalogspiel werden bis zu 30 zur Plattform und IGDB-Editions
 
 Versteckte Editionen bleiben nur mit einem aktiven gemerkten Anker für Preisabfragen zugelassen. Kauf oder Löschen dieses Ankers beendet ihre Hintergrundabfragen, soweit kein anderer Wunsch sie weiter benötigt. Die Obergrenze für versteckte Editionen beträgt 3000. Bibliothekseinträge bleiben von Shopabfragen ausgeschlossen. Die Länderzeilen sortieren ausschließlich nach Grundpreis bzw. gewählter Gebührenschätzung; die günstigste Region steht oben, auch wenn sie im Zielland nicht gilt. Jede Zeile nennt, ob sie für das Zielland zählt, oder den Grund ihres Ausschlusses. Darüber vergleicht die Übersicht immer den besten im Zielland gültigen Preis mit der günstigsten Region aller Länder und nennt die Differenz. Der Preisverlauf zeigt beide Reihen gemeinsam.
 
+## Warenkorb
+
+Der Warenkorb (`cart_item`, 0.8.0) speichert nur, welche Wünsche darin liegen; `GET /api/v1/cart` liefert sie mit demselben Preis-Badge wie die Wunschliste. Je Spiel zählt das günstigste Angebot nach Key-Preis, wahlweise im Zielland aktivierbar oder aus allen Regionen, mit der Gebührenschätzung seines Shops. Kauf (`state='owned'`) und Löschen entfernen den Eintrag.
+
 ## Gamivo (nicht unterstützt)
 
 Gamivo wurde für 0.7.4 geprüft. robots.txt erlaubt Produktseiten und nennt Sitemaps, sperrt aber `/api/*` und die Suche. Alle übrigen Seiten, auch Sitemaps und Produktseiten, beantwortet Cloudflare für KeyHunters offene Kennung mit HTTP 403 („Sorry, you have been blocked“). KeyHunter umgeht keinen Bot-Schutz, etwa durch eine vorgetäuschte Browser-Kennung, und hat deshalb keinen Gamivo-Reader.

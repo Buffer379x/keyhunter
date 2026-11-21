@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, HttpError } from './api';
+import { api, CART_CHANGED, HttpError } from './api';
 import type { Settings, SourceStatuses } from './api';
 import Wishlist, { returnToList } from './features/Wishlist';
 import Library from './features/Library';
+import Cart from './features/Cart';
 import CatalogSearch from './features/CatalogSearch';
 import type { WishlistItem } from './api';
 import PriceAlerts from './features/PriceAlerts';
@@ -19,10 +20,10 @@ import { appVersion } from './version';
 import { routeSection, sectionLabel, sections } from './features/settings/sections';
 import type { Section } from './features/settings/sections';
 
-type Page = 'wishlist' | 'settings' | 'alerts' | 'library';
+type Page = 'wishlist' | 'settings' | 'alerts' | 'library' | 'cart';
 function routePage(): Page {
   const view = new URL(window.location.href).searchParams.get('view');
-  return view === 'settings' || view === 'alerts' || view === 'library' ? view : 'wishlist';
+  return view === 'settings' || view === 'alerts' || view === 'library' || view === 'cart' ? view : 'wishlist';
 }
 
 type Screen = 'loading' | 'setup' | 'login' | 'ready' | 'offline';
@@ -42,6 +43,8 @@ export default function App() {
   const [wishlistCount, setWishlistCount] = useState<number | null>(null);
   const [libraryCount, setLibraryCount] = useState<number | null>(null);
   const [alertCount, setAlertCount] = useState<number | null>(null);
+  const [cartCount, setCartCount] = useState<number | null>(null);
+  const [cartRevision, setCartRevision] = useState(0);
   const drawer = useMediaQuery(mediaQuery.drawer);
   const [sourceStatus, setSourceStatus] = useState<SourceStatuses | null>(null);
   const [busy, setBusy] = useState(false);
@@ -83,7 +86,7 @@ export default function App() {
     } catch (e) { setError(errorText(e)); }
     finally { setBusy(false); }
   }
-  const resetSession = () => { setCsrf(''); setWishlistCount(null); setLibraryCount(null); setAlertCount(null); setSearchOpen(false); setAddOpen(false); setLibraryAddOpen(false); setNavOpen(false); };
+  const resetSession = () => { setCsrf(''); setWishlistCount(null); setLibraryCount(null); setAlertCount(null); setCartCount(null); setSearchOpen(false); setAddOpen(false); setLibraryAddOpen(false); setNavOpen(false); };
   async function logout() {
     setBusy(true); setError('');
     try {
@@ -110,7 +113,7 @@ export default function App() {
         url.searchParams.set('view', 'settings'); refreshSources();
         if (nextSection === 'general') url.searchParams.delete('section'); else url.searchParams.set('section', nextSection);
         document.getElementById('main-content')?.scrollTo?.({ top: 0 });
-      } else if (next === 'alerts' || next === 'library') url.searchParams.set('view', next);
+      } else if (next === 'alerts' || next === 'library' || next === 'cart') url.searchParams.set('view', next);
       else url.searchParams.delete('view');
       if (next !== 'settings') url.searchParams.delete('section');
       // The game is a page of its own below the wishlist: every navigation entry leads to a list, never to the last game.
@@ -196,6 +199,20 @@ export default function App() {
       .catch(() => {});
     return () => controller.abort();
   }, [screen, page, wishlistCount]);
+  // The cart count (0.8.0): after sign-in, on every page change and whenever the cart changes.
+  useEffect(() => {
+    const changed = () => setCartRevision(n => n + 1);
+    window.addEventListener(CART_CHANGED, changed);
+    return () => window.removeEventListener(CART_CHANGED, changed);
+  }, []);
+  useEffect(() => {
+    if (screen !== 'ready') return;
+    const controller = new AbortController();
+    api<unknown[]>('/cart', 'GET', undefined, undefined, controller.signal)
+      .then(rows => { if (!controller.signal.aborted) setCartCount(rows.length); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [screen, page, wishlistCount, cartRevision]);
   // Opened directly on another page (reload, link): read the wishlist size once for the navigation.
   useEffect(() => {
     if (screen !== 'ready' || page === 'wishlist' || wishlistCount !== null) return;
@@ -214,6 +231,7 @@ export default function App() {
 
   const overview: { page: Page; label: string; icon: IconName; count: number | null }[] = [
     { page: 'wishlist', label: 'Wunschliste', icon: 'heart', count: wishlistCount },
+    { page: 'cart', label: 'Warenkorb', icon: 'cart', count: cartCount },
     { page: 'library', label: 'Bibliothek', icon: 'library', count: libraryCount },
     { page: 'alerts', label: 'Preisalarme', icon: 'bell', count: alertCount },
   ];
@@ -257,6 +275,7 @@ export default function App() {
         {error && <Notice error>{error}</Notice>}
         {page === 'wishlist' ? <Wishlist key={wishlistRevision} csrf={csrf} targetCountry={savedCountry} columns={auto.saved?.wishlist_columns} hidden={auto.saved?.wishlist_hidden} opener={auto.saved?.wishlist_open} targetLabel={targetLabel ?? 'Noch nicht gewählt'} addOpen={addOpen} onAddOpen={setAddOpen} onTitle={setGameTitle} onSettings={() => openSettings()} onCountChange={setWishlistCount} onError={handleProtectedError} />
           : page === 'library' ? <Library csrf={csrf} addOpen={libraryAddOpen} onAddOpen={setLibraryAddOpen} onRestored={selectSearchResult} onOpenWishlist={() => navigate('wishlist')} onCountChange={setLibraryCount} onError={handleProtectedError} />
+            : page === 'cart' ? <Cart csrf={csrf} targetCountry={savedCountry ?? ''} onOpen={selectSearchResult} onOpenWishlist={() => navigate('wishlist')} onError={handleProtectedError} />
             : page === 'alerts' ? <PriceAlerts csrf={csrf} targetCountry={savedCountry} targetLabel={targetLabel ?? 'Zielland'} onError={handleProtectedError} />
               : auto.settings && <SettingsPage section={section} onSection={openSettings} settings={auto.settings} auto={auto} csrf={csrf} busy={busy} countries={countries} sourceStatus={sourceStatus}
                 onSourcesChanged={refreshSources} onError={handleProtectedError} onHelp={() => setDialogOpen(true)} onLogout={() => void logout()} />}
