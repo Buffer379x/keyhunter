@@ -669,6 +669,34 @@ async fn catalog_errors_do_not_become_empty_results_and_fresh_cache_works_offlin
         .call("GET", "/api/v1/catalog/search?q=empty", Value::Null)
         .await;
     assert_eq!(empty["games"], json!([]));
+    // An IGDB ID puts that game first (once), next to the normal text results; an ID of another platform or an
+    // unknown ID changes nothing.
+    let ids = |result: &Value| -> Vec<i64> {
+        result["games"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|g| g["igdb_id"].as_i64().unwrap())
+            .collect()
+    };
+    let (status, by_id) = f
+        .call("GET", "/api/v1/catalog/search?q=%235", Value::Null)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(ids(&by_id), vec![5, 1, 2, 4, 6]);
+    let (_, prefixed) = f
+        .call("GET", "/api/v1/catalog/search?q=igdb%3A6", Value::Null)
+        .await;
+    assert_eq!(ids(&prefixed)[0], 6);
+    let (_, pc) = f
+        .call("GET", "/api/v1/catalog/search?q=igdb%3A3", Value::Null)
+        .await;
+    assert_eq!(ids(&pc), vec![1, 2, 4, 5, 6]);
+    let (status, unknown) = f
+        .call("GET", "/api/v1/catalog/search?q=%2399", Value::Null)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(ids(&unknown), vec![1, 2, 4, 5, 6]);
     f.provider.offline.store(true, Ordering::SeqCst);
     let (status, cached) = f
         .call("GET", "/api/v1/catalog/search?q=Example", Value::Null)

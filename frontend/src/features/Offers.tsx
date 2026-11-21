@@ -58,7 +58,7 @@ export default function OffersTab({ state, rows, summary, basis, onBasis, hasEst
             const diff = row.price !== null && summary.targetCents !== null ? row.price - summary.targetCents : null;
             return <tr key={row.key} className={row.key === bestKey ? 'best' : undefined}>
               <td><b className="shop">{shopName(row)}</b>{row.quote?.seller && <small className="muted seller">{row.quote.seller}</small>}</td>
-              <td><div className="world-cell"><Reg code={regionCode(row.link.product?.region)} home={regionCode(row.link.product?.region) === code} />{regionName(row)}</div></td>
+              <td><div className="world-cell"><Reg code={regionCode(row.link.product?.region)} home={regionCode(row.link.product?.region) === code} decorative />{regionName(row)}</div></td>
               <td><Pill tone={valid.tone} icon={valid.icon}>{valid.text}</Pill>{reasons.length > 0 && <small className="muted reasons">{reasons.join(' · ')}</small>}</td>
               <td className="r">{row.price !== null ? <Price cents={row.price} tone={row.key === bestKey ? 'hot' : 'default'} /> : <span className="price-missing">{missingText(row)}</span>}</td>
               <td className="r">{diff === null ? <span className="save none">–</span> : Math.abs(diff) < 1 ? <span className="save none">bester</span>

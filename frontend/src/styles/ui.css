@@ -56,6 +56,12 @@
   font: 500 10px/1 var(--f-mono); letter-spacing: .04em; color: var(--text-2); background: var(--panel-3); border: 1px solid var(--line-2);
 }
 .reg.home { color: var(--accent-2); border-color: var(--accent-line); background: var(--accent-bg); }
+/* (0.6.3) Flags instead of letter codes; areas without a flag show a globe. */
+.reg.flag { min-width: 0; width: 22px; height: 16px; padding: 0; overflow: hidden; border-radius: 3px; border-color: var(--cover-line); background: var(--panel-3); }
+.reg.flag img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.reg.area { min-width: 0; width: 22px; height: 16px; padding: 0; border-radius: 3px; color: var(--text-2); }
+.reg.area svg { width: 12px; height: 12px; }
+.reg.flag.home, .reg.area.home { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 
 /* Segmented control */
 .seg { display: inline-flex; padding: 2px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); max-width: 100%; overflow-x: auto; scrollbar-width: none; }

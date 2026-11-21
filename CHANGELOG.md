@@ -1,5 +1,16 @@
 # Änderungen
 
+## 0.6.3 – 2026-11-20
+
+Länderflaggen sind zurück, die Wunschliste öffnet Spiele über einen Details-Knopf, und Spiele lassen sich über ihre IGDB-ID finden. Keine Datenbankänderung.
+
+### Oberfläche
+- **Flaggen statt Kürzel:** Regionen erscheinen wieder als Länderflagge (Europa mit EU-Flagge); Global, Nordamerika, Rest der Welt und Lateinamerika als Globus. Das Zielland hat einen orangen Rand, der Name steht im Tooltip und für Screenreader.
+- **Details-Knopf in der Wunschliste:** Ein Spiel öffnet sich über das Details-Symbol am Ende der Zeile (auf dem Smartphone rechts in der Karte). Ein Klick irgendwo in der Zeile öffnet nichts mehr, damit man Werte markieren und kopieren kann.
+
+### Neu
+- **Suche per IGDB-ID:** Im Dialog „Spiel hinzufügen“ findet `119171`, `#119171` oder `igdb:119171` genau dieses Spiel, wenn es für die gewählte Plattform erscheint. Es steht dann an erster Stelle; die normale Titelsuche läuft trotzdem mit, damit auch Spiele mit Zahlen im Namen („1942“) gefunden werden.
+
 ## 0.6.2 – 2026-11-20
 
 Kleine Bedienverbesserungen an Wunschliste und Bibliothek. Keine Datenbankänderung.

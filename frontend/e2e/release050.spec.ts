@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { signInToFixture, navTo } from './helpers';
-import { backToList, removeCurrent, wishlistRows, wishlistTable } from './detail-helpers';
+import { backToList, detailsButton, removeCurrent, wishlistRows, wishlistTable } from './detail-helpers';
 
 test('tablet opens the labeled navigation as a drawer and gives the selected game its own view in portrait', async ({ page }) => {
   await page.setViewportSize({ width: 820, height: 1180 });
@@ -26,7 +26,7 @@ test('tablet opens the labeled navigation as a drawer and gives the selected gam
   await expect(wishlistTable(page)).toBeHidden();
   await backToList(page);
   await expect(wishlistTable(page)).toBeVisible();
-  await wishlistRows(page).first().click();
+  await detailsButton(wishlistRows(page).first()).click();
   await removeCurrent(page);
   await expect(page.getByRole('status').filter({ hasText: 'aus der Wunschliste entfernt' })).toBeVisible();
 });
