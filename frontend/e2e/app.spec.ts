@@ -13,16 +13,16 @@ test('owner can set up, save service fees, use keyboard dialog, and log in again
   await expect(page.getByRole('note').filter({ hasText: 'Die Shops bestätigen die Aktivierung derzeit nur für Deutschland. Für Österreich werden Angebote angezeigt' })).toBeVisible();
   await settingsCountry(page).selectOption('DE');
   await expect(page.getByRole('note').filter({ hasText: 'Die Shops bestätigen' })).toHaveCount(0);
-  // Changes stay a draft: leaving the page asks first, and after "Speichern" the shell shows the new country.
+  // Changes stay a draft: leaving the page asks first, and after "Speichern" the wishlist uses the new country.
   await settingsCountry(page).selectOption('FR');
   await navTo(page, 'Wunschliste');
   await page.getByRole('dialog', { name: 'Änderungen speichern?', exact: true }).getByRole('button', { name: 'Speichern', exact: true }).click();
-  await expect(page.getByRole('complementary', { name: 'Seitenleiste' }).getByLabel('Zielland', { exact: true })).toHaveValue('FR');
+  await expect(page.locator('.wishlist-page .page-head p')).toContainText('Zielland Frankreich');
   await navTo(page, 'Allgemein');
   await settingsCountry(page).selectOption('DE');
   await saveSettings(page);
   await navTo(page, 'Wunschliste');
-  await expect(page.getByRole('complementary', { name: 'Seitenleiste' }).getByLabel('Zielland', { exact: true })).toHaveValue('DE');
+  await expect(page.locator('.wishlist-page .page-head p')).toContainText('Zielland Deutschland');
   await navTo(page, 'Allgemein');
   await navTo(page, 'Key-Shops');
   const eneba = page.getByRole('article', { name: 'Eneba' });

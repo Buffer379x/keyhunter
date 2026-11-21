@@ -8,7 +8,7 @@ import type { WishlistItem } from './api';
 import PriceAlerts from './features/PriceAlerts';
 import SettingsPage from './features/SettingsPage';
 import AuthScreen from './features/AuthScreen';
-import { Brand, Button, Icon, IconButton, InfoDialog, Notice, Toast } from './components';
+import { Brand, Button, Icon, IconButton, InfoDialog, Notice } from './components';
 import type { IconName } from './components';
 import FetchStatus from './FetchStatus';
 import { mediaQuery } from './breakpoints';
@@ -41,7 +41,6 @@ export default function App() {
   const [wishlistCount, setWishlistCount] = useState<number | null>(null);
   const [libraryCount, setLibraryCount] = useState<number | null>(null);
   const [alertCount, setAlertCount] = useState<number | null>(null);
-  const [toast, setToast] = useState('');
   const drawer = useMediaQuery(mediaQuery.drawer);
   const [sourceStatus, setSourceStatus] = useState<SourceStatuses | null>(null);
   const [busy, setBusy] = useState(false);
@@ -207,14 +206,6 @@ export default function App() {
   const countryNames = useMemo(() => new Intl.DisplayNames(['de'], { type: 'region' }), []);
   const countries = useMemo(() => (auto.settings?.countries ?? []).map(code => ({ code, name: countryNames.of(code) ?? code })).sort((a, b) => a.name.localeCompare(b.name, 'de')), [auto.settings?.countries, countryNames]);
   const targetLabel = savedCountry ? countryNames.of(savedCountry) : 'Noch nicht gewählt';
-  const chosenCountry = auto.saved?.target_country ?? '';
-  /** The sidebar country switch is a direct control: it saves at once, unsaved settings edits stay a draft. */
-  async function changeCountry(code: string) {
-    if (await auto.apply(current => ({ ...current, target_country: code || null })))
-      setToast(code ? `Zielland: ${countryNames.of(code) ?? code}` : 'Zielland entfernt');
-    else setToast('Zielland konnte nicht gespeichert werden.');
-  }
-  const clearToast = useCallback(() => setToast(''), []);
 
   if (screen !== 'ready') return <AuthScreen screen={screen} busy={busy} error={error} onRetry={() => void initialize()} onSubmit={signIn} />;
 
@@ -245,11 +236,6 @@ export default function App() {
       </nav>
       <div className="side-foot">
         <FetchStatus onOpen={() => openSettings('status')} />
-        <label className="country"><span className="muted">Zielland</span>
-          <select aria-label="Zielland" value={chosenCountry} onChange={event => changeCountry(event.target.value)}>
-            {!chosenCountry && <option value="">Bitte wählen</option>}
-            {countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
-          </select></label>
         <button type="button" className="nav-item" onClick={() => void logout()} disabled={busy}><Icon name="logout" />Abmelden</button>
       </div>
     </aside>
@@ -278,6 +264,5 @@ export default function App() {
       onSave={async () => { const ok = await auto.save(); if (ok) setLeaving(null); return ok; }}
       onDiscard={() => { auto.discard(); setLeaving(null); }}
       onBack={() => { const back = leaving ?? 'general'; setLeaving(null); navigate('settings', back); }} />
-    <Toast message={toast} onDone={clearToast} />
   </div>;
 }

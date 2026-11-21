@@ -45,20 +45,25 @@ test('top bar: breadcrumbs follow the page, the bell opens the alarms, "Spiel hi
   await removeCurrent(page);
 });
 
-test('the sidebar target country saves itself and the settings page shows the same value', async ({ page }) => {
+test('the target country is chosen only in the settings and counts after Speichern', async ({ page }) => {
   await signInToFixture(page);
-  const sidebarCountry = page.getByRole('complementary', { name: 'Seitenleiste' }).getByLabel('Zielland', { exact: true });
-  const saved = page.waitForRequest(r => r.url().endsWith('/api/v1/settings') && r.method() === 'PUT');
-  await sidebarCountry.selectOption('AT');
-  expect((await saved).postDataJSON().target_country).toBe('AT');
-  await expect(page.getByRole('status').filter({ hasText: 'Zielland: Österreich' })).toBeVisible();
+  // 0.6.5: no country switch in the sidebar any more.
+  await expect(page.getByRole('complementary', { name: 'Seitenleiste' }).getByLabel('Zielland', { exact: true })).toHaveCount(0);
+  const sub = page.locator('.wishlist-page .page-head p');
+  await expect(sub).toContainText('Zielland Deutschland');
   await navTo(page, 'Allgemein');
-  await expect(settingsCountry(page)).toHaveValue('AT');
+  await settingsCountry(page).selectOption('AT');
+  // Not saved yet: the rest of the app still uses the saved country.
+  expect((await (await page.request.get('/api/v1/settings')).json()).target_country).toBe('DE');
+  await saveSettings(page);
+  expect((await (await page.request.get('/api/v1/settings')).json()).target_country).toBe('AT');
+  await navTo(page, 'Wunschliste');
+  await expect(sub).toContainText('Zielland Österreich');
+  await navTo(page, 'Allgemein');
   await settingsCountry(page).selectOption('DE');
   await saveSettings(page);
-  await expect(sidebarCountry).toHaveValue('DE');
   await page.reload();
-  await expect(sidebarCountry).toHaveValue('DE');
+  await expect(settingsCountry(page)).toHaveValue('DE');
 });
 
 test('phone layout: no breadcrumbs, the search fills the top bar and the drawer closes after navigating', async ({ page }) => {

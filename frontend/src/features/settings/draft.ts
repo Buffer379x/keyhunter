@@ -12,8 +12,6 @@ const feeDrafts = (data: Settings) => Object.fromEntries(data.sources.map(source
  * Settings that the owner saves by hand (0.6.5).
  * - edit(update) and editFee(id, text) change only the draft; nothing is sent.
  * - save() sends the draft (fees are checked first), discard() returns to the last saved state.
- * - apply(update) saves one change at once on top of the saved state (the target country in the sidebar is a direct
- *   control outside the settings page); open edits of the draft stay as they are.
  * - A change made while saving is kept: the draft stays dirty with it.
  * `saved` is the last state the server confirmed; every other page reads only that.
  */
@@ -90,19 +88,6 @@ export function useSettingsDraft({ csrf, onSaved, onProtectedError }: {
     adopt(base.current); setState('clean'); setError('');
   }, [adopt]);
 
-  const apply = useCallback(async (update: (current: Settings) => Settings): Promise<boolean> => {
-    if (!base.current || !draft.current) return false;
-    const pending = version.current !== savedVersion.current;
-    try {
-      const result = await api<Settings>('/settings', 'PUT', update(base.current), latest.current.csrf);
-      base.current = result; setSavedState(result);
-      if (pending && draft.current) { draft.current = update(draft.current); setSettingsState(draft.current); }
-      else adopt(result);
-      latest.current.onSaved(result);
-      return true;
-    } catch (e) { failed(e); return false; }
-  }, [adopt, failed]);
-
   const dirty = state !== 'clean';
   // Warn when the tab is closed with unsaved changes; nothing is saved without the button.
   useEffect(() => {
@@ -112,7 +97,7 @@ export function useSettingsDraft({ csrf, onSaved, onProtectedError }: {
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
 
-  return { settings, saved, feeDraft, state, error, dirty, edit, editFee, save, discard, apply, reset };
+  return { settings, saved, feeDraft, state, error, dirty, edit, editFee, save, discard, reset };
 }
 
 export type SettingsDraft = ReturnType<typeof useSettingsDraft>;

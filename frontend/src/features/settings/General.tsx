@@ -39,7 +39,7 @@ export default function General({ settings, countries, edit, onError }: {
         </div>
         {unconfirmed
           ? <div className="note warn" role="note" data-testid="activation-note"><Icon name="alert" /><span>Die Shops bestätigen die Aktivierung derzeit nur für Deutschland. Für {nameOf(target)} werden Angebote angezeigt, zählen aber nicht als gültiger Bestpreis.</span></div>
-          : <p className="hint">Der beste Preis gilt für dieses Land. Die Wunschliste zeigt immer diesen Preis und daneben die günstigste Region weltweit. Die Shops bestätigen die Aktivierung derzeit für {confirmed.map(nameOf).join(', ')}; Preise werden in Euro verglichen.</p>}
+          : <p className="hint">Der beste Preis gilt für dieses Land. Die Wunschliste zeigt immer diesen Preis und daneben die günstigste Region weltweit. Abgefragt werden alle Regionen gleich, das Zielland wird nicht bevorzugt. Die Shops bestätigen die Aktivierung derzeit für {confirmed.map(nameOf).join(', ')}; Preise werden in Euro verglichen.</p>}
       </div>
     </SettingsPanel>
 

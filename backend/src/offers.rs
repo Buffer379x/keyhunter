@@ -195,11 +195,11 @@ pub(crate) async fn links<'e>(
     id: &str,
     ts: i64,
 ) -> sqlx::Result<Vec<Link>> {
-    // check_every follows jobs::effective_interval: three times as long when not valid in the target country, twice for
-    // an edition preview, times the price-trend pace, between 15 minutes (or the shop interval) and a week.
+    // check_every follows jobs::effective_interval: twice as long for an edition preview, times the price-trend pace,
+    // between 15 minutes (or the shop interval) and a week.
     sqlx::query_as("SELECT l.*, (s.enabled AND s.configured) AS enabled, s.fee_estimation_enabled, s.fee_basis_points, p.retry_at,
         COALESCE(j.lease_until>?,0) OR COALESCE(j.due<=? AND s.enabled AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<COALESCE(s.daily_jobs,?)),0) AS queued,
-        CAST(MIN(604800,MAX(MIN(900,s.poll_interval_seconds),ROUND(s.poll_interval_seconds*CASE WHEN j.relevance=2 THEN 3 ELSE 1 END
+        CAST(MIN(604800,MAX(MIN(900,s.poll_interval_seconds),ROUND(s.poll_interval_seconds
             *CASE WHEN w.state='preview' THEN 2 ELSE 1 END*j.pace))) AS INTEGER) AS check_every
         FROM offer_link l JOIN source_settings s ON s.id=l.source JOIN shop_state p ON p.source=l.source
         JOIN wishlist_item w ON w.id=l.wish_id LEFT JOIN shop_job j ON j.link_id=l.id WHERE l.wish_id=? ORDER BY l.id")
