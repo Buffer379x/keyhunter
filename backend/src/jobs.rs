@@ -701,7 +701,8 @@ async fn enqueue_candidates(
         };
         let link: Option<i64> = sqlx::query_scalar(
             "INSERT INTO offer_link(wish_id,source,url,auto_discovered)
-            VALUES(?,?,?,1) ON CONFLICT(wish_id,source,url) DO UPDATE SET url=excluded.url
+            SELECT ?1,?2,?3,1 WHERE NOT EXISTS(SELECT 1 FROM offer_link_block WHERE wish_id=?1 AND source=?2 AND url=?3)
+            ON CONFLICT(wish_id,source,url) DO UPDATE SET url=excluded.url
             WHERE review!='rejected' RETURNING id",
         )
         .bind(id)
@@ -1418,6 +1419,39 @@ mod tests {
             );
         }
     }
+    #[tokio::test]
+    async fn deleted_mappings_are_not_suggested_again() {
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        sqlx::query("INSERT INTO game(id,manual_title,manual_key,created_at) VALUES('g','Forza Horizon 5','forza horizon 5',0)").execute(&pool).await.unwrap();
+        sqlx::query(
+            "INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES('wish','g',169,0)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        for region in ["global", "turkey"] {
+            sqlx::query("INSERT INTO shop_candidate(source,url,title_key) VALUES('eneba',?,'forza horizon 5')")
+                .bind(format!("https://www.eneba.com/de/xbox-forza-horizon-5-xbox-live-key-{region}"))
+                .execute(&pool).await.unwrap();
+        }
+        sqlx::query("INSERT INTO offer_link_block(wish_id,source,url,blocked_at) VALUES('wish','eneba','https://www.eneba.com/de/xbox-forza-horizon-5-xbox-live-key-turkey',0)")
+            .execute(&pool).await.unwrap();
+        attach(&pool, Shop::Eneba).await.unwrap();
+        let urls: Vec<String> = sqlx::query_scalar("SELECT url FROM offer_link")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            urls,
+            ["https://www.eneba.com/de/xbox-forza-horizon-5-xbox-live-key-global"]
+        );
+    }
+
     #[tokio::test]
     async fn wishlist_searches_are_persistent_idempotent_prioritized_and_cascade() {
         let pool = sqlx::sqlite::SqlitePoolOptions::new()

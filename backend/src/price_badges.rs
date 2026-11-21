@@ -1,3 +1,4 @@
+use crate::shops::Product;
 use crate::{
     ApiError, ApiResult, AppState, Shared, auth, now, offers,
     pricing::{self, Reason},
@@ -32,6 +33,27 @@ pub(crate) struct PriceBadge {
     /// oldest first (today: now). Each link carries its last observation forward; `None`
     /// before the first observation or while no confirmed link has a valid price.
     pub trend: Vec<Option<i64>>,
+    /// Estimated total of the offer behind `cents` (shop fee from the settings); `None` while
+    /// that shop has no fee estimate. The wishlist shows it in the title of the base price (0.7.3).
+    pub estimate_cents: Option<i64>,
+    /// The same view compared by estimated totals, for the wishlist switch "Mit Gebühren".
+    pub with_fees: FeeView,
+}
+
+/// Prices of a badge compared by estimated totals (base price plus the shop fee from the
+/// settings). Offers of shops without a fee estimate do not count: their total is unknown.
+#[derive(Clone, Default, Serialize)]
+pub(crate) struct FeeView {
+    pub cents: Option<i64>,
+    /// Base price of the offer behind `cents`.
+    pub base_cents: Option<i64>,
+    pub observed_at: Option<i64>,
+    pub stale: bool,
+    pub source: Option<String>,
+    pub region: Option<String>,
+    pub world: Option<WorldBest>,
+    /// Like [`PriceBadge::trend`], with each link's fee added; links without a fee estimate left out.
+    pub trend: Vec<Option<i64>>,
 }
 
 /// Number of UTC days in [`PriceBadge::trend`].
@@ -40,7 +62,11 @@ const DAY: i64 = 86400;
 
 #[derive(Clone, Serialize)]
 pub(crate) struct WorldBest {
+    /// Compared amount: the base price, or the estimated total in [`FeeView`].
     pub cents: i64,
+    pub base_cents: i64,
+    /// Estimated total of the same offer; `None` while the shop has no fee estimate.
+    pub estimate_cents: Option<i64>,
     pub source: String,
     pub region: Option<String>,
     pub observed_at: i64,
@@ -81,8 +107,11 @@ struct JobSummary {
 /// Observation time and price of a link: `None` when it was not valid in the target country.
 type Series = Vec<(i64, Option<i64>)>;
 type Samples = BTreeMap<i64, Series>;
-/// A link a badge shows: id, latest observation time and confirmed fingerprint.
-type ShownLink = (i64, Option<i64>, Option<String>);
+/// A link a badge shows: id, latest observation time, confirmed fingerprint and the shop fee
+/// in basis points (`None` while the shop has no fee estimate).
+type ShownLink = (i64, Option<i64>, Option<String>, Option<i64>);
+/// Link id and its shop fee in basis points (see [`ShownLink`]).
+type LinkFee = (i64, Option<i64>);
 
 /// What the trend samples of a link depend on. Observations are immutable and every new one
 /// sets `offer_link.observed_at`, so samples stay valid while this key stays the same.
@@ -185,6 +214,22 @@ async fn trend_samples(
     Ok(samples)
 }
 
+/// Samples of the links with a fee estimate, each price raised by the link's fee.
+fn with_fees(samples: &Samples, links: &[LinkFee]) -> Samples {
+    links
+        .iter()
+        .filter_map(|(link, fee)| {
+            let fee = (*fee)?;
+            let series = samples.get(link)?;
+            let raised = series
+                .iter()
+                .map(|(at, cents)| (*at, cents.map(|cents| offers::with_fee(cents, fee))))
+                .collect();
+            Some((*link, raised))
+        })
+        .collect()
+}
+
 /// Daily best target-country price of the given links (see [`PriceBadge::trend`]).
 fn trend(links: &[i64], samples: &Samples, start: i64) -> Vec<Option<i64>> {
     (1..=TREND_DAYS)
@@ -225,7 +270,7 @@ pub(crate) async fn load_many(
     let price_scope = pricing::Scope::for_wishlist(target, "preferred");
     let start = t - t.rem_euclid(DAY) - (TREND_DAYS - 1) * DAY;
     let mut shown = vec![];
-    let mut badges: Vec<(String, PriceBadge, Vec<i64>)> = wishes
+    let mut badges: Vec<(String, PriceBadge, Vec<LinkFee>)> = wishes
         .into_iter()
         .map(|(id, wish)| {
             let job = jobs.remove(&id);
@@ -236,11 +281,14 @@ pub(crate) async fn load_many(
                 &price_scope,
                 t,
             );
-            let ids = links_shown.iter().map(|(link, ..)| *link).collect();
+            let ids = links_shown
+                .iter()
+                .map(|(link, .., fee)| (*link, *fee))
+                .collect();
             shown.extend(
                 links_shown
                     .into_iter()
-                    .map(|(link, observed_at, fingerprint)| {
+                    .map(|(link, observed_at, fingerprint, _)| {
                         let key = TrendKey {
                             start,
                             target: target.to_string(),
@@ -255,7 +303,9 @@ pub(crate) async fn load_many(
         .collect();
     let samples = state.trend_cache.samples(pool, &shown, t).await?;
     for (_, badge, links) in &mut badges {
-        badge.trend = trend(links, &samples, start);
+        let ids: Vec<i64> = links.iter().map(|(link, _)| *link).collect();
+        badge.trend = trend(&ids, &samples, start);
+        badge.with_fees.trend = trend(&ids, &with_fees(&samples, links), start);
     }
     Ok(badges
         .into_iter()
@@ -281,6 +331,8 @@ fn compute(
         source: None,
         region: None,
         trend: vec![],
+        estimate_cents: None,
+        with_fees: FeeView::default(),
     };
     let mut observed = false;
     let mut review = false;
@@ -312,46 +364,76 @@ fn compute(
         candidates.push((link, product, verdict, anywhere));
     }
 
-    let world = pricing::best(
-        candidates
-            .iter()
-            .map(|(link, product, _, anywhere)| (*link, product, anywhere)),
-        pricing::base,
-    )
-    .current;
-    let origin = |link_id| {
+    // Base price and estimated total of the offer a best price comes from.
+    let amounts = |link_id| {
         candidates
             .iter()
             .find(|(link, ..)| link.id == link_id)
-            .map(|(link, product, ..)| (link.source.clone(), product.region.clone()))
+            .map(|(link, product, ..)| {
+                (
+                    pricing::base(link, product),
+                    pricing::estimate(link, product),
+                    link.source.clone(),
+                    product.region.clone(),
+                )
+            })
     };
-    result.world = world.and_then(|best| {
-        let (source, region) = origin(best.link_id)?;
-        Some(WorldBest {
-            cents: best.cents,
-            source,
-            region,
-            observed_at: best.observed_at,
-        })
-    });
-    // A current price wins; otherwise the last known one is shown, marked as stale.
-    let prices = pricing::best(
-        candidates
-            .iter()
-            .map(|(link, product, verdict, _)| (*link, product, verdict)),
-        pricing::base,
-    );
-    if let Some((best, stale)) = prices
+    // Cheapest current offer of any region, and the best target-country price: a current price
+    // wins, otherwise the last known one is shown, marked as stale. Once by base price and once
+    // by estimated total.
+    let pick = |amount: fn(&offers::Link, &Product) -> Option<i64>| {
+        let world = pricing::best(
+            candidates
+                .iter()
+                .map(|(link, product, _, anywhere)| (*link, product, anywhere)),
+            amount,
+        )
         .current
-        .map(|best| (best, false))
-        .or(prices.last_known.map(|best| (best, true)))
-    {
+        .and_then(|best| {
+            let (base, estimate, source, region) = amounts(best.link_id)?;
+            Some(WorldBest {
+                cents: best.cents,
+                base_cents: base.unwrap_or(best.cents),
+                estimate_cents: estimate,
+                source,
+                region,
+                observed_at: best.observed_at,
+            })
+        });
+        let prices = pricing::best(
+            candidates
+                .iter()
+                .map(|(link, product, verdict, _)| (*link, product, verdict)),
+            amount,
+        );
+        let shown = prices
+            .current
+            .map(|best| (best, false))
+            .or(prices.last_known.map(|best| (best, true)));
+        (world, shown)
+    };
+    let (world, shown) = pick(pricing::base);
+    result.world = world;
+    if let Some((best, stale)) = shown {
         result.cents = Some(best.cents);
         result.observed_at = Some(best.observed_at);
         result.stale = stale;
-        if let Some((source, region)) = origin(best.link_id) {
+        if let Some((_, estimate, source, region)) = amounts(best.link_id) {
+            result.estimate_cents = estimate;
             result.source = Some(source);
             result.region = region;
+        }
+    }
+    let (world, shown) = pick(pricing::estimate);
+    result.with_fees.world = world;
+    if let Some((best, stale)) = shown {
+        result.with_fees.cents = Some(best.cents);
+        result.with_fees.observed_at = Some(best.observed_at);
+        result.with_fees.stale = stale;
+        if let Some((base, _, source, region)) = amounts(best.link_id) {
+            result.with_fees.base_cents = base;
+            result.with_fees.source = Some(source);
+            result.with_fees.region = region;
         }
     }
     result.state = if result.cents.is_some() {
@@ -375,6 +457,7 @@ fn compute(
                 link.id,
                 link.observed_at,
                 link.fingerprint().map(str::to_string),
+                link.fee_estimation_enabled.then_some(link.fee_basis_points),
             )
         })
         .collect();

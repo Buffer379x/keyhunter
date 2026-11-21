@@ -12,11 +12,19 @@ export const WORLD_SHARE = 0.2;
 /** The part of an alarm rule the list needs (see PriceAlerts.Rule). */
 export interface TargetRule { mode: 'target' | 'low'; basis: 'base' | 'estimate'; target_cents: number | null; enabled: boolean }
 
+/** Prices of the list: base prices ("Ohne Gebühren") or estimated totals with the shop fee ("Mit Gebühren", 0.7.3). */
+export type PriceBasis = 'base' | 'estimate';
+
 export interface RowFacts {
-  /** Best base price valid in the target country (the badge price), null without one. */
+  /** Best price valid in the target country on the chosen basis (the badge price), null without one. */
   price: number | null;
-  /** Cheapest current offer of any region. */
-  world: { cents: number; region: string | null; source: string | null } | null;
+  /** The same offer on the other basis: the estimated total of a base price, the base price of a total; null when unknown. */
+  other: number | null;
+  /** Shop of `price`, and whether it is only the last known one. */
+  source: string | null;
+  stale: boolean;
+  /** Cheapest current offer of any region; `other` as above. */
+  world: { cents: number; other: number | null; region: string | null; source: string | null } | null;
   /** Cents the cheapest region saves against `price` (only when it is really cheaper). */
   saving: number | null;
   /** `saving` as a share of `price` (0..1). */
@@ -29,22 +37,34 @@ export interface RowFacts {
   over: number | null;
   /** Daily target-country best price, oldest → newest (the badge trend), null when the badge has none. */
   trend: (number | null)[] | null;
+  /** Basis of every price above. */
+  basis: PriceBasis;
 }
 
-const hasPrice = (badge?: PriceBadgeData) => !!badge && badge.state === 'price' && badge.cents !== null && badge.cents > 0;
-/** The badge price is a base price, so only enabled target rules on the base price can be compared with it. */
-const comparable = (rule?: TargetRule | null) => !!rule && rule.enabled && rule.mode === 'target' && rule.basis === 'base' && rule.target_cents !== null;
+const positive = (cents: number | null | undefined) => typeof cents === 'number' && Number.isFinite(cents) && cents > 0 ? cents : null;
+/** Only enabled target rules on the shown basis can be compared with the price ("Ziel erreicht", "über Ziel"). */
+const comparable = (rule: TargetRule | null | undefined, basis: PriceBasis) => !!rule && rule.enabled && rule.mode === 'target' && rule.basis === basis && rule.target_cents !== null;
 
-export function rowFacts(badge: PriceBadgeData | undefined, rule: TargetRule | null | undefined): RowFacts {
-  const price = hasPrice(badge) ? badge!.cents! : null;
-  const world = badge?.world && Number.isFinite(badge.world.cents) ? { cents: badge.world.cents, region: badge.world.region, source: badge.world.source ?? null } : null;
+export function rowFacts(badge: PriceBadgeData | undefined, rule: TargetRule | null | undefined, basis: PriceBasis = 'base'): RowFacts {
+  const fees = basis === 'estimate' ? badge?.with_fees : undefined;
+  const priced = !!badge && badge.state === 'price';
+  const price = !priced ? null : basis === 'estimate' ? positive(fees?.cents) : positive(badge!.cents);
+  const other = price === null ? null : basis === 'estimate' ? positive(fees?.base_cents) : positive(badge!.estimate_cents);
+  const best = basis === 'estimate' ? fees?.world : badge?.world;
+  const world = best && Number.isFinite(best.cents) ? {
+    cents: best.cents, other: positive(basis === 'estimate' ? best.base_cents : best.estimate_cents), region: best.region, source: best.source ?? null,
+  } : null;
   const saving = price !== null && world !== null && world.cents < price ? price - world.cents : null;
   const target = rule && rule.mode === 'target' ? rule.target_cents : null;
-  const trend = badge?.trend && badge.trend.some(value => value !== null) ? badge.trend : null;
+  const days = basis === 'estimate' ? fees?.trend : badge?.trend;
+  const trend = days && days.some(value => value !== null) ? days : null;
+  const reachable = price !== null && comparable(rule, basis);
   return {
-    price, world, saving, share: saving !== null ? saving / price! : null, target,
-    reached: price !== null && comparable(rule) && price <= rule!.target_cents!,
-    over: price !== null && comparable(rule) && price > rule!.target_cents! ? price - rule!.target_cents! : null, trend,
+    price, other, source: price === null ? null : (basis === 'estimate' ? fees?.source : badge?.source) ?? null,
+    stale: price !== null && !!(basis === 'estimate' ? fees?.stale : badge?.stale),
+    world, saving, share: saving !== null ? saving / price! : null, target,
+    reached: reachable && price <= rule!.target_cents!,
+    over: reachable && price > rule!.target_cents! ? price - rule!.target_cents! : null, trend, basis,
   };
 }
 
@@ -76,7 +96,7 @@ export function addedTicks(items: WishlistItem[]): number[] {
 
 const reachedOn = (row: Row, rule: TargetRule | null | undefined, day: number) => {
   const value = row.facts.trend?.[day];
-  return comparable(rule) && value !== null && value !== undefined && value <= rule!.target_cents!;
+  return comparable(rule, row.facts.basis) && value !== null && value !== undefined && value <= rule!.target_cents!;
 };
 
 /**

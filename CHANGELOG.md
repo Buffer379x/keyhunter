@@ -1,5 +1,13 @@
 # Änderungen
 
+## 0.7.3 – 2026-11-21
+
+Falsche Produktzuordnungen lassen sich löschen, und die Wunschliste zeigt Preise wahlweise mit geschätzten Gebühren. Beim Start legt die Datenbank automatisch eine neue Tabelle an, sonst ist beim Update nichts zu tun.
+
+### Neu
+- **Zuordnung löschen:** Unter Infos → Produktzuordnungen hat jede Zuordnung, ob aktiv oder verworfen, oben rechts einen Löschen-Knopf. Nach einer Rückfrage verschwindet sie samt ihren gespeicherten Preisen. Die automatische Suche schlägt dieses Produkt für das Spiel nicht mehr vor. Fügst du den Link später selbst hinzu, wird er wieder beobachtet. „Verwerfen“ legt eine Zuordnung wie bisher nur beiseite.
+- **Preise ohne oder mit Gebühren:** In der Leiste über der Wunschliste schaltet „Ohne Gebühren / Mit Gebühren“ alle Preise der Tabelle um, also Preis DE, Preis INT, Ersparnis, Sortierung, Filter und den 14-Tage-Verlauf. Mit Gebühren zählt der geschätzte Gesamtpreis mit den Gebühren aus Einstellungen → Key-Shops; Shops ohne eingestellte Gebühren zählen dann nicht mit, weil ihr Gesamtpreis unbekannt ist. Ohne Gebühren steht der geschätzte Gesamtpreis im Hinweistext des Preises, mit Gebühren der Grundpreis. „Ziel erreicht“ vergleicht jeweils Alarme mit derselben Preisgrundlage. Die Wahl bleibt im Browser gespeichert.
+
 ## 0.7.2 – 2026-11-21
 
 Driffle findet jetzt deine Spiele, die Bibliothek nimmt Spiele direkt auf und hat eine Listenansicht. Beim Start passt die Datenbank den Driffle-Index automatisch an, sonst ist beim Update nichts zu tun.

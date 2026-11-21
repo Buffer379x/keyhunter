@@ -209,3 +209,6 @@ dialog.link-review[open] { display: grid; gap: 14px; }
 @media (max-width: 520px) {
   .review-facts > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
+/* Delete a completely wrong mapping (0.7.3): a small icon button in the top right corner of the mapping. */
+.matches .match-delete { width: 28px; height: 28px; margin-left: auto; flex: none; }
+.matches .match-delete svg { width: 14px; height: 14px; }

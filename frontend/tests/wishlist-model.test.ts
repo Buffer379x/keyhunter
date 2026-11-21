@@ -19,7 +19,7 @@ test('row facts: saving only when the cheapest region is really cheaper', () => 
   assert.equal(cheaper.reached, true);
   assert.equal(rowFacts(badge(1875, 1875)).saving, null, 'same price is no saving');
   assert.equal(rowFacts(badge(null, 990)).saving, null, 'no target price, no saving');
-  assert.deepEqual(rowFacts(badge(null, 990)).world, { cents: 990, region: 'IN', source: null });
+  assert.deepEqual(rowFacts(badge(null, 990)).world, { cents: 990, other: null, region: 'IN', source: null });
 });
 test('row facts: only enabled target rules on the base price count as reached, the target is shown anyway', () => {
   assert.equal(rowFacts(badge(2000), rule(2500, { enabled: false })).reached, false);
@@ -28,6 +28,27 @@ test('row facts: only enabled target rules on the base price count as reached, t
   assert.equal(rowFacts(badge(2000), { mode: 'low', basis: 'base', target_cents: null, enabled: true }).target, null);
   assert.equal(rowFacts(badge(2600), rule(2500)).reached, false);
   assert.equal(rowFacts({ ...badge(2000), state: 'no_offer', cents: null }, rule(2500)).reached, false);
+});
+test('row facts: "Mit Gebühren" shows the estimated totals, compares estimate rules and keeps the base price for the title', () => {
+  const fees = badge(1000, 800, {
+    source: 'driffle', estimate_cents: null,
+    world: { cents: 800, base_cents: 800, estimate_cents: 880, source: 'eneba', region: 'IN', observed_at: 1 },
+    with_fees: { cents: 1090, base_cents: 1000, observed_at: 2, stale: true, source: 'eneba', region: 'Global',
+      world: { cents: 880, base_cents: 800, estimate_cents: 880, source: 'eneba', region: 'IN', observed_at: 1 }, trend: [null, 1090] },
+  });
+  const base = rowFacts(fees, rule(1050));
+  assert.deepEqual([base.price, base.other, base.source, base.stale, base.world?.other], [1000, null, 'driffle', false, 880]);
+  assert.equal(base.reached, true, 'base rule against the base price');
+  const total = rowFacts(fees, rule(1050), 'estimate');
+  assert.deepEqual([total.price, total.other, total.source, total.stale, total.basis], [1090, 1000, 'eneba', true, 'estimate']);
+  assert.deepEqual(total.world, { cents: 880, other: 800, region: 'IN', source: 'eneba' });
+  assert.equal(total.saving, 210);
+  assert.deepEqual(total.trend, [null, 1090]);
+  assert.equal(total.reached, false, 'a base rule does not compare with a total');
+  assert.equal(rowFacts(fees, rule(1050, { basis: 'estimate' }), 'estimate').over, 40);
+  // Without any fee estimate the total is unknown, not the base price.
+  const unknown = rowFacts(badge(1000, 800), undefined, 'estimate');
+  assert.deepEqual([unknown.price, unknown.world, unknown.trend], [null, null, null]);
 });
 test('row facts: a trend without any value is no trend', () => {
   assert.equal(rowFacts(badge(2000, null, { trend: Array(14).fill(null) })).trend, null);

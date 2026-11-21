@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import type { CatalogGame, WishlistItem } from '../api';
-import { Button, Icon, Inset, Label, Panel, PanelHead, Pill, Reg } from '../components';
+import { Button, ConfirmDialog, Icon, IconButton, Inset, Label, Notice, Panel, PanelHead, Pill, Reg } from '../components';
 import { itemName, kindName, platformName } from './catalog-ui';
 import LinkReview from './LinkReview';
 import type { Link } from './offers-model';
@@ -24,6 +24,13 @@ export default function InfosTab({ item, game, state }: { item: WishlistItem; ga
   const [url, setUrl] = useState('');
   const [reviewing, setReviewing] = useState<number | null>(null);
   const reviewLink = view?.links.find(link => link.id === reviewing) ?? null;
+  /** A completely wrong mapping the owner wants gone, with its prices (0.7.3); "Verwerfen" only sets it aside. */
+  const [deleting, setDeleting] = useState<Link | null>(null);
+  async function remove() {
+    if (deleting && await write(`/${deleting.id}`, 'DELETE', undefined, 'Zuordnung gelöscht.')) setDeleting(null);
+  }
+  const deleteButton = (link: Link) => <IconButton className="match-delete" variant="danger" disabled={busy}
+    label={`Zuordnung ${link.product?.name ?? shopNames[link.source] ?? link.source} löschen`} onClick={() => setDeleting(link)}><Icon name="trash" /></IconButton>;
   async function confirm(link: Link) {
     if (await write(`/${link.id}`, 'PUT', { decision: 'confirmed', manual: !link.can_confirm }, 'Zuordnung bestätigt.')) setReviewing(null);
   }
@@ -34,6 +41,12 @@ export default function InfosTab({ item, game, state }: { item: WishlistItem; ga
   const released = game?.first_release_date ? new Date(game.first_release_date * 1000) : null;
   const platforms = game?.platforms.map(p => p.name).join(' · ') || platformName(item.platform_id);
   return <div className="grid-2">
+    <ConfirmDialog open={deleting !== null} title="Zuordnung löschen?" confirmLabel="Löschen bestätigen" danger busy={busy}
+      onCancel={() => setDeleting(null)} onConfirm={() => void remove()}>
+      <p>„{deleting?.product?.name ?? deleting?.url}“ ({deleting ? shopNames[deleting.source] ?? deleting.source : ''}) wird mit allen gespeicherten Preisen dieser Zuordnung gelöscht.
+        Die automatische Suche schlägt dieses Produkt für „{itemName(item)}“ nicht mehr vor. Fügst du den Link später selbst hinzu, wird er wieder beobachtet.</p>
+      {deleting && error && <Notice error>{error}</Notice>}
+    </ConfirmDialog>
     <LinkReview link={reviewLink} game={itemName(item)} busy={busy} error={error} onClose={() => setReviewing(null)} onConfirm={link => void confirm(link)} />
     <Panel aria-labelledby="infos-title">
       <PanelHead><Label id="infos-title">Infos</Label></PanelHead>
@@ -73,10 +86,11 @@ export default function InfosTab({ item, game, state }: { item: WishlistItem; ga
                   {!review && <a className="btn sm ghost" href={link.url} target="_blank" rel="noopener noreferrer" title={link.url}>Produktseite<Icon name="ext" /></a>}
                 </span>
               </div>
+              {deleteButton(link)}
             </li>;
           })}
           {rejected.map(link => <li key={link.id} className="match"><Icon name="x" /><div className="match-body"><b>{link.product?.name ?? 'Verworfenes Produkt'}</b>
-            <span className="match-actions"><Pill tone="dim" icon="x">Verworfen</Pill><Button size="sm" variant="ghost" disabled={busy} onClick={() => void write(`/${link.id}`, 'PUT', { decision: 'pending' })}>Erneut prüfen</Button></span></div></li>)}
+            <span className="match-actions"><Pill tone="dim" icon="x">Verworfen</Pill><Button size="sm" variant="ghost" disabled={busy} onClick={() => void write(`/${link.id}`, 'PUT', { decision: 'pending' })}>Erneut prüfen</Button></span></div>{deleteButton(link)}</li>)}
         </ul>
         <form className="form-grid link-form" onSubmit={add}>
           <div className="form-row"><label htmlFor="shop-product-url">Produktlink von Eneba oder Driffle ergänzen</label>

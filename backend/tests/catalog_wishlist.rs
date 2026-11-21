@@ -2342,3 +2342,181 @@ async fn games_can_be_added_straight_to_the_library() {
         );
     }
 }
+
+/// 0.7.3: a completely wrong mapping is deleted with its prices; the automatic search leaves it
+/// out from then on, adding the link by hand brings it back.
+#[tokio::test]
+async fn wrong_mappings_can_be_deleted_and_added_back_by_hand() {
+    let f = Fixture::new().await;
+    let (_, saved) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":1,"platform_id":169}),
+        )
+        .await;
+    let id = saved["item"]["id"].as_str().unwrap();
+    let url = "https://www.eneba.com/de/xbox-wrong-game-xbox-live-key-global";
+    let offers = format!("/api/v1/wishlist/{id}/offers");
+    assert_eq!(
+        f.call("POST", &offers, json!({ "url": url })).await.0,
+        StatusCode::ACCEPTED
+    );
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(
+            sqlx::sqlite::SqliteConnectOptions::new()
+                .filename(f.config.data_dir.join("keyhunter.db")),
+        )
+        .await
+        .unwrap();
+    let link: i64 = sqlx::query_scalar("SELECT id FROM offer_link WHERE url=?")
+        .bind(url)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO price_observation(link_id,product_id,observed_at,market,fingerprint,offers,activation,availability) VALUES(?,'p',1,'DE','f','[]','unknown','in_stock')")
+        .bind(link).execute(&pool).await.unwrap();
+
+    let path = format!("/api/v1/wishlist/{id}/offers/{link}");
+    assert_eq!(
+        f.call("DELETE", &path, Value::Null).await.0,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        f.call("DELETE", &path, Value::Null).await.0,
+        StatusCode::NOT_FOUND
+    );
+    for query in [
+        "SELECT COUNT(*) FROM offer_link",
+        "SELECT COUNT(*) FROM price_observation",
+        "SELECT COUNT(*) FROM shop_job WHERE link_id IS NOT NULL",
+    ] {
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(query)
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            0,
+            "{query}"
+        );
+    }
+    let blocked: Vec<String> =
+        sqlx::query_scalar("SELECT url FROM offer_link_block WHERE wish_id=?")
+            .bind(id)
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    assert_eq!(blocked, [url]);
+    assert!(
+        f.call("GET", &offers, Value::Null).await.1["links"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+
+    // Added by hand again, the block is gone.
+    assert_eq!(
+        f.call("POST", &offers, json!({ "url": url })).await.0,
+        StatusCode::ACCEPTED
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM offer_link_block")
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        f.call("GET", &offers, Value::Null).await.1["links"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+/// 0.7.3: the badge also carries the prices compared by estimated totals (switch "Mit Gebühren"),
+/// and the estimated total of the base price shown.
+#[tokio::test]
+async fn badges_carry_prices_with_the_estimated_shop_fee() {
+    let f = Fixture::new().await;
+    let (_, saved) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":1,"platform_id":169}),
+        )
+        .await;
+    let id = saved["item"]["id"].as_str().unwrap();
+    let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
+    settings["target_country"] = json!("DE");
+    f.call("PUT", "/api/v1/settings", settings).await;
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(
+            sqlx::sqlite::SqliteConnectOptions::new()
+                .filename(f.config.data_dir.join("keyhunter.db")),
+        )
+        .await
+        .unwrap();
+    let t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    for (region, cents) in [("Global", 1000), ("India", 800)] {
+        let quotes = json!([{"id":region,"cents":cents,"seller":null}]);
+        let product = json!({"id":region,"name":"Example","title":"Example","platform_ids":[169],"key_game":true,"region":region,"allowed":if region=="Global"{vec!["DE"]}else{vec![]},"blocked":[],"purchase_country":"DE","offers":quotes,"availability":"in_stock"});
+        let link:i64=sqlx::query_scalar("INSERT INTO offer_link(wish_id,source,url,latest,observed_at) VALUES(?,'eneba',?,?,?) RETURNING id")
+            .bind(id).bind(format!("https://www.eneba.com/de/xbox-example-xbox-live-key-{}",region.to_lowercase())).bind(product.to_string()).bind(t).fetch_one(&pool).await.unwrap();
+        f.call(
+            "PUT",
+            &format!("/api/v1/wishlist/{id}/offers/{link}"),
+            json!({"decision":"confirmed"}),
+        )
+        .await;
+        let fingerprint: String =
+            sqlx::query_scalar("SELECT fingerprint FROM offer_link WHERE id=?")
+                .bind(link)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let activation = if region == "Global" {
+            "confirmed"
+        } else {
+            "blocked"
+        };
+        sqlx::query("INSERT INTO price_observation(link_id,product_id,observed_at,market,fingerprint,offers,activation,availability) VALUES(?,?,?,'DE',?,?,?,'in_stock')")
+            .bind(link).bind(region).bind(t).bind(&fingerprint).bind(quotes.to_string()).bind(activation).execute(&pool).await.unwrap();
+    }
+    let badges = "/api/v1/wishlist/price-badges";
+    // Without a fee estimate the totals are unknown.
+    let badge = &f.call("GET", badges, Value::Null).await.1[id];
+    assert_eq!(badge["cents"], 1000);
+    assert_eq!(badge["estimate_cents"], Value::Null);
+    assert_eq!(badge["world"]["estimate_cents"], Value::Null);
+    assert_eq!(badge["with_fees"]["cents"], Value::Null);
+    assert_eq!(badge["with_fees"]["world"], Value::Null);
+
+    sqlx::query(
+        "UPDATE source_settings SET fee_estimation_enabled=1,fee_basis_points=1000 WHERE id='eneba'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    let badge = &f.call("GET", badges, Value::Null).await.1[id];
+    assert_eq!(badge["cents"], 1000);
+    assert_eq!(badge["estimate_cents"], 1100);
+    assert_eq!(badge["world"]["cents"], 800);
+    assert_eq!(badge["world"]["base_cents"], 800);
+    assert_eq!(badge["world"]["estimate_cents"], 880);
+    let fees = &badge["with_fees"];
+    assert_eq!(fees["cents"], 1100);
+    assert_eq!(fees["base_cents"], 1000);
+    assert_eq!(fees["source"], "eneba");
+    assert_eq!(fees["region"], "Global");
+    assert_eq!(fees["world"]["cents"], 880);
+    assert_eq!(fees["world"]["base_cents"], 800);
+    assert_eq!(badge["trend"].as_array().unwrap().last().unwrap(), 1000);
+    assert_eq!(fees["trend"].as_array().unwrap().last().unwrap(), 1100);
+}
