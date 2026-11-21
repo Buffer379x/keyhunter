@@ -1759,6 +1759,99 @@ async fn a_renamed_confirmed_product_keeps_its_price_and_shows_a_hint() {
 }
 
 #[tokio::test]
+async fn a_product_that_does_not_match_can_be_confirmed_by_hand() {
+    let f = Fixture::new().await;
+    let (_, saved) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":1,"platform_id":169}),
+        )
+        .await;
+    let id = saved["item"]["id"].as_str().unwrap().to_string();
+    let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
+    settings["target_country"] = json!("DE");
+    f.call("PUT", "/api/v1/settings", settings).await;
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(
+            sqlx::sqlite::SqliteConnectOptions::new()
+                .filename(f.config.data_dir.join("keyhunter.db")),
+        )
+        .await
+        .unwrap();
+    let t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    // Found automatically, but the shop title differs from the catalog title: no automatic match.
+    let product = |cents: i64| json!({"id":"fixture","name":"Example Deluxe Bundle Xbox Key","title":"Example Deluxe Bundle","platform_ids":[169],"key_game":true,"region":"Global","allowed":["DE"],"blocked":[],"purchase_country":"DE","offers":[{"id":"quote","cents":cents,"seller":null}],"availability":"in_stock"});
+    let link: i64 = sqlx::query_scalar("INSERT INTO offer_link(wish_id,source,url,latest,observed_at,auto_discovered) VALUES(?,'eneba','https://www.eneba.com/de/xbox-example-deluxe-key-global',?,?,1) RETURNING id")
+        .bind(&id).bind(product(1250).to_string()).bind(t).fetch_one(&pool).await.unwrap();
+    let offers = format!("/api/v1/wishlist/{id}/offers");
+    let (_, view) = f.call("GET", &offers, Value::Null).await;
+    assert_eq!(view["links"][0]["can_confirm"], false);
+    assert_eq!(view["best_base"], Value::Null);
+    // A plain confirmation is refused; the explicit one by the owner counts.
+    let (status, _) = f
+        .call(
+            "PUT",
+            &format!("{offers}/{link}"),
+            json!({"decision":"confirmed"}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    let (status, _) = f
+        .call(
+            "PUT",
+            &format!("{offers}/{link}"),
+            json!({"decision":"confirmed","manual":true}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (_, view) = f.call("GET", &offers, Value::Null).await;
+    assert_eq!(view["links"][0]["review"], "confirmed");
+    assert_eq!(view["links"][0]["manual_match"], true);
+    assert_eq!(view["links"][0]["eligible"], true);
+    assert_eq!(view["best_base"], 1250);
+    let (_, badges) = f
+        .call("GET", "/api/v1/wishlist/price-badges", Value::Null)
+        .await;
+    assert_eq!(badges[&id]["cents"], 1250);
+    // Another product behind the link (new fingerprint) needs a new look, like every confirmation.
+    sqlx::query("UPDATE offer_link SET latest=? WHERE id=?")
+        .bind(
+            product(1100)
+                .to_string()
+                .replace("\"id\":\"fixture\"", "\"id\":\"other\""),
+        )
+        .bind(link)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let (_, view) = f.call("GET", &offers, Value::Null).await;
+    assert_eq!(view["links"][0]["review"], "pending");
+    assert_eq!(view["best_base"], Value::Null);
+    let (_, badges) = f
+        .call("GET", "/api/v1/wishlist/price-badges", Value::Null)
+        .await;
+    assert_eq!(badges[&id]["state"], "review");
+    // Rejecting clears the manual match.
+    f.call(
+        "PUT",
+        &format!("{offers}/{link}"),
+        json!({"decision":"rejected"}),
+    )
+    .await;
+    let manual: bool = sqlx::query_scalar("SELECT manual_match FROM offer_link WHERE id=?")
+        .bind(link)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(!manual);
+}
+
+#[tokio::test]
 async fn api_errors_carry_a_stable_code_next_to_the_message() {
     let f = Fixture::new().await;
     let (status, body, _) =

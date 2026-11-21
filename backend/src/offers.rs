@@ -125,6 +125,8 @@ pub(crate) struct Link {
     fingerprint: Option<String>,
     latest: Option<String>,
     confirmed_name: Option<String>,
+    /// Confirmed by hand although the shop data does not match the wish (migration 0015).
+    pub(crate) manual_match: bool,
     pub observed_at: Option<i64>,
     pub attempted_at: Option<i64>,
     pub last_error: Option<String>,
@@ -142,9 +144,10 @@ impl Link {
     pub(crate) fn product(&self) -> Option<Product> {
         serde_json::from_str(self.latest.as_deref()?).ok()
     }
+    /// Confirmed for exactly this product: automatically matching, or matched by hand by the owner.
     pub(crate) fn confirmed(&self, wish: &Wish, product: &Product) -> bool {
         self.review == "confirmed"
-            && wish.matches(product)
+            && (wish.matches(product) || self.manual_match)
             && self.fingerprint.as_deref() == Some(product.fingerprint().as_str())
     }
     pub(crate) fn estimate(&self, cents: i64) -> Option<i64> {
@@ -166,6 +169,7 @@ impl Link {
             fingerprint,
             latest: None,
             confirmed_name: None,
+            manual_match: false,
             observed_at,
             attempted_at: observed_at,
             last_error: None,
@@ -347,7 +351,7 @@ pub(crate) async fn list(
         }
         rows.push(json!({"id":link.id,"source":link.source,"url":link.url,
             "review": if confirmed { "confirmed" } else if link.review == "confirmed" { "pending" } else { &link.review },
-            "can_confirm":matching,"eligible":eligible,"reasons":verdict,"queued":link.queued,"enabled":link.enabled,
+            "can_confirm":matching,"manual_match":link.manual_match && confirmed,"eligible":eligible,"reasons":verdict,"queued":link.queued,"enabled":link.enabled,
             "observed_at":link.observed_at,"attempted_at":link.attempted_at,"last_error":link.last_error,
             "retry_at":link.retry_at,"stale":link.observed_at.is_some_and(|at|t-at > FRESH),
             // A confirmed product the shop renamed since: the price counts, the title is worth a look.
@@ -474,7 +478,14 @@ pub(crate) async fn add_link(
 #[derive(Deserialize)]
 pub(crate) struct Review {
     decision: String,
+    /// The owner looked at the product page and confirms a product whose shop data does not match automatically.
+    #[serde(default)]
+    manual: bool,
 }
+const MANUAL_REQUIRED: ApiError = ApiError(
+    StatusCode::CONFLICT,
+    "Die Shop-Daten passen nicht automatisch zum Spiel. Prüfe die Produktseite und bestätige die Zuordnung ausdrücklich.",
+);
 pub(crate) async fn review(
     State(state): State<Shared>,
     Path((id, link_id)): Path<(String, i64)>,
@@ -491,14 +502,18 @@ pub(crate) async fn review(
         .find(|l| l.id == link_id)
         .ok_or(NOT_FOUND)?;
     if input.decision == "confirmed" {
-        let product = link.product().filter(|p| wish.matches(p)).ok_or(CONFLICT)?;
-        let changed = sqlx::query("UPDATE offer_link SET review='confirmed', fingerprint=?, confirmed_name=? WHERE id=? AND wish_id=? AND latest=?")
-            .bind(product.fingerprint()).bind(&product.name).bind(link_id).bind(&id).bind(link.latest).execute(&state.pool).await?;
+        let product = link.product().ok_or(CONFLICT)?;
+        let matching = wish.matches(&product);
+        if !matching && !input.manual {
+            return Err(MANUAL_REQUIRED);
+        }
+        let changed = sqlx::query("UPDATE offer_link SET review='confirmed', fingerprint=?, confirmed_name=?, manual_match=? WHERE id=? AND wish_id=? AND latest=?")
+            .bind(product.fingerprint()).bind(&product.name).bind(!matching).bind(link_id).bind(&id).bind(link.latest).execute(&state.pool).await?;
         if changed.rows_affected() == 0 {
             return Err(CONFLICT);
         }
     } else if matches!(input.decision.as_str(), "rejected" | "pending") {
-        sqlx::query("UPDATE offer_link SET review=?, fingerprint=NULL, confirmed_name=NULL WHERE id=? AND wish_id=?")
+        sqlx::query("UPDATE offer_link SET review=?, fingerprint=NULL, confirmed_name=NULL, manual_match=0 WHERE id=? AND wish_id=?")
             .bind(&input.decision)
             .bind(link_id)
             .bind(&id)
@@ -623,6 +638,7 @@ mod tests {
             fingerprint: Some(product.fingerprint()),
             latest: None,
             confirmed_name: None,
+            manual_match: false,
             observed_at: Some(200),
             attempted_at: Some(200),
             last_error: None,
@@ -653,5 +669,14 @@ mod tests {
         product.platform_ids = vec![169];
         product.key_game = false;
         assert!(!wish.matches(&product));
+        assert!(!link.confirmed(&wish, &product), "the fingerprint changed");
+        // Confirmed by hand: counts although the shop data does not match, for exactly this product.
+        product.key_game = true;
+        product.platform_ids = vec![169, 49];
+        product.title = "Forza Horizon 5 Premium Edition".into();
+        link.manual_match = true;
+        assert!(link.confirmed(&wish, &product));
+        link.manual_match = false;
+        assert!(!link.confirmed(&wish, &product));
     }
 }

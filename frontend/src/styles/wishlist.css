@@ -35,6 +35,8 @@ table.wl td.c-target { white-space: nowrap; }
 .wl-sub { color: var(--muted); font-size: var(--t-xs); white-space: nowrap; }
 .wl-note { font-size: var(--t-xs); }
 .world-cell { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+/* The target country is the cheapest worldwide: same flag and price as any other row, set on a faint green ground. */
+.world-cell.home-best { width: fit-content; margin-left: -6px; padding: 3px 6px; border-radius: var(--r-sm); background: var(--ok-bg); }
 .save { font: 500 var(--t-xs)/1.2 var(--f-mono); white-space: nowrap; }
 .save.big { color: var(--accent-2); }
 .save.none { color: var(--faint); }

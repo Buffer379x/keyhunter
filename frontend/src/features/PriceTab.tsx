@@ -83,11 +83,12 @@ export default function PriceTab({ view, rows, summary, basis, onBasis, hasEstim
               {targetRow ? <span className="src">{shopName(targetRow)} · {regionName(targetRow)} · {fee(targetRow)}</span>
                 : view?.last_known ? <span className="src">Kein aktueller Preis · zuletzt am {dateTime(view.last_known.observed_at)}</span> : null}
             </div>
-            <div className="compare-mid"><div className="delta">
-              {same ? <><b className="even">±0</b><span>gleich</span></>
-                : world && targetCents !== null ? <><b>−{money(saving)}</b><span>−{pct(saving, targetCents)}</span></>
-                : <><b className="none">–</b><span>kein Vergleich</span></>}
-            </div></div>
+            {/* The amount sits in the price row of both sides, on the same baseline as the big prices (styles/detail.css). */}
+            <div className="compare-mid delta">
+              {same ? <><span className="delta-amount"><b className="even">±0</b></span><span className="delta-pct">gleich</span></>
+                : world && targetCents !== null ? <><span className="delta-amount"><b>−{money(saving)}</b></span><span className="delta-pct">−{pct(saving, targetCents)}</span></>
+                : <><span className="delta-amount"><b className="none">–</b></span><span className="delta-pct">kein Vergleich</span></>}
+            </div>
             <div className="compare-side world">
               <Label>Günstigste Region · weltweit</Label>
               {world ? <>
