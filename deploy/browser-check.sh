@@ -19,4 +19,4 @@ until curl --silent --fail "$origin/health/ready" >/dev/null; do
   sleep 1
 done
 cd frontend
-KEYHUNTER_E2E_BASE_URL="$origin" KEYHUNTER_TEST_DATA_DIR="$data_dir" npm run test:e2e
+KEYHUNTER_E2E_BASE_URL="$origin" KEYHUNTER_TEST_DATA_DIR="$data_dir" npm run test:e2e -- "$@"

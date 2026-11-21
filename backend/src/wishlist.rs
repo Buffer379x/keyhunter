@@ -86,6 +86,93 @@ pub(crate) struct AddInput {
     confirm_owned: bool,
 }
 
+/// The game a user picked for a platform: a catalog game that fits it, or a checked manual title.
+struct Target {
+    igdb_id: Option<i64>,
+    manual_title: Option<String>,
+    manual_key: Option<String>,
+    /// Catalog family (the base game of an edition) for the ownership warning.
+    family: Option<i64>,
+}
+
+impl Target {
+    async fn check(
+        state: &Shared,
+        igdb_id: Option<i64>,
+        manual_title: Option<String>,
+        platform_id: i64,
+    ) -> ApiResult<Self> {
+        if !catalog::platform_valid(platform_id) {
+            return Err(ApiError(
+                StatusCode::BAD_REQUEST,
+                "Nicht unterstützte Plattform.",
+            ));
+        }
+        match (igdb_id, manual_title) {
+            (Some(id), None) if id > 0 => {
+                let game = catalog::load_game(state, id).await?;
+                if !game.platforms.iter().any(|p| p.id == platform_id) || !game.selection_allowed()
+                {
+                    return Err(ApiError(
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        "Plattform oder Produkttyp passt nicht zu einem eigenständig vorgemerkten Xbox-Spiel bzw. einer Edition.",
+                    ));
+                }
+                Ok(Self {
+                    igdb_id: Some(id),
+                    manual_title: None,
+                    manual_key: None,
+                    family: Some(game.version_parent.unwrap_or(game.igdb_id)),
+                })
+            }
+            (None, Some(title)) => {
+                let title = title.trim();
+                if !(2..=200).contains(&title.chars().count())
+                    || title.chars().any(char::is_control)
+                {
+                    return Err(ApiError(
+                        StatusCode::BAD_REQUEST,
+                        "Manuellen Titel mit 2 bis 200 Zeichen eingeben.",
+                    ));
+                }
+                let key = title
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .join(" ")
+                    .to_lowercase();
+                Ok(Self {
+                    igdb_id: None,
+                    manual_title: Some(title.to_string()),
+                    manual_key: Some(key),
+                    family: None,
+                })
+            }
+            _ => Err(ApiError(
+                StatusCode::BAD_REQUEST,
+                "Entweder Katalog-ID oder manuellen Titel angeben.",
+            )),
+        }
+    }
+
+    /// Id of the game row, created on first use.
+    async fn game(&self, tx: &mut sqlx::SqliteConnection) -> ApiResult<String> {
+        let game_id = random_token().map_err(|_| internal())?[..32].to_string();
+        sqlx::query("INSERT INTO game (id, igdb_id, manual_title, manual_key, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING")
+            .bind(&game_id).bind(self.igdb_id).bind(&self.manual_title).bind(&self.manual_key).bind(now()).execute(&mut *tx).await?;
+        Ok(if let Some(id) = self.igdb_id {
+            sqlx::query_scalar("SELECT id FROM game WHERE igdb_id = ?")
+                .bind(id)
+                .fetch_one(&mut *tx)
+                .await?
+        } else {
+            sqlx::query_scalar("SELECT id FROM game WHERE manual_key = ?")
+                .bind(&self.manual_key)
+                .fetch_one(&mut *tx)
+                .await?
+        })
+    }
+}
+
 pub(crate) async fn add(
     State(state): State<Shared>,
     headers: HeaderMap,
@@ -93,78 +180,27 @@ pub(crate) async fn add(
 ) -> ApiResult<Response> {
     let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
-    if !catalog::platform_valid(input.platform_id) {
-        return Err(ApiError(
-            StatusCode::BAD_REQUEST,
-            "Nicht unterstützte Plattform.",
-        ));
+    if let (Some(id), None) = (input.igdb_id, &input.manual_title) {
+        let existing = sqlx::query(items_sql!(
+            " WHERE g.igdb_id = ? AND w.platform_id = ? AND w.state='wished'"
+        ))
+        .bind(id)
+        .bind(input.platform_id)
+        .fetch_optional(&state.pool)
+        .await?;
+        if let Some(row) = existing {
+            return Ok((
+                StatusCode::OK,
+                Json(serde_json::json!({"item":with_badge(&state,decode(row)?).await?,"created":false})),
+            )
+                .into_response());
+        }
     }
-    let mut family = None;
-    let (igdb_id, manual_title, manual_key) = match (input.igdb_id, input.manual_title) {
-        (Some(id), None) if id > 0 => {
-            let existing = sqlx::query(items_sql!(
-                " WHERE g.igdb_id = ? AND w.platform_id = ? AND w.state='wished'"
-            ))
-            .bind(id)
-            .bind(input.platform_id)
-            .fetch_optional(&state.pool)
-            .await?;
-            if let Some(row) = existing {
-                return Ok((
-                    StatusCode::OK,
-                    Json(serde_json::json!({"item":with_badge(&state,decode(row)?).await?,"created":false})),
-                )
-                    .into_response());
-            }
-            let game = catalog::load_game(&state, id).await?;
-            if !game.platforms.iter().any(|p| p.id == input.platform_id)
-                || !game.selection_allowed()
-            {
-                return Err(ApiError(
-                    StatusCode::UNPROCESSABLE_ENTITY,
-                    "Plattform oder Produkttyp passt nicht zu einem eigenständig vorgemerkten Xbox-Spiel bzw. einer Edition.",
-                ));
-            }
-            family = Some(game.version_parent.unwrap_or(game.igdb_id));
-            (Some(id), None, None)
-        }
-        (None, Some(title)) => {
-            let title = title.trim();
-            if !(2..=200).contains(&title.chars().count()) || title.chars().any(char::is_control) {
-                return Err(ApiError(
-                    StatusCode::BAD_REQUEST,
-                    "Manuellen Titel mit 2 bis 200 Zeichen eingeben.",
-                ));
-            }
-            let key = title
-                .split_whitespace()
-                .collect::<Vec<_>>()
-                .join(" ")
-                .to_lowercase();
-            (None, Some(title.to_string()), Some(key))
-        }
-        _ => {
-            return Err(ApiError(
-                StatusCode::BAD_REQUEST,
-                "Entweder Katalog-ID oder manuellen Titel angeben.",
-            ));
-        }
-    };
+    let target =
+        Target::check(&state, input.igdb_id, input.manual_title, input.platform_id).await?;
+    let family = target.family;
     let mut tx = state.pool.begin().await?;
-    let game_id = random_token().map_err(|_| internal())?[..32].to_string();
-    sqlx::query("INSERT INTO game (id, igdb_id, manual_title, manual_key, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING")
-        .bind(&game_id).bind(igdb_id).bind(&manual_title).bind(&manual_key).bind(now()).execute(&mut *tx).await?;
-    let game_id: String = if let Some(id) = igdb_id {
-        sqlx::query_scalar("SELECT id FROM game WHERE igdb_id = ?")
-            .bind(id)
-            .fetch_one(&mut *tx)
-            .await?
-    } else {
-        sqlx::query_scalar("SELECT id FROM game WHERE manual_key = ?")
-            .bind(manual_key)
-            .fetch_one(&mut *tx)
-            .await?
-    };
+    let game_id = target.game(&mut tx).await?;
     if !input.confirm_owned {
         let owned: Option<String> = sqlx::query_scalar("SELECT COALESCE(g.manual_title,json_extract(c.payload,'$.name'),'Spiel') FROM wishlist_item w JOIN game g ON g.id=w.game_id LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id WHERE w.state='owned' AND (g.id=? OR (? IS NOT NULL AND COALESCE(json_extract(c.payload,'$.version_parent'),g.igdb_id)=?)) LIMIT 1")
             .bind(&game_id).bind(family).bind(family).fetch_optional(&mut *tx).await?;
@@ -384,29 +420,120 @@ pub(crate) async fn purchase(
     let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     let mut tx = state.pool.begin().await?;
-    let result = sqlx::query(
-        "UPDATE wishlist_item SET state='owned',acquired_at=? WHERE id=? AND state='wished'",
-    )
-    .bind(now())
-    .bind(&id)
-    .execute(&mut *tx)
-    .await?;
-    if result.rows_affected() == 0 {
+    if !mark_owned(&mut tx, &id).await? {
         return Err(ApiError(
             StatusCode::NOT_FOUND,
             "Wunschlisteneintrag nicht gefunden oder bereits gekauft.",
         ));
     }
-    sqlx::query("UPDATE alert_rule SET enabled=0,scope=NULL,previous_cents=NULL,lowest_cents=NULL WHERE wish_id=?").bind(&id).execute(&mut *tx).await?;
-    sqlx::query("UPDATE alert_outbox SET state='cancelled' WHERE wish_id=? AND state='pending'")
-        .bind(&id)
-        .execute(&mut *tx)
-        .await?;
-    crate::edition_tracking::cancel_children(&mut tx, &id).await?;
-    // Revoke in-flight leases: their results cannot update observations or send alerts.
-    sqlx::query("UPDATE shop_job SET lease_until=0,lease_token=NULL WHERE wish_id=? OR link_id IN (SELECT id FROM offer_link WHERE wish_id=?)").bind(&id).bind(&id).execute(&mut *tx).await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Moves a wish into the library: alerts stop, pending messages and tracked editions are cancelled and
+/// in-flight fetches lose their lease. False when the item is not a wish.
+async fn mark_owned(tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>, id: &str) -> ApiResult<bool> {
+    let result = sqlx::query(
+        "UPDATE wishlist_item SET state='owned',acquired_at=? WHERE id=? AND state='wished'",
+    )
+    .bind(now())
+    .bind(id)
+    .execute(&mut **tx)
+    .await?;
+    if result.rows_affected() == 0 {
+        return Ok(false);
+    }
+    sqlx::query("UPDATE alert_rule SET enabled=0,scope=NULL,previous_cents=NULL,lowest_cents=NULL WHERE wish_id=?").bind(id).execute(&mut **tx).await?;
+    sqlx::query("UPDATE alert_outbox SET state='cancelled' WHERE wish_id=? AND state='pending'")
+        .bind(id)
+        .execute(&mut **tx)
+        .await?;
+    crate::edition_tracking::cancel_children(tx, id).await?;
+    // Revoke in-flight leases: their results cannot update observations or send alerts.
+    sqlx::query("UPDATE shop_job SET lease_until=0,lease_token=NULL WHERE wish_id=? OR link_id IN (SELECT id FROM offer_link WHERE wish_id=?)").bind(id).bind(id).execute(&mut **tx).await?;
+    Ok(true)
+}
+
+#[derive(Deserialize)]
+pub(crate) struct OwnedInput {
+    igdb_id: Option<i64>,
+    manual_title: Option<String>,
+    platform_id: i64,
+    /// The game is on the wishlist: move it into the library as bought.
+    #[serde(default)]
+    confirm_wished: bool,
+}
+
+/// Adds a game straight to the library (0.7.2), without the wishlist. A game already in the library is
+/// returned as it is; one on the wishlist moves over only after confirmation (`wished_game`), as if bought.
+/// A preview of an edition becomes an owned item too.
+pub(crate) async fn add_owned(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Json(input): Json<OwnedInput>,
+) -> ApiResult<Response> {
+    let session = auth::authenticate(&state, &headers).await?;
+    auth::require_csrf(&state, &headers, &session)?;
+    let target =
+        Target::check(&state, input.igdb_id, input.manual_title, input.platform_id).await?;
+    let mut tx = state.pool.begin().await?;
+    let game_id = target.game(&mut tx).await?;
+    let existing: Option<(String, String)> =
+        sqlx::query_as("SELECT id,state FROM wishlist_item WHERE game_id=? AND platform_id=?")
+            .bind(&game_id)
+            .bind(input.platform_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let created = match existing {
+        Some((_, item_state)) if item_state == "owned" => false,
+        Some((id, item_state)) if item_state == "wished" => {
+            if !input.confirm_wished {
+                let title: String = sqlx::query_scalar("SELECT COALESCE(g.manual_title,json_extract(c.payload,'$.name'),'Spiel') FROM game g LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id WHERE g.id=?")
+                    .bind(&game_id).fetch_one(&mut *tx).await?;
+                return Ok((StatusCode::CONFLICT, Json(serde_json::json!({"error":format!("„{title}“ steht auf deiner Wunschliste. Als gekauft in die Bibliothek verschieben?"),"code":"wished_game"}))).into_response());
+            }
+            mark_owned(&mut tx, &id).await?
+        }
+        Some((id, _)) => {
+            // An edition preview: no alerts, nothing watched any more once it is owned.
+            sqlx::query(
+                "UPDATE wishlist_item SET state='owned',acquired_at=?,viewed_at=NULL WHERE id=?",
+            )
+            .bind(now())
+            .bind(&id)
+            .execute(&mut *tx)
+            .await?;
+            sqlx::query("UPDATE shop_job SET lease_until=0,lease_token=NULL WHERE wish_id=? OR link_id IN (SELECT id FROM offer_link WHERE wish_id=?)").bind(&id).bind(&id).execute(&mut *tx).await?;
+            true
+        }
+        None => {
+            let id = random_token().map_err(|_| internal())?[..32].to_string();
+            let t = now();
+            sqlx::query("INSERT INTO wishlist_item (id,game_id,platform_id,created_at,state,acquired_at) VALUES (?,?,?,?,'owned',?)")
+                .bind(&id).bind(&game_id).bind(input.platform_id).bind(t).bind(t).execute(&mut *tx).await?;
+            true
+        }
+    };
+    let row = sqlx::query("SELECT w.id,w.game_id,w.platform_id,w.created_at,g.manual_title,c.payload,COALESCE(w.acquired_at,0) AS acquired_at FROM wishlist_item w JOIN game g ON g.id=w.game_id LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id WHERE w.game_id=? AND w.platform_id=?")
+        .bind(&game_id)
+        .bind(input.platform_id)
+        .fetch_one(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    let acquired_at = row.get("acquired_at");
+    let item = LibraryItem {
+        item: decode(row)?,
+        acquired_at,
+    };
+    Ok((
+        if created {
+            StatusCode::CREATED
+        } else {
+            StatusCode::OK
+        },
+        Json(serde_json::json!({"item":item,"created":created})),
+    )
+        .into_response())
 }
 
 #[derive(Deserialize)]
