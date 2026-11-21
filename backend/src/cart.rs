@@ -2,6 +2,7 @@
 //! are in it; prices come from the same saved observations as the wishlist badges, so they follow
 //! every new shop check.
 
+use crate::price_badges::ShopOffers;
 use crate::{ApiError, ApiResult, Shared, auth, now, wishlist::WishlistItem};
 use axum::{
     Json,
@@ -9,10 +10,17 @@ use axum::{
     http::{HeaderMap, StatusCode},
 };
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Serialize)]
 pub(crate) struct CartEntry {
     added_at: i64,
+    /// The shop chosen in the cart; `None`: the cheapest one (0.8.1).
+    source: Option<String>,
+    /// `world`: the cheapest offer of any region; `home`: valid in the target country (0.8.1).
+    scope: String,
+    /// Each shop's best offers for this wish, so the cart can switch shop and scope at once.
+    offers: BTreeMap<String, ShopOffers>,
     #[serde(flatten)]
     item: WishlistItem,
 }
@@ -23,20 +31,25 @@ pub(crate) async fn list(
     headers: HeaderMap,
 ) -> ApiResult<Json<Vec<CartEntry>>> {
     auth::authenticate(&state, &headers).await?;
-    let rows: Vec<(String, i64)> = sqlx::query_as(
-        "SELECT k.wish_id,k.added_at FROM cart_item k JOIN wishlist_item w ON w.id=k.wish_id
+    let rows: Vec<(String, i64, Option<String>, String)> = sqlx::query_as(
+        "SELECT k.wish_id,k.added_at,k.source,k.scope FROM cart_item k JOIN wishlist_item w ON w.id=k.wish_id
         WHERE w.state='wished' ORDER BY k.added_at,k.rowid",
     )
     .fetch_all(&state.pool)
     .await?;
-    let ids: Vec<String> = rows.iter().map(|(id, _)| id.clone()).collect();
+    let ids: Vec<String> = rows.iter().map(|(id, ..)| id.clone()).collect();
     let mut items = crate::wishlist::items(&state, &ids).await?;
+    let (target, _) = crate::price_badges::context(&state.pool).await?;
+    let mut offers = crate::price_badges::shop_offers(&state, &ids, &target).await?;
     Ok(Json(
         rows.into_iter()
-            .filter_map(|(id, added_at)| {
+            .filter_map(|(id, added_at, source, scope)| {
                 let at = items.iter().position(|item| item.id == id)?;
                 Some(CartEntry {
                     added_at,
+                    source,
+                    scope,
+                    offers: offers.remove(&id).unwrap_or_default(),
                     item: items.swap_remove(at),
                 })
             })
@@ -47,6 +60,27 @@ pub(crate) async fn list(
 #[derive(Deserialize)]
 pub(crate) struct AddInput {
     wish_id: String,
+    /// A shop from the Angebote tab (0.8.1); absent: the cheapest one.
+    #[serde(default)]
+    source: Option<String>,
+    #[serde(default)]
+    scope: Option<String>,
+}
+
+/// Shop and scope of a cart entry, checked: a known shop or `None`, and `home` or `world`.
+fn choice(source: Option<String>, scope: Option<String>) -> ApiResult<(Option<String>, String)> {
+    let scope = scope.unwrap_or_else(|| "world".into());
+    if !matches!(scope.as_str(), "home" | "world")
+        || source
+            .as_deref()
+            .is_some_and(|id| crate::shops::Shop::from_id(id).is_none())
+    {
+        return Err(ApiError(
+            StatusCode::BAD_REQUEST,
+            "Unbekannter Shop oder ungültige Preisgrundlage.",
+        ));
+    }
+    Ok((source, scope))
 }
 
 const NOT_A_WISH: ApiError = ApiError(
@@ -61,11 +95,14 @@ pub(crate) async fn add(
 ) -> ApiResult<StatusCode> {
     let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
+    let (source, scope) = choice(input.source, input.scope)?;
     let added = sqlx::query(
-        "INSERT INTO cart_item(wish_id,added_at) SELECT id,? FROM wishlist_item WHERE id=? AND state='wished'
+        "INSERT INTO cart_item(wish_id,added_at,source,scope) SELECT id,?,?,? FROM wishlist_item WHERE id=? AND state='wished'
         ON CONFLICT(wish_id) DO NOTHING",
     )
     .bind(now())
+    .bind(source)
+    .bind(scope)
     .bind(&input.wish_id)
     .execute(&state.pool)
     .await?
@@ -89,6 +126,41 @@ pub(crate) async fn add(
     })
 }
 
+#[derive(Deserialize)]
+pub(crate) struct ChangeInput {
+    /// `null`: back to the cheapest shop.
+    source: Option<String>,
+    scope: String,
+}
+
+/// Shop and price scope of one entry (cart page switch and shop choice, or an offer from the Angebote tab).
+pub(crate) async fn change(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(input): Json<ChangeInput>,
+) -> ApiResult<StatusCode> {
+    let session = auth::authenticate(&state, &headers).await?;
+    auth::require_csrf(&state, &headers, &session)?;
+    let (source, scope) = choice(input.source, Some(input.scope))?;
+    let changed = sqlx::query("UPDATE cart_item SET source=?,scope=? WHERE wish_id=?")
+        .bind(source)
+        .bind(scope)
+        .bind(&id)
+        .execute(&state.pool)
+        .await?
+        .rows_affected();
+    if changed == 0 {
+        return Err(NOT_IN_CART);
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+const NOT_IN_CART: ApiError = ApiError(
+    StatusCode::NOT_FOUND,
+    "Dieses Spiel liegt nicht im Warenkorb.",
+);
+
 pub(crate) async fn remove(
     State(state): State<Shared>,
     headers: HeaderMap,
@@ -102,10 +174,7 @@ pub(crate) async fn remove(
         .await?
         .rows_affected();
     if removed == 0 {
-        return Err(ApiError(
-            StatusCode::NOT_FOUND,
-            "Dieses Spiel liegt nicht im Warenkorb.",
-        ));
+        return Err(NOT_IN_CART);
     }
     Ok(StatusCode::NO_CONTENT)
 }

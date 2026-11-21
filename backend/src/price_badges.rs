@@ -464,6 +464,105 @@ fn compute(
     (result, shown)
 }
 
+/// One shop's best offer for a cart entry (0.8.1): key price, estimated total and region.
+#[derive(Clone, Serialize)]
+pub(crate) struct CartOffer {
+    pub cents: i64,
+    pub estimate_cents: Option<i64>,
+    pub region: Option<String>,
+    pub observed_at: i64,
+    /// Only the last known price (no current offer); target-country prices only.
+    pub stale: bool,
+}
+
+/// A shop's best offers for a wish: valid in the target country (`home`) and of any region (`world`).
+#[derive(Clone, Default, Serialize)]
+pub(crate) struct ShopOffers {
+    pub home: Option<CartOffer>,
+    pub world: Option<CartOffer>,
+}
+
+/// Per wish and shop the best offers by key price, from the same links and rules as the badges:
+/// enabled shop, not rejected, matching and confirmed. `home` falls back to the last known price
+/// like the badge does; `world` counts current offers only, like the badge's cheapest region.
+pub(crate) async fn shop_offers(
+    state: &AppState,
+    ids: &[String],
+    target: &str,
+) -> ApiResult<BTreeMap<String, BTreeMap<String, ShopOffers>>> {
+    let pool = &state.pool;
+    let t = now();
+    let ids_json = serde_json::to_string(ids).map_err(|_| crate::internal())?;
+    let wishes = offers::wishes(pool, &ids_json).await?;
+    let mut links = offers::links_of_items(pool, &ids_json, t).await?;
+    let home_scope = pricing::Scope::for_wishlist(target, "preferred");
+    let mut result = BTreeMap::new();
+    for (id, wish) in wishes {
+        let mut by_shop: BTreeMap<String, Vec<_>> = BTreeMap::new();
+        for link in links.remove(&id).unwrap_or_default() {
+            let Some(product) = link.product() else {
+                continue;
+            };
+            let verdict = pricing::evaluate(&link, &wish, Some(&product), &home_scope, t);
+            if [
+                Reason::SourceDisabled,
+                Reason::Rejected,
+                Reason::Mismatch,
+                Reason::NotConfirmed,
+            ]
+            .into_iter()
+            .any(|reason| verdict.has(reason))
+            {
+                continue;
+            }
+            let anywhere =
+                pricing::evaluate(&link, &wish, Some(&product), &pricing::Scope::AllRegions, t);
+            by_shop
+                .entry(link.source.clone())
+                .or_default()
+                .push((link, product, verdict, anywhere));
+        }
+        let shops = by_shop
+            .into_iter()
+            .map(|(source, rows)| {
+                let offer = |best: pricing::Best, stale: bool| {
+                    let (link, product, ..) =
+                        rows.iter().find(|(link, ..)| link.id == best.link_id)?;
+                    Some(CartOffer {
+                        cents: best.cents,
+                        estimate_cents: pricing::estimate(link, product),
+                        region: product.region.clone(),
+                        observed_at: best.observed_at,
+                        stale,
+                    })
+                };
+                let home = pricing::best(
+                    rows.iter()
+                        .map(|(link, product, verdict, _)| (link, product, verdict)),
+                    pricing::base,
+                );
+                let world = pricing::best(
+                    rows.iter()
+                        .map(|(link, product, _, anywhere)| (link, product, anywhere)),
+                    pricing::base,
+                );
+                let offers = ShopOffers {
+                    home: home
+                        .current
+                        .map(|best| (best, false))
+                        .or(home.last_known.map(|best| (best, true)))
+                        .and_then(|(best, stale)| offer(best, stale)),
+                    world: world.current.and_then(|best| offer(best, false)),
+                };
+                (source, offers)
+            })
+            .filter(|(_, offers)| offers.home.is_some() || offers.world.is_some())
+            .collect();
+        result.insert(id, shops);
+    }
+    Ok(result)
+}
+
 #[derive(Deserialize)]
 pub(crate) struct BadgeQuery {
     /// An empty anchor requests only the wishlist. No parameter includes all watched editions.

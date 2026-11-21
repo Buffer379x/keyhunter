@@ -11,8 +11,18 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::Row;
 
+/// Xbox systems a wish or library entry can be for (IGDB ids): Series X|S, One, 360 (0.8.1) and the original Xbox (0.8.1).
+pub(crate) const PLATFORMS: [i64; 4] = [169, 49, 12, 11];
+/// `platform` of a catalog search that covers every system in [`PLATFORMS`] ("Alle", 0.8.1).
+pub(crate) const ALL_PLATFORMS: i64 = 0;
 pub(crate) fn platform_valid(id: i64) -> bool {
-    matches!(id, 169 | 49)
+    PLATFORMS.contains(&id)
+}
+/// A game is on the searched system, or on any supported one for [`ALL_PLATFORMS`].
+fn on_platform(game: &CatalogGame, platform: i64) -> bool {
+    game.platforms
+        .iter()
+        .any(|p| p.id == platform || (platform == ALL_PLATFORMS && PLATFORMS.contains(&p.id)))
 }
 pub(crate) fn provider_error(error: CatalogError) -> ApiError {
     match error {
@@ -133,7 +143,7 @@ pub(crate) async fn search(
     let text = query.q.trim();
     if !(2..=100).contains(&text.chars().count())
         || text.chars().any(char::is_control)
-        || !platform_valid(query.platform)
+        || !(platform_valid(query.platform) || query.platform == ALL_PLATFORMS)
     {
         return Err(ApiError(
             StatusCode::BAD_REQUEST,
@@ -173,7 +183,7 @@ pub(crate) async fn search(
     // that are numbers ("1942") keep working.
     let by_id = match igdb_id(text) {
         Some(id) => match load_game(&state, id).await {
-            Ok(game) if game.platforms.iter().any(|p| p.id == query.platform) => Some(game),
+            Ok(game) if on_platform(&game, query.platform) => Some(game),
             Ok(_) | Err(ApiError(StatusCode::NOT_FOUND, _)) => None,
             Err(error) => return Err(error),
         },
@@ -188,7 +198,7 @@ pub(crate) async fn search(
         .iter()
         .cloned()
         .chain(found.into_iter().filter(|game| {
-            game.platforms.iter().any(|p| p.id == query.platform)
+            on_platform(game, query.platform)
                 && by_id
                     .as_ref()
                     .is_none_or(|first| first.igdb_id != game.igdb_id)

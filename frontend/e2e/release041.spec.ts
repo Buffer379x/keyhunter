@@ -5,8 +5,8 @@ import { openWishlistRow, removeCurrent, wishlistRows } from './detail-helpers';
 test('price badge is permanent and its region setting persists',async({page})=>{
   await signInToFixture(page);
   await page.getByRole('searchbox',{name:'Nach Spielen suchen',exact:true}).fill('forza');
-  await page.getByRole('region',{name:'Suchergebnisse'}).getByRole('button',{name:'Forza Horizon 5 vormerken',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Forza Horizon 5',exact:true})).toBeVisible();
+  await page.getByRole('region',{name:'Suchergebnisse'}).getByRole('button',{name:'Forza Horizon 5 (Xbox Series X|S) vormerken',exact:true}).click();
+  await expect(page.getByRole('heading', { name: 'Forza Horizon 5', exact: true, level: 1 })).toBeVisible();
   await navTo(page, 'Wunschliste');
   const row=wishlistRows(page).first();
   await expect(row.locator('.c-world')).toHaveText('Noch nicht abgefragt');
@@ -31,7 +31,7 @@ test('purchase and restore move the saved edition; owned family additions requir
   await signInToFixture(page);
   const search=page.getByRole('searchbox',{name:'Nach Spielen suchen',exact:true});
   const results=page.getByRole('region',{name:'Suchergebnisse'});
-  await search.fill('forza');await results.getByRole('button',{name:'Forza Horizon 5 vormerken',exact:true}).click();
+  await search.fill('forza');await results.getByRole('button',{name:'Forza Horizon 5 (Xbox Series X|S) vormerken',exact:true}).click();
   await page.getByRole('button',{name:'Gekauft',exact:true}).click();
   await expect(page.getByText(/^0 von 100 Plätzen/)).toBeVisible();
   await navTo(page, 'Bibliothek');
@@ -42,7 +42,7 @@ test('purchase and restore move the saved edition; owned family additions requir
   const restore=page.getByRole('dialog',{name:'Zurück in die Wunschliste?'});
   await expect(restore).toBeVisible();await restore.getByRole('button',{name:'Abbrechen',exact:true}).click();
   await expect(library.getByRole('listitem')).toHaveCount(1);
-  await search.fill('forza');await results.getByRole('button',{name:'Forza Horizon 5 vormerken',exact:true}).click();
+  await search.fill('forza');await results.getByRole('button',{name:'Forza Horizon 5 (Xbox Series X|S) vormerken',exact:true}).click();
   const warning=page.getByRole('dialog',{name:'Bereits in der Bibliothek'});
   await expect(warning).toBeVisible();await page.keyboard.press('Escape');
   await expect(warning).not.toBeVisible();await expect(results).toBeVisible();
@@ -52,11 +52,11 @@ test('purchase and restore move the saved edition; owned family additions requir
   await page.getByRole('button',{name:'Spiel hinzufügen',exact:true}).click();
   const catalog=page.getByRole('dialog',{name:'Spiel hinzufügen',exact:true});
   await page.getByLabel('Spiel im Katalog suchen',{exact:true}).fill('forza');
-  await catalog.getByRole('button',{name:'Forza Horizon 5: Premium Edition vormerken',exact:true}).click();
+  await catalog.getByRole('button',{name:'Forza Horizon 5: Premium Edition (Xbox Series X|S) vormerken',exact:true}).click();
   await expect(warning).toBeVisible();await page.keyboard.press('Escape');
   await expect(warning).not.toBeVisible();await expect(catalog).toBeVisible();
   // A different edition is allowed after a separate, explicit confirmation.
-  await catalog.getByRole('button',{name:'Forza Horizon 5: Premium Edition vormerken',exact:true}).click();
+  await catalog.getByRole('button',{name:'Forza Horizon 5: Premium Edition (Xbox Series X|S) vormerken',exact:true}).click();
   await expect(warning).toBeVisible();await warning.getByRole('button',{name:'Trotzdem vormerken',exact:true}).click();
   await expect(catalog).not.toBeVisible();await expect(warning).not.toBeVisible();
   await expect(page.getByRole('heading',{name:'Forza Horizon 5: Premium Edition',level:1,exact:true})).toBeVisible();
@@ -65,7 +65,7 @@ test('purchase and restore move the saved edition; owned family additions requir
   await page.getByRole('button',{name:'Bearbeiten entsperren',exact:true}).click();
   await library.getByRole('button',{name:'Forza Horizon 5 zurück in die Wunschliste',exact:true}).click();
   await restore.getByRole('button',{name:'In Wunschliste verschieben',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Forza Horizon 5',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Forza Horizon 5', exact: true, level: 1 })).toBeVisible();
   await navTo(page, 'Wunschliste');
   await expect(wishlistRows(page)).toHaveCount(2);
   for(const name of ['Forza Horizon 5: Premium Edition','Forza Horizon 5']) {
@@ -78,7 +78,7 @@ test('library navigation and confirmation fit a 320 pixel screen',async({page})=
   await page.setViewportSize({width:320,height:844});
   await signInToFixture(page);
   await page.getByRole('searchbox',{name:'Nach Spielen suchen',exact:true}).fill('forza');
-  await page.getByRole('region',{name:'Suchergebnisse'}).getByRole('button',{name:'Forza Horizon 5 vormerken',exact:true}).click();
+  await page.getByRole('region',{name:'Suchergebnisse'}).getByRole('button',{name:'Forza Horizon 5 (Xbox Series X|S) vormerken',exact:true}).click();
   // On a narrow screen the actions wrap below the cover and the title instead of covering them.
   await expect(page.getByRole('button',{name:'Weitere Aktionen'})).toBeVisible();
   await expect.poll(()=>page.locator('.game-actions').evaluate(el=>el.getBoundingClientRect().top>=document.querySelector('.game-head h1')!.getBoundingClientRect().bottom)).toBe(true);

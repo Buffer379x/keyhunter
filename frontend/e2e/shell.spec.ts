@@ -37,8 +37,8 @@ test('top bar: breadcrumbs follow the page, the bell opens the alarms, "Spiel hi
   const dialog = page.getByRole('dialog', { name: 'Spiel hinzufügen', exact: true });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel('Spiel im Katalog suchen').fill('forza');
-  await dialog.getByRole('button', { name: 'Forza Horizon 5 vormerken', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Forza Horizon 5', exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Forza Horizon 5 (Xbox Series X|S) vormerken', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Forza Horizon 5', exact: true, level: 1 })).toBeVisible();
   await expect(crumbs).toHaveText(/Wunschliste.*Forza Horizon 5/);
   await crumbs.getByRole('button', { name: 'Wunschliste', exact: true }).click();
   await expect(page).not.toHaveURL(/item=/);

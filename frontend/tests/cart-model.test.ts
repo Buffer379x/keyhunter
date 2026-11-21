@@ -1,48 +1,49 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cartLine, cartSums } from '../src/features/cart-model.ts';
-import type { CartEntry } from '../src/features/cart-model.ts';
-import type { PriceBadgeData } from '../src/api.ts';
+import { cartLine, cartSums, entryShop } from '../src/features/cart-model.ts';
+import type { CartEntry, CartOffer, CartScope, ShopOffers } from '../src/features/cart-model.ts';
 
-const entry = (id: string, badge?: PriceBadgeData): CartEntry => ({ id, created_at: 1, added_at: 1, game_id: id, platform_id: 169, verification: 'catalog', game: null, manual_title: id, in_cart: true, price_badge: badge });
-const badge = (cents: number | null, source: string, estimate: number | null, extra: Partial<PriceBadgeData> = {}): PriceBadgeData => ({
-  state: cents === null ? 'no_offer' : 'price', cents, observed_at: 1, checked_at: 1, stale: false, pending: false, source, region: 'Global', estimate_cents: estimate, ...extra,
+const offer = (cents: number, estimate: number | null, region: string, stale = false): CartOffer => ({ cents, estimate_cents: estimate, region, observed_at: 1, stale });
+const entry = (id: string, offers: Record<string, ShopOffers>, source: string | null = null, scope: CartScope = 'world'): CartEntry => ({
+  id, created_at: 1, added_at: 1, game_id: id, platform_id: 169, verification: 'catalog', game: null, manual_title: id, in_cart: true, source, scope, offers,
+});
+// Eneba with 10 % fees, Driffle without a fee estimate.
+const offers = (): Record<string, ShopOffers> => ({
+  eneba: { home: offer(2000, 2200, 'Global'), world: offer(1200, 1320, 'India') },
+  driffle: { home: offer(2100, null, 'Europe'), world: offer(1100, null, 'Turkey') },
 });
 
-test('cart: key prices, fees and totals by shop; unknown fees count with the key price only', () => {
-  const entries = [
-    entry('a', badge(2000, 'eneba', 2178)),
-    entry('b', badge(1000, 'eneba', 1089)),
-    entry('c', badge(1500, 'driffle', null)),
-    entry('d', badge(null, 'eneba', null)),
-  ];
-  const sums = cartSums(entries, {}, 'home');
-  assert.equal(sums.keys, 4500);
-  assert.equal(sums.fees, 267);
-  assert.equal(sums.total, 4767);
-  assert.deepEqual(sums.shops.map(shop => [shop.source, shop.count, shop.keys, shop.fees, shop.total]), [['eneba', 2, 3000, 267, 3267], ['driffle', 1, 1500, null, 1500]]);
-  assert.deepEqual(sums.unknownFees, ['driffle']);
-  assert.deepEqual(sums.missing.map(item => item.id), ['d']);
-  assert.equal(sums.lines.length, 4);
+test('cart: the button on the game page counts the cheapest variant, shop and region independent', () => {
+  const line = cartLine(entry('a', offers()));
+  assert.deepEqual([line.source, line.region, line.base, line.fee], ['driffle', 'Turkey', 1100, null]);
+  // Only a last known target-country price: that one counts.
+  const stale = cartLine(entry('b', { eneba: { home: offer(1900, 2090, 'Global', true), world: null } }));
+  assert.deepEqual([stale.source, stale.base, stale.fee, stale.stale], ['eneba', 1900, 190, true]);
 });
 
-test('cart: the badges given win over the ones of the cart response, so prices follow new checks', () => {
-  const sums = cartSums([entry('a', badge(2000, 'eneba', null))], { a: badge(1800, 'driffle', 1836) }, 'home');
-  assert.deepEqual([sums.keys, sums.fees, sums.shops[0].source], [1800, 36, 'driffle']);
+test('cart: DE/INT changes the price of the entry\'s own shop only', () => {
+  const home = cartLine(entry('a', offers(), 'eneba', 'home'));
+  assert.deepEqual([home.source, home.region, home.base, home.fee], ['eneba', 'Global', 2000, 200]);
+  const world = cartLine(entry('a', offers(), 'eneba', 'world'));
+  assert.deepEqual([world.source, world.region, world.base, world.fee], ['eneba', 'India', 1200, 120]);
+  // A shop without an offer in that scope: no price, the shop stays.
+  const none = cartLine(entry('a', { eneba: { home: null, world: offer(1200, 1320, 'India') } }, 'eneba', 'home'));
+  assert.deepEqual([none.source, none.base], ['eneba', null]);
+  assert.equal(entryShop(entry('a', offers(), null, 'home')), 'eneba', 'no shop of its own: the cheapest in that scope');
 });
 
-test('cart: Preis INT counts the cheapest offer of any region with its own fee', () => {
-  const world = badge(2000, 'eneba', 2178, { world: { cents: 900, base_cents: 900, estimate_cents: 980, source: 'eneba', region: 'India', observed_at: 1 } });
-  const line = cartLine(entry('a', world), world, 'world');
-  assert.deepEqual([line.base, line.fee, line.source, line.region], [900, 80, 'eneba', 'India']);
-  // Older servers without base/estimate: the compared amount is the key price, the fee unknown.
-  const old = badge(2000, 'eneba', null, { world: { cents: 900, source: 'driffle', region: 'India', observed_at: 1 } });
-  assert.deepEqual([cartLine(entry('a'), old, 'world').base, cartLine(entry('a'), old, 'world').fee], [900, null]);
-  assert.equal(cartLine(entry('a'), badge(2000, 'eneba', null), 'world').base, null, 'no world offer, no price');
-});
+test('cart: sums by shop, unknown fees, and the extra cost against the cheapest composition', () => {
+  const cheapest = cartSums([entry('a', offers()), entry('b', offers())]);
+  assert.deepEqual([cheapest.keys, cheapest.fees, cheapest.total, cheapest.extra], [2200, 0, 2200, null]);
+  assert.deepEqual(cheapest.unknownFees, ['driffle']);
 
-test('cart: a last known price is marked, a review or error state is no price', () => {
-  assert.equal(cartLine(entry('a'), badge(2000, 'eneba', null, { stale: true }), 'home').stale, true);
-  assert.equal(cartLine(entry('a'), { ...badge(2000, 'eneba', null), state: 'review' }, 'home').base, null);
-  assert.equal(cartLine(entry('a'), undefined, 'home').base, null);
+  const chosen = cartSums([entry('a', offers(), 'eneba', 'home'), entry('b', offers()), entry('c', {})]);
+  assert.equal(chosen.keys, 3100);
+  assert.equal(chosen.fees, 200);
+  assert.equal(chosen.total, 3300);
+  assert.deepEqual(chosen.shops.map(shop => [shop.source, shop.count, shop.keys, shop.fees, shop.total]), [['eneba', 1, 2000, 200, 2200], ['driffle', 1, 1100, null, 1100]]);
+  assert.deepEqual(chosen.extra, { keys: 900, total: 1100 }, 'Eneba DE instead of Driffle INT: 9 € more on keys, 11 € with fees');
+  assert.deepEqual(chosen.missing.map(item => item.id), ['c']);
+  // Eneba INT instead of the cheaper Driffle INT.
+  assert.deepEqual(cartSums([entry('a', offers(), 'eneba', 'world')]).extra, { keys: 100, total: 220 });
 });

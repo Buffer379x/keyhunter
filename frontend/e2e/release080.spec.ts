@@ -18,10 +18,6 @@ test.afterEach(async ({ page }) => {
 });
 
 const t = () => Math.floor(Date.now() / 1000) - 3600;
-const price = (cents: number, source: string, estimate: number | null, world: { cents: number; estimate: number | null; source: string; region: string }) => ({
-  state: 'price', cents, source, region: 'Global', observed_at: t(), checked_at: t(), stale: false, pending: false, estimate_cents: estimate,
-  world: { cents: world.cents, base_cents: world.cents, estimate_cents: world.estimate, source: world.source, region: world.region, observed_at: t() },
-});
 
 test('wishes go into the cart once, show a basket in the list, and the cart sums keys and fees by shop', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -44,17 +40,20 @@ test('wishes go into the cart once, show a basket in the list, and the cart sums
   await expect(forza.getByRole('img', { name: 'im Warenkorb', exact: true })).toBeVisible();
   await expect(wishlistRows(page).filter({ hasText: 'Premium' }).getByRole('img', { name: 'im Warenkorb' })).toHaveCount(0);
 
-  // Real prices from the badges: Eneba with 10 % fees, Driffle without a fee estimate.
+  // Real offers per shop (0.8.1): Eneba with 10 % fees, Driffle without a fee estimate.
+  const offer = (cents: number, estimate: number | null, region: string) => ({ cents, estimate_cents: estimate, region, observed_at: t(), stale: false });
+  const offers: Record<string, object> = {
+    [base]: { eneba: { home: offer(2890, 3179, 'Global'), world: offer(1290, 1419, 'India') }, driffle: { home: offer(3100, null, 'Europe'), world: offer(1500, null, 'Turkey') } },
+    [premium]: { driffle: { home: offer(4000, null, 'Europe'), world: offer(3500, null, 'Turkey') } },
+  };
   await page.route('**/api/v1/cart', async route => {
     if (route.request().method() !== 'GET') return route.continue();
     const response = await route.fetch();
     const entries = await response.json();
-    const badges: Record<string, object> = {
-      [base]: price(2890, 'eneba', 3179, { cents: 1290, estimate: 1419, source: 'eneba', region: 'India' }),
-      [premium]: price(4000, 'driffle', null, { cents: 3500, estimate: null, source: 'driffle', region: 'Turkey' }),
-    };
-    await route.fulfill({ response, json: entries.map((entry: { id: string }) => ({ ...entry, price_badge: badges[entry.id] })) });
+    await route.fulfill({ response, json: entries.map((entry: { id: string }) => ({ ...entry, offers: offers[entry.id] ?? {} })) });
   });
+  const changes: unknown[] = [];
+  page.on('request', request => { if (request.method() === 'PUT' && request.url().includes('/api/v1/cart/')) changes.push(request.postDataJSON()); });
   await navTo(page, 'Warenkorb');
   await expect(page.getByRole('heading', { name: 'Warenkorb', level: 1 })).toBeVisible();
   const table = page.getByRole('table', { name: 'Spiele im Warenkorb', exact: true });
@@ -69,25 +68,51 @@ test('wishes go into the cart once, show a basket in the list, and the cart sums
   // Nothing left to add: no picker.
   await expect(picker).toHaveCount(0);
 
-  const rowOf = (name: string | RegExp) => table.locator('tbody tr').filter({ hasText: name });
-  await expect(rowOf('Premium')).toContainText('Driffle');
-  await expect(rowOf('Premium').locator('.c-fee')).toHaveText('unbekannt');
-  await expect(table.locator('tbody tr').first().locator('.c-fee')).toContainText('+2,89');
-  const sum = page.getByRole('region', { name: /^Gesamt/ });
+  // Added with the button: the cheapest variant, shop and region independent.
+  const line = table.locator('tbody tr').first();
+  const premiumRow = table.locator('tbody tr').filter({ hasText: 'Premium' });
+  const shopOf = (row: typeof line) => row.getByRole('combobox', { name: /^Shop für / });
+  await expect(shopOf(line)).toHaveValue('');
+  await expect(shopOf(line).locator('option:checked')).toHaveText('Günstigster (Eneba)');
+  await expect(line.locator('.c-key')).toContainText('12,90');
+  await expect(line.locator('.c-fee')).toContainText('+1,29');
+  await expect(premiumRow.locator('.c-fee')).toHaveText('unbekannt');
+  const sum = page.getByRole('region', { name: 'Gesamt', exact: true });
   const shops = sum.getByRole('list', { name: 'Nach Shops' }).getByRole('listitem');
   await expect(shops).toHaveCount(2);
-  await expect(shops.filter({ hasText: 'Eneba' })).toContainText('31,79');
-  await expect(sum.locator('.cart-totals')).toContainText(/Reine Key-Kosten\s*68,90/);
-  await expect(sum.locator('.cart-totals')).toContainText(/Gebühren \(geschätzt\)\s*\+2,89/);
-  await expect(sum.locator('.cart-totals')).toContainText(/Gesamt mit Gebühren\s*71,79/);
-  await expect(sum.locator('.cart-totals')).toContainText(/Gesamt ohne Gebühren\s*68,90/);
+  await expect(shops.filter({ hasText: 'Eneba' })).toContainText('14,19');
+  const totals = sum.locator('.cart-totals');
+  await expect(totals).toContainText(/Reine Key-Kosten\s*47,90/);
+  await expect(totals).toContainText(/Gebühren \(geschätzt\)\s*\+1,29/);
+  await expect(totals).toContainText(/Gesamt mit Gebühren\s*49,19/);
+  await expect(totals).toContainText(/Gesamt ohne Gebühren\s*47,90/);
   await expect(sum).toContainText('Für Driffle ist keine Gebührenschätzung eingestellt');
+  await expect(sum.getByRole('definition').filter({ hasText: 'mit Gebühren ·' })).toHaveCount(0);
 
-  // Preis INT: the cheapest region of each game.
-  await page.getByRole('radiogroup', { name: 'Preisgrundlage' }).getByRole('radio', { name: 'Preis INT', exact: true }).click();
-  await expect(sum.locator('.cart-totals')).toContainText(/Reine Key-Kosten\s*47,90/);
-  await expect(sum.locator('.cart-totals')).toContainText(/Gesamt mit Gebühren\s*49,19/);
-  await page.getByRole('radiogroup', { name: 'Preisgrundlage' }).getByRole('radio', { name: /^Preis (DE|Zielland)$/ }).click();
+  // DE for this game: the price of its shop (Eneba) valid in the target country; the extra cost shows.
+  const scopeOf = (row: typeof line) => row.getByRole('radiogroup', { name: /^Preisgrundlage für / });
+  await scopeOf(line).getByRole('radio').first().click();
+  await expect(line.locator('.c-key')).toContainText('28,90');
+  await expect.poll(() => changes.at(-1)).toEqual({ source: 'eneba', scope: 'home' });
+  await expect(totals).toContainText(/Gesamt mit Gebühren\s*66,79/);
+  const extra = sum.locator('.cart-extra');
+  await expect(extra).toContainText('Mehrkosten gegenüber der günstigsten Zusammensetzung');
+  await expect(extra).toContainText(/\+17,60\s€ mit Gebühren · \+16,00\s€ Keys/);
+
+  // Another shop: DE/INT now counts for Driffle.
+  await shopOf(line).selectOption('driffle');
+  await expect.poll(() => changes.at(-1)).toEqual({ source: 'driffle', scope: 'home' });
+  await expect(line.locator('.c-key')).toContainText('31,00');
+  await expect(line.locator('.c-fee')).toHaveText('unbekannt');
+  await expect(extra).toContainText(/\+16,81\s€ mit Gebühren · \+18,10\s€ Keys/);
+  await scopeOf(line).getByRole('radio', { name: 'INT', exact: true }).click();
+  await expect.poll(() => changes.at(-1)).toEqual({ source: 'driffle', scope: 'world' });
+  await expect(line.locator('.c-key')).toContainText('15,00');
+  // Back to the cheapest: no extra cost.
+  await shopOf(line).selectOption('');
+  await expect.poll(() => changes.at(-1)).toEqual({ source: null, scope: 'world' });
+  await expect(line.locator('.c-key')).toContainText('12,90');
+  await expect(extra).toHaveCount(0);
 
   // Out again by hand.
   await page.getByRole('button', { name: 'Forza Horizon 5: Premium Edition aus dem Warenkorb nehmen', exact: true }).click();

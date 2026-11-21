@@ -12,3 +12,7 @@ table.offers .seen.stale { color: var(--warn); }
 .hidden-strip:hover { background: var(--panel-3); }
 .hidden-strip b { color: var(--text); font-weight: 500; }
 
+/* An offer into the cart (0.8.1): a small cart button before "Zum Shop". */
+table.offers .offer-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; }
+table.offers .offer-cart { width: 28px; height: 28px; }
+table.offers .offer-cart svg { width: 14px; height: 14px; }

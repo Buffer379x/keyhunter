@@ -9,7 +9,7 @@ test('the order of the wishlist columns is chosen in the settings, and the detai
   await page.setViewportSize({ width: 1440, height: 900 });
   await signInToFixture(page);
   await page.getByRole('searchbox', { name: 'Nach Spielen suchen', exact: true }).fill('forza');
-  await page.getByRole('region', { name: 'Suchergebnisse' }).getByRole('button', { name: 'Forza Horizon 5 vormerken', exact: true }).click();
+  await page.getByRole('region', { name: 'Suchergebnisse' }).getByRole('button', { name: 'Forza Horizon 5 (Xbox Series X|S) vormerken', exact: true }).click();
   await expect(page).toHaveURL(/[?&]item=/);
   await backToList(page);
   // Default: the game first, the details button last.
@@ -64,7 +64,7 @@ test('the order of the wishlist columns is chosen in the settings, and the detai
 test('the price trend shows the steadily cheapest region and each product its check interval', async ({ page }) => {
   await signInToFixture(page);
   await page.getByRole('searchbox', { name: 'Nach Spielen suchen', exact: true }).fill('forza');
-  await page.getByRole('region', { name: 'Suchergebnisse' }).getByRole('button', { name: 'Forza Horizon 5 vormerken', exact: true }).click();
+  await page.getByRole('region', { name: 'Suchergebnisse' }).getByRole('button', { name: 'Forza Horizon 5 (Xbox Series X|S) vormerken', exact: true }).click();
   await expect(page).toHaveURL(/[?&]item=/);
   const now = Math.floor(Date.now() / 1000);
   const link = (id: number, region: string, cents: number, score: number, every: number, availability = 'in_stock') => ({

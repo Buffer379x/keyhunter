@@ -293,6 +293,19 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
       setMessage(inCart ? `${itemName(selected)} ist nicht mehr im Warenkorb.` : `${itemName(selected)} liegt jetzt im Warenkorb.`);
     } catch (error) { onError(error); } finally { setCarting(false); }
   }
+  /** An offer from the Angebote tab: into the cart with its shop and scope, or the entry switched to it when already there. */
+  async function cartOffer(source: string, scope: 'home' | 'world') {
+    if (!selected || preview || carting) return;
+    setCarting(true); setMessage('');
+    try {
+      if (selected.in_cart) await api(`/cart/${encodeURIComponent(selected.id)}`, 'PUT', { source, scope }, csrf);
+      else await api('/cart', 'POST', { wish_id: selected.id, source, scope }, csrf);
+      setItems(current => current.map(item => item.id === selected.id ? { ...item, in_cart: true } : item));
+      window.dispatchEvent(new Event(CART_CHANGED));
+      const shop = shopNames[source] ?? source;
+      setMessage(`${itemName(selected)} liegt im Warenkorb: ${shop}, ${scope === 'home' ? `Preis ${targetCountry?.toUpperCase() || 'Zielland'}` : 'Preis INT'}.`);
+    } catch (error) { onError(error); } finally { setCarting(false); }
+  }
   async function purchase() {
     if (!selected || preview || purchasing) return;
     setPurchasing(true); setMessage('');
@@ -361,7 +374,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
   if (selected && viewed) return <>
     {message && <Notice>{message}</Notice>}
     <GameDetail key={selected.id} item={selected} viewed={viewed} preview={!!preview} variants={variants} editionItems={editionItems} editionError={editionError} badges={badges}
-      csrf={csrf} targetCountry={targetCountry} targetLabel={targetLabel} tab={tab} purchasing={purchasing} carting={carting} onCart={() => void toggleCart()} onTab={changeTab} onBack={closeDetail} onPurchase={() => void purchase()}
+      csrf={csrf} targetCountry={targetCountry} targetLabel={targetLabel} tab={tab} purchasing={purchasing} carting={carting} onCart={() => void toggleCart()} onCartOffer={(source, scope) => void cartOffer(source, scope)} onTab={changeTab} onBack={closeDetail} onPurchase={() => void purchase()}
       onRemove={() => { setRemoveError(''); setRemoveItem(selected); }} onView={chooseEdition} onClearPreview={() => setPreview(null)} onBadge={updateBadge} onSettings={onSettings} onError={onError} onRule={updateRule} />
     {dialogs}
   </>;

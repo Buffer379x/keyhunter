@@ -2,7 +2,12 @@ import { useEffect, useState } from 'react';
 import { KeyMark } from '../components';
 import type { CatalogGame, WishlistItem } from '../api';
 
-export const platformName = (id: number) => id === 169 ? 'Xbox Series X|S' : id === 49 ? 'Xbox One' : 'Plattform unbekannt';
+/** Xbox systems a game can be added for (IGDB ids), newest first; 360 and the original Xbox since 0.8.1. */
+export const PLATFORMS = [169, 49, 12, 11];
+const platformNames: Record<number, string> = { 169: 'Xbox Series X|S', 49: 'Xbox One', 12: 'Xbox 360', 11: 'Xbox' };
+export const platformName = (id: number) => platformNames[id] ?? 'Plattform unbekannt';
+/** "Alle" in the add dialog: the search covers every system in PLATFORMS. */
+export const ALL_PLATFORMS = 0;
 export const itemName = (item: WishlistItem) => item.game?.name ?? item.manual_title ?? 'Unbekannter Titel';
 export const selectionAllowed = (game: CatalogGame) => ['base_game', 'edition', 'remake', 'remaster', 'port', 'standalone_expansion'].includes(game.kind);
 export function kindName(game: CatalogGame): string {

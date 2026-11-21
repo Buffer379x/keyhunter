@@ -21,7 +21,7 @@ test('tablet opens the labeled navigation as a drawer and gives the selected gam
   await expect(navigation).toBeHidden();
 
   await page.getByRole('searchbox', { name: 'Nach Spielen suchen', exact: true }).fill('forza');
-  await page.getByRole('button', { name: 'Forza Horizon 5 vormerken', exact: true }).click();
+  await page.getByRole('button', { name: 'Forza Horizon 5 (Xbox Series X|S) vormerken', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Forza Horizon 5', exact: true, level: 1 })).toBeVisible();
   await expect(wishlistTable(page)).toBeHidden();
   await backToList(page);
@@ -34,7 +34,7 @@ test('tablet opens the labeled navigation as a drawer and gives the selected gam
 test('an alarm rule opens the editor and offers recover after a temporary read failure', async ({ page }) => {
   await signInToFixture(page);
   await page.getByRole('searchbox', { name: 'Nach Spielen suchen', exact: true }).fill('forza');
-  await page.getByRole('button', { name: 'Forza Horizon 5 vormerken', exact: true }).click();
+  await page.getByRole('button', { name: 'Forza Horizon 5 (Xbox Series X|S) vormerken', exact: true }).click();
   await expect(page).toHaveURL(/[?&]item=/);
   await page.getByRole('button', { name: 'Ziel setzen', exact: true }).click();
   await expect(page.getByLabel('Zielpreis',{exact:true})).toBeVisible();

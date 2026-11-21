@@ -5,7 +5,7 @@ import { editionSelect, openTab, openWishlistRow, removeCurrent, wishlistRows } 
 test('saved prices appear on the first list response and edition tags are prepared before switching',async({page})=>{
   await signInToFixture(page);
   await page.getByRole('searchbox',{name:'Nach Spielen suchen',exact:true}).fill('forza');
-  await page.getByRole('region',{name:'Suchergebnisse'}).getByRole('button',{name:'Forza Horizon 5 vormerken',exact:true}).click();
+  await page.getByRole('region',{name:'Suchergebnisse'}).getByRole('button',{name:'Forza Horizon 5 (Xbox Series X|S) vormerken',exact:true}).click();
   await expect(page).toHaveURL(/[?&]item=/);
   const rows=await(await page.request.get('/api/v1/wishlist')).json();
   const badge={state:'price',cents:1234,observed_at:1795107000,checked_at:1795107000,stale:true,pending:false};
@@ -70,7 +70,7 @@ test('offers are ordered by price and the cheapest region is compared with the t
   await page.setViewportSize({width:1440,height:900});
   await signInToFixture(page);
   await page.getByRole('searchbox',{name:'Nach Spielen suchen',exact:true}).fill('forza');
-  await page.getByRole('region',{name:'Suchergebnisse'}).getByRole('button',{name:'Forza Horizon 5 vormerken',exact:true}).click();
+  await page.getByRole('region',{name:'Suchergebnisse'}).getByRole('button',{name:'Forza Horizon 5 (Xbox Series X|S) vormerken',exact:true}).click();
   await expect(page).toHaveURL(/[?&]item=/);
   const link=(id:number,region:string,cents:number)=>({id,source:'eneba',url:'https://www.eneba.com/de/xbox-fixture-key-global',review:'confirmed',can_confirm:true,eligible:region==='DE',queued:false,enabled:true,stale:false,observed_at:Math.floor(Date.now()/1000)-3600,attempted_at:1795107000,last_error:null,retry_at:0,reasons:region==='DE'?[]:['activation_unknown','purchase_context_mismatch'],product:{name:'Synthetic',region,market:'DE',activation:region==='DE'?'confirmed':'unknown',availability:'in_stock'},quotes:[{id:String(id),seller:null,base_cents:cents,estimated_total_cents:region==='India'?null:cents+100}]});
   await page.route('**/api/v1/wishlist/*/offers',route=>route.request().method()==='GET'?route.fulfill({json:{links:[link(1,'DE',3000),link(2,'USA',1000),link(3,'India',500)],histories:{preferred:[],all:[]},history:[],best_base:3000,best_estimate:3100,target_country:'DE',searches:[],sources:[],discovery_running:false}}):route.continue());

@@ -330,8 +330,14 @@ impl CatalogProvider for IgdbProvider {
     }
     async fn search(&self, query: &str, platform: i64) -> Result<Vec<CatalogGame>, CatalogError> {
         let literal = serde_json::to_string(query).map_err(|_| CatalogError::InvalidResponse)?;
+        // 0 ("Alle") searches every supported Xbox system at once.
+        let platforms = if platform == super::ALL_PLATFORMS {
+            super::PLATFORMS.map(|id| id.to_string()).join(",")
+        } else {
+            platform.to_string()
+        };
         self.query(format!(
-            "search {literal}; fields {FIELDS}; where platforms = ({platform}); limit 20;"
+            "search {literal}; fields {FIELDS}; where platforms = ({platforms}); limit 20;"
         ))
         .await
     }

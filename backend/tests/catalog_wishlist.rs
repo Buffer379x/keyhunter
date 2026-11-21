@@ -2619,3 +2619,162 @@ async fn the_cart_holds_each_wish_once_and_drops_bought_and_deleted_ones() {
         json!([])
     );
 }
+
+/// 0.8.1: "Alle" searches every supported Xbox system; Xbox 360 titles can be added by hand.
+#[tokio::test]
+async fn the_catalog_search_covers_all_xbox_systems_and_older_ones_can_be_added() {
+    let f = Fixture::new().await;
+    let (status, all) = f
+        .call(
+            "GET",
+            "/api/v1/catalog/search?q=example&platform=0",
+            Value::Null,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let ids: Vec<i64> = all["games"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|game| game["igdb_id"].as_i64().unwrap())
+        .collect();
+    assert_eq!(ids, [1, 2, 4, 5, 6], "the PC-only game stays out");
+    let (_, older) = f
+        .call(
+            "GET",
+            "/api/v1/catalog/search?q=example&platform=12",
+            Value::Null,
+        )
+        .await;
+    assert_eq!(older["games"], json!([]));
+    assert_eq!(
+        f.call(
+            "GET",
+            "/api/v1/catalog/search?q=example&platform=6",
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    for (path, platform) in [("/api/v1/library", 12), ("/api/v1/wishlist", 11)] {
+        let (status, saved) = f
+            .call(
+                "POST",
+                path,
+                json!({"manual_title":format!("Altes Spiel {platform}"),"platform_id":platform}),
+            )
+            .await;
+        assert!(status.is_success(), "{path}: {saved}");
+        assert_eq!(saved["item"]["platform_id"], platform);
+    }
+}
+
+/// 0.8.1: each cart entry carries every shop's best offers (target country and any region) and
+/// keeps its own shop and scope.
+#[tokio::test]
+async fn cart_entries_carry_offers_per_shop_and_keep_their_own_shop_and_scope() {
+    let f = Fixture::new().await;
+    let (_, saved) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":1,"platform_id":169}),
+        )
+        .await;
+    let id = saved["item"]["id"].as_str().unwrap();
+    let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
+    settings["target_country"] = json!("DE");
+    f.call("PUT", "/api/v1/settings", settings).await;
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(
+            sqlx::sqlite::SqliteConnectOptions::new()
+                .filename(f.config.data_dir.join("keyhunter.db")),
+        )
+        .await
+        .unwrap();
+    sqlx::query("UPDATE source_settings SET fee_estimation_enabled=1,fee_basis_points=1000 WHERE id='eneba'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    for (region, cents) in [("Global", 1000), ("India", 800)] {
+        let quotes = json!([{"id":region,"cents":cents,"seller":null}]);
+        let product = json!({"id":region,"name":"Example","title":"Example","platform_ids":[169],"key_game":true,"region":region,"allowed":if region=="Global"{vec!["DE"]}else{vec![]},"blocked":[],"purchase_country":"DE","offers":quotes,"availability":"in_stock"});
+        let link:i64=sqlx::query_scalar("INSERT INTO offer_link(wish_id,source,url,latest,observed_at) VALUES(?,'eneba',?,?,?) RETURNING id")
+            .bind(id).bind(format!("https://www.eneba.com/de/xbox-example-xbox-live-key-{}",region.to_lowercase())).bind(product.to_string()).bind(t).fetch_one(&pool).await.unwrap();
+        f.call(
+            "PUT",
+            &format!("/api/v1/wishlist/{id}/offers/{link}"),
+            json!({"decision":"confirmed"}),
+        )
+        .await;
+    }
+    // From the Angebote tab: a shop and the target-country scope.
+    assert_eq!(
+        f.call(
+            "POST",
+            "/api/v1/cart",
+            json!({"wish_id":id,"source":"eneba","scope":"home"})
+        )
+        .await
+        .0,
+        StatusCode::CREATED
+    );
+    let (_, cart) = f.call("GET", "/api/v1/cart", Value::Null).await;
+    let entry = &cart[0];
+    assert_eq!(
+        (&entry["source"], &entry["scope"]),
+        (&json!("eneba"), &json!("home"))
+    );
+    let eneba = &entry["offers"]["eneba"];
+    assert_eq!(eneba["home"]["cents"], 1000);
+    assert_eq!(eneba["home"]["estimate_cents"], 1100);
+    assert_eq!(eneba["home"]["region"], "Global");
+    assert_eq!(eneba["world"]["cents"], 800);
+    assert_eq!(eneba["world"]["estimate_cents"], 880);
+    assert_eq!(eneba["world"]["region"], "India");
+
+    // The cart page switches back to the cheapest shop of any region.
+    let path = format!("/api/v1/cart/{id}");
+    assert_eq!(
+        f.call("PUT", &path, json!({"source":null,"scope":"world"}))
+            .await
+            .0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, cart) = f.call("GET", "/api/v1/cart", Value::Null).await;
+    assert_eq!(
+        (&cart[0]["source"], &cart[0]["scope"]),
+        (&Value::Null, &json!("world"))
+    );
+    for body in [
+        json!({"source":"gamivo","scope":"world"}),
+        json!({"source":null,"scope":"moon"}),
+    ] {
+        assert_eq!(f.call("PUT", &path, body).await.0, StatusCode::BAD_REQUEST);
+    }
+    assert_eq!(
+        f.call(
+            "PUT",
+            "/api/v1/cart/missing",
+            json!({"source":null,"scope":"world"})
+        )
+        .await
+        .0,
+        StatusCode::NOT_FOUND
+    );
+    // A plain add (the button on the game page) starts with the cheapest shop of any region.
+    f.call("DELETE", &path, Value::Null).await;
+    f.call("POST", "/api/v1/cart", json!({ "wish_id": id }))
+        .await;
+    let (_, cart) = f.call("GET", "/api/v1/cart", Value::Null).await;
+    assert_eq!(
+        (&cart[0]["source"], &cart[0]["scope"]),
+        (&Value::Null, &json!("world"))
+    );
+}

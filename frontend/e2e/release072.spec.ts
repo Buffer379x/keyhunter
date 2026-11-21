@@ -30,7 +30,7 @@ test('in the library a game is added straight to the library, a wished one only 
   const dialog = addDialog(page);
   await expect(dialog).toBeVisible();
   await dialog.getByLabel('Spiel im Katalog suchen').fill('forza');
-  await dialog.getByRole('button', { name: 'Forza Horizon 5 zur Bibliothek hinzufügen', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Forza Horizon 5 (Xbox Series X|S) zur Bibliothek hinzufügen', exact: true }).click();
   await expect(dialog).toBeHidden();
   await expect(page.getByRole('heading', { name: 'Bibliothek', level: 1, exact: true })).toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: 'Forza Horizon 5 ist jetzt in der Bibliothek.' })).toBeVisible();
@@ -41,13 +41,13 @@ test('in the library a game is added straight to the library, a wished one only 
   // The same game is shown as already there.
   await page.getByRole('banner').getByRole('button', { name: 'Spiel hinzufügen', exact: true }).click();
   await dialog.getByLabel('Spiel im Katalog suchen').fill('forza');
-  await expect(dialog.getByRole('button', { name: 'Forza Horizon 5 zur Bibliothek hinzufügen', exact: true })).toHaveText('In der Bibliothek');
-  await expect(dialog.getByRole('button', { name: 'Forza Horizon 5 zur Bibliothek hinzufügen', exact: true })).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: 'Forza Horizon 5 (Xbox Series X|S) zur Bibliothek hinzufügen', exact: true })).toHaveText('In der Bibliothek');
+  await expect(dialog.getByRole('button', { name: 'Forza Horizon 5 (Xbox Series X|S) zur Bibliothek hinzufügen', exact: true })).toBeDisabled();
 
   // A game on the wishlist moves over only when confirmed, as if bought.
   // (confirm_owned: the base game is owned already, the edition is a different entry.)
   await write(page, 'POST', '/api/v1/wishlist', { igdb_id: 1002, platform_id: 169, confirm_owned: true });
-  await dialog.getByRole('button', { name: 'Forza Horizon 5: Premium Edition zur Bibliothek hinzufügen', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Forza Horizon 5: Premium Edition (Xbox Series X|S) zur Bibliothek hinzufügen', exact: true }).click();
   const confirm = page.getByRole('dialog', { name: 'Steht auf der Wunschliste', exact: true });
   await expect(confirm).toContainText('steht auf deiner Wunschliste');
   await confirm.getByRole('button', { name: 'Als gekauft verschieben', exact: true }).click();
@@ -64,15 +64,17 @@ test('the library switches between tiles and a list, and keeps the choice', asyn
   await navTo(page, 'Bibliothek');
   const view = page.getByRole('group', { name: 'Ansicht', exact: true });
   await expect(view.getByRole('button', { name: 'Kacheln', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(libraryList(page)).not.toContainText('gekauft am');
+  await expect(libraryList(page).locator('.lib-sub')).toHaveCount(0);
 
   await view.getByRole('button', { name: 'Liste', exact: true }).click();
   await expect(view.getByRole('button', { name: 'Liste', exact: true })).toHaveAttribute('aria-pressed', 'true');
   const rows = libraryList(page).getByRole('listitem');
   await expect(rows).toHaveCount(2);
   await expect(rows.first()).toContainText('Altes Disc-Spiel');
-  await expect(rows.first()).toContainText(/Xbox One · gekauft am \d{2}\.\d{2}\.\d{4}/);
-  await expect(rows.nth(1)).toContainText(/Forza Horizon 5\s*Xbox Series X\|S · gekauft am/);
+  // 0.8.1: title and system only, no purchase date.
+  await expect(rows.first().locator('.lib-sub')).toHaveText('Xbox One');
+  await expect(rows.nth(1)).toContainText(/Forza Horizon 5\s*Xbox Series X\|S/);
+  await expect(libraryList(page)).not.toContainText('gekauft am');
   // Unlocked, restore and delete sit at the end of each row.
   await page.getByRole('button', { name: 'Bearbeiten entsperren', exact: true }).click();
   await expect(rows.first().getByRole('button', { name: 'Altes Disc-Spiel aus der Bibliothek entfernen', exact: true })).toBeVisible();
