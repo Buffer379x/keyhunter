@@ -11,6 +11,8 @@ export type Link = {
   cheap_score?: number;
   /** Interval of the next check in seconds: shop interval, validity in the target country and price trend. */
   check_every?: number | null;
+  /** Score 0 to 100 from the check interval factor (0.8.2); null for unconfirmed or not yet measured products. */
+  score?: number | null;
   product: { name: string; region: string | null; market: string | null; activation: string; availability: string } | null;
   quotes: Quote[];
 };

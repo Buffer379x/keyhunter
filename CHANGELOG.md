@@ -1,5 +1,17 @@
 # Änderungen
 
+## 0.8.2 – 2026-11-21
+
+Die Angebote eines Spiels bekommen einen farbigen Score und wählbare Spalten, Xbox-360-Spiele finden ihre abwärtskompatiblen Keys. Beim Start ergänzt die Datenbank zwei Einstellungen, sonst ist beim Update nichts zu tun.
+
+### Neu
+- **Score bei den Angeboten:** Die neue Spalte „Score“ bewertet jedes bestätigte Angebot von 0 bis 100. Sie spiegelt das Abfrageintervall: Ein Angebot, das im Vergleich zu den anderen des Spiels dauerhaft am günstigsten ist, prüft KeyHunter doppelt so oft (100, grün); ohne Trend gilt das normale Intervall (50, gelb); dauerhaft das teuerste oder ausverkauft heißt halb so oft (0, rot). Editionsvorschauen werden halb so oft geprüft und liegen entsprechend tiefer. Dazwischen hat jeder Wert seine eigene Farbe; der Hinweistext nennt Trend und Intervall.
+- **Spalten der Angebote:** Unter Einstellungen → Allgemein → „Angebote · Spalten“ legst du wie bei der Wunschliste Reihenfolge und Sichtbarkeit fest (ziehen, Pfeile, Schalter). Der Preis bleibt immer sichtbar, Warenkorb und „Zum Shop“ stehen immer am Ende.
+- **Xbox 360:** Die Reader erkennen Keys, die ausdrücklich für die Xbox 360 gelten. Solche gibt es kaum noch: Eneba führt etwa „Fable Anniversary“ als Xbox-Live-Key für Xbox One und Series X (live geprüft). Deshalb nimmt ein Wunsch für Xbox 360 oder die erste Xbox auch Xbox-One-Keys desselben Spiels an, aber nie automatisch: Unter Infos bestätigst du die Zuordnung einmal selbst.
+
+### Oberfläche
+- **Wunschliste ohne „Liste exportieren“:** Der Export bleibt in den Einstellungen.
+
 ## 0.8.1 – 2026-11-21
 
 Der Warenkorb rechnet jetzt pro Spiel mit Shop und Region nach Wahl, Angebote lassen sich einzeln hineinlegen, und Spiele für Xbox 360 und die erste Xbox lassen sich erfassen. Beim Start baut die Datenbank die Wunschlisten-Tabelle mit vorheriger Sicherung um; alle Einträge, Preise und Alarme bleiben erhalten.

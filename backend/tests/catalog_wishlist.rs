@@ -2778,3 +2778,50 @@ async fn cart_entries_carry_offers_per_shop_and_keep_their_own_shop_and_scope() 
         (&Value::Null, &json!("world"))
     );
 }
+
+/// 0.8.2: order and hidden columns of the offers table are saved like the wishlist columns; the price stays.
+#[tokio::test]
+async fn offers_columns_are_saved_and_the_price_cannot_be_hidden() {
+    let f = Fixture::new().await;
+    let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
+    assert_eq!(
+        settings["offers_columns"],
+        json!([
+            "shop", "region", "validity", "price", "diff", "score", "seen"
+        ])
+    );
+    assert_eq!(settings["offers_hidden"], json!([]));
+    settings["offers_columns"] = json!([
+        "price", "score", "shop", "region", "validity", "diff", "seen"
+    ]);
+    settings["offers_hidden"] = json!(["seen", "validity"]);
+    let (status, saved) = f.call("PUT", "/api/v1/settings", settings.clone()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(saved["offers_columns"][1], "score");
+    assert_eq!(saved["offers_hidden"], json!(["seen", "validity"]));
+    for (key, value) in [
+        ("offers_hidden", json!(["price"])),
+        ("offers_hidden", json!(["seen", "seen"])),
+        ("offers_columns", json!(["price", "shop"])),
+        (
+            "offers_columns",
+            json!([
+                "price", "score", "shop", "region", "validity", "diff", "link"
+            ]),
+        ),
+    ] {
+        let mut bad = settings.clone();
+        bad[key] = value;
+        assert_eq!(
+            f.call("PUT", "/api/v1/settings", bad).await.0,
+            StatusCode::BAD_REQUEST,
+            "{key}"
+        );
+    }
+    // Absent keeps what is stored.
+    let mut without = settings.clone();
+    without.as_object_mut().unwrap().remove("offers_columns");
+    without.as_object_mut().unwrap().remove("offers_hidden");
+    let (_, kept) = f.call("PUT", "/api/v1/settings", without).await;
+    assert_eq!(kept["offers_hidden"], json!(["seen", "validity"]));
+}

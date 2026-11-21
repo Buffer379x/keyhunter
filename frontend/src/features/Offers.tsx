@@ -3,7 +3,10 @@ import { Button, EmptyState, Icon, IconButton, Inset, Label, Panel, PanelHead, P
 import { relativeTime } from '../time';
 import { regionCode } from './regions';
 import { dateTime, money } from './price-format';
-import { reasonList, validity } from './offers-model';
+import { everyText, reasonList, trendText, validity } from './offers-model';
+import { offersColumnName, offersOrder, scoreTone, visibleOffersColumns } from './offers-columns';
+import type { OffersColumn } from './offers-columns';
+import type { CSSProperties, ReactNode } from 'react';
 import type { Basis, OfferRow, Summary } from './offers-model';
 import { BasisSwitch, regionName, shopName } from './PriceTab';
 import { shopNames } from './shop-names';
@@ -20,7 +23,17 @@ type Props = {
   code: string; searching: boolean; reviewCount: number; onTab: (tab: string) => void;
   /** Put this offer's shop into the cart (0.8.1): its target-country price when the offer counts there, else any region. */
   onCart?: (source: string, scope: 'home' | 'world') => void; cartBusy?: boolean;
+  /** Order and hidden columns from the settings (0.8.2). */
+  columns?: readonly string[]; hidden?: readonly string[];
 };
+
+/** Tooltip of a score: what it says and where it comes from (offers::Link::score). */
+function scoreTitle(row: OfferRow) {
+  const score = row.link.score!;
+  const every = row.link.check_every ? `Abfrage ${everyText(row.link.check_every)}` : null;
+  const state = row.link.product?.availability === 'sold_out' ? 'ausverkauft, seltener geprüft' : trendText(row.link);
+  return [`Score ${score} von 100`, state, every, 'Je günstiger dieses Angebot im Vergleich zu den anderen des Spiels bleibt, desto häufiger prüft KeyHunter es und desto höher der Score.'].filter(Boolean).join(' · ');
+}
 
 function Seen({ row }: { row: OfferRow }) {
   const at = row.link.observed_at;
@@ -30,7 +43,8 @@ function Seen({ row }: { row: OfferRow }) {
 }
 
 /** Angebote: every offer of every region, ordered by price only, with its validity in the target country and the difference to its best price. */
-export default function OffersTab({ state, rows, summary, basis, onBasis, hasEstimates, code, searching, reviewCount, onTab, onCart, cartBusy = false }: Props) {
+export default function OffersTab({ state, rows, summary, basis, onBasis, hasEstimates, code, searching, reviewCount, onTab, onCart, cartBusy = false, columns: storedColumns, hidden: hiddenColumns }: Props) {
+  const columns = visibleOffersColumns(offersOrder(storedColumns), hiddenColumns);
   const { view, busy, write } = state;
   // Off by default: cheaper regions are never hidden unless the owner asks for it.
   const [onlyValid, setOnlyValid] = useState(false);
@@ -54,18 +68,28 @@ export default function OffersTab({ state, rows, summary, basis, onBasis, hasEst
         action={!searching && <Button disabled={busy} onClick={() => void write('/refresh', 'POST', undefined)}>Angebote automatisch suchen</Button>}>
         {searching ? 'Die Suche nach regionalen Produkten für diese Edition läuft.' : 'Für diese Edition wurden noch keine Angebote gefunden.'}</EmptyState>
         : <table className="offers" aria-label="Angebote nach Preis">
-          <thead><tr><th scope="col">Shop</th><th scope="col">Region</th><th scope="col">Gültigkeit</th><th scope="col" className="r" aria-sort="ascending">Preis</th><th scope="col" className="r">vs. {code}</th><th scope="col">Gesehen</th><th scope="col"><span className="sr-only">Link</span></th></tr></thead>
+          <thead><tr>{columns.map(column => <th key={column} scope="col" className={column === 'price' || column === 'diff' || column === 'score' ? 'r' : undefined}
+            aria-sort={column === 'price' ? 'ascending' : undefined} title={column === 'score' ? 'Score 0 bis 100: wie günstig das Angebot im Vergleich bleibt und wie oft KeyHunter es deshalb prüft' : undefined}>{offersColumnName(column, code)}</th>)}
+            <th scope="col"><span className="sr-only">Link</span></th></tr></thead>
           <tbody>{shown.map(row => {
             const valid = validity(row, code), reasons = row.eligible ? [] : reasonList(row.link, code).slice(1);
             const diff = row.price !== null && summary.targetCents !== null ? row.price - summary.targetCents : null;
+            const score = row.link.score ?? null;
+            const cells: Record<OffersColumn, ReactNode> = {
+              shop: <td key="shop"><b className="shop">{shopName(row)}</b>{row.quote?.seller && <small className="muted seller">{row.quote.seller}</small>}</td>,
+              region: <td key="region"><div className="world-cell"><Reg code={regionCode(row.link.product?.region)} home={regionCode(row.link.product?.region) === code} decorative />{regionName(row)}</div></td>,
+              validity: <td key="validity"><Pill tone={valid.tone} icon={valid.icon}>{valid.text}</Pill>{reasons.length > 0 && <small className="muted reasons">{reasons.join(' · ')}</small>}</td>,
+              price: <td key="price" className="r">{row.price !== null ? <Price cents={row.price} tone={row.key === bestKey ? 'hot' : 'default'} /> : <span className="price-missing">{missingText(row)}</span>}</td>,
+              diff: <td key="diff" className="r">{diff === null ? <span className="save none">–</span> : Math.abs(diff) < 1 ? <span className="save none">bester</span>
+                : <span className={diff < 0 ? 'save big' : 'save none'}>{diff < 0 ? '−' : '+'}{money(Math.abs(diff))}</span>}</td>,
+              // 0.8.2: 0 (red, rarely checked: steadily the most expensive or sold out) to 100 (green, checked twice as often).
+              score: <td key="score" className="r">{score === null ? <span className="save none">–</span>
+                : <span className={`score ${scoreTone(score)}`} style={{ '--score': score } as CSSProperties} title={scoreTitle(row)}>
+                  <span className="score-bar" aria-hidden="true"><i /></span><span className="mono">{score}</span></span>}</td>,
+              seen: <td key="seen" className="muted nowrap"><Seen row={row} /></td>,
+            };
             return <tr key={row.key} className={row.key === bestKey ? 'best' : undefined}>
-              <td><b className="shop">{shopName(row)}</b>{row.quote?.seller && <small className="muted seller">{row.quote.seller}</small>}</td>
-              <td><div className="world-cell"><Reg code={regionCode(row.link.product?.region)} home={regionCode(row.link.product?.region) === code} decorative />{regionName(row)}</div></td>
-              <td><Pill tone={valid.tone} icon={valid.icon}>{valid.text}</Pill>{reasons.length > 0 && <small className="muted reasons">{reasons.join(' · ')}</small>}</td>
-              <td className="r">{row.price !== null ? <Price cents={row.price} tone={row.key === bestKey ? 'hot' : 'default'} /> : <span className="price-missing">{missingText(row)}</span>}</td>
-              <td className="r">{diff === null ? <span className="save none">–</span> : Math.abs(diff) < 1 ? <span className="save none">bester</span>
-                : <span className={diff < 0 ? 'save big' : 'save none'}>{diff < 0 ? '−' : '+'}{money(Math.abs(diff))}</span>}</td>
-              <td className="muted nowrap"><Seen row={row} /></td>
+              {columns.map(column => cells[column])}
               <td className="r"><span className="offer-actions">{onCart && row.price !== null && <IconButton className="offer-cart" disabled={cartBusy} onClick={() => onCart(row.link.source, row.eligible ? 'home' : 'world')}
                 label={`${shopName(row)} · ${regionName(row)} in den Warenkorb`}><Icon name="cart" /></IconButton>}<a className="btn sm" href={row.link.url} target="_blank" rel="noopener noreferrer" aria-label={`Zum Shop: ${shopName(row)} · ${regionName(row)}`}>Zum Shop<Icon name="ext" /></a></span></td>
             </tr>;

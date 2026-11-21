@@ -23,6 +23,9 @@ export interface Settings {
   /** Hidden wishlist columns and what opens the game page ("button", "title", "cover"), 0.7.1. */
   wishlist_hidden?: string[];
   wishlist_open?: string;
+  /** Order and hidden columns of the offers table on the game page (0.8.2); absent from older servers. */
+  offers_columns?: string[];
+  offers_hidden?: string[];
   sources: SourceSettings[];
   countries: string[];
   confirmed_activation_countries?: string[];

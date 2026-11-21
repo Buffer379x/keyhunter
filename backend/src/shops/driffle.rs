@@ -53,9 +53,10 @@ pub(super) fn parse(url: &Url, body: &str) -> Result<Product, ShopError> {
         && !title
             .split(' ')
             .any(|word| matches!(word, "account" | "upgrade" | "dlc"));
-    let platform_ids = ["xbox_series_x|s", "xbox_one"]
+    // Xbox 360 (0.8.2): rare, most 360 classics are sold for Xbox One (backward compatible); recognised all the same.
+    let platform_ids = ["xbox_series_x|s", "xbox_one", "xbox_360"]
         .into_iter()
-        .zip([169, 49])
+        .zip([169, 49, 12])
         .filter(|(key, _)| data["systemRequirements"][*key].is_object())
         .map(|(_, id)| id)
         .collect();
@@ -866,6 +867,9 @@ mod tests {
                 serde_json::json!({"xbox_one": null, "xbox_series_x|s": []});
         });
         assert!(parse_ok(&body).platform_ids.is_empty());
+        // 0.8.2: the Xbox 360.
+        let body = next(|s| data(s)["systemRequirements"] = serde_json::json!({"xbox_360": {}}));
+        assert_eq!(parse_ok(&body).platform_ids, [12]);
     }
 
     #[test]

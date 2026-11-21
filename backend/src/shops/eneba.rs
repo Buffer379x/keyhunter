@@ -39,9 +39,11 @@ pub(super) fn parse(url: &Url, body: &str) -> Result<Product, ShopError> {
         && !slug
             .split('-')
             .any(|word| matches!(word, "account" | "konto" | "dlc" | "upgrade" | "gift"));
-    let platform_ids = ["XBOX_SERIES_X", "XBOX_ONE"]
+    // Xbox 360 (0.8.2): Eneba lists the 360 classics it sells as Xbox One / Series X (backward compatible, checked
+    // live), so a key marked for the 360 itself is rare; it is recognised all the same.
+    let platform_ids = ["XBOX_SERIES_X", "XBOX_ONE", "XBOX_360"]
         .into_iter()
-        .zip([169, 49])
+        .zip([169, 49, 12])
         .filter(|(value, _)| {
             product["worksOn"]
                 .as_array()
@@ -550,6 +552,11 @@ mod tests {
             product_of(s)["worksOn"] = serde_json::json!([{"value": "XBOX_ONE"}]);
         });
         assert_eq!(parse(&url(SLUG), &body).unwrap().platform_ids, [49]);
+        // 0.8.2: a key marked for the Xbox 360 itself.
+        let body = variant(|s| {
+            product_of(s)["worksOn"] = serde_json::json!([{"value": "XBOX_360"}]);
+        });
+        assert_eq!(parse(&url(SLUG), &body).unwrap().platform_ids, [12]);
     }
 
     #[test]

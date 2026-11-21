@@ -32,6 +32,7 @@ type Props = {
   carting: boolean; onCart: () => void;
   /** An offer from the Angebote tab into the cart: its shop and price scope (0.8.1). */
   onCartOffer: (source: string, scope: 'home' | 'world') => void;
+  offersColumns?: string[]; offersHidden?: string[];
   onView: (game: CatalogGame) => void; onClearPreview: () => void; onBadge: (id: string, badge: PriceBadgeData) => void;
   onSettings: () => void; onError: (error: unknown) => void; onRule: (id: string, rule: Rule | null) => void;
 };
@@ -61,7 +62,7 @@ function StatusPill({ view, summary, rule, searching, code }: { view: OffersView
 }
 
 function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
-  const { item, viewed, preview, variants, editionItems, editionError, badges, csrf, targetCountry, targetLabel, tab, purchasing, carting, onCart, onCartOffer, onTab, onPurchase, onRemove, onView, onClearPreview, onBadge, onSettings, onError, alert, rule } = props;
+  const { item, viewed, preview, variants, editionItems, editionError, badges, csrf, targetCountry, targetLabel, tab, purchasing, carting, onCart, onCartOffer, offersColumns, offersHidden, onTab, onPurchase, onRemove, onView, onClearPreview, onBadge, onSettings, onError, alert, rule } = props;
   const state = useOffersView(viewed.id, csrf, onError, onBadge);
   const { view } = state;
   const [basis, setBasis] = useState<Basis>('base');
@@ -127,7 +128,7 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
     </TabPanel>
     <TabPanel id="gd" tab="angebote" value={tab}>
       {loading ?? <OffersTab state={state} rows={rows} summary={summary} basis={basis} onBasis={setBasis} hasEstimates={hasEstimates} code={code || 'Zielland'} searching={searching} reviewCount={reviews} onTab={go}
-        onCart={preview ? undefined : onCartOffer} cartBusy={carting} />}
+        onCart={preview ? undefined : onCartOffer} cartBusy={carting} columns={offersColumns} hidden={offersHidden} />}
     </TabPanel>
     <TabPanel id="gd" tab="verlauf" value={tab}>
       {view ? <HistoryTab view={view} summary={summary} code={code || 'Zielland'} land={land} target={rule?.basis === 'base' ? target : null} /> : loading}
