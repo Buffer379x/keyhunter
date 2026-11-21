@@ -5,10 +5,12 @@
  *   <= 720 px  no breadcrumbs, the search fills the top bar
  * Tokens only.
  */
-.brand { display: block; height: 36px; aspect-ratio: 196 / 40; width: auto; }
+.brand { display: block; height: 32px; aspect-ratio: 191 / 32; width: auto; }
 .key-mark { width: 48px; height: 48px; color: var(--accent); }
 .key-mark.small { width: 33px; height: 33px; }
 .key-mark-fill { fill: var(--accent); }
+.brand-tile { fill: var(--accent); }
+.brand-tag { fill: var(--on-accent); }
 .brand-word { fill: var(--text); }
 
 .app { display: grid; grid-template-columns: 236px minmax(0, 1fr); height: 100%; }
@@ -16,9 +18,10 @@
   background: var(--shell); border-right: 1px solid var(--line);
   display: flex; flex-direction: column; gap: 18px; padding: 14px 12px; overflow-y: auto;
 }
-/* The logo fills the box (the one approved deviation from the prototype, which draws it at 26 px). */
+/* The logo fills the box (the one approved deviation from the prototype, which draws it at 26 px).
+   9 px side padding leaves exactly 191 px in the 236 px sidebar, so the 191 x 32 logo renders at 1:1 on whole pixels. */
 .brand-box {
-  display: flex; align-items: center; gap: 10px; padding: 10px;
+  display: flex; align-items: center; gap: 10px; padding: 10px 9px;
   border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel); color: var(--text); text-decoration: none;
 }
 .brand-box .brand { width: 100%; height: auto; }

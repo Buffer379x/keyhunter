@@ -222,6 +222,7 @@ async fn create_app_inner(
         )
         .route("/sources/status", get(catalog::source_status))
         .route("/status/fetch", get(jobs::status))
+        .route("/status/fetch/pause", post(jobs::set_paused))
         .route("/wishlist", get(wishlist::list).post(wishlist::add))
         .route("/library", get(wishlist::library))
         .route("/wishlist/{id}/purchase", post(wishlist::purchase))

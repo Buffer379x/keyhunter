@@ -358,7 +358,8 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, ad
       <Kpi label="Weltweit günstiger" value={count(cheaper.count)} unit="ab 20 %" ticks={cheaper.ticks}
         foot={!best ? emptyFoot : <><span>bis</span><span className="hot">−{formatPrice(best.facts.saving!)} · {shortTitle(itemName(best.item))}</span></>} />
       <Kpi label="Abrufe heute" value={budget ? count(budget.used) : '–'} unit={budget ? `/ ${count(budget.limit)}` : undefined} ticks={budget?.ticks}
-        foot={!budget || budget.demand === null ? emptyFoot : <><span>Bedarf ≈ {count(budget.demand)} pro Tag</span>{budget.demand > budget.limit ? <span className="warn">zu knapp</span> : <span className="good">reicht</span>}</>} />
+        foot={budget?.paused ? <><span>Automatische Abfragen</span><span className="warn">pausiert</span></>
+          : !budget || budget.demand === null ? emptyFoot : <><span>Bedarf ≈ {count(budget.demand)} pro Tag</span>{budget.demand > budget.limit ? <span className="warn">zu knapp</span> : <span className="good">reicht</span>}</>} />
     </div>}
     <Panel aria-label="Spiele">
       <PanelHead>

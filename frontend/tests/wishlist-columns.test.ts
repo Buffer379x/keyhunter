@@ -20,3 +20,12 @@ test('moving a column swaps it with its neighbour and stops at both ends', () =>
   assert.ok(isDefaultOrder(order));
   assert.ok(!isDefaultOrder(moved));
 });
+
+test('drag and drop puts a column at its new place', async () => {
+  const { moveColumnTo } = await import('../src/features/wishlist-columns.ts');
+  const order = columnOrder(null);
+  assert.deepEqual(moveColumnTo(order, 7, 0), ['open', 'game', 'price', 'world', 'save', 'target', 'status', 'trend']);
+  assert.deepEqual(moveColumnTo(order, 0, 2), ['price', 'world', 'game', 'save', 'target', 'status', 'trend', 'open']);
+  assert.equal(moveColumnTo(order, 3, 3), order);
+  assert.deepEqual(moveColumnTo(order, 0, 99).at(-1), 'game');
+});

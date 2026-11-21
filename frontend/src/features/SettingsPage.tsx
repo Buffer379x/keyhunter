@@ -78,7 +78,8 @@ export default function SettingsPage({ section, settings, auto, csrf, countries,
         csrf={csrf} onShopsChanged={onShopsChanged} onHelp={onHelp} onError={onError} />}
       {section === 'index' && <Index settings={settings} edit={auto.edit} igdbState={igdbState} igdbConfigured={sourceStatus?.igdb?.configured} csrf={csrf} onChanged={onSourcesChanged} onError={onError} />}
       {section === 'notifications' && <Notifications overview={alerts.data} failed={alerts.failed} csrf={csrf} reload={alerts.reload} onError={onError} />}
-      {section === 'status' && <FetchPanel data={fetched.data} failed={fetched.failed} loadedAt={fetched.loadedAt} intervals={Object.fromEntries(settings.sources.map(s => [s.id, s.poll_interval_seconds]))} onShops={() => onSection('shops')} />}
+      {section === 'status' && <FetchPanel data={fetched.data} failed={fetched.failed} loadedAt={fetched.loadedAt} intervals={Object.fromEntries(settings.sources.map(s => [s.id, s.poll_interval_seconds]))}
+        csrf={csrf} onChanged={fetched.reload} onShops={() => onSection('shops')} />}
       {section === 'system' && <System onLogout={onLogout} busy={busy} />}
     </div>
   </div>;

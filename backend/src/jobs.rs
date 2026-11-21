@@ -155,6 +155,8 @@ pub(crate) fn start(pool: &SqlitePool, heartbeat: Arc<Heartbeat>) {
 // Shared SQL conditions; `j` is shop_job, `l` the joined offer_link and `t` the item the job
 // belongs to (NULL for discovery). `?2` is the current time.
 const ITEM: &str = "LEFT JOIN wishlist_item t ON t.id=COALESCE(j.wish_id,l.wish_id)";
+/// Time the owner paused the automatic checks (0.7.0), NULL while they run.
+pub(crate) const PAUSED_AT: &str = "(SELECT fetch_paused_at FROM app_settings WHERE id=1)";
 const NOT_OWNED: &str = "COALESCE(t.state,'wished')!='owned'";
 /// A preview is fetched while an active wish watches it and it was viewed in the last 14 days.
 const WATCHED_IF_PREVIEW: &str = "(COALESCE(t.state,'wished')!='preview' OR (COALESCE(t.viewed_at,0)>?2-1209600 AND EXISTS(SELECT 1 FROM edition_watch ew JOIN wishlist_item aw ON aw.id=ew.wish_id WHERE ew.track_id=t.id AND aw.state='wished')))";
@@ -198,7 +200,9 @@ fn claimable() -> String {
         WHERE j.source=?1 AND s.enabled AND s.configured AND p.retry_at<=?2
         AND (p.budget_day!=?3 OR p.jobs_today<COALESCE(s.daily_jobs,?4))
         AND j.due<=?2 AND j.lease_until<=?2 AND (p.paced_until<=?2 OR {})
+        AND ({PAUSED_AT} IS NULL OR {})
         AND {}",
+        bypass("?5"),
         bypass("?5"),
         queued()
     )
@@ -862,7 +866,10 @@ async fn budget_status(pool: &SqlitePool, shop: Shop, t: i64) -> sqlx::Result<Va
     .bind(paced_until)
     .fetch_one(pool)
     .await?;
-    let next_at = next_job.filter(|_| enabled).map(|at| {
+    let paused: bool = sqlx::query_scalar(AssertSqlSafe(format!("SELECT {PAUSED_AT} IS NOT NULL")))
+        .fetch_one(pool)
+        .await?;
+    let next_at = next_job.filter(|_| enabled && !paused).map(|at| {
         let at = at.max(t).max(retry_at);
         if used >= limit {
             at.max(today + DAY)
@@ -892,6 +899,33 @@ async fn budget_status(pool: &SqlitePool, shop: Shop, t: i64) -> sqlx::Result<Va
         "next_at": next_at,
         "by_hour": by_hour,
     }))
+}
+
+/// POST /api/v1/status/fetch/pause `{"paused": bool}`: pause or resume the automatic shop checks.
+/// While paused only direct user actions run (requested refresh, first search of a new wish).
+pub(crate) async fn set_paused(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Json(input): Json<Value>,
+) -> ApiResult<Json<Value>> {
+    let session = auth::authenticate(&state, &headers).await?;
+    auth::require_csrf(&state, &headers, &session)?;
+    let Some(paused) = input["paused"].as_bool() else {
+        return Err(crate::ApiError(
+            axum::http::StatusCode::BAD_REQUEST,
+            "Ungültige Anfrage.",
+        ));
+    };
+    // Pausing again keeps the original start; resuming clears it.
+    sqlx::query("UPDATE app_settings SET fetch_paused_at=CASE WHEN ? THEN COALESCE(fetch_paused_at,?) END WHERE id=1")
+        .bind(paused)
+        .bind(now())
+        .execute(&state.pool)
+        .await?;
+    let paused_at: Option<i64> = sqlx::query_scalar(AssertSqlSafe(format!("SELECT {PAUSED_AT}")))
+        .fetch_one(&state.pool)
+        .await?;
+    Ok(Json(json!({ "paused_at": paused_at })))
 }
 
 /// GET /api/v1/status/fetch: queue, budget, pauses and recent runs per shop.
@@ -961,7 +995,11 @@ pub(crate) async fn status(
             .bind(t - DAY)
             .fetch_one(&state.pool)
             .await?;
+    let paused_at: Option<i64> = sqlx::query_scalar(AssertSqlSafe(format!("SELECT {PAUSED_AT}")))
+        .fetch_one(&state.pool)
+        .await?;
     Ok(Json(json!({
+        "paused_at": paused_at,
         "shops": shops,
         "errors_24h": errors,
         "recent_runs": runs.into_iter().map(|(source, kind, wish_id, link_id, started_at, duration_ms, outcome, detail)| json!({
@@ -2198,6 +2236,75 @@ mod tests {
         assert!(
             (estimate - expected).abs() < 0.01,
             "estimate {estimate}, expected {expected}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_pause_stops_automatic_checks_but_not_requested_refreshes() {
+        let pool = memory().await;
+        const T0: i64 = 1_800_000_000 - 1_800_000_000 % DAY;
+        add_item(&pool, "w", "wished").await;
+        let link = add_link(&pool, "w", 0, T0).await;
+        sqlx::query("UPDATE shop_job SET initial=0 WHERE link_id=?")
+            .bind(link)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE offer_link SET observed_at=? WHERE id=?")
+            .bind(T0 - DAY)
+            .bind(link)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE app_settings SET fetch_paused_at=?")
+            .bind(T0)
+            .execute(&pool)
+            .await
+            .unwrap();
+        unpace(&pool).await;
+        // Paused: neither the due product nor the discovery runs, and the status shows no next run.
+        assert!(
+            claim(&pool, Shop::Eneba, "aa", T0, 1000)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(budget_status(&pool, Shop::Eneba, T0).await.unwrap()["next_at"].is_null());
+        // A refresh the owner asks for still runs.
+        sqlx::query("UPDATE shop_job SET requested_at=? WHERE link_id=?")
+            .bind(T0)
+            .bind(link)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let job = claim(&pool, Shop::Eneba, "aa", T0, 1000)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(job.link_id, Some(link));
+        complete(
+            &pool,
+            Shop::Eneba,
+            &job,
+            "aa",
+            Err(ShopError::Network),
+            T0,
+            T0,
+            1,
+        )
+        .await
+        .unwrap();
+        // Resumed: the automatic checks run again.
+        sqlx::query("UPDATE app_settings SET fetch_paused_at=NULL")
+            .execute(&pool)
+            .await
+            .unwrap();
+        unpace(&pool).await;
+        assert!(
+            claim(&pool, Shop::Eneba, "aa", T0 + DAY, 1000)
+                .await
+                .unwrap()
+                .is_some()
         );
     }
 

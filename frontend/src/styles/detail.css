@@ -159,7 +159,13 @@ table.contents details p { margin: 6px 0 0; font-size: var(--t-xs); max-width: 4
 .form-grid .switch input { margin-top: 1px; }
 
 /* Infos */
-.about { margin: 0; padding: 4px 16px 16px; max-width: 72ch; color: var(--text-2); }
+.about { margin: 0; max-width: 72ch; color: var(--text-2); overflow-wrap: anywhere; }
+/* (0.7.0) The IGDB description in its own box below the facts. */
+.about-box { display: grid; gap: 6px; padding: 12px 14px; }
+.about-box > .label { margin: 0; }
+/* (0.7.0) Long values (platforms, other titles) wrap inside the box instead of running past it; the label stays on one line. */
+.info-facts li > span:first-of-type { flex: none; }
+.info-facts .r { white-space: normal; text-align: right; min-width: 0; overflow-wrap: anywhere; }
 .matches .match-body { display: grid; gap: 4px; min-width: 0; }
 .matches .match-body > b { font-weight: 500; overflow-wrap: anywhere; }
 .matches .match-body > span { font-size: var(--t-xs); }

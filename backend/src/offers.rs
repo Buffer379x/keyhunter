@@ -198,12 +198,13 @@ pub(crate) async fn links<'e>(
     // check_every follows jobs::effective_interval: twice as long for an edition preview, times the price-trend pace,
     // between 15 minutes (or the shop interval) and a week.
     sqlx::query_as("SELECT l.*, (s.enabled AND s.configured) AS enabled, s.fee_estimation_enabled, s.fee_basis_points, p.retry_at,
-        COALESCE(j.lease_until>?,0) OR COALESCE(j.due<=? AND s.enabled AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<COALESCE(s.daily_jobs,?)),0) AS queued,
+        COALESCE(j.lease_until>?,0) OR COALESCE(j.due<=? AND s.enabled AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<COALESCE(s.daily_jobs,?))
+            AND ((SELECT fetch_paused_at FROM app_settings WHERE id=1) IS NULL OR j.requested_at>?),0) AS queued,
         CAST(MIN(604800,MAX(MIN(900,s.poll_interval_seconds),ROUND(s.poll_interval_seconds
             *CASE WHEN w.state='preview' THEN 2 ELSE 1 END*j.pace))) AS INTEGER) AS check_every
         FROM offer_link l JOIN source_settings s ON s.id=l.source JOIN shop_state p ON p.source=l.source
         JOIN wishlist_item w ON w.id=l.wish_id LEFT JOIN shop_job j ON j.link_id=l.id WHERE l.wish_id=? ORDER BY l.id")
-        .bind(ts).bind(ts).bind(ts).bind(ts/86400).bind(crate::jobs::daily_budget()).bind(id).fetch_all(executor).await
+        .bind(ts).bind(ts).bind(ts).bind(ts/86400).bind(crate::jobs::daily_budget()).bind(ts-900).bind(id).fetch_all(executor).await
 }
 
 /// Links of many items in one query, keyed by item id.
@@ -213,10 +214,11 @@ pub(crate) async fn links_of_items(
     ts: i64,
 ) -> sqlx::Result<BTreeMap<String, Vec<Link>>> {
     let rows: Vec<ItemLink> = sqlx::query_as("SELECT l.*, (s.enabled AND s.configured) AS enabled, s.fee_estimation_enabled, s.fee_basis_points, p.retry_at,
-        COALESCE(j.lease_until>?,0) OR COALESCE(j.due<=? AND s.enabled AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<COALESCE(s.daily_jobs,?)),0) AS queued
+        COALESCE(j.lease_until>?,0) OR COALESCE(j.due<=? AND s.enabled AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<COALESCE(s.daily_jobs,?))
+            AND ((SELECT fetch_paused_at FROM app_settings WHERE id=1) IS NULL OR j.requested_at>?),0) AS queued
         FROM offer_link l JOIN source_settings s ON s.id=l.source JOIN shop_state p ON p.source=l.source
         LEFT JOIN shop_job j ON j.link_id=l.id WHERE l.wish_id IN (SELECT value FROM json_each(?)) ORDER BY l.id")
-        .bind(ts).bind(ts).bind(ts).bind(ts/86400).bind(crate::jobs::daily_budget()).bind(ids_json).fetch_all(pool).await?;
+        .bind(ts).bind(ts).bind(ts).bind(ts/86400).bind(crate::jobs::daily_budget()).bind(ts-900).bind(ids_json).fetch_all(pool).await?;
     let mut map: BTreeMap<String, Vec<Link>> = BTreeMap::new();
     for row in rows {
         map.entry(row.wish_id).or_default().push(row.link);
@@ -375,7 +377,7 @@ pub(crate) async fn list(
     }
     history.sort_unstable_by_key(|a| std::cmp::Reverse(a.observed_at));
     let discovery_running: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM shop_job j JOIN shop_state p ON p.source=j.source JOIN source_settings s ON s.id=j.source
-        WHERE j.link_id IS NULL AND j.wish_id IS NULL AND s.enabled AND s.configured AND p.retry_at<=? AND j.due<=? AND (p.budget_day!=? OR p.jobs_today<COALESCE(s.daily_jobs,?)))").bind(t).bind(t).bind(t/86400).bind(crate::jobs::daily_budget()).fetch_one(&state.pool).await?;
+        WHERE j.link_id IS NULL AND j.wish_id IS NULL AND s.enabled AND s.configured AND p.retry_at<=? AND j.due<=? AND (p.budget_day!=? OR p.jobs_today<COALESCE(s.daily_jobs,?))) AND (SELECT fetch_paused_at FROM app_settings WHERE id=1) IS NULL").bind(t).bind(t).bind(t/86400).bind(crate::jobs::daily_budget()).fetch_one(&state.pool).await?;
     type SearchRow = (
         String,
         bool,
@@ -388,7 +390,7 @@ pub(crate) async fn list(
     );
     let search_rows:Vec<SearchRow> = sqlx::query_as(
         "SELECT j.source,s.enabled,j.due,j.lease_until,j.checked_at,COALESCE(j.last_error,p.last_error),j.result_count,
-        (p.retry_at>? OR (p.budget_day=? AND p.jobs_today>=COALESCE(s.daily_jobs,?))) FROM shop_job j
+        (p.retry_at>? OR (p.budget_day=? AND p.jobs_today>=COALESCE(s.daily_jobs,?)) OR (SELECT fetch_paused_at FROM app_settings WHERE id=1) IS NOT NULL) FROM shop_job j
         JOIN source_settings s ON s.id=j.source JOIN shop_state p ON p.source=j.source WHERE j.wish_id=?")
         .bind(t).bind(t/86400).bind(crate::jobs::daily_budget()).bind(&id).fetch_all(&state.pool).await?;
     let searches=search_rows.into_iter().map(|(source,enabled,due,lease,checked,error,count,paused)| {

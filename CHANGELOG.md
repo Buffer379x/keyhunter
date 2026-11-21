@@ -1,5 +1,17 @@
 # Änderungen
 
+## 0.7.0 – 2026-11-21
+
+Neues Logo und neue Icons, Abfragen lassen sich pausieren, und die Spalten der Wunschliste lassen sich per Drag & Drop anordnen. Die Datenbank bekommt beim Start automatisch eine neue Spalte, sonst ist beim Update nichts zu tun.
+
+### Neu
+- **Abfragen pausieren:** Unter Einstellungen → Abrufstatus hält „Abfragen pausieren“ alle automatischen Abfragen an, bis du „Abfragen fortsetzen“ drückst; seit wann pausiert ist, steht dort, in der Abrufstatus-Karte der Seitenleiste und in der Kachel „Abrufe heute“. „Jetzt aktualisieren“ in einem Spiel und die erste Suche nach einem neu hinzugefügten Spiel laufen weiter. Nach dem Fortsetzen holt KeyHunter die fälligen Abfragen gleichmäßig über das Tageslimit verteilt nach.
+- **Spalten per Drag & Drop:** In „Wunschliste · Spalten“ lässt sich jede Zeile am Griff an ihren neuen Platz ziehen (Maus oder Touch, Escape bricht ab); die Pfeile bleiben für die Tastatur. Wie alle Einstellungen gilt die neue Reihenfolge nach „Speichern“.
+
+### Oberfläche
+- **Neues Logo:** Preisschild mit Schlüsselloch auf oranger Kachel, daneben der Schriftzug KEYHUNTER in der Mono-Schrift der App. Favicon, App-Icon und Unraid-Icon zeigen dieselbe Kachel und bleiben auf hellen wie dunklen Hintergründen sichtbar; die Farben des Web-App-Manifests passen jetzt zur App.
+- **Infos-Tab:** Lange Angaben wie viele Plattformen oder alternative Titel brechen innerhalb der Tabelle um, statt über den Rand zu laufen. Die Spielbeschreibung steht in einer eigenen Box.
+
 ## 0.6.5 – 2026-11-21
 
 Einstellungen werden erst mit „Speichern“ übernommen, alle Regionen werden gleich behandelt und günstige öfter abgefragt als teure, und die Spalten der Wunschliste lassen sich anordnen. Die Datenbank bekommt beim Start automatisch neue Spalten, sonst ist nichts zu tun.

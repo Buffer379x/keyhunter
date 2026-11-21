@@ -1,6 +1,6 @@
 // Renders the raster brand icons from the approved SVGs in public/ with the installed Playwright (Chromium).
 // Run: npm run brand:icons   (from frontend/). Output is committed next to the SVGs, so the build needs no browser.
-//   favicon-16.png   16 x 16   optical 16 px variant (favicon-16.svg, no reticle)
+//   favicon-16.png   16 x 16   optical 16 px variant (favicon-16.svg, tag edges on whole pixels)
 //   favicon-32.png   32 x 32   primary mark (favicon.svg)
 //   keyhunter-appicon-512.png  512 x 512  app icon (keyhunter-appicon.svg, rounded corners, transparent outside)
 //   keyhunter-appicon-192.png  192 x 192  same app icon for the web app manifest
@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 const pub = new URL('../public/', import.meta.url);
 const svg = name => readFile(new URL(name, pub), 'utf8');
-const INK = '#090D12'; // matches --color-bg
+const INK = '#161514'; // matches --ground
 
 const appicon = await svg('keyhunter-appicon.svg');
 // Full-bleed variant for apple-touch: drop the rounded corners of the background tile.
