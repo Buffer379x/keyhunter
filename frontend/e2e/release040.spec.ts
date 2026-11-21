@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { expectSettingsSaved, signInToFixture, navTo, navItem } from './helpers';
+import { saveSettings, signInToFixture, navTo, navItem } from './helpers';
 import { editionSelect, openTab, openWishlistRow, removeCurrent, wishlistRows, wishlistTable } from './detail-helpers';
 
 test('settings separate key shops from games index and persist source intervals', async ({ page }) => {
@@ -11,7 +11,7 @@ test('settings separate key shops from games index and persist source intervals'
   await expect(eneba.getByLabel('Produktseiten abfragen alle', { exact: true })).toHaveValue(String(8 * 3600));
   await expect(page.getByRole('region', { name: 'IGDB-Zugang' })).not.toBeVisible();
   await eneba.getByLabel('Produktseiten abfragen alle', { exact: true }).selectOption(String(2 * 3600));
-  await expectSettingsSaved(page);
+  await saveSettings(page);
   await page.reload();
   await expect(eneba.getByLabel('Produktseiten abfragen alle', { exact: true })).toHaveValue(String(2 * 3600));
   await page.getByLabel('Shop-URL', { exact: true }).fill('https://www.gamivo.com');

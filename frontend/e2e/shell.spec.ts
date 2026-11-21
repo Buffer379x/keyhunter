@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { expectSettingsSaved, navItem, navTo, settingsCountry, signInToFixture } from './helpers';
+import { saveSettings, navItem, navTo, settingsCountry, signInToFixture } from './helpers';
 import { openWishlistRow, removeCurrent } from './detail-helpers';
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -55,7 +55,7 @@ test('the sidebar target country saves itself and the settings page shows the sa
   await navTo(page, 'Allgemein');
   await expect(settingsCountry(page)).toHaveValue('AT');
   await settingsCountry(page).selectOption('DE');
-  await expectSettingsSaved(page);
+  await saveSettings(page);
   await expect(sidebarCountry).toHaveValue('DE');
   await page.reload();
   await expect(sidebarCountry).toHaveValue('DE');

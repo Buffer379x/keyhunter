@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { expectSettingsSaved, signInToFixture, navTo, settingsCountry } from './helpers';
+import { saveSettings, signInToFixture, navTo, settingsCountry } from './helpers';
 import { openTab, openWishlistRow, removeCurrent, wishlistHeading, wishlistRows } from './detail-helpers';
 
 test('catalog choice persists, editions stay distinct, filters and removal work on mobile', async ({ page }) => {
@@ -124,7 +124,7 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
   await openTab(page, 'Angebote');
   await navTo(page, 'Allgemein');
   await settingsCountry(page).selectOption('US');
-  await expectSettingsSaved(page);
+  await saveSettings(page);
   target = 'US';
   // The sidebar always opens the list; browser back returns to the game and its tab.
   await page.goBack();
@@ -134,7 +134,7 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
   await expect(page.getByRole('group', { name: 'Preisvergleich' })).toContainText('Bester Preis · US');
   await navTo(page, 'Allgemein');
   await settingsCountry(page).selectOption('DE');
-  await expectSettingsSaved(page);
+  await saveSettings(page);
   target = 'DE';
   await page.goBack();
   await removeCurrent(page);

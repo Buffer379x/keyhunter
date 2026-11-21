@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import type { Settings } from '../../api';
 import { Button, Icon, IconButton } from '../../components';
 import { SettingsPanel } from './parts';
-import type { Autosave } from './autosave';
+import type { SettingsDraft } from './draft';
 import { WISHLIST_COLUMNS, columnNames, columnOrder, isDefaultOrder, moveColumn } from '../wishlist-columns';
 import type { WishlistColumn } from '../wishlist-columns';
 
@@ -10,7 +10,7 @@ import type { WishlistColumn } from '../wishlist-columns';
  * Order of the wishlist table columns (top of the list = leftmost column): every column with "nach oben" and "nach unten", saved at once. The focus stays on the
  * moved column, so it can be moved several places with the keyboard. Phones keep their fixed card layout.
  */
-export default function WishlistColumns({ settings, edit }: { settings: Settings; edit: Autosave['edit'] }) {
+export default function WishlistColumns({ settings, edit }: { settings: Settings; edit: SettingsDraft['edit'] }) {
   const order = columnOrder(settings.wishlist_columns);
   const code = settings.target_country;
   const name = (column: WishlistColumn) => column === 'price' && code ? `Preis ${code}` : columnNames[column];

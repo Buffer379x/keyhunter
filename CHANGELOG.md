@@ -2,10 +2,13 @@
 
 ## 0.6.5 – 2026-11-21
 
-Die Spalten der Wunschliste lassen sich in den Einstellungen anordnen, und die Bibliothek sortiert standardmäßig von A bis Z. Die Datenbank bekommt beim Start automatisch eine neue Spalte, sonst ist nichts zu tun.
+Einstellungen werden erst mit „Speichern“ übernommen, günstige Regionen werden öfter abgefragt als teure, und die Spalten der Wunschliste lassen sich anordnen. Die Datenbank bekommt beim Start automatisch neue Spalten, sonst ist nichts zu tun.
 
 ### Neu
-- **Spaltenreihenfolge der Wunschliste:** Unter Einstellungen → Allgemein → „Wunschliste · Spalten“ lässt sich jede Spalte mit den Pfeilen nach oben oder unten verschieben, zum Beispiel der Details-Knopf vor das Cover. Die Reihenfolge wird sofort gespeichert und gilt auf allen Geräten; „Standard wiederherstellen“ setzt sie zurück. Auf dem Smartphone bleibt die Kartenansicht gleich.
+- **Speichern statt automatisch:** Änderungen in den Einstellungen bleiben ein Entwurf, bis du oben „Speichern“ drückst; „Verwerfen“ kehrt zum gespeicherten Stand zurück. Solange etwas offen ist, bleibt die Kopfzeile beim Scrollen sichtbar. Wer die Einstellungen mit offenen Änderungen verlässt, wird gefragt: speichern, verwerfen oder zurück. Das Zielland in der Seitenleiste speichert weiterhin sofort.
+- **Abfragen nach Preistrend:** Jede Messung bestimmt, wo eine Produktseite preislich im Vergleich zu den anderen Regionen desselben Spiels liegt (günstigste bis teuerste). Ein gleitender Durchschnitt über etwa die letzten zehn Messungen ergibt den Trend. Die über längere Zeit günstigste Region wird bis zu doppelt so oft abgefragt, die teuerste nur noch halb so oft, alles dazwischen stufenlos. Ausverkaufte Produkte werden halb so oft geprüft, bis sie wieder lieferbar sind. Bei gleichen Preisen oder ohne Vergleich bleibt das eingestellte Intervall. Der Tagesbedarf auf der Abrufstatus-Seite rechnet damit.
+- **Trend sichtbar:** Der Preis-Tab nennt die Region, die meist am günstigsten ist; unter Infos → Produktzuordnungen steht bei jedem Produkt, wie oft es abgefragt wird und ob es meist günstig oder meist teuer ist.
+- **Spaltenreihenfolge der Wunschliste:** Unter Einstellungen → Allgemein → „Wunschliste · Spalten“ lässt sich jede Spalte mit den Pfeilen nach oben oder unten verschieben, zum Beispiel der Details-Knopf vor das Cover. Die Reihenfolge gilt auf allen Geräten; „Standard wiederherstellen“ setzt sie zurück. Auf dem Smartphone bleibt die Kartenansicht gleich.
 
 ### Oberfläche
 - **Bibliothek:** Standard ist jetzt „A–Z“; der Schalter steht deshalb an erster Stelle, „Zuletzt gekauft“ an zweiter.

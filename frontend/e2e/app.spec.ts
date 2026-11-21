@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { expectSettingsSaved, signInToFixture, navTo, signOut, settingsCountry } from './helpers';
+import { saveSettings, signInToFixture, navTo, signOut, settingsCountry } from './helpers';
 import { wishlistHeading } from './detail-helpers';
 
 test('owner can set up, save service fees, use keyboard dialog, and log in again', async ({ page }) => {
@@ -13,13 +13,14 @@ test('owner can set up, save service fees, use keyboard dialog, and log in again
   await expect(page.getByRole('note').filter({ hasText: 'Die Shops bestätigen die Aktivierung derzeit nur für Deutschland. Für Österreich werden Angebote angezeigt' })).toBeVisible();
   await settingsCountry(page).selectOption('DE');
   await expect(page.getByRole('note').filter({ hasText: 'Die Shops bestätigen' })).toHaveCount(0);
-  // Changes save themselves: leaving the page right after a change still stores it, and the shell shows it at once.
+  // Changes stay a draft: leaving the page asks first, and after "Speichern" the shell shows the new country.
   await settingsCountry(page).selectOption('FR');
   await navTo(page, 'Wunschliste');
+  await page.getByRole('dialog', { name: 'Änderungen speichern?', exact: true }).getByRole('button', { name: 'Speichern', exact: true }).click();
   await expect(page.getByRole('complementary', { name: 'Seitenleiste' }).getByLabel('Zielland', { exact: true })).toHaveValue('FR');
   await navTo(page, 'Allgemein');
   await settingsCountry(page).selectOption('DE');
-  await expectSettingsSaved(page);
+  await saveSettings(page);
   await navTo(page, 'Wunschliste');
   await expect(page.getByRole('complementary', { name: 'Seitenleiste' }).getByLabel('Zielland', { exact: true })).toHaveValue('DE');
   await navTo(page, 'Allgemein');
@@ -27,7 +28,7 @@ test('owner can set up, save service fees, use keyboard dialog, and log in again
   const eneba = page.getByRole('article', { name: 'Eneba' });
   await eneba.getByRole('switch', { name: /Geschätzte Gebühren berücksichtigen/ }).click();
   await eneba.getByLabel('Geschätzte Gebühren (%)', { exact: true }).fill('2,50');
-  await expectSettingsSaved(page);
+  await saveSettings(page);
   await page.reload();
   await navTo(page, 'Allgemein');
   await navTo(page, 'Allgemein');

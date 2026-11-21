@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { Settings, SourceStatuses } from '../api';
 import { Button, Icon } from '../components';
 import General from './settings/General';
@@ -7,7 +8,7 @@ import Notifications from './settings/Notifications';
 import FetchPanel from './settings/FetchPanel';
 import System from './settings/System';
 import { useAlertOverview, useFetchStatus } from './settings/data';
-import type { Autosave } from './settings/autosave';
+import type { SettingsDraft } from './settings/draft';
 import { sectionLabel } from './settings/sections';
 import type { Section } from './settings/sections';
 import '../styles/settings.css';
@@ -27,21 +28,30 @@ const subtitles: Record<Section, string> = {
 interface Props {
   /** The open section; the sidebar navigation chooses it and keeps it in the URL. */
   section: Section;
-  settings: Settings; auto: Autosave; csrf: string; countries: { code: string; name: string }[];
+  settings: Settings; auto: SettingsDraft; csrf: string; countries: { code: string; name: string }[];
   sourceStatus: SourceStatuses | null; busy: boolean;
   onSection: (section: Section) => void;
   onSourcesChanged: () => void; onShopsChanged: (saved: Settings) => void; onError: (error: unknown) => void; onHelp: () => void; onLogout: () => void;
 }
 
-function SaveIndicator({ auto }: { auto: Autosave }) {
-  const { state, error, retryable, retry } = auto;
+/**
+ * Save bar in the page head: changes stay a draft until "Speichern"; "Verwerfen" returns to the saved state.
+ * While something is unsaved the page head stays visible when scrolling (sticky), so the button is always at hand.
+ */
+function SaveBar({ auto }: { auto: SettingsDraft }) {
+  const { state, error, dirty, save, discard } = auto;
+  const [done, setDone] = useState(false);
+  useEffect(() => { if (!done) return; const timer = window.setTimeout(() => setDone(false), 3000); return () => window.clearTimeout(timer); }, [done]);
+  async function submit() { if (await save()) setDone(true); }
   return <div className={`set-save ${state}`}>
     <span role="status" className="label">
-      {state === 'saved' ? <><i className="dot" aria-hidden="true" />Alle Änderungen gespeichert</>
-        : state === 'error' ? <><Icon name="alert" size={14} />Nicht gespeichert</>
-          : <><span className="spinner" aria-hidden="true" />Wird gespeichert …</>}
+      {state === 'saving' ? <><span className="spinner" aria-hidden="true" />Wird gespeichert …</>
+        : dirty ? <><i className="dot" aria-hidden="true" />Nicht gespeichert</>
+          : done ? <><Icon name="check" size={14} />Gespeichert</> : null}
     </span>
-    {state === 'error' && <span className="set-save-error" role="alert">{error}{retryable && <Button variant="ghost" size="sm" onClick={retry}>Erneut versuchen</Button>}</span>}
+    {dirty && <Button variant="ghost" disabled={state === 'saving'} onClick={discard}>Verwerfen</Button>}
+    <Button variant="primary" disabled={!dirty} loading={state === 'saving'} onClick={() => void submit()}>Speichern</Button>
+    {state === 'error' && <span className="set-save-error" role="alert">{error}</span>}
   </div>;
 }
 
@@ -50,10 +60,12 @@ export default function SettingsPage({ section, settings, auto, csrf, countries,
   const alerts = useAlertOverview();
   const igdbState = sourceStatus?.igdb?.state;
 
-  return <div className="page settings-page">
+  // Sections whose controls belong to the draft; the others (alarms, status, system) save their own way.
+  const drafted = section === 'general' || section === 'shops' || section === 'index';
+  return <div className={`page settings-page${auto.dirty ? ' unsaved' : ''}`}>
     <header className="page-head">
       <div><h1>{sectionLabel(section)}</h1><p>{subtitles[section]}</p></div>
-      <SaveIndicator auto={auto} />
+      {(drafted || auto.dirty) && <SaveBar auto={auto} />}
     </header>
     {location.protocol === 'http:' && <div className="note warn" role="note">
       <Icon name="alert" />
@@ -62,7 +74,7 @@ export default function SettingsPage({ section, settings, auto, csrf, countries,
     </div>}
     <div id="settings-panel" className="set-panel" data-section={section}>
       {section === 'general' && <General settings={settings} countries={countries} edit={auto.edit} onError={onError} />}
-      {section === 'shops' && <Shops settings={settings} feeDraft={auto.feeDraft} edit={auto.edit} editFee={auto.editFee} settle={auto.settle} status={fetched.data?.shops}
+      {section === 'shops' && <Shops settings={settings} feeDraft={auto.feeDraft} edit={auto.edit} editFee={auto.editFee} dirty={auto.dirty} status={fetched.data?.shops}
         csrf={csrf} onShopsChanged={onShopsChanged} onHelp={onHelp} onError={onError} />}
       {section === 'index' && <Index settings={settings} edit={auto.edit} igdbState={igdbState} igdbConfigured={sourceStatus?.igdb?.configured} csrf={csrf} onChanged={onSourcesChanged} onError={onError} />}
       {section === 'notifications' && <Notifications overview={alerts.data} failed={alerts.failed} csrf={csrf} reload={alerts.reload} onError={onError} />}

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { expectSettingsSaved, signInToFixture, navTo, navItem } from './helpers';
+import { saveButton, saveSettings, signInToFixture, navTo, navItem } from './helpers';
 
 const now = () => Math.floor(Date.now() / 1000);
 const fetchStatus = () => ({
@@ -59,7 +59,7 @@ test('settings sections are bound to the URL, and Abrufstatus shows queue, budge
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test('an invalid fee is not sent, says so, and the page keeps the edit', async ({ page }) => {
+test('settings stay a draft until Speichern; an invalid fee is not sent, says so, and the page keeps the edit', async ({ page }) => {
   await signInToFixture(page);
   await navTo(page, 'Allgemein');
   await navTo(page, 'Key-Shops');
@@ -67,19 +67,61 @@ test('an invalid fee is not sent, says so, and the page keeps the edit', async (
   const fee = eneba.getByLabel('Geschätzte Gebühren (%)', { exact: true });
   const feeSwitch = eneba.getByRole('switch', { name: /Geschätzte Gebühren berücksichtigen/ });
   if (!await feeSwitch.isChecked()) await feeSwitch.click();
-  await expectSettingsSaved(page);
+  await saveSettings(page);
   let puts = 0;
   await page.route('**/api/v1/settings', route => { if (route.request().method() === 'PUT') puts += 1; return route.continue(); });
   await fee.fill('abc');
-  await expect(page.getByRole('alert')).toContainText('Gebühren bitte als Zahl von 0 bis 100');
   await expect(page.getByRole('status').filter({ hasText: 'Nicht gespeichert' })).toBeVisible();
+  await page.waitForTimeout(900);
+  expect(puts).toBe(0);
+  await saveButton(page).click();
+  await expect(page.getByRole('alert')).toContainText('Gebühren bitte als Zahl von 0 bis 100');
   expect(puts).toBe(0);
   await fee.fill('3,5');
-  await expectSettingsSaved(page);
+  await saveSettings(page);
   expect(puts).toBe(1);
   await expect(fee).toHaveValue('3,50');
+  await expect(page.getByRole('status').filter({ hasText: 'Gespeichert' })).toBeVisible();
+  // Verwerfen returns to the saved state without a request.
   await feeSwitch.click();
-  await expectSettingsSaved(page);
+  await page.getByRole('button', { name: 'Verwerfen', exact: true }).click();
+  await expect(feeSwitch).toBeChecked();
+  await expect(saveButton(page)).toBeDisabled();
+  expect(puts).toBe(1);
+  await feeSwitch.click();
+  await saveSettings(page);
+});
+
+test('leaving the settings with unsaved changes asks to save, discard or go back', async ({ page }) => {
+  await signInToFixture(page);
+  await navTo(page, 'Key-Shops');
+  const eneba = page.getByRole('article', { name: 'Eneba', exact: true });
+  const interval = eneba.getByLabel('Produktseiten abfragen alle', { exact: true });
+  const before = await interval.inputValue();
+  const other = await interval.locator('option').evaluateAll((options, value) => options.map(o => (o as HTMLOptionElement).value).find(v => v !== value)!, before);
+  await interval.selectOption(other);
+  // Adding or removing a shop waits until the draft is saved or discarded.
+  await expect(eneba.getByRole('button', { name: 'Entfernen', exact: true })).toBeDisabled();
+  await navTo(page, 'Wunschliste');
+  const dialog = page.getByRole('dialog', { name: 'Änderungen speichern?', exact: true });
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page).toHaveURL(/section=shops/);
+  await expect(interval).toHaveValue(other);
+  await navTo(page, 'Wunschliste');
+  await dialog.getByRole('button', { name: 'Verwerfen', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await navTo(page, 'Key-Shops');
+  await expect(interval).toHaveValue(before);
+  await interval.selectOption(other);
+  await page.goBack();
+  await dialog.getByRole('button', { name: 'Speichern', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  const saved = await (await page.request.get('/api/v1/settings')).json();
+  expect(saved.sources.find((s: { id: string }) => s.id === 'eneba').poll_interval_seconds).toBe(Number(other));
+  await navTo(page, 'Key-Shops');
+  await interval.selectOption(before);
+  await saveSettings(page);
 });
 
 test('a library entry can be removed after confirmation', async ({ page }) => {
@@ -156,7 +198,7 @@ test('Abrufe pro Tag saves a valid number with the settings, keeps an invalid on
   await page.waitForTimeout(900);
   expect(puts).toHaveLength(0);
   await field.fill('750');
-  await expectSettingsSaved(page);
+  await saveSettings(page);
   expect(puts).toHaveLength(1);
   expect(puts[0].sources.find(s => s.id === 'eneba')?.daily_jobs).toBe(750);
   // IGDB has no daily limit and keeps null.
@@ -165,7 +207,7 @@ test('Abrufe pro Tag saves a valid number with the settings, keeps an invalid on
   await page.reload();
   await expect(field).toHaveValue('750');
   await field.fill('');
-  await expectSettingsSaved(page);
+  await saveSettings(page);
   expect(puts.at(-1)!.sources.find(s => s.id === 'eneba')?.daily_jobs).toBeNull();
   await field.blur();
   await expect(field).toHaveValue('500');

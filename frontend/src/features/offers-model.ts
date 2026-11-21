@@ -7,6 +7,10 @@ export type Link = {
   reasons?: string[]; renamed?: { from: string; to: string } | null;
   /** Confirmed by hand although the shop data does not match the game automatically (0.6.4). */
   manual_match?: boolean;
+  /** Price trend within the game (0.6.5): 0 = mostly the cheapest, 1 = mostly the most expensive, 0.5 = no comparison yet. */
+  cheap_score?: number;
+  /** Interval of the next check in seconds: shop interval, validity in the target country and price trend. */
+  check_every?: number | null;
   product: { name: string; region: string | null; market: string | null; activation: string; availability: string } | null;
   quotes: Quote[];
 };
@@ -21,6 +25,27 @@ export type OffersView = {
   searches: { source: string; status: string; checked_at: number | null; last_error: string | null; result_count: number | null }[];
 };
 export type Basis = 'base' | 'estimate';
+
+/** A trend counts from this score on (about four measurements in a row as the cheapest). */
+const CHEAP_TREND = 0.3;
+const EXPENSIVE_TREND = 0.7;
+/** "meist günstig" / "meist teuer" from the price trend; null while the trend is undecided. */
+export function trendText(link: Link): string | null {
+  const score = link.cheap_score;
+  if (score === undefined) return null;
+  return score <= CHEAP_TREND ? 'meist günstig' : score >= EXPENSIVE_TREND ? 'meist teuer' : null;
+}
+/** The confirmed, active product whose region has been the cheapest most steadily, or null without a clear trend. */
+export function trendLeader(links: Link[]): Link | null {
+  const candidates = links.filter(link => link.review === 'confirmed' && link.enabled && link.product && (link.cheap_score ?? 0.5) <= CHEAP_TREND);
+  return candidates.reduce<Link | null>((best, link) => !best || link.cheap_score! < best.cheap_score! ? link : best, null);
+}
+/** "alle 12 h", "alle 2 Tage", "alle 45 min". */
+export function everyText(seconds: number): string {
+  if (seconds < 3600) return `alle ${Math.round(seconds / 60)} min`;
+  const hours = Math.round(seconds / 3600);
+  return hours < 48 ? `alle ${hours} h` : `alle ${Math.round(hours / 24)} Tage`;
+}
 
 /** Reasons why a confirmed offer does not count as a current price in the target country, most important first. */
 const reasonLabels: [string, string][] = [

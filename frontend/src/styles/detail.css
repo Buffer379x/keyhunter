@@ -165,6 +165,7 @@ table.contents details p { margin: 6px 0 0; font-size: var(--t-xs); max-width: 4
 .matches .match-body > span { font-size: var(--t-xs); }
 .matches .rename-note { color: var(--warn); }
 .matches .match-error { color: var(--danger); }
+.matches .match-pace { color: var(--faint); font-size: var(--t-xs); } /* (0.6.5) check interval and price trend */
 .match-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
 .link-form { max-width: none; border-top: 1px solid var(--line); }
 .link-input { display: flex; flex-wrap: wrap; gap: 8px; }

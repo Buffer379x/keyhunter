@@ -2,7 +2,7 @@ import { BigPrice, Button, Icon, Inset, Label, Panel, PanelHead, Pill, Reg, Seg 
 import { relativeTime } from '../time';
 import { countryData, regionCode } from './regions';
 import { dailyStats } from './history-model';
-import { validity, verdict, verdictText } from './offers-model';
+import { trendLeader, validity, verdict, verdictText } from './offers-model';
 import type { Basis, OfferRow, OffersView, Summary } from './offers-model';
 import PriceMatrix from './PriceMatrix';
 import { ruleTarget, targetReached } from './PriceAlerts';
@@ -60,6 +60,8 @@ export default function PriceTab({ view, rows, summary, basis, onBasis, hasEstim
   const lo = gaugeValues.length ? Math.min(...gaugeValues) * .94 : 0, hi = gaugeValues.length ? Math.max(...gaugeValues) * 1.03 : 1;
   const pos = (cents: number) => `${((cents - lo) / (hi - lo || 1) * 100).toFixed(1)}%`;
   const cheaper = rows.filter(r => r.current && r.price !== null && !r.eligible && (targetCents === null || r.price < targetCents));
+  // Region that has been the cheapest most steadily (price trend of the scheduler, which checks it more often).
+  const leader = view ? trendLeader(view.links) : null;
 
   return <div className="grid-2">
     <div className="stack">
@@ -149,6 +151,7 @@ export default function PriceTab({ view, rows, summary, basis, onBasis, hasEstim
           {cheaper.slice(0, 3).map(row => { const valid = validity(row, code); return <li key={row.key} className={valid.tone === 'warn' ? 'warn' : ''}>
             <Icon name={valid.tone === 'warn' ? 'alert' : 'x'} /><span>{shopName(row)} · {regionName(row)} ist günstiger, {valid.text}</span><span className="r mono muted">{money(row.price!)}</span></li>; })}
           {cheaper.length > 3 && <li><Icon name="info" /><span>{cheaper.length - 3} weitere günstigere {cheaper.length - 3 === 1 ? 'Angebot zählt' : 'Angebote zählen'} nicht für {land}</span><Button size="sm" variant="ghost" className="r" onClick={() => onTab('angebote')}>Alle ansehen</Button></li>}
+          {leader?.product?.region && <li className="trend"><Icon name="chart" /><span>Meist am günstigsten: <Reg code={regionCode(leader.product.region)} home={regionCode(leader.product.region) === code} decorative /> {countryData(leader.product.region).name} · wird deshalb öfter abgefragt</span><span className="r mono muted">{shopNames[leader.source] ?? leader.source}</span></li>}
           {stats90.low && <li><Icon name="info" /><span>Tiefstwert in {land} der letzten 90 Tage{world90 ? `, weltweit ${money(world90.cents)}` : ''}</span><span className="r mono muted">{money(stats90.low.cents)}</span></li>}
         </ul></Inset>
       </Panel>

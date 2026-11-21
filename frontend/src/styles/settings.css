@@ -1,6 +1,6 @@
 /*
  * Settings sections in the panel language of the design v4 prototype (viewGeneral, viewShops, viewFetch):
- * .page > .page-head (title, sub line, autosave state) > panels with a mono label head and an inset.
+ * .page > .page-head (title, sub line, save button) > panels with a mono label head and an inset.
  * Scoped under .settings-page: this file is bundled before ui.css, so plain class selectors would lose against it.
  * Tokens only.
  */
@@ -14,13 +14,17 @@
 /* Controls in form rows use the row's 12 px text, as in the prototype (its .field sits in the .form-row > span rule). */
 .settings-page .form-row > :is(input, select), .settings-page .form-row .field input { font-size: var(--t-xs); }
 
-/* Autosave state in the page head */
-.settings-page .set-save { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 12px; min-height: 28px; }
-.settings-page .set-save > .label { display: inline-flex; align-items: center; gap: 8px; }
-.settings-page .set-save.saved > .label { color: var(--text-2); }
-.settings-page .set-save.error > .label { color: var(--danger); }
+/* Save bar in the page head (0.6.5): status, "Verwerfen", "Speichern". With unsaved changes the head sticks below the top bar. */
+.settings-page .set-save { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 10px; min-height: 32px; margin-left: auto; }
+.settings-page .set-save > .label { display: inline-flex; align-items: center; gap: 8px; font-size: var(--t-xs); color: var(--text-2); }
+.settings-page .set-save.dirty > .label, .settings-page .set-save.error > .label { color: var(--warn); }
+.settings-page .set-save .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .settings-page .set-save .spinner { width: 11px; height: 11px; }
-.settings-page .set-save-error { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 60ch; color: var(--danger); font-size: var(--t-xs); }
+.settings-page .set-save-error { flex-basis: 100%; text-align: right; color: var(--danger); font-size: var(--t-xs); }
+.settings-page.unsaved > .page-head {
+  position: sticky; top: -22px; z-index: var(--z-sticky); margin-top: -22px; padding: 22px 0 12px;
+  background: var(--ground); box-shadow: 0 1px 0 var(--line);
+}
 
 /* Notes: the prototype's .note in accent; warn tone for the HTTP notice and a demand above the daily limit (added) */
 .note.warn { background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }

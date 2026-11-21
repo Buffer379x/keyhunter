@@ -4,12 +4,12 @@ import type { Settings, WishlistItem } from '../../api';
 import { Button, Icon, Notice } from '../../components';
 import { downloadJson, wishlistExport } from '../wishlist-export';
 import { SettingsPanel } from './parts';
-import type { Autosave } from './autosave';
+import type { SettingsDraft } from './draft';
 import WishlistColumns from './WishlistColumns';
 
 
 export default function General({ settings, countries, edit, onError }: {
-  settings: Settings; countries: { code: string; name: string }[]; edit: Autosave['edit']; onError: (error: unknown) => void;
+  settings: Settings; countries: { code: string; name: string }[]; edit: SettingsDraft['edit']; onError: (error: unknown) => void;
 }) {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');

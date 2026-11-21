@@ -5,6 +5,7 @@ import { Button, Icon, Inset, Label, Panel, PanelHead, Pill, Reg } from '../comp
 import { itemName, kindName, platformName } from './catalog-ui';
 import LinkReview from './LinkReview';
 import type { Link } from './offers-model';
+import { everyText, trendText } from './offers-model';
 import { countryData, regionCode } from './regions';
 import { shopNames } from './shop-names';
 import type { OffersState } from './useOffersView';
@@ -61,6 +62,7 @@ export default function InfosTab({ item, game, state }: { item: WishlistItem; ga
                 <span className="muted">{link.product?.region && <><Reg code={regionCode(link.product.region)} /> </>}{link.review === 'confirmed'
                   ? [link.product?.region && countryData(link.product.region).name, activationNames[link.product?.activation ?? 'unknown']].filter(Boolean).join(' · ')
                   : link.can_confirm ? 'Titel, Edition und Plattform bitte bestätigen' : link.product ? 'Shop-Daten passen nicht automatisch zum Spiel' : 'Produktdaten werden abgerufen'}</span>
+                {link.review === 'confirmed' && link.check_every ? <span className="match-pace">Abfrage {everyText(link.check_every)}{link.product?.availability === 'sold_out' ? ' · ausverkauft, seltener geprüft' : trendText(link) ? ` · ${trendText(link)}` : ''}</span> : null}
                 {link.renamed && <span className="rename-note">Shop-Titel geändert: „{link.renamed.from}“ → „{link.renamed.to}“.{link.eligible ? ' Der Preis zählt weiter.' : ''}</span>}
                 {link.last_error && <span className="match-error">{sourceErrors[link.last_error] ?? 'Abruf fehlgeschlagen'}</span>}
                 <span className="match-actions">

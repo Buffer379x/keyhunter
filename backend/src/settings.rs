@@ -213,8 +213,11 @@ pub(crate) async fn put_settings(
                 .await?;
         }
         if previous != source.poll_interval_seconds {
+            // Same rule as the scheduler (jobs::effective_interval, without the preview factor): not valid in the target
+            // country three times as long, times the price-trend pace, at most a week.
             sqlx::query(
-            "UPDATE shop_job SET due=MAX(?,(SELECT observed_at FROM offer_link WHERE id=link_id)+?)
+            "UPDATE shop_job SET due=MAX(?,(SELECT observed_at FROM offer_link WHERE id=link_id)
+                +MIN(604800,CAST(ROUND(?*CASE WHEN relevance=2 THEN 3 ELSE 1 END*pace) AS INTEGER)))
             WHERE source=? AND link_id IS NOT NULL AND failures=0 AND lease_until<=?
             AND last_error IS NULL AND (SELECT observed_at FROM offer_link WHERE id=link_id) IS NOT NULL",
         )
