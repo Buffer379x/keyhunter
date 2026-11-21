@@ -69,7 +69,7 @@ export default function WishlistRow({ item, badge, facts, code, compare, scopeLa
   item: WishlistItem; badge?: PriceBadgeData; facts: RowFacts;
   /** Target country code ("DE"), or "" without one. */
   code: string;
-  /** The badge price is the target-country price (price scope "preferred"), so "CC ist weltweit am günstigsten" is true. */
+  /** The badge price is the target-country price (price scope "preferred"), so a cheapest region that is not cheaper means the target country is cheapest. */
   compare: boolean;
   scopeLabel: string; targetDisabled: boolean;
   /** The details button, so the list can give it the focus back after a visit to the game. */
@@ -78,7 +78,9 @@ export default function WishlistRow({ item, badge, facts, code, compare, scopeLa
   const title = itemName(item);
   const world = facts.world;
   const worldCheaper = world !== null && (facts.price === null || world.cents < facts.price);
-  const reg = worldCheaper ? regCode(world.region) : null;
+  const reg = world ? regCode(world.region) : null;
+  /** The target country itself is the cheapest worldwide: shown like every other region, only slightly highlighted. */
+  const homeCheapest = !worldCheaper && compare && world !== null && facts.price !== null;
   const origin = [badge?.source ? shopNames[badge.source] ?? badge.source : null, badge?.region ? countryData(badge.region).name : null].filter(Boolean).join(' · ');
   return <tr data-id={item.id}>
     <td className="c-game"><div className="game-cell"><GameCover small src={item.game?.cover_url} title={title} /><div className="game-name"><b>{title}</b><small>{subline(item)}</small></div></div></td>
@@ -87,8 +89,10 @@ export default function WishlistRow({ item, badge, facts, code, compare, scopeLa
     </td>
     <td className="c-world">
       {worldCheaper ? <div className="world-cell" title={`Günstigste Region weltweit: ${reg?.name ?? 'Region unbekannt'}. Nicht automatisch im Zielland aktivierbar.`}>{reg && <Reg code={reg.code} />}<Price cents={world.cents} tone="world" /></div>
-        : facts.price !== null ? (compare && world ? <span className="wl-note muted">{code || 'Zielland'} ist weltweit am günstigsten</span> : <span className="faint">–</span>)
-          : <span className="wl-note faint">{missingWorld(badge)}</span>}
+        : homeCheapest ? <div className="world-cell home-best" title={`Günstigste Region weltweit: ${reg?.name ?? 'Region unbekannt'}. In ${code || 'deinem Zielland'} gibt es kein günstigeres Angebot.`}>
+            {reg && <Reg code={reg.code} home={reg.code === code} />}<Price cents={world!.cents} tone="world" /><span className="sr-only">, im Zielland am günstigsten</span></div>
+          : facts.price !== null ? <span className="faint">–</span>
+            : <span className="wl-note faint">{missingWorld(badge)}</span>}
     </td>
     <td className="c-save r">
       {facts.saving !== null ? <><span className={`save${facts.share! >= WORLD_SHARE - 1e-9 ? ' big' : ''}`}>−{formatPrice(facts.saving)}</span><div className="save-pct faint mono">−{Math.round(facts.share! * 100)} %</div></> : <span className="save none">–</span>}

@@ -5,6 +5,8 @@ export type Link = {
   id: number; source: string; url: string; review: string; can_confirm: boolean; eligible: boolean; queued: boolean; enabled: boolean;
   stale: boolean; observed_at: number | null; attempted_at: number | null; last_error: string | null; retry_at: number;
   reasons?: string[]; renamed?: { from: string; to: string } | null;
+  /** Confirmed by hand although the shop data does not match the game automatically (0.6.4). */
+  manual_match?: boolean;
   product: { name: string; region: string | null; market: string | null; activation: string; availability: string } | null;
   quotes: Quote[];
 };

@@ -1,5 +1,17 @@
 # Änderungen
 
+## 0.6.4 – 2026-11-21
+
+Automatisch gefundene Shop-Links lassen sich nach einem Blick auf die Produktseite selbst bestätigen; dazu kleinere Aufräumarbeiten in Preisvergleich, Wunschliste und Bibliothek. Die Datenbank bekommt beim Start automatisch eine neue Spalte, sonst ist nichts zu tun.
+
+### Neu
+- **Zuordnungen selbst bestätigen:** Passt ein automatisch gefundenes Produkt laut Shop-Daten nicht genau zum Spiel (anderer Titel, Edition oder Plattform), steht es unter Infos → Produktzuordnungen mit „Selbst prüfen“. „Prüfen“ öffnet ein Fenster mit Shop-Titel, Region, Aktivierung, Preis und der vollständigen Adresse der Produktseite, bevor man sie öffnet. Mit „Zuordnung bestätigen“ zählt der Preis dieses Produkts; die Zuordnung ist dann als „Von dir bestätigt“ markiert. Stellt der Shop später ein anderes Produkt hinter den Link, fragt KeyHunter erneut.
+
+### Oberfläche
+- **Preisvergleich:** Bester Preis, Differenz und günstigste Region stehen auf einer Linie.
+- **Wunschliste:** Ist das Zielland selbst am günstigsten, zeigt die Spalte „Günstigste Region“ Flagge und Preis wie bei jedem anderen Spiel, leicht grün hinterlegt, statt „DE ist weltweit am günstigsten“.
+- **Bibliothek:** Unter dem Cover steht nur noch der Titel; Edition (steht schon im Titel) und Kaufdatum entfallen.
+
 ## 0.6.3 – 2026-11-20
 
 Länderflaggen sind zurück, die Wunschliste öffnet Spiele über einen Details-Knopf, und Spiele lassen sich über ihre IGDB-ID finden. Keine Datenbankänderung.

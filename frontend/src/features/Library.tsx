@@ -10,7 +10,6 @@ type Order = 'added' | 'name';
 type Action = { kind: 'restore' | 'remove'; item: LibraryItem } | null;
 const stored = (key: string, fallback: string) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
 const store = (key: string, value: string) => { try { localStorage.setItem(key, value); } catch { /* Keep in memory. */ } };
-const boughtOn = (seconds: number) => new Date(seconds * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 const games = (n: number) => `${n} ${n === 1 ? 'Spiel' : 'Spiele'}`;
 
 interface Props {
@@ -92,8 +91,6 @@ export default function Library({ csrf, onRestored, onOpenWishlist, onCountChang
     {!loading && items.length > 0 && <ul className="lib" aria-label="Meine Spiele">
       {visible.map(item => {
         const name = itemName(item);
-        const edition = item.game?.edition_name || platformName(item.platform_id);
-        const bought = item.acquired_at > 0 ? boughtOn(item.acquired_at) : '';
         return <li key={item.id} className="lib-item">
           <div className="lib-cover">
             <Cover src={item.game?.cover_url ?? null} title={name} large />
@@ -104,8 +101,6 @@ export default function Library({ csrf, onRestored, onOpenWishlist, onCountChang
           </div>
           <div className="lib-info">
             <b title={name}>{name}</b>
-            <span className="lib-meta" title={edition}>{edition}</span>
-            <span className="lib-meta">{bought && <><span className="lib-bought">Gekauft </span>{bought}</>}</span>
           </div>
         </li>;
       })}

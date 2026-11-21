@@ -149,7 +149,11 @@ test('wishlist column headers sort by name, price, saving and target distance an
   await expect(sorted(/^Preis [A-Z]{2}$/)).toHaveAttribute('aria-sort','ascending');
   await expect(sorted('Ersparnis')).toHaveAttribute('aria-sort','none');
   await expect(first().locator('.c-de')).toContainText('9,99');
-  await expect(first().locator('.c-world')).toContainText(/[A-Z]{2} ist weltweit am günstigsten/);
+  // The target country is cheapest: the cell shows region and price like any other row, slightly highlighted.
+  const homeBest=first().locator('.c-world .world-cell.home-best');
+  await expect(homeBest).toContainText('9,99');
+  await expect(homeBest.getByRole('img',{name:'Global'})).toBeVisible();
+  await expect(first().locator('.c-world')).not.toContainText('ist weltweit am günstigsten');
   await header(/^Preis [A-Z]{2}$/).click();await expect(first()).toContainText('Forza Horizon 5');
   await expect(sorted(/^Preis [A-Z]{2}$/)).toHaveAttribute('aria-sort','descending');
   await header('Status').click();await expect(first()).toContainText('Forza Horizon 5');

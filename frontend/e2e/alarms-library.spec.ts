@@ -43,7 +43,7 @@ test('Preisalarme lists every target sorted by distance and a row opens the alar
   await expect(page).toHaveURL(new RegExp(`[?&]item=${id(1)}&tab=alarm`));
 });
 
-test('Bibliothek shows covers with edition and purchase date, and keeps the restore action', async ({ page }) => {
+test('Bibliothek shows covers with the title only, and keeps the restore action', async ({ page }) => {
   await signInToFixture(page);
   await page.route(/\/covers\/.*\.svg$/, route => route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="3" height="4"><rect width="3" height="4" fill="#345"/></svg>' }));
   const origin = new URL(page.url()).origin;
@@ -55,9 +55,10 @@ test('Bibliothek shows covers with edition and purchase date, and keeps the rest
   await expect(page.getByRole('heading', { name: 'Bibliothek', level: 1, exact: true })).toBeVisible();
   await expect(page.getByText('2 Spiele gekauft · werden nicht mehr abgefragt')).toBeVisible();
   const items = page.getByRole('list', { name: 'Meine Spiele' }).getByRole('listitem');
-  await expect(items.first()).toContainText(/Halo Infinite\s*Kampagne\s*Gekauft \d{2}\.\d{2}\.2026/);
+  // The edition is part of the title already, the purchase date is not needed: the tile shows the title alone.
+  await expect(items.first().locator('.lib-info')).toHaveText('Halo Infinite');
   await expect(items.first().locator('img')).toHaveAttribute('src', /halo\.svg$/);
-  await expect(items.nth(1)).toContainText('Xbox One');
+  await expect(items.nth(1).locator('.lib-info')).toHaveText('Lies of P');
   await expect(items.nth(1).locator('.cover-initials')).toHaveText('LO');
   // Restore and delete sit on the cover and only show after the lock in the page head is opened.
   const restore = items.first().getByRole('button', { name: 'Halo Infinite zurück in die Wunschliste', exact: true });

@@ -118,10 +118,13 @@ pub(crate) fn evaluate(
         reasons.push(Reason::NotObserved);
         return Verdict(reasons);
     };
-    if !wish.matches(product) {
-        reasons.push(Reason::Mismatch);
-    } else if !link.confirmed(wish, product) {
-        reasons.push(Reason::NotConfirmed);
+    // A product confirmed by hand counts like a matching one; a changed product needs a new confirmation.
+    if !link.confirmed(wish, product) {
+        reasons.push(if wish.matches(product) || link.manual_match {
+            Reason::NotConfirmed
+        } else {
+            Reason::Mismatch
+        });
     }
     if link.last_error.is_some() {
         reasons.push(Reason::SourceError);

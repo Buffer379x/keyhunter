@@ -56,15 +56,18 @@
 .nowrap { white-space: nowrap; }
 
 /* Preis: comparison and verdict */
-.compare { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; }
-.compare-side { padding: 16px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+/* The three columns share their rows (subgrid): label, price, chips, source. So the difference in the middle stands on the
+   baseline of both big prices: .delta-amount has the font of .big-price, the smaller amount sits inline on that strut. */
+.compare { display: grid; grid-template-columns: 1fr auto 1fr; grid-template-rows: repeat(4, auto); row-gap: 10px; }
+.compare-side, .compare-mid { grid-row: span 4; display: grid; grid-template-rows: subgrid; align-content: start; padding: 16px; min-width: 0; }
 .compare-side + .compare-side { border-left: 1px solid var(--line); }
-.compare-mid { display: grid; place-items: center; padding: 0 4px; border-left: 1px solid var(--line); }
-.delta { writing-mode: horizontal-tb; display: grid; justify-items: center; gap: 4px; padding: 10px 12px; }
-.delta b { font: 500 var(--t-lg)/1 var(--f-mono); color: var(--accent-2); white-space: nowrap; }
-.delta b.even { color: var(--ok); }
-.delta b.none { color: var(--faint); }
-.delta span { font: 400 var(--t-label) var(--f-mono); color: var(--muted); }
+.compare-side > * { align-self: start; } /* a shared row is as tall as its tallest cell: the shorter ones stay at its top */
+.compare-mid { justify-items: center; padding-inline: 16px; border-left: 1px solid var(--line); }
+.delta-amount { grid-row: 2; align-self: start; font: 500 var(--t-price)/1 var(--f-mono); white-space: nowrap; }
+.delta-amount b { font: 500 var(--t-lg)/1 var(--f-mono); color: var(--accent-2); }
+.delta-amount b.even { color: var(--ok); }
+.delta-amount b.none { color: var(--faint); }
+.delta-pct { grid-row: 3; align-self: center; font: 400 var(--t-label) var(--f-mono); color: var(--muted); }
 .big-price.stale { color: var(--muted); } /* (added) last known price */
 .compare-missing { font-size: var(--t-md); color: var(--text-2); min-height: 34px; display: flex; align-items: center; } /* (added) */
 .src { color: var(--muted); font-size: var(--t-xs); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
@@ -171,10 +174,31 @@ table.contents details p { margin: 6px 0 0; font-size: var(--t-xs); max-width: 4
   .grid-2 { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 720px) {
-  .compare { grid-template-columns: minmax(0, 1fr); }
+  .compare { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; row-gap: 0; }
+  .compare-side, .compare-mid { grid-row: auto; grid-template-rows: none; gap: 10px; }
   .compare-side + .compare-side, .compare-mid { border-left: 0; border-top: 1px solid var(--line); }
-  .compare-mid { justify-items: start; }
-  .delta { justify-items: start; padding: 10px 16px; grid-auto-flow: column; align-items: baseline; gap: 10px; }
+  .compare-mid { justify-content: start; padding-block: 10px; grid-auto-flow: column; align-items: baseline; }
+  .delta-amount, .delta-pct { grid-row: auto; }
+  .delta-amount { font-size: var(--t-lg); }
   .gauge-legend { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ed-row { grid-template-columns: minmax(0, 1fr) auto; }
+}
+
+/* Prüf-Popup of a shop product (LinkReview.tsx): the shop's data next to the wished game, the full address before it is opened. */
+dialog.link-review { width: min(560px, calc(100% - 32px)); }
+dialog.link-review[open] { display: grid; gap: 14px; }
+.link-review h2 { margin: 0; }
+.link-review p { margin: 0; }
+.review-facts { display: grid; margin: 0; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel); }
+.review-facts > div { display: grid; grid-template-columns: minmax(8rem, 38%) minmax(0, 1fr); gap: 12px; padding: 8px 12px; border-top: 1px solid var(--line); }
+.review-facts > div:first-child { border-top: 0; }
+.review-facts dt { color: var(--muted); font-size: var(--t-xs); padding-top: 2px; }
+.review-facts dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+.review-region { display: flex; align-items: center; gap: 8px; }
+.review-link { display: grid; gap: 6px; justify-items: start; }
+.review-link .review-url { font: 400 var(--t-xs)/1.5 var(--f-mono); color: var(--text-2); overflow-wrap: anywhere; padding: 8px 10px; border-radius: var(--r-sm); background: var(--panel); border: 1px solid var(--line); width: 100%; box-sizing: border-box; }
+.review-link .review-url b { color: var(--text); font-weight: 500; }
+.link-review .dialog-actions { margin-top: 0; }
+@media (max-width: 520px) {
+  .review-facts > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }

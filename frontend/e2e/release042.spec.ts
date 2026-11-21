@@ -50,7 +50,7 @@ test('library exposes system filters and acquisition or alphabet sorting without
   await navTo(page, 'Bibliothek');
   const list=page.getByRole('list',{name:'Meine Spiele'});
   await expect(list.getByRole('listitem').first()).toContainText('Älterer Titel');
-  await expect(list.getByRole('listitem').first()).toContainText('Xbox One');
+  await expect(list.getByRole('listitem').first().locator('.lib-info')).toHaveText('Älterer Titel');
   await page.getByLabel('Bibliothek nach System filtern',{exact:true}).selectOption('169');
   await expect(list.getByRole('listitem')).toHaveCount(2);
   await page.getByRole('radiogroup',{name:'Bibliothek sortieren',exact:true}).getByRole('radio',{name:'A–Z',exact:true}).click();
