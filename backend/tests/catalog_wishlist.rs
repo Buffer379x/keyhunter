@@ -1172,6 +1172,48 @@ async fn wishlist_price_scope_defaults_and_validates() {
 }
 
 #[tokio::test]
+async fn wishlist_column_order_defaults_saves_and_validates() {
+    let f = Fixture::new().await;
+    let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
+    assert_eq!(
+        settings["wishlist_columns"],
+        json!([
+            "game", "price", "world", "save", "target", "status", "trend", "open"
+        ])
+    );
+    let order = json!([
+        "open", "game", "price", "world", "save", "target", "status", "trend"
+    ]);
+    settings["wishlist_columns"] = order.clone();
+    assert_eq!(
+        f.call("PUT", "/api/v1/settings", settings.clone()).await.1["wishlist_columns"],
+        order
+    );
+    // A client that does not send the order keeps the stored one.
+    let mut without = settings.clone();
+    without.as_object_mut().unwrap().remove("wishlist_columns");
+    assert_eq!(
+        f.call("PUT", "/api/v1/settings", without).await.1["wishlist_columns"],
+        order
+    );
+    for bad in [
+        json!(["open", "game"]),
+        json!([
+            "open", "open", "price", "world", "save", "target", "status", "trend"
+        ]),
+        json!([
+            "open", "game", "price", "world", "save", "target", "status", "cover"
+        ]),
+    ] {
+        settings["wishlist_columns"] = bad;
+        assert_eq!(
+            f.call("PUT", "/api/v1/settings", settings.clone()).await.0,
+            StatusCode::BAD_REQUEST
+        );
+    }
+}
+
+#[tokio::test]
 async fn saving_unchanged_interval_preserves_schedule_and_edited_interval_reschedules() {
     let f = Fixture::new().await;
     let (_, item) = f

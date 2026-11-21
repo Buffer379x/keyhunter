@@ -1,10 +1,10 @@
 import IgdbAccess from '../IgdbAccess';
 import type { Settings } from '../../api';
 import { SettingsPanel } from './parts';
-import type { Autosave } from './autosave';
+import type { SettingsDraft } from './draft';
 
 export default function Index({ settings, edit, igdbState, igdbConfigured, csrf, onChanged, onError }: {
-  settings: Settings; edit: Autosave['edit']; igdbState: string | undefined; igdbConfigured: boolean | undefined;
+  settings: Settings; edit: SettingsDraft['edit']; igdbState: string | undefined; igdbConfigured: boolean | undefined;
   csrf: string; onChanged: () => void; onError: (error: unknown) => void;
 }) {
   const igdb = settings.sources.find(s => s.id === 'igdb');

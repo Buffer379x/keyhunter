@@ -3,9 +3,14 @@ import type { Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { wishlistHeading } from './detail-helpers';
 
-/** Waits until the settings page reports that every change is stored (auto-save indicator). */
-export async function expectSettingsSaved(page: Page) {
-  await expect(page.getByRole('status').filter({ hasText: 'Alle Änderungen gespeichert' })).toBeVisible();
+/** The save button in the head of the settings page (changes stay a draft until it is pressed). */
+export const saveButton = (page: Page) => page.locator('.set-save').getByRole('button', { name: 'Speichern', exact: true });
+/** Saves the settings draft with the button (if anything is unsaved) and waits until the server confirmed it. */
+export async function saveSettings(page: Page) {
+  const button = saveButton(page);
+  if (await button.isEnabled()) await button.click();
+  await expect(button).toBeDisabled();
+  await expect(page.locator('.set-save')).not.toContainText('Nicht gespeichert');
 }
 
 export async function signInToFixture(page: Page) {

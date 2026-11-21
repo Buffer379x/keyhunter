@@ -10,6 +10,7 @@ type Order = 'added' | 'name';
 type Action = { kind: 'restore' | 'remove'; item: LibraryItem } | null;
 const stored = (key: string, fallback: string) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
 const store = (key: string, value: string) => { try { localStorage.setItem(key, value); } catch { /* Keep in memory. */ } };
+const SORT_KEY = 'keyhunter.library.order';
 const games = (n: number) => `${n} ${n === 1 ? 'Spiel' : 'Spiele'}`;
 
 interface Props {
@@ -31,12 +32,13 @@ export default function Library({ csrf, onRestored, onOpenWishlist, onCountChang
   /** The cover buttons (restore, delete) only show after the lock in the page head is opened; every visit starts locked. */
   const [unlocked, setUnlocked] = useState(false);
   const [system, setSystem] = useState(() => stored('keyhunter.library.system', 'all'));
-  const [sort, setSort] = useState<Order>(() => stored('keyhunter.library.sort', 'added') === 'name' ? 'name' : 'added');
+  // A–Z is the default (0.6.5); a new key, so the earlier default "Zuletzt gekauft" does not stick.
+  const [sort, setSort] = useState<Order>(() => stored(SORT_KEY, 'name') === 'added' ? 'added' : 'name');
   const systems = [...new Set(items.map(item => item.platform_id))].sort((a, b) => platformName(a).localeCompare(platformName(b), 'de'));
   const activeSystem = system === 'all' || systems.some(id => String(id) === system) ? system : 'all';
   const visible = libraryItems(items, activeSystem, sort);
   const filter = (value: string) => { setSystem(value); store('keyhunter.library.system', value); };
-  const order = (value: Order) => { setSort(value); store('keyhunter.library.sort', value); };
+  const order = (value: Order) => { setSort(value); store(SORT_KEY, value); };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -76,7 +78,7 @@ export default function Library({ csrf, onRestored, onOpenWishlist, onCountChang
         {systems.map(id => <option key={id} value={id}>{platformName(id)}</option>)}
       </select>
       <Seg label="Bibliothek sortieren" value={sort} onChange={order}
-        options={[{ value: 'added', label: 'Zuletzt gekauft' }, { value: 'name', label: 'A–Z' }]} />
+        options={[{ value: 'name', label: 'A–Z' }, { value: 'added', label: 'Zuletzt gekauft' }]} />
       <IconButton className={`lib-lock${unlocked ? ' open' : ''}`} aria-pressed={unlocked} onClick={() => setUnlocked(open => !open)}
         label={unlocked ? 'Bearbeiten sperren' : 'Bearbeiten entsperren'}><Icon name={unlocked ? 'unlock' : 'lock'} /></IconButton>
     </>} />

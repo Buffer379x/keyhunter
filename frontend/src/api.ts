@@ -18,6 +18,8 @@ export interface Settings {
   target_country: string | null;
   currency: string;
   wishlist_price_scope: 'preferred' | 'all';
+  /** Order of the wishlist table columns (keys of `WISHLIST_COLUMNS`); the server returns a complete order. */
+  wishlist_columns?: string[];
   sources: SourceSettings[];
   countries: string[];
   confirmed_activation_countries?: string[];

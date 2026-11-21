@@ -43,20 +43,25 @@ test('saved prices appear on the first list response and edition tags are prepar
   await removeCurrent(page);
 });
 
-test('library exposes system filters and acquisition or alphabet sorting without touching saved games',async({page})=>{
+test('library exposes system filters and alphabet (default) or acquisition sorting without touching saved games',async({page})=>{
   await signInToFixture(page);
-  const data=[{id:'a',game_id:'a',platform_id:169,created_at:500,acquired_at:10,game:null,manual_title:'Zelda',verification:'manual_unverified'},{id:'b',game_id:'b',platform_id:49,created_at:1,acquired_at:30,game:null,manual_title:'Älterer Titel',verification:'manual_unverified'},{id:'c',game_id:'c',platform_id:169,created_at:300,acquired_at:20,game:null,manual_title:'Forza',verification:'manual_unverified'}];
+  const data=[{id:'a',game_id:'a',platform_id:169,created_at:500,acquired_at:40,game:null,manual_title:'Zelda',verification:'manual_unverified'},{id:'b',game_id:'b',platform_id:49,created_at:1,acquired_at:30,game:null,manual_title:'Älterer Titel',verification:'manual_unverified'},{id:'c',game_id:'c',platform_id:169,created_at:300,acquired_at:20,game:null,manual_title:'Forza',verification:'manual_unverified'}];
   await page.route('**/api/v1/library',route=>route.fulfill({json:data}));
   await navTo(page, 'Bibliothek');
   const list=page.getByRole('list',{name:'Meine Spiele'});
-  await expect(list.getByRole('listitem').first()).toContainText('Älterer Titel');
-  await expect(list.getByRole('listitem').first().locator('.lib-info')).toHaveText('Älterer Titel');
+  const sort=page.getByRole('radiogroup',{name:'Bibliothek sortieren',exact:true});
+  // 0.6.5: A–Z is the default and the first option.
+  await expect(sort.getByRole('radio')).toHaveText(['A–Z','Zuletzt gekauft']);
+  await expect(sort.getByRole('radio',{name:'A–Z',exact:true})).toBeChecked();
+  await expect(list.locator('.lib-info')).toHaveText(['Älterer Titel','Forza','Zelda']);
+  await sort.getByRole('radio',{name:'Zuletzt gekauft',exact:true}).click();
+  await expect(list.locator('.lib-info')).toHaveText(['Zelda','Älterer Titel','Forza']);
   await page.getByLabel('Bibliothek nach System filtern',{exact:true}).selectOption('169');
-  await expect(list.getByRole('listitem')).toHaveCount(2);
-  await page.getByRole('radiogroup',{name:'Bibliothek sortieren',exact:true}).getByRole('radio',{name:'A–Z',exact:true}).click();
-  await expect(list.getByRole('listitem').first()).toContainText('Forza');
+  await expect(list.locator('.lib-info')).toHaveText(['Zelda','Forza']);
   await page.reload();await expect(page.getByLabel('Bibliothek nach System filtern',{exact:true})).toHaveValue('169');
-  await expect(page.getByRole('radiogroup',{name:'Bibliothek sortieren',exact:true}).getByRole('radio',{name:'A–Z',exact:true})).toBeChecked();
+  await expect(sort.getByRole('radio',{name:'Zuletzt gekauft',exact:true})).toBeChecked();
+  await sort.getByRole('radio',{name:'A–Z',exact:true}).click();
+  await expect(list.locator('.lib-info')).toHaveText(['Forza','Zelda']);
   await page.setViewportSize({width:320,height:844});
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });

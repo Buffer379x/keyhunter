@@ -135,6 +135,12 @@ pub(crate) struct Link {
     pub fee_basis_points: i64,
     pub queued: bool,
     pub retry_at: i64,
+    /// Price trend within the wish (migration 0016): 0 = mostly the cheapest, 1 = mostly the most expensive.
+    #[sqlx(default)]
+    pub cheap_score: f64,
+    /// Interval of the next check in seconds (shop interval, validity in the target country, price-trend pace).
+    #[sqlx(default)]
+    pub check_every: Option<i64>,
 }
 impl Link {
     /// Fingerprint stored at confirmation.
@@ -178,6 +184,8 @@ impl Link {
             fee_basis_points: 0,
             queued: false,
             retry_at: 0,
+            cheap_score: 0.5,
+            check_every: None,
         }
     }
 }
@@ -187,10 +195,14 @@ pub(crate) async fn links<'e>(
     id: &str,
     ts: i64,
 ) -> sqlx::Result<Vec<Link>> {
+    // check_every follows jobs::effective_interval: twice as long for an edition preview, times the price-trend pace,
+    // between 15 minutes (or the shop interval) and a week.
     sqlx::query_as("SELECT l.*, (s.enabled AND s.configured) AS enabled, s.fee_estimation_enabled, s.fee_basis_points, p.retry_at,
-        COALESCE(j.lease_until>?,0) OR COALESCE(j.due<=? AND s.enabled AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<COALESCE(s.daily_jobs,?)),0) AS queued
+        COALESCE(j.lease_until>?,0) OR COALESCE(j.due<=? AND s.enabled AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<COALESCE(s.daily_jobs,?)),0) AS queued,
+        CAST(MIN(604800,MAX(MIN(900,s.poll_interval_seconds),ROUND(s.poll_interval_seconds
+            *CASE WHEN w.state='preview' THEN 2 ELSE 1 END*j.pace))) AS INTEGER) AS check_every
         FROM offer_link l JOIN source_settings s ON s.id=l.source JOIN shop_state p ON p.source=l.source
-        LEFT JOIN shop_job j ON j.link_id=l.id WHERE l.wish_id=? ORDER BY l.id")
+        JOIN wishlist_item w ON w.id=l.wish_id LEFT JOIN shop_job j ON j.link_id=l.id WHERE l.wish_id=? ORDER BY l.id")
         .bind(ts).bind(ts).bind(ts).bind(ts/86400).bind(crate::jobs::daily_budget()).bind(id).fetch_all(executor).await
 }
 
@@ -351,7 +363,7 @@ pub(crate) async fn list(
         }
         rows.push(json!({"id":link.id,"source":link.source,"url":link.url,
             "review": if confirmed { "confirmed" } else if link.review == "confirmed" { "pending" } else { &link.review },
-            "can_confirm":matching,"manual_match":link.manual_match && confirmed,"eligible":eligible,"reasons":verdict,"queued":link.queued,"enabled":link.enabled,
+            "can_confirm":matching,"manual_match":link.manual_match && confirmed,"eligible":eligible,"reasons":verdict,"queued":link.queued,"enabled":link.enabled,"cheap_score":link.cheap_score,"check_every":link.check_every,
             "observed_at":link.observed_at,"attempted_at":link.attempted_at,"last_error":link.last_error,
             "retry_at":link.retry_at,"stale":link.observed_at.is_some_and(|at|t-at > FRESH),
             // A confirmed product the shop renamed since: the price counts, the title is worth a look.
@@ -647,6 +659,8 @@ mod tests {
             fee_basis_points: 200,
             queued: false,
             retry_at: 0,
+            cheap_score: 0.5,
+            check_every: None,
         };
         assert_eq!(link.estimate(2392), Some(2440));
         link.fee_estimation_enabled = false;

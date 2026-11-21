@@ -6,15 +6,17 @@
 //! | class | jobs | paced |
 //! |---|---|---|
 //! | 0 | refresh requested by the user, first search of a new wish (not of a preview) | no |
-//! | 1 | price of an active wish that is (or may be) valid in the target country, search continuation pages | yes, unless a direct user action (below) |
+//! | 1 | price of an active wish that is in stock (any region; the target country is not preferred), search continuation pages | yes, unless a direct user action (below) |
 //! | 2 | repeated search of an active wish | yes, unless a direct user action |
-//! | 3 | price of an active wish outside the target country, sold out or unknown | yes, unless a direct user action |
+//! | 3 | price of an active wish that is sold out or has no price | yes, unless a direct user action |
 //! | 4 | edition previews | yes (a requested refresh is class 0) |
 //! | 5 | shop-wide discovery | yes |
 //!
 //! Every fourth job of a day goes to the most overdue job of classes 2 to 5, so lower
 //! classes keep a share of the budget even when class 1 alone could use it up. Product intervals adapt to
-//! relevance: irrelevant variants and previews are fetched less often.
+//! the price trend of each product within its wish (0.6.5, [`price_trend`]): the steadily cheapest region is
+//! checked twice as often, the steadily most expensive one and sold-out products half as often, previews half
+//! as often. Every region is treated alike; the target country only decides which price counts, not how often.
 //!
 //! **Budget.** A shop runs at most [`daily_limit`] jobs per UTC day: `source_settings.daily_jobs`
 //! (Settings → Key-Shops), else `KEYHUNTER_SHOP_DAILY_JOBS`, else 500. Every job counts, paced or not.
@@ -360,18 +362,95 @@ fn next_schedule(
     }
 }
 
-/// 1 = counts (or may count) for the target country, 2 = cannot count there.
-fn relevance(product: &Product, target: &str) -> i64 {
-    let valid = target.is_empty()
-        || (product.availability == Availability::InStock
-            && product.activation(target) == "confirmed"
-            && product.purchase_country.as_deref() == Some(target));
-    if valid { 1 } else { 2 }
+/// 1 = in stock with a price, 2 = sold out or without a price (claim class 3, see the module table).
+fn relevance(product: &Product) -> i64 {
+    if product.availability == Availability::InStock && crate::pricing::min_cents(product).is_some()
+    {
+        1
+    } else {
+        2
+    }
 }
 
-fn effective_interval(interval: i64, relevant: bool, preview: bool) -> i64 {
-    let factor = (if relevant { 1 } else { 3 }) * (if preview { 2 } else { 1 });
-    (interval * factor).min(WEEK)
+/// Interval of the next product check: the shop interval, twice as long for an edition preview, times the price-trend
+/// `pace` (0.5 to 2, see [`price_trend`]). Never shorter than 15 minutes, never longer than a week.
+pub(crate) fn effective_interval(interval: i64, preview: bool, pace: f64) -> i64 {
+    let factor = if preview { 2 } else { 1 };
+    let paced = (interval * factor) as f64 * pace.clamp(PACE_FASTEST, SOLD_OUT_PACE);
+    (paced.round() as i64).clamp(MIN_INTERVAL.min(interval), WEEK)
+}
+
+/// Weight of the newest measurement in the price trend (moving average over roughly the last ten measurements).
+const TREND_WEIGHT: f64 = 0.2;
+/// Pace of the product that is steadily the cheapest of its game: checked twice as often.
+const PACE_FASTEST: f64 = 0.5;
+/// Pace of a sold-out product (or one without a valid price): checked half as often until it is in stock again.
+/// The steadily most expensive product gets the same pace from its trend.
+const SOLD_OUT_PACE: f64 = 2.0;
+/// Shortest interval the settings allow.
+const MIN_INTERVAL: i64 = 900;
+/// Prices older than this do not take part in the comparison.
+const TREND_PRICE_AGE: i64 = WEEK;
+
+/// Relative price position of `own` among `prices` (own included): 0 = cheapest, 1 = most expensive.
+/// None without a comparison: fewer than two prices, or all prices equal.
+fn price_position(own: i64, prices: &[i64]) -> Option<f64> {
+    let (min, max) = (*prices.iter().min()?, *prices.iter().max()?);
+    (max > min).then(|| (own - min) as f64 / (max - min) as f64)
+}
+
+/// Next price trend: the moving average moves a fifth of the way to the new position; unchanged without a comparison.
+fn next_trend(score: f64, position: Option<f64>) -> f64 {
+    position
+        .map_or(score, |p| score + TREND_WEIGHT * (p - score))
+        .clamp(0.0, 1.0)
+}
+
+/// Interval factor from the trend: 0 (steadily cheapest) → 0.5, 0.5 → 1, 1 (steadily most expensive) → 2.
+fn trend_pace(score: f64) -> f64 {
+    2f64.powf(2.0 * score - 1.0)
+}
+
+/// New price trend and pace of a measured product link, compared with the other confirmed, recently measured products
+/// of the same wish in every region. Whether a product can be activated in the target country plays no part.
+async fn price_trend(
+    pool: &SqlitePool,
+    link: i64,
+    product: &Product,
+    t: i64,
+) -> sqlx::Result<(f64, f64)> {
+    let Some((wish, score)): Option<(String, f64)> =
+        sqlx::query_as("SELECT wish_id,cheap_score FROM offer_link WHERE id=?")
+            .bind(link)
+            .fetch_optional(pool)
+            .await?
+    else {
+        return Ok((0.5, 1.0));
+    };
+    let Some(own) = crate::pricing::min_cents(product)
+        .filter(|_| product.availability == Availability::InStock)
+    else {
+        return Ok((score, SOLD_OUT_PACE));
+    };
+    let others: Vec<String> = sqlx::query_scalar(
+        "SELECT l.latest FROM offer_link l JOIN source_settings s ON s.id=l.source
+        WHERE l.wish_id=? AND l.id!=? AND l.review='confirmed' AND s.enabled AND s.configured
+        AND l.latest IS NOT NULL AND l.observed_at>?",
+    )
+    .bind(&wish)
+    .bind(link)
+    .bind(t - TREND_PRICE_AGE)
+    .fetch_all(pool)
+    .await?;
+    let mut prices: Vec<i64> = others
+        .iter()
+        .filter_map(|raw| serde_json::from_str::<Product>(raw).ok())
+        .filter(|other| other.availability == Availability::InStock)
+        .filter_map(|other| crate::pricing::min_cents(&other))
+        .collect();
+    prices.push(own);
+    let score = next_trend(score, price_position(own, &prices));
+    Ok((score, trend_pace(score)))
 }
 
 async fn run_one(pool: &SqlitePool, shop: Shop, budget: i64) -> anyhow::Result<bool> {
@@ -438,20 +517,25 @@ async fn complete(
     if let Ok(Work::Search(page)) = &mut result {
         page.next_page = page.next_page.filter(|next| *next <= MAX_SEARCH_PAGES);
     }
-    let (interval, target): (i64, Option<String>) = sqlx::query_as(
-        "SELECT s.poll_interval_seconds,a.target_country FROM source_settings s,app_settings a WHERE s.id=? AND a.id=1",
-    )
-    .bind(shop.id())
-    .fetch_one(pool)
-    .await?;
-    let target = target.unwrap_or_default();
+    let interval: i64 =
+        sqlx::query_scalar("SELECT poll_interval_seconds FROM source_settings WHERE id=?")
+            .bind(shop.id())
+            .fetch_one(pool)
+            .await?;
     let preview: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM wishlist_item WHERE state='preview' AND id=COALESCE(?,(SELECT wish_id FROM offer_link WHERE id=?)))")
         .bind(&job.wish_id).bind(job.link_id).fetch_one(pool).await?;
     let relevance = match &result {
-        Ok(Work::Product(product)) => Some(relevance(product, &target)),
+        Ok(Work::Product(product)) => Some(relevance(product)),
         _ => None,
     };
-    let interval = effective_interval(interval, relevance != Some(2), preview);
+    let trend = match (&result, job.link_id) {
+        (Ok(Work::Product(product)), Some(link)) => {
+            Some(price_trend(pool, link, product, t).await?)
+        }
+        _ => None,
+    };
+    let pace = trend.map_or(1.0, |(_, pace)| pace);
+    let interval = effective_interval(interval, preview, pace);
     let jitter = i64::from(u8::from_str_radix(&token[..2], 16).unwrap_or(0) % 31);
     let (due, failures) = next_schedule(&result, job.failures, t, interval, jitter);
     // A search run keeps `initial` until its last page is stored; a product only for one run.
@@ -478,11 +562,12 @@ async fn complete(
     }
 
     sqlx::query(
-        "UPDATE shop_job SET checked_at=?,last_error=?,relevance=COALESCE(?,relevance) WHERE id=?",
+        "UPDATE shop_job SET checked_at=?,last_error=?,relevance=COALESCE(?,relevance),pace=COALESCE(?,pace) WHERE id=?",
     )
     .bind(t)
     .bind(result.as_ref().err().map(ShopError::code))
     .bind(relevance)
+    .bind(trend.map(|(_, pace)| pace))
     .bind(job.id)
     .execute(&mut *tx)
     .await?;
@@ -496,6 +581,13 @@ async fn complete(
                 RETURNING wish_id").bind(json).bind(t).bind(t).bind(link).fetch_optional(&mut *tx).await?;
             if let Some(id) = wish {
                 confirm_discovered(&mut tx, link, product).await?;
+                if let Some((score, _)) = trend {
+                    sqlx::query("UPDATE offer_link SET cheap_score=? WHERE id=?")
+                        .bind(score)
+                        .bind(link)
+                        .execute(&mut *tx)
+                        .await?;
+                }
                 let market = product.purchase_country.as_deref().unwrap_or_default();
                 sqlx::query("INSERT INTO price_observation(link_id,product_id,observed_at,market,fingerprint,offers,activation,availability)
                     VALUES(?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING")
@@ -712,16 +804,16 @@ pub(crate) async fn schedule_wish(pool: &SqlitePool, id: &str) -> sqlx::Result<(
 ///
 /// Uses the scheduler's own rules: the [`queued`] filter (no owned or rejected items, previews
 /// only while watched and viewed in the last 14 days, nothing without an active wish), the
-/// effective adaptive interval ([`effective_interval`], stored relevance) and the repeat delay of
+/// effective adaptive interval ([`effective_interval`], stored price-trend pace) and the repeat delay of
 /// each kind ([`Kind::repeat_after`]). One-off work (first searches, continuation pages, new links,
 /// retries) is not part of the steady state and therefore not counted.
 pub(crate) async fn demand(pool: &SqlitePool, shop: Shop, t: i64) -> sqlx::Result<f64> {
-    type Group = (Option<i64>, Option<String>, i64, bool, i64, i64);
+    type Group = (Option<i64>, Option<String>, bool, i64, f64, i64);
     let groups: Vec<Group> = sqlx::query_as(AssertSqlSafe(format!(
-        "SELECT MIN(j.link_id),MIN(j.wish_id),j.relevance,COALESCE(t.state,'wished')='preview',s.poll_interval_seconds,COUNT(*)
+        "SELECT MIN(j.link_id),MIN(j.wish_id),COALESCE(t.state,'wished')='preview',s.poll_interval_seconds,j.pace,COUNT(*)
         FROM shop_job j JOIN source_settings s ON s.id=j.source LEFT JOIN offer_link l ON l.id=j.link_id {ITEM}
         WHERE j.source=?1 AND s.enabled AND s.configured AND {}
-        GROUP BY j.link_id IS NOT NULL,j.wish_id IS NOT NULL,j.relevance,4,5",
+        GROUP BY j.link_id IS NOT NULL,j.wish_id IS NOT NULL,3,4,5",
         queued()
     )))
     .bind(shop.id())
@@ -730,10 +822,10 @@ pub(crate) async fn demand(pool: &SqlitePool, shop: Shop, t: i64) -> sqlx::Resul
     .await?;
     Ok(groups
         .into_iter()
-        .map(|(link, wish, relevance, preview, interval, count)| {
+        .map(|(link, wish, preview, interval, pace, count)| {
             let kind = Kind::of(link, wish.as_deref());
-            let relevant = kind != Kind::Product || relevance != 2;
-            let period = kind.repeat_after(effective_interval(interval, relevant, preview));
+            let pace = if kind == Kind::Product { pace } else { 1.0 };
+            let period = kind.repeat_after(effective_interval(interval, preview, pace));
             count as f64 * DAY as f64 / period as f64
         })
         .sum())
@@ -1389,7 +1481,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn budget_keeps_valid_regions_of_active_wishes_fresh() {
+    async fn budget_keeps_every_region_of_active_wishes_fresh_alike() {
         use crate::shops::{Quote, eneba::SearchPage};
         let pool = sqlx::sqlite::SqlitePoolOptions::new()
             .max_connections(1)
@@ -1532,12 +1624,15 @@ mod tests {
             }
             t += 300;
             if t % DAY == 0 && t >= T0 + 5 * DAY {
-                assert_eq!(
-                    stale_count(&active_valid, t - DAY).await,
-                    0,
-                    "every DE-valid variant of an active wish is at most a day old on day {}",
-                    (t - T0) / DAY
-                );
+                // Every region of an active wish shares the budget alike, valid in DE or not.
+                for (ids, what) in [(&active_valid, "DE-valid"), (&active_other, "other")] {
+                    assert_eq!(
+                        stale_count(ids, t - 4 * DAY).await,
+                        0,
+                        "every {what} variant of an active wish is at most four days old on day {}",
+                        (t - T0) / DAY
+                    );
+                }
             }
         }
         assert_eq!(
@@ -1989,6 +2084,123 @@ mod tests {
         assert!(budget_status(&pool, Shop::Eneba, t).await.unwrap()["next_at"].is_null());
     }
 
+    #[test]
+    fn price_trend_moves_slowly_and_maps_to_half_or_double_interval() {
+        assert_eq!(price_position(1000, &[1000]), None);
+        assert_eq!(price_position(1000, &[1000, 1000]), None);
+        assert_eq!(price_position(1000, &[3000, 1000, 2000]), Some(0.0));
+        assert_eq!(price_position(2000, &[3000, 1000, 2000]), Some(0.5));
+        assert_eq!(price_position(3000, &[3000, 1000, 2000]), Some(1.0));
+        // One cheap measurement moves the neutral trend a fifth of the way; without a comparison it stays.
+        assert!((next_trend(0.5, Some(0.0)) - 0.4).abs() < 1e-9);
+        assert_eq!(next_trend(0.3, None), 0.3);
+        let mut score = 0.5;
+        for _ in 0..20 {
+            score = next_trend(score, Some(0.0));
+        }
+        assert!(score < 0.01, "{score}");
+        assert!((trend_pace(0.0) - 0.5).abs() < 1e-9);
+        assert!((trend_pace(0.5) - 1.0).abs() < 1e-9);
+        assert!((trend_pace(1.0) - 2.0).abs() < 1e-9);
+        // 8 h for every region alike: the steadily cheapest every 4 h, the most expensive every 16 h, a preview twice as
+        // long; never beyond a week, never below 15 minutes.
+        assert_eq!(effective_interval(8 * 3600, false, 0.5), 4 * 3600);
+        assert_eq!(effective_interval(8 * 3600, false, 1.0), 8 * 3600);
+        assert_eq!(effective_interval(8 * 3600, false, 2.0), 16 * 3600);
+        assert_eq!(effective_interval(8 * 3600, true, 1.0), 16 * 3600);
+        assert_eq!(effective_interval(WEEK, true, 2.0), WEEK);
+        assert_eq!(effective_interval(900, false, 0.5), 900);
+    }
+
+    #[tokio::test]
+    async fn cheap_regions_are_checked_more_often_expensive_and_sold_out_ones_less() {
+        let pool = memory().await;
+        sqlx::query("UPDATE app_settings SET target_country='DE'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        const T0: i64 = 1_800_000_000 - 1_800_000_000 % DAY;
+        // Only the product jobs of this wish (no discovery).
+        sqlx::query("DELETE FROM shop_job WHERE link_id IS NULL")
+            .execute(&pool)
+            .await
+            .unwrap();
+        add_item(&pool, "w", "wished").await;
+        // Regions that cannot count in DE at 1 €, 2 € and 3 €, one sold out, and a product valid in DE at 2.50 €:
+        // all compared alike.
+        let mut links = vec![];
+        for n in 0..5 {
+            links.push(add_link(&pool, "w", n, T0 + 100 * DAY).await);
+        }
+        let product = |n: usize| {
+            let mut product = priced(n == 4);
+            product.offers[0].cents = [100, 200, 300, 150, 250][n];
+            if n == 3 {
+                product.offers.clear();
+                product.availability = Availability::SoldOut;
+            }
+            product
+        };
+        let mut t = T0;
+        for _ in 0..12 {
+            for (n, link) in links.iter().enumerate() {
+                sqlx::query("UPDATE shop_job SET due=? WHERE link_id=?")
+                    .bind(t)
+                    .bind(link)
+                    .execute(&pool)
+                    .await
+                    .unwrap();
+                unpace(&pool).await;
+                let job = claim(&pool, Shop::Eneba, "aa", t, 1_000_000)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(job.link_id, Some(*link));
+                let work = Work::Product(Box::new(product(n)));
+                complete(&pool, Shop::Eneba, &job, "aa", Ok(work), t, t, 1)
+                    .await
+                    .unwrap();
+            }
+            t += 3600;
+        }
+        let rows: Vec<(f64, f64, i64)> = sqlx::query_as(
+            "SELECT l.cheap_score,j.pace,j.due-j.checked_at FROM offer_link l JOIN shop_job j ON j.link_id=l.id ORDER BY l.id",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        let interval = 8 * 3600;
+        // Steadily the cheapest region: trend near 0, checked almost twice as often.
+        assert!(rows[0].0 < 0.1 && rows[0].1 < 0.6, "{:?}", rows[0]);
+        assert!(rows[0].2 < interval * 6 / 10, "{:?}", rows[0]);
+        // 2 € between 1 € and 3 € (position 0.5): the plain interval.
+        assert!((rows[1].1 - 1.0).abs() < 0.1, "{:?}", rows[1]);
+        // Steadily the most expensive region: about half as often.
+        assert!(rows[2].0 > 0.9 && rows[2].1 > 1.8, "{:?}", rows[2]);
+        assert!(rows[2].2 > interval * 18 / 10, "{:?}", rows[2]);
+        // Sold out: half as often until it is in stock again; its trend stays where it was.
+        assert_eq!(
+            (rows[3].0, rows[3].1, rows[3].2),
+            (0.5, SOLD_OUT_PACE, 2 * interval)
+        );
+        // The product valid in DE is not preferred: 2.50 € (position 0.75) is checked less often than the plain interval.
+        assert!(
+            rows[4].0 > 0.65 && rows[4].1 > 1.3 && rows[4].1 < 1.5,
+            "{:?}",
+            rows[4]
+        );
+        // The demand estimate uses the same paces.
+        let expected = rows
+            .iter()
+            .map(|row| DAY as f64 / row.2 as f64)
+            .sum::<f64>();
+        let estimate = demand(&pool, Shop::Eneba, t).await.unwrap();
+        assert!(
+            (estimate - expected).abs() < 0.01,
+            "estimate {estimate}, expected {expected}"
+        );
+    }
+
     #[tokio::test]
     async fn demand_estimate_matches_an_unlimited_simulation() {
         use crate::shops::eneba::SearchPage;
@@ -2083,10 +2295,10 @@ mod tests {
             .unwrap();
         let simulated = runs as f64 / 14.0;
         let estimate = estimate.unwrap();
-        // 8 valid wish links ×3, 12 others ×1, 4 valid preview links ×1.5, 8 others ×0.5,
+        // Every region alike (equal prices, no trend): 20 wish links ×3, 12 preview links ×1.5,
         // 8 weekly searches and the daily discovery.
         assert!(
-            (estimate - (24.0 + 12.0 + 6.0 + 4.0 + 8.0 / 7.0 + 1.0)).abs() < 1e-9,
+            (estimate - (60.0 + 18.0 + 8.0 / 7.0 + 1.0)).abs() < 1e-9,
             "{estimate}"
         );
         assert!(

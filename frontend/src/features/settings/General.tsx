@@ -4,11 +4,12 @@ import type { Settings, WishlistItem } from '../../api';
 import { Button, Icon, Notice } from '../../components';
 import { downloadJson, wishlistExport } from '../wishlist-export';
 import { SettingsPanel } from './parts';
-import type { Autosave } from './autosave';
+import type { SettingsDraft } from './draft';
+import WishlistColumns from './WishlistColumns';
 
 
 export default function General({ settings, countries, edit, onError }: {
-  settings: Settings; countries: { code: string; name: string }[]; edit: Autosave['edit']; onError: (error: unknown) => void;
+  settings: Settings; countries: { code: string; name: string }[]; edit: SettingsDraft['edit']; onError: (error: unknown) => void;
 }) {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
@@ -38,9 +39,11 @@ export default function General({ settings, countries, edit, onError }: {
         </div>
         {unconfirmed
           ? <div className="note warn" role="note" data-testid="activation-note"><Icon name="alert" /><span>Die Shops bestätigen die Aktivierung derzeit nur für Deutschland. Für {nameOf(target)} werden Angebote angezeigt, zählen aber nicht als gültiger Bestpreis.</span></div>
-          : <p className="hint">Der beste Preis gilt für dieses Land. Die Wunschliste zeigt immer diesen Preis und daneben die günstigste Region weltweit. Die Shops bestätigen die Aktivierung derzeit für {confirmed.map(nameOf).join(', ')}; Preise werden in Euro verglichen.</p>}
+          : <p className="hint">Der beste Preis gilt für dieses Land. Die Wunschliste zeigt immer diesen Preis und daneben die günstigste Region weltweit. Abgefragt werden alle Regionen gleich, das Zielland wird nicht bevorzugt. Die Shops bestätigen die Aktivierung derzeit für {confirmed.map(nameOf).join(', ')}; Preise werden in Euro verglichen.</p>}
       </div>
     </SettingsPanel>
+
+    <WishlistColumns settings={settings} edit={edit} />
 
     <SettingsPanel title="Export" titleId="general-export-title">
       <div className="form-grid">

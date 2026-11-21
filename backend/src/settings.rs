@@ -42,12 +42,37 @@ fn default_configured() -> bool {
 fn default_interval() -> i64 {
     28800
 }
+
+/// Columns of the wishlist table in their default order; the settings store any permutation of them.
+const WISHLIST_COLUMNS: [&str; 8] = [
+    "game", "price", "world", "save", "target", "status", "trend", "open",
+];
+
+fn is_column_order(columns: &[String]) -> bool {
+    columns.len() == WISHLIST_COLUMNS.len()
+        && WISHLIST_COLUMNS
+            .iter()
+            .all(|key| columns.iter().filter(|c| c == key).count() == 1)
+}
+
+/// The stored order, or the default order when nothing (or an outdated list) is stored.
+fn column_order(stored: &str) -> Vec<String> {
+    let columns: Vec<String> = stored.split(',').map(str::to_string).collect();
+    if is_column_order(&columns) {
+        columns
+    } else {
+        WISHLIST_COLUMNS.iter().map(|c| c.to_string()).collect()
+    }
+}
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Settings {
     target_country: Option<String>,
     currency: String,
     #[serde(default = "default_price_scope")]
     wishlist_price_scope: String,
+    /// Order of the wishlist table columns. Absent on PUT keeps the stored order.
+    #[serde(default)]
+    wishlist_columns: Option<Vec<String>>,
     sources: Vec<SourceSettings>,
     #[serde(default)]
     countries: Vec<String>,
@@ -61,7 +86,7 @@ fn default_price_scope() -> String {
 
 async fn load(state: &Shared) -> ApiResult<Settings> {
     let row = sqlx::query(
-        "SELECT target_country, currency, wishlist_price_scope FROM app_settings WHERE id = 1",
+        "SELECT target_country, currency, wishlist_price_scope, wishlist_columns FROM app_settings WHERE id = 1",
     )
     .fetch_one(&state.pool)
     .await?;
@@ -70,6 +95,7 @@ async fn load(state: &Shared) -> ApiResult<Settings> {
         target_country: row.get("target_country"),
         currency: row.get("currency"),
         wishlist_price_scope: row.get("wishlist_price_scope"),
+        wishlist_columns: Some(column_order(row.get("wishlist_columns"))),
         sources: rows
             .into_iter()
             .map(|r| {
@@ -125,6 +151,10 @@ pub(crate) async fn put_settings(
             .target_country
             .as_ref()
             .is_some_and(|c| !valid_country(c))
+        || input
+            .wishlist_columns
+            .as_ref()
+            .is_some_and(|columns| !is_column_order(columns))
     {
         return Err(bad());
     }
@@ -158,6 +188,12 @@ pub(crate) async fn put_settings(
     .bind(input.wishlist_price_scope)
     .execute(&mut *tx)
     .await?;
+    if let Some(columns) = &input.wishlist_columns {
+        sqlx::query("UPDATE app_settings SET wishlist_columns = ? WHERE id = 1")
+            .bind(columns.join(","))
+            .execute(&mut *tx)
+            .await?;
+    }
     for source in input.sources {
         let (previous, previous_jobs): (i64, Option<i64>) = sqlx::query_as(
             "SELECT poll_interval_seconds,daily_jobs FROM source_settings WHERE id=?",
@@ -177,8 +213,11 @@ pub(crate) async fn put_settings(
                 .await?;
         }
         if previous != source.poll_interval_seconds {
+            // Same rule as the scheduler (jobs::effective_interval, without the preview factor): the interval times
+            // the price-trend pace, at most a week.
             sqlx::query(
-            "UPDATE shop_job SET due=MAX(?,(SELECT observed_at FROM offer_link WHERE id=link_id)+?)
+            "UPDATE shop_job SET due=MAX(?,(SELECT observed_at FROM offer_link WHERE id=link_id)
+                +MIN(604800,CAST(ROUND(?*pace) AS INTEGER)))
             WHERE source=? AND link_id IS NOT NULL AND failures=0 AND lease_until<=?
             AND last_error IS NULL AND (SELECT observed_at FROM offer_link WHERE id=link_id) IS NOT NULL",
         )

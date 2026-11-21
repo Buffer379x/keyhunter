@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { expectSettingsSaved, signInToFixture, navTo } from './helpers';
+import { saveSettings, signInToFixture, navTo } from './helpers';
 import { openWishlistRow, removeCurrent, wishlistRows } from './detail-helpers';
 
 test('price badge is permanent and its region setting persists',async({page})=>{

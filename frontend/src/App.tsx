@@ -8,12 +8,13 @@ import type { WishlistItem } from './api';
 import PriceAlerts from './features/PriceAlerts';
 import SettingsPage from './features/SettingsPage';
 import AuthScreen from './features/AuthScreen';
-import { Brand, Button, Icon, IconButton, InfoDialog, Notice, Toast } from './components';
+import { Brand, Button, Icon, IconButton, InfoDialog, Notice } from './components';
 import type { IconName } from './components';
 import FetchStatus from './FetchStatus';
 import { mediaQuery } from './breakpoints';
 import { useMediaQuery } from './useMediaQuery';
-import { useSettingsAutosave } from './features/settings/autosave';
+import { useSettingsDraft } from './features/settings/draft';
+import UnsavedDialog from './features/settings/UnsavedDialog';
 import { appVersion } from './version';
 import { routeSection, sectionLabel, sections } from './features/settings/sections';
 import type { Section } from './features/settings/sections';
@@ -40,7 +41,6 @@ export default function App() {
   const [wishlistCount, setWishlistCount] = useState<number | null>(null);
   const [libraryCount, setLibraryCount] = useState<number | null>(null);
   const [alertCount, setAlertCount] = useState<number | null>(null);
-  const [toast, setToast] = useState('');
   const drawer = useMediaQuery(mediaQuery.drawer);
   const [sourceStatus, setSourceStatus] = useState<SourceStatuses | null>(null);
   const [busy, setBusy] = useState(false);
@@ -86,7 +86,6 @@ export default function App() {
   async function logout() {
     setBusy(true); setError('');
     try {
-      await auto.settle(); // Never sign out with an unsaved edit.
       await api('/session', 'DELETE', undefined, csrf);
       resetSession(); setPage('wishlist'); setScreen('login');
       window.history.replaceState(null, '', window.location.pathname);
@@ -97,7 +96,7 @@ export default function App() {
     setError(errorText(e));
     if (e instanceof HttpError && e.status === 401) { setCsrf(''); setWishlistCount(null); setSearchOpen(false); setAddOpen(false); setScreen('login'); }
   }, []);
-  const auto = useSettingsAutosave({ csrf, onSaved: refreshSources, onProtectedError: handleProtectedError });
+  const auto = useSettingsDraft({ csrf, onSaved: refreshSources, onProtectedError: handleProtectedError });
   const savedCountry = auto.saved?.target_country ?? null;
   /** Go to a page (and settings section). `add` opens the wishlist's add dialog on arrival. */
   const navigate = useCallback((next: Page, nextSection: Section = 'general', add = false) => {
@@ -120,10 +119,18 @@ export default function App() {
         if (page === 'wishlist' && next === 'wishlist') window.dispatchEvent(new PopStateEvent('popstate'));
       }
     };
-    // Leaving the settings: save open edits first, so the next page already sees the new target country and price scope.
-    if (page === 'settings' && next !== 'settings' && auto.dirty) void auto.settle().then(go); else go();
-  }, [refreshSources, page, auto.dirty, auto.settle]);
-  useEffect(() => { if (page !== 'settings') void auto.settle(); }, [page, auto.settle]); // Also covers browser back and forward.
+    go();
+  }, [refreshSources, page]);
+  // Leaving the settings (also with browser back) with unsaved changes asks whether to save or discard them.
+  const lastSection = useRef<Section>(section);
+  if (page === 'settings') lastSection.current = section;
+  const [leaving, setLeaving] = useState<Section | null>(null);
+  const wasSettings = useRef(page === 'settings');
+  useEffect(() => {
+    if (wasSettings.current && page !== 'settings' && auto.dirty) setLeaving(lastSection.current);
+    if (page === 'settings') setLeaving(null);
+    wasSettings.current = page === 'settings';
+  }, [page, auto.dirty]);
   useEffect(() => {
     const restore = () => { setPage(routePage()); setSection(routeSection()); setSearchOpen(false); setAddOpen(false); setNavOpen(false); };
     window.addEventListener('popstate', restore); return () => window.removeEventListener('popstate', restore);
@@ -199,12 +206,6 @@ export default function App() {
   const countryNames = useMemo(() => new Intl.DisplayNames(['de'], { type: 'region' }), []);
   const countries = useMemo(() => (auto.settings?.countries ?? []).map(code => ({ code, name: countryNames.of(code) ?? code })).sort((a, b) => a.name.localeCompare(b.name, 'de')), [auto.settings?.countries, countryNames]);
   const targetLabel = savedCountry ? countryNames.of(savedCountry) : 'Noch nicht gewählt';
-  const chosenCountry = auto.settings?.target_country ?? '';
-  function changeCountry(code: string) {
-    auto.edit(current => ({ ...current, target_country: code || null }));
-    setToast(code ? `Zielland: ${countryNames.of(code) ?? code}` : 'Zielland entfernt');
-  }
-  const clearToast = useCallback(() => setToast(''), []);
 
   if (screen !== 'ready') return <AuthScreen screen={screen} busy={busy} error={error} onRetry={() => void initialize()} onSubmit={signIn} />;
 
@@ -235,11 +236,6 @@ export default function App() {
       </nav>
       <div className="side-foot">
         <FetchStatus onOpen={() => openSettings('status')} />
-        <label className="country"><span className="muted">Zielland</span>
-          <select aria-label="Zielland" value={chosenCountry} onChange={event => changeCountry(event.target.value)}>
-            {!chosenCountry && <option value="">Bitte wählen</option>}
-            {countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
-          </select></label>
         <button type="button" className="nav-item" onClick={() => void logout()} disabled={busy}><Icon name="logout" />Abmelden</button>
       </div>
     </aside>
@@ -256,7 +252,7 @@ export default function App() {
       </header>
       <main id="main-content" className="content" tabIndex={-1}>
         {error && <Notice error>{error}</Notice>}
-        {page === 'wishlist' ? <Wishlist key={wishlistRevision} csrf={csrf} targetCountry={savedCountry} targetLabel={targetLabel ?? 'Noch nicht gewählt'} addOpen={addOpen} onAddOpen={setAddOpen} onTitle={setGameTitle} onSettings={() => openSettings()} onCountChange={setWishlistCount} onError={handleProtectedError} />
+        {page === 'wishlist' ? <Wishlist key={wishlistRevision} csrf={csrf} targetCountry={savedCountry} columns={auto.saved?.wishlist_columns} targetLabel={targetLabel ?? 'Noch nicht gewählt'} addOpen={addOpen} onAddOpen={setAddOpen} onTitle={setGameTitle} onSettings={() => openSettings()} onCountChange={setWishlistCount} onError={handleProtectedError} />
           : page === 'library' ? <Library csrf={csrf} onRestored={selectSearchResult} onOpenWishlist={() => navigate('wishlist')} onCountChange={setLibraryCount} onError={handleProtectedError} />
             : page === 'alerts' ? <PriceAlerts csrf={csrf} targetCountry={savedCountry} targetLabel={targetLabel ?? 'Zielland'} onError={handleProtectedError} />
               : auto.settings && <SettingsPage section={section} onSection={openSettings} settings={auto.settings} auto={auto} csrf={csrf} busy={busy} countries={countries} sourceStatus={sourceStatus}
@@ -264,6 +260,9 @@ export default function App() {
       </main>
     </div>
     <InfoDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
-    <Toast message={toast} onDone={clearToast} />
+    <UnsavedDialog open={leaving !== null && auto.dirty} error={auto.state === 'error' ? auto.error : ''}
+      onSave={async () => { const ok = await auto.save(); if (ok) setLeaving(null); return ok; }}
+      onDiscard={() => { auto.discard(); setLeaving(null); }}
+      onBack={() => { const back = leaving ?? 'general'; setLeaving(null); navigate('settings', back); }} />
   </div>;
 }

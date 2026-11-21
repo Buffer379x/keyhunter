@@ -40,12 +40,6 @@
 .fetch-row { display: flex; align-items: center; gap: 8px; font-size: var(--t-xs); min-width: 0; }
 .fetch-row .mono { margin-left: auto; color: var(--muted); font-size: var(--t-label); white-space: nowrap; }
 .fetch-budget { color: var(--muted); font-size: var(--t-label); }
-.country {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  border: 1px solid var(--line); border-radius: var(--r-lg); padding: 8px 10px; background: var(--panel);
-}
-.country select { width: auto; min-width: 0; height: auto; padding: 0; background: none; border: 0; font-weight: 500; text-align: right; text-overflow: ellipsis; }
-.country select option { background: var(--panel); }
 
 .main { display: flex; flex-direction: column; min-width: 0; height: 100%; overflow: hidden; }
 .top {

@@ -1,5 +1,5 @@
 import { shopNames } from './shop-names';
-import type { Ref } from 'react';
+import type { ReactNode, Ref } from 'react';
 import type { PriceBadgeData, WishlistItem } from '../api';
 import { Icon, IconButton, Pill, Price, Reg, formatPrice } from '../components';
 import { relativeTime } from '../time';
@@ -9,6 +9,7 @@ import GameCover from './GameCover';
 import { badgeStateText, badgeTitle } from './PriceBadge';
 import { WORLD_SHARE, sparkHeights } from './wishlist-model';
 import type { RowFacts } from './wishlist-model';
+import type { WishlistColumn } from './wishlist-columns';
 
 /** Is this entry something the owner has to look at (unconfirmed match, or the shop mapping needs review)? */
 export const needsReview = (item: WishlistItem, badge?: PriceBadgeData) => badge?.state === 'review' || item.verification !== 'catalog';
@@ -63,10 +64,13 @@ function Spark({ trend, code }: { trend: (number | null)[]; code: string }) {
 
 /**
  * One row of the wishlist table (`table.wl`): game, target-country price, cheapest region, saving, alarm target, status,
- * 14-day sparkline and the details button, which opens the game (the row itself is not clickable). Up to 720 px the CSS turns it into a card.
+ * 14-day sparkline and the details button, which opens the game (the row itself is not clickable). The cells follow the column
+ * order of the settings; up to 720 px the CSS turns the row into a card with a fixed layout.
  */
-export default function WishlistRow({ item, badge, facts, code, compare, scopeLabel, targetDisabled, openRef, onOpen }: {
+export default function WishlistRow({ item, badge, facts, columns, code, compare, scopeLabel, targetDisabled, openRef, onOpen }: {
   item: WishlistItem; badge?: PriceBadgeData; facts: RowFacts;
+  /** Column order of the settings (every column once). */
+  columns: WishlistColumn[];
   /** Target country code ("DE"), or "" without one. */
   code: string;
   /** The badge price is the target-country price (price scope "preferred"), so a cheapest region that is not cheaper means the target country is cheapest. */
@@ -82,24 +86,25 @@ export default function WishlistRow({ item, badge, facts, code, compare, scopeLa
   /** The target country itself is the cheapest worldwide: shown like every other region, only slightly highlighted. */
   const homeCheapest = !worldCheaper && compare && world !== null && facts.price !== null;
   const origin = [badge?.source ? shopNames[badge.source] ?? badge.source : null, badge?.region ? countryData(badge.region).name : null].filter(Boolean).join(' · ');
-  return <tr data-id={item.id}>
-    <td className="c-game"><div className="game-cell"><GameCover small src={item.game?.cover_url} title={title} /><div className="game-name"><b>{title}</b><small>{subline(item)}</small></div></div></td>
-    <td className="c-de r" title={badge ? badgeTitle(badge, scopeLabel) : undefined}>
+  const cells: Record<WishlistColumn, ReactNode> = {
+    game: <td key="game" className="c-game"><div className="game-cell"><GameCover small src={item.game?.cover_url} title={title} /><div className="game-name"><b>{title}</b><small>{subline(item)}</small></div></div></td>,
+    price: <td key="price" className="c-de r" title={badge ? badgeTitle(badge, scopeLabel) : undefined}>
       {facts.price !== null ? <><Price cents={facts.price} tone={badge?.stale ? 'stale' : 'default'} />{origin && <div className="wl-sub">{origin}</div>}</> : <span className="faint">–</span>}
-    </td>
-    <td className="c-world">
+    </td>,
+    world: <td key="world" className="c-world">
       {worldCheaper ? <div className="world-cell" title={`Günstigste Region weltweit: ${reg?.name ?? 'Region unbekannt'}. Nicht automatisch im Zielland aktivierbar.`}>{reg && <Reg code={reg.code} />}<Price cents={world.cents} tone="world" /></div>
         : homeCheapest ? <div className="world-cell home-best" title={`Günstigste Region weltweit: ${reg?.name ?? 'Region unbekannt'}. In ${code || 'deinem Zielland'} gibt es kein günstigeres Angebot.`}>
             {reg && <Reg code={reg.code} home={reg.code === code} />}<Price cents={world!.cents} tone="world" /><span className="sr-only">, im Zielland am günstigsten</span></div>
           : facts.price !== null ? <span className="faint">–</span>
             : <span className="wl-note faint">{missingWorld(badge)}</span>}
-    </td>
-    <td className="c-save r">
+    </td>,
+    save: <td key="save" className="c-save r">
       {facts.saving !== null ? <><span className={`save${facts.share! >= WORLD_SHARE - 1e-9 ? ' big' : ''}`}>−{formatPrice(facts.saving)}</span><div className="save-pct faint mono">−{Math.round(facts.share! * 100)} %</div></> : <span className="save none">–</span>}
-    </td>
-    <td className="c-target r">{facts.target !== null ? <span className={`mono${targetDisabled ? ' faint' : ''}`} title={targetDisabled ? 'Preisalarm ausgeschaltet' : undefined}>{formatPrice(facts.target)}</span> : <span className="faint">–</span>}</td>
-    <td className="c-status"><StatusPills item={item} badge={badge} facts={facts} /></td>
-    <td className="c-trend">{facts.trend && <Spark trend={facts.trend} code={code || 'Zielland'} />}</td>
-    <td className="c-more r"><IconButton ref={openRef} className="row-open" label={`Details zu ${title}`} onClick={onOpen}><Icon name="details" /></IconButton></td>
-  </tr>;
+    </td>,
+    target: <td key="target" className="c-target r">{facts.target !== null ? <span className={`mono${targetDisabled ? ' faint' : ''}`} title={targetDisabled ? 'Preisalarm ausgeschaltet' : undefined}>{formatPrice(facts.target)}</span> : <span className="faint">–</span>}</td>,
+    status: <td key="status" className="c-status"><StatusPills item={item} badge={badge} facts={facts} /></td>,
+    trend: <td key="trend" className="c-trend">{facts.trend && <Spark trend={facts.trend} code={code || 'Zielland'} />}</td>,
+    open: <td key="open" className="c-more r"><IconButton ref={openRef} className="row-open" label={`Details zu ${title}`} onClick={onOpen}><Icon name="details" /></IconButton></td>,
+  };
+  return <tr data-id={item.id}>{columns.map(column => cells[column])}</tr>;
 }

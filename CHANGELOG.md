@@ -1,5 +1,19 @@
 # Änderungen
 
+## 0.6.5 – 2026-11-21
+
+Einstellungen werden erst mit „Speichern“ übernommen, alle Regionen werden gleich behandelt und günstige öfter abgefragt als teure, und die Spalten der Wunschliste lassen sich anordnen. Die Datenbank bekommt beim Start automatisch neue Spalten, sonst ist nichts zu tun.
+
+### Neu
+- **Speichern statt automatisch:** Änderungen in den Einstellungen bleiben ein Entwurf, bis du oben „Speichern“ drückst; „Verwerfen“ kehrt zum gespeicherten Stand zurück. Solange etwas offen ist, bleibt die Kopfzeile beim Scrollen sichtbar. Wer die Einstellungen mit offenen Änderungen verlässt, wird gefragt: speichern, verwerfen oder zurück.
+- **Zielland nur noch in den Einstellungen:** Die Auswahl in der Seitenleiste entfällt; das Zielland wird unter Einstellungen → Allgemein gewählt und gilt erst nach „Speichern“.
+- **Alle Regionen gleich, Abfragen nach Preistrend:** Bisher wurden Angebote, die im Zielland nicht aktivierbar sind, nur alle 3 × Intervall abgefragt und bei knappem Tagesbudget hintangestellt. Jetzt zählt die Region nicht mehr: Jede Messung bestimmt, wo eine Produktseite preislich im Vergleich zu allen Regionen desselben Spiels liegt (günstigste bis teuerste), ein gleitender Durchschnitt über etwa die letzten zehn Messungen ergibt den Trend. Die über längere Zeit günstigste Region wird bis zu doppelt so oft abgefragt, die teuerste nur noch halb so oft, alles dazwischen stufenlos. Ausverkaufte Produkte werden halb so oft geprüft und bei knappem Budget hintangestellt, bis sie wieder lieferbar sind. Bei gleichen Preisen oder ohne Vergleich bleibt das eingestellte Intervall. Das Zielland entscheidet nur noch, welcher Preis als Bestpreis zählt. **Hinweis:** Weil alle Regionen jetzt im eingestellten Intervall laufen, steigt der Tagesbedarf deutlich; die Kachel „Abrufe heute“ und die Seite Abrufstatus zeigen, ob das Tageslimit reicht.
+- **Trend sichtbar:** Der Preis-Tab nennt die Region, die meist am günstigsten ist; unter Infos → Produktzuordnungen steht bei jedem Produkt, wie oft es abgefragt wird und ob es meist günstig oder meist teuer ist.
+- **Spaltenreihenfolge der Wunschliste:** Unter Einstellungen → Allgemein → „Wunschliste · Spalten“ lässt sich jede Spalte mit den Pfeilen nach oben oder unten verschieben, zum Beispiel der Details-Knopf vor das Cover. Die Reihenfolge gilt auf allen Geräten; „Standard wiederherstellen“ setzt sie zurück. Auf dem Smartphone bleibt die Kartenansicht gleich.
+
+### Oberfläche
+- **Bibliothek:** Standard ist jetzt „A–Z“; der Schalter steht deshalb an erster Stelle, „Zuletzt gekauft“ an zweiter.
+
 ## 0.6.4 – 2026-11-21
 
 Automatisch gefundene Shop-Links lassen sich nach einem Blick auf die Produktseite selbst bestätigen; dazu kleinere Aufräumarbeiten in Preisvergleich, Wunschliste und Bibliothek. Die Datenbank bekommt beim Start automatisch eine neue Spalte, sonst ist nichts zu tun.
