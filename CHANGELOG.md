@@ -1,5 +1,15 @@
 # Änderungen
 
+## 0.6.5 – 2026-11-21
+
+Die Spalten der Wunschliste lassen sich in den Einstellungen anordnen, und die Bibliothek sortiert standardmäßig von A bis Z. Die Datenbank bekommt beim Start automatisch eine neue Spalte, sonst ist nichts zu tun.
+
+### Neu
+- **Spaltenreihenfolge der Wunschliste:** Unter Einstellungen → Allgemein → „Wunschliste · Spalten“ lässt sich jede Spalte mit den Pfeilen nach oben oder unten verschieben, zum Beispiel der Details-Knopf vor das Cover. Die Reihenfolge wird sofort gespeichert und gilt auf allen Geräten; „Standard wiederherstellen“ setzt sie zurück. Auf dem Smartphone bleibt die Kartenansicht gleich.
+
+### Oberfläche
+- **Bibliothek:** Standard ist jetzt „A–Z“; der Schalter steht deshalb an erster Stelle, „Zuletzt gekauft“ an zweiter.
+
 ## 0.6.4 – 2026-11-21
 
 Automatisch gefundene Shop-Links lassen sich nach einem Blick auf die Produktseite selbst bestätigen; dazu kleinere Aufräumarbeiten in Preisvergleich, Wunschliste und Bibliothek. Die Datenbank bekommt beim Start automatisch eine neue Spalte, sonst ist nichts zu tun.

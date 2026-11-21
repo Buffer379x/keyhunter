@@ -68,3 +68,13 @@
 @media (max-width: 720px) {
   .settings-page .shop-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* (0.6.5) Column order of the wishlist: one row per column with its place and "nach oben" / "nach unten". */
+.settings-page .col-order-hint { margin: 0; }
+.settings-page .col-order { list-style: none; margin: 0; padding: 0; max-width: 420px; border: 1px solid var(--line); border-radius: var(--r-sm); }
+.settings-page .col-order li { display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 12px; }
+.settings-page .col-order li + li { border-top: 1px solid var(--line); }
+.settings-page .col-order .col-pos { width: 16px; color: var(--faint); font-size: var(--t-xs); text-align: right; }
+.settings-page .col-order .col-name { flex: 1; min-width: 0; font-size: var(--t-sm); }
+.settings-page .col-order .icon-btn { width: 28px; height: 28px; }
+.settings-page .col-order .icon-btn:disabled { opacity: .35; cursor: default; }

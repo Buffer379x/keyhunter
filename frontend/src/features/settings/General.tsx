@@ -5,6 +5,7 @@ import { Button, Icon, Notice } from '../../components';
 import { downloadJson, wishlistExport } from '../wishlist-export';
 import { SettingsPanel } from './parts';
 import type { Autosave } from './autosave';
+import WishlistColumns from './WishlistColumns';
 
 
 export default function General({ settings, countries, edit, onError }: {
@@ -41,6 +42,8 @@ export default function General({ settings, countries, edit, onError }: {
           : <p className="hint">Der beste Preis gilt für dieses Land. Die Wunschliste zeigt immer diesen Preis und daneben die günstigste Region weltweit. Die Shops bestätigen die Aktivierung derzeit für {confirmed.map(nameOf).join(', ')}; Preise werden in Euro verglichen.</p>}
       </div>
     </SettingsPanel>
+
+    <WishlistColumns settings={settings} edit={edit} />
 
     <SettingsPanel title="Export" titleId="general-export-title">
       <div className="form-grid">

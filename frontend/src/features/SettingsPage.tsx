@@ -16,7 +16,7 @@ const OPERATIONS_GUIDE = 'https://github.com/Buffer379x/keyhunter/blob/main/docs
 
 /** One line under the page title of each section (prototype page-head). */
 const subtitles: Record<Section, string> = {
-  general: 'Zielland, Preisanzeige und Export',
+  general: 'Zielland, Spalten der Wunschliste und Export',
   shops: 'Welche Shops KeyHunter abfragt und wie oft',
   index: 'Spielesuche, Editionen und Cover über IGDB',
   notifications: 'Push-Nachrichten für Preisalarme über ntfy',
