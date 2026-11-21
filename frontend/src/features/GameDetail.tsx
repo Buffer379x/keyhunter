@@ -28,6 +28,8 @@ type Props = {
   /** Kept for compatibility: the way back is the breadcrumb of the top bar (design v4 has no back button in the detail). */
   onBack?: () => void;
   purchasing: boolean; onTab: (tab: TabId) => void; onPurchase: () => void; onRemove: () => void;
+  /** Put the wish into the shopping cart or take it out (0.8.0). */
+  carting: boolean; onCart: () => void;
   onView: (game: CatalogGame) => void; onClearPreview: () => void; onBadge: (id: string, badge: PriceBadgeData) => void;
   onSettings: () => void; onError: (error: unknown) => void; onRule: (id: string, rule: Rule | null) => void;
 };
@@ -57,7 +59,7 @@ function StatusPill({ view, summary, rule, searching, code }: { view: OffersView
 }
 
 function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
-  const { item, viewed, preview, variants, editionItems, editionError, badges, csrf, targetCountry, targetLabel, tab, purchasing, onTab, onPurchase, onRemove, onView, onClearPreview, onBadge, onSettings, onError, alert, rule } = props;
+  const { item, viewed, preview, variants, editionItems, editionError, badges, csrf, targetCountry, targetLabel, tab, purchasing, carting, onCart, onTab, onPurchase, onRemove, onView, onClearPreview, onBadge, onSettings, onError, alert, rule } = props;
   const state = useOffersView(viewed.id, csrf, onError, onBadge);
   const { view } = state;
   const [basis, setBasis] = useState<Basis>('base');
@@ -101,6 +103,8 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
       </div>
       {!preview && <div className="game-actions">
         <Button onClick={() => go('alarm')}><Icon name="target" />{target !== null ? `Ziel ${money(target)}` : rule?.mode === 'low' ? 'Tiefstpreis-Alarm' : 'Ziel setzen'}</Button>
+        <Button className={item.in_cart ? 'in-cart-btn' : undefined} aria-pressed={!!item.in_cart} loading={carting} onClick={onCart}
+          title={item.in_cart ? 'Liegt im Warenkorb; klicken nimmt es wieder heraus' : undefined}>{!carting && <Icon name={item.in_cart ? 'check' : 'cart'} />}{item.in_cart ? 'Im Warenkorb' : 'In den Warenkorb'}</Button>
         <Button loading={purchasing} onClick={onPurchase}>{!purchasing && <Icon name="bag" />}Gekauft</Button>
         <Popover menu align="end" triggerLabel="Weitere Aktionen" triggerClassName="icon-btn" trigger={<Icon name="more" />}>
           {close => <>

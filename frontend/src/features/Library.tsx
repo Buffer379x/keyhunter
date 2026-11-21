@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api } from '../api';
+import { api, CART_CHANGED } from '../api';
 import type { LibraryItem, WishlistItem } from '../api';
 import { Button, ConfirmDialog, EmptyState, Icon, IconButton, Notice, PageHeading, Panel, Seg } from '../components';
 import { Cover, itemName, platformName } from './catalog-ui';
@@ -52,6 +52,8 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
   const closeAdd = useCallback(() => onAddOpen(false), [onAddOpen]);
   function added(item: WishlistItem, created: boolean) {
     const entry = item as LibraryItem;
+    // A wish moved over as bought leaves the cart (0.8.0).
+    window.dispatchEvent(new Event(CART_CHANGED));
     if (created) {
       const rows = [entry, ...items.filter(row => row.id !== entry.id)];
       setItems(rows); onCountChange(rows.length);

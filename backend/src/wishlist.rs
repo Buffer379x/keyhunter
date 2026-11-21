@@ -21,11 +21,13 @@ pub(crate) struct WishlistItem {
     verification: &'static str,
     pub(crate) game: Option<CatalogGame>,
     manual_title: Option<String>,
+    /// In the shopping cart (0.8.0).
+    in_cart: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) price_badge: Option<crate::price_badges::PriceBadge>,
 }
 macro_rules! items_sql {
-    ($suffix:literal) => { concat!("SELECT w.id, w.game_id, w.platform_id, w.created_at, g.manual_title, c.payload FROM wishlist_item w JOIN game g ON g.id = w.game_id LEFT JOIN catalog_game c ON c.igdb_id = g.igdb_id", $suffix) };
+    ($suffix:literal) => { concat!("SELECT w.id, w.game_id, w.platform_id, w.created_at, g.manual_title, c.payload, EXISTS(SELECT 1 FROM cart_item k WHERE k.wish_id = w.id) AS in_cart FROM wishlist_item w JOIN game g ON g.id = w.game_id LEFT JOIN catalog_game c ON c.igdb_id = g.igdb_id", $suffix) };
 }
 
 fn decode(row: SqliteRow) -> ApiResult<WishlistItem> {
@@ -50,6 +52,7 @@ fn decode(row: SqliteRow) -> ApiResult<WishlistItem> {
         verification,
         game,
         manual_title: row.get("manual_title"),
+        in_cart: row.get("in_cart"),
         price_badge: None,
     })
 }
@@ -64,17 +67,37 @@ pub(crate) async fn list(
     ))
     .fetch_all(&state.pool)
     .await?;
-    let mut items = rows
+    let items = rows
         .into_iter()
         .map(decode)
         .collect::<ApiResult<Vec<_>>>()?;
+    Ok(Json(with_badges(&state, items).await?))
+}
+
+/// The wished items with these ids (in no particular order), each with its price badge.
+pub(crate) async fn items(state: &Shared, ids: &[String]) -> ApiResult<Vec<WishlistItem>> {
+    let ids = serde_json::to_string(ids).map_err(|_| internal())?;
+    let rows = sqlx::query(items_sql!(
+        " WHERE w.state='wished' AND w.id IN (SELECT value FROM json_each(?))"
+    ))
+    .bind(ids)
+    .fetch_all(&state.pool)
+    .await?;
+    let items = rows
+        .into_iter()
+        .map(decode)
+        .collect::<ApiResult<Vec<_>>>()?;
+    with_badges(state, items).await
+}
+
+async fn with_badges(state: &Shared, mut items: Vec<WishlistItem>) -> ApiResult<Vec<WishlistItem>> {
     let (target, scope) = crate::price_badges::context(&state.pool).await?;
     let ids: Vec<String> = items.iter().map(|item| item.id.clone()).collect();
-    let mut badges = crate::price_badges::load_many(&state, &ids, &target, &scope).await?;
+    let mut badges = crate::price_badges::load_many(state, &ids, &target, &scope).await?;
     for item in &mut items {
         item.price_badge = badges.remove(&item.id);
     }
-    Ok(Json(items))
+    Ok(items)
 }
 
 #[derive(Deserialize)]
@@ -396,7 +419,7 @@ pub(crate) async fn library(
     headers: HeaderMap,
 ) -> ApiResult<Json<Vec<LibraryItem>>> {
     auth::authenticate(&state, &headers).await?;
-    let rows = sqlx::query("SELECT w.id,w.game_id,w.platform_id,w.created_at,g.manual_title,c.payload,COALESCE(w.acquired_at,0) AS acquired_at FROM wishlist_item w JOIN game g ON g.id=w.game_id LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id WHERE w.state='owned' ORDER BY w.acquired_at DESC,w.rowid DESC")
+    let rows = sqlx::query("SELECT w.id,w.game_id,w.platform_id,w.created_at,g.manual_title,c.payload,0 AS in_cart,COALESCE(w.acquired_at,0) AS acquired_at FROM wishlist_item w JOIN game g ON g.id=w.game_id LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id WHERE w.state='owned' ORDER BY w.acquired_at DESC,w.rowid DESC")
     .fetch_all(&state.pool)
     .await?;
     Ok(Json(
@@ -449,6 +472,11 @@ async fn mark_owned(tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>, id: &str) -> A
         .execute(&mut **tx)
         .await?;
     crate::edition_tracking::cancel_children(tx, id).await?;
+    // Bought: out of the shopping cart (0.8.0).
+    sqlx::query("DELETE FROM cart_item WHERE wish_id=?")
+        .bind(id)
+        .execute(&mut **tx)
+        .await?;
     // Revoke in-flight leases: their results cannot update observations or send alerts.
     sqlx::query("UPDATE shop_job SET lease_until=0,lease_token=NULL WHERE wish_id=? OR link_id IN (SELECT id FROM offer_link WHERE wish_id=?)").bind(id).bind(id).execute(&mut **tx).await?;
     Ok(true)
@@ -514,7 +542,7 @@ pub(crate) async fn add_owned(
             true
         }
     };
-    let row = sqlx::query("SELECT w.id,w.game_id,w.platform_id,w.created_at,g.manual_title,c.payload,COALESCE(w.acquired_at,0) AS acquired_at FROM wishlist_item w JOIN game g ON g.id=w.game_id LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id WHERE w.game_id=? AND w.platform_id=?")
+    let row = sqlx::query("SELECT w.id,w.game_id,w.platform_id,w.created_at,g.manual_title,c.payload,EXISTS(SELECT 1 FROM cart_item k WHERE k.wish_id=w.id) AS in_cart,COALESCE(w.acquired_at,0) AS acquired_at FROM wishlist_item w JOIN game g ON g.id=w.game_id LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id WHERE w.game_id=? AND w.platform_id=?")
         .bind(&game_id)
         .bind(input.platform_id)
         .fetch_one(&mut *tx)

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { AlertEvent, CatalogGame, FetchStatusResponse, PriceBadgeData, WishlistItem } from '../api';
-import { api, FETCH_STATUS_CHANGED } from '../api';
+import { api, CART_CHANGED, FETCH_STATUS_CHANGED } from '../api';
 import { Button, Chip, ConfirmDialog, EmptyState, Field, Icon, Inset, Kpi, Notice, Panel, PanelHead, Seg, formatPrice } from '../components';
 import CatalogSearch from './CatalogSearch';
 import GameDetail, { isTab } from './GameDetail';
@@ -272,11 +272,26 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
       await api(`/wishlist/${encodeURIComponent(removeItem.id)}`, 'DELETE', undefined, csrf);
       ++loadGeneration.current;
       const next = items.filter(item => item.id !== removeItem.id); setItems(next); onCountChange(next.length);
+      if (removeItem.in_cart) window.dispatchEvent(new Event(CART_CHANGED));
       if (selectedId === removeItem.id) { returnFocus.current = null; closeDetail(); }
       focusListAfterRemove.current = true;
       setMessage(`${itemName(removeItem)} wurde aus der Wunschliste entfernt.`); setRemoveItem(null);
     } catch (e) { setRemoveError(e instanceof Error ? e.message : 'Entfernen fehlgeschlagen.'); onError(e); }
     finally { setRemoving(false); }
+  }
+  const [carting, setCarting] = useState(false);
+  /** The detail page's cart button: in or out, once per wish (0.8.0). */
+  async function toggleCart() {
+    if (!selected || preview || carting) return;
+    const inCart = !!selected.in_cart;
+    setCarting(true); setMessage('');
+    try {
+      if (inCart) await api(`/cart/${encodeURIComponent(selected.id)}`, 'DELETE', undefined, csrf);
+      else await api('/cart', 'POST', { wish_id: selected.id }, csrf);
+      setItems(current => current.map(item => item.id === selected.id ? { ...item, in_cart: !inCart } : item));
+      window.dispatchEvent(new Event(CART_CHANGED));
+      setMessage(inCart ? `${itemName(selected)} ist nicht mehr im Warenkorb.` : `${itemName(selected)} liegt jetzt im Warenkorb.`);
+    } catch (error) { onError(error); } finally { setCarting(false); }
   }
   async function purchase() {
     if (!selected || preview || purchasing) return;
@@ -285,6 +300,8 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
       await api(`/wishlist/${selected.id}/purchase`, 'POST', {}, csrf);
       ++loadGeneration.current;
       const next = items.filter(item => item.id !== selected.id); setItems(next); onCountChange(next.length);
+      // Bought: the server took it out of the cart as well.
+      if (selected.in_cart) window.dispatchEvent(new Event(CART_CHANGED));
       returnFocus.current = null; closeDetail();
       setMessage(`${itemName(selected)} wurde in die Bibliothek verschoben.`);
       requestAnimationFrame(() => listHeading.current?.focus({ preventScroll: true }));
@@ -344,7 +361,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
   if (selected && viewed) return <>
     {message && <Notice>{message}</Notice>}
     <GameDetail key={selected.id} item={selected} viewed={viewed} preview={!!preview} variants={variants} editionItems={editionItems} editionError={editionError} badges={badges}
-      csrf={csrf} targetCountry={targetCountry} targetLabel={targetLabel} tab={tab} purchasing={purchasing} onTab={changeTab} onBack={closeDetail} onPurchase={() => void purchase()}
+      csrf={csrf} targetCountry={targetCountry} targetLabel={targetLabel} tab={tab} purchasing={purchasing} carting={carting} onCart={() => void toggleCart()} onTab={changeTab} onBack={closeDetail} onPurchase={() => void purchase()}
       onRemove={() => { setRemoveError(''); setRemoveItem(selected); }} onView={chooseEdition} onClearPreview={() => setPreview(null)} onBadge={updateBadge} onSettings={onSettings} onError={onError} onRule={updateRule} />
     {dialogs}
   </>;

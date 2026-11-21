@@ -1,5 +1,16 @@
 # Änderungen
 
+## 0.8.0 – 2026-11-21
+
+Neu ist ein Warenkorb: Mehrere Wünsche zusammen ergeben einen Gesamtpreis mit und ohne Gebühren, aufgeteilt nach Shops. Beim Start legt die Datenbank automatisch eine neue Tabelle an, sonst ist beim Update nichts zu tun.
+
+### Neu
+- **Warenkorb:** Ein neuer Punkt „Warenkorb“ in der Seitenleiste (mit Anzahl). Auf der Seite eines Spiels legt „In den Warenkorb“ es hinein, ein zweiter Klick auf „Im Warenkorb“ nimmt es wieder heraus; im Warenkorb selbst wählst du weitere Wünsche aus einer Liste oder entfernst sie mit dem Papierkorb. Jeder Wunsch liegt höchstens einmal darin.
+- **Gesamtbetrag:** Der Warenkorb zeigt je Spiel Shop, Key-Preis, geschätzte Gebühren und Gesamtpreis, dazu je Shop die Summe aus Keys und Gebühren sowie die reinen Key-Kosten, die Gebühren und den Gesamtbetrag mit und ohne Gebühren. Umschaltbar zwischen dem günstigsten im Zielland aktivierbaren Angebot (Preis DE) und dem günstigsten aller Regionen (Preis INT). Für Shops ohne eingestellte Gebührenschätzung zählt nur der Key-Preis, und der Warenkorb sagt das; Spiele ohne aktuellen Preis werden genannt, aber nicht eingerechnet.
+- **Live-Preise:** Die Beträge kommen aus denselben gespeicherten Shop-Abfragen wie die Wunschliste und werden jede Minute neu gelesen, solange die Seite offen ist.
+- **Gekauft oder gelöscht:** Markierst du ein Spiel als gekauft (auch über „Als gekauft verschieben“ in der Bibliothek) oder löschst es von der Wunschliste, verschwindet es auch aus dem Warenkorb.
+- **Korb in der Wunschliste:** Liegt ein Wunsch im Warenkorb, steht hinter seinem Namen ein kleiner Einkaufskorb.
+
 ## 0.7.4 – 2026-11-21
 
 Die Wunschliste filtert auch nach Shops, und Key-Shops zeigt jeden eingebauten Shop direkt mit seinem Schalter. Beim Start stellt die Datenbank die Shop-Liste automatisch um, sonst ist beim Update nichts zu tun.

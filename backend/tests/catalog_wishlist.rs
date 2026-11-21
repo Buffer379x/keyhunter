@@ -2519,3 +2519,103 @@ async fn badges_carry_prices_with_the_estimated_shop_fee() {
     assert_eq!(badge["trend"].as_array().unwrap().last().unwrap(), 1000);
     assert_eq!(fees["trend"].as_array().unwrap().last().unwrap(), 1100);
 }
+
+/// 0.8.0: the shopping cart holds each wish once, carries its live price badge, and loses a wish
+/// that is bought or deleted.
+#[tokio::test]
+async fn the_cart_holds_each_wish_once_and_drops_bought_and_deleted_ones() {
+    let f = Fixture::new().await;
+    let mut ids = vec![];
+    for igdb in [1, 6] {
+        let (status, saved) = f
+            .call(
+                "POST",
+                "/api/v1/wishlist",
+                json!({"igdb_id":igdb,"platform_id":169,"confirm_owned":true}),
+            )
+            .await;
+        assert!(status.is_success(), "{saved}");
+        ids.push(saved["item"]["id"].as_str().unwrap().to_string());
+    }
+    let (a, b) = (&ids[0], &ids[1]);
+    assert_eq!(
+        f.call("GET", "/api/v1/cart", Value::Null).await.1,
+        json!([])
+    );
+    for id in [b, a] {
+        assert_eq!(
+            f.call("POST", "/api/v1/cart", json!({ "wish_id": id }))
+                .await
+                .0,
+            StatusCode::CREATED
+        );
+    }
+    // Not twice, and only wishes.
+    let (status, body) = f
+        .call("POST", "/api/v1/cart", json!({ "wish_id": a }))
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["error"], "Dieses Spiel liegt schon im Warenkorb.");
+    assert_eq!(
+        f.call("POST", "/api/v1/cart", json!({ "wish_id": "missing" }))
+            .await
+            .0,
+        StatusCode::NOT_FOUND
+    );
+    let (_, cart) = f.call("GET", "/api/v1/cart", Value::Null).await;
+    let order: Vec<&str> = cart
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(order, [b.as_str(), a.as_str()], "oldest first");
+    assert!(cart[0]["added_at"].is_i64());
+    assert_eq!(cart[0]["in_cart"], true);
+    assert!(cart[0]["price_badge"].is_object());
+    let (_, list) = f.call("GET", "/api/v1/wishlist", Value::Null).await;
+    assert!(
+        list.as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item["in_cart"] == true)
+    );
+
+    // Bought: out of the cart, and it cannot come back while it is in the library.
+    assert!(
+        f.call("POST", &format!("/api/v1/wishlist/{a}/purchase"), json!({}))
+            .await
+            .0
+            .is_success()
+    );
+    let (_, cart) = f.call("GET", "/api/v1/cart", Value::Null).await;
+    assert_eq!(cart.as_array().unwrap().len(), 1);
+    assert_eq!(cart[0]["id"], b.as_str());
+    assert_eq!(
+        f.call("POST", "/api/v1/cart", json!({ "wish_id": a }))
+            .await
+            .0,
+        StatusCode::NOT_FOUND
+    );
+    let (_, library) = f.call("GET", "/api/v1/library", Value::Null).await;
+    assert_eq!(library[0]["in_cart"], false);
+
+    // Taken out by hand, then put back and the wish deleted.
+    let path = format!("/api/v1/cart/{b}");
+    assert_eq!(
+        f.call("DELETE", &path, Value::Null).await.0,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        f.call("DELETE", &path, Value::Null).await.0,
+        StatusCode::NOT_FOUND
+    );
+    f.call("POST", "/api/v1/cart", json!({ "wish_id": b }))
+        .await;
+    f.call("DELETE", &format!("/api/v1/wishlist/{b}"), Value::Null)
+        .await;
+    assert_eq!(
+        f.call("GET", "/api/v1/cart", Value::Null).await.1,
+        json!([])
+    );
+}

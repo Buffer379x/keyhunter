@@ -114,7 +114,8 @@ export default function WishlistRow({ item, badge, facts, columns, mode, code, c
   const cells: Record<WishlistColumn, ReactNode> = {
     game: <td key="game" className="c-game"><div className="game-cell">
       {mode === 'cover' ? <button ref={openRef} type="button" className="cover-open" aria-label={`Details zu ${title}`} title="Details öffnen" onClick={onOpen}>{cover}</button> : cover}
-      <div className="game-name">{mode === 'title' ? <button ref={openRef} type="button" className="title-open" title="Details öffnen" onClick={onOpen}><b>{title}</b></button> : <b>{title}</b>}<small>{subline(item)}</small></div>
+      <div className="game-name"><span className="game-title">{mode === 'title' ? <button ref={openRef} type="button" className="title-open" title="Details öffnen" onClick={onOpen}><b>{title}</b></button> : <b>{title}</b>}
+        {item.in_cart && <span className="in-cart" role="img" aria-label="im Warenkorb" title="Liegt im Warenkorb"><Icon name="cart" size={14} /></span>}</span><small>{subline(item)}</small></div>
     </div></td>,
     price: <td key="price" className="c-de r" title={feesUnknown ? `Gebühren unbekannt: Für ${badgeShop || 'diesen Shop'} ist keine Gebührenschätzung eingestellt (Einstellungen › Key-Shops).` : priceTitle}>
       {facts.price !== null ? <><Price cents={facts.price} tone={facts.stale ? 'stale' : 'default'} />{origin && <div className="wl-sub">{origin}</div>}</>
