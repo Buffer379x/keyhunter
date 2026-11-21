@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { signInToFixture, navTo } from './helpers';
-import { openWishlistRow, removeCurrent, wishlistHeading, wishlistRows, wishlistTable } from './detail-helpers';
+import { detailsButton, openWishlistRow, removeCurrent, wishlistHeading, wishlistRows, wishlistTable } from './detail-helpers';
 
 // The wishlist page of design v4: KPI tiles from real data only, filter chips, sorting and the game as its own page.
 type Item = { id: string; game: { igdb_id: number; name: string } };
@@ -35,6 +35,9 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
   await signInToFixture(page);
   const items = await addThree(page);
   const now = Math.floor(Date.now() / 1000);
+  // "Alarm gesendet" means sent today (local day): ten minutes ago, but never before midnight, so the test also passes at 00:05.
+  const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+  const sentAt = Math.max(now - 590, Math.floor(midnight.getTime() / 1000) + 1);
   const byName = (name: string) => items.find(item => item.game.name === name)!;
   const forza = byName('Forza Horizon 5'), premium = byName('Forza Horizon 5: Premium Edition'), fresh = byName('Neuer Treffer');
   const trend = (yesterday: number, today: number) => [...Array(12).fill(3200), yesterday, today];
@@ -48,7 +51,7 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
   await page.route(/\/api\/v1\/wishlist\/price-badges(?:\?.*)?$/, route => route.fulfill({ json: badges }));
   await page.route('**/api/v1/alerts', route => route.request().method() === 'GET' ? route.fulfill({ json: { configured: true,
     rules: [{ wish_id: forza.id, mode: 'target', basis: 'base', target_cents: 2900, enabled: true }, { wish_id: premium.id, mode: 'target', basis: 'base', target_cents: 3500, enabled: true }],
-    events: [{ id: 1, wish_id: forza.id, state: 'sent', observed_at: now - 600, sent_at: now - 590, cents: 2890, attempts: 1 }] } }) : route.continue());
+    events: [{ id: 1, wish_id: forza.id, state: 'sent', observed_at: sentAt - 10, sent_at: sentAt, cents: 2890, attempts: 1 }] } }) : route.continue());
   const hours = Array.from({ length: 24 }, (_, hour) => hour < 2 ? 10 : 0);
   await page.route('**/api/v1/status/fetch', route => route.fulfill({ json: { errors_24h: 0, recent_runs: [], shops: [
     { source: 'eneba', enabled: true, last_success_at: now, last_error: null, paused_until: null, budget: { used: 300, limit: 400, demand_per_day: 450, by_hour: hours }, backlog: { due: 0, requested: 0, products: 0, searches: 0 }, oldest_due_at: null, next_due_at: null, worker_seen_at: now },
@@ -89,7 +92,9 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
   // Rows: price, cheapest region, saving, target, status pills (hints included), sparkline
   const row = (item: Item) => wishlistTable(page).locator(`tbody tr[data-id="${item.id}"]`);
   await expect(row(forza).locator('.c-de')).toContainText('28,90 €');
-  await expect(row(forza).locator('.c-world')).toHaveText('IN12,90 €');
+  await expect(row(forza).locator('.c-world')).toHaveText('12,90 €');
+  await expect(row(forza).locator('.c-world .reg.flag img')).toBeVisible();
+  await expect(row(forza).locator('.c-world .reg')).toHaveAttribute('aria-label', 'Indien');
   await expect(row(forza).locator('.c-save .save.big')).toHaveText('−16,00 €');
   await expect(row(forza).locator('.c-save')).toContainText('−55 %');
   await expect(row(forza).locator('.c-target')).toHaveText('29,00 €');
@@ -97,7 +102,9 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
   await expect(row(forza).locator('.spark i')).toHaveCount(14);
   await expect(row(forza).locator('.spark i.last')).toHaveCount(1);
   await expect(row(premium).locator('.c-save .save')).not.toHaveClass(/big/);
-  await expect(row(premium).locator('.c-world')).toHaveText('TR38,00 €');
+  await expect(row(premium).locator('.c-world')).toHaveText('38,00 €');
+  await expect(row(premium).locator('.c-world .reg.flag img')).toBeVisible();
+  await expect(row(premium).locator('.c-world .reg')).toHaveAttribute('aria-label', 'Türkei');
   await expect(row(premium).locator('.c-status')).toContainText('5,00 € über Ziel');
   await expect(row(premium).locator('.c-status')).toContainText('Veraltet');
   await expect(row(premium).locator('.spark')).toHaveCount(0);
@@ -141,7 +148,7 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const main = page.locator('#main-content');
   await main.evaluate(element => element.scrollTo(0, element.scrollHeight));
-  await row(premium).focus();
+  await detailsButton(row(premium)).focus();
   const scrolled = await main.evaluate(element => element.scrollTop);
   expect(scrolled).toBeGreaterThan(100);
   await page.keyboard.press('Enter');
@@ -155,18 +162,21 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
   await expect(page.getByLabel('Liste filtern')).toHaveValue('Forza');
   await expect(wishlistTable(page).locator('thead th[aria-sort="ascending"]')).toHaveText(/^Preis [A-Z]{2}/);
   await expect.poll(() => main.evaluate(element => element.scrollTop)).toBe(scrolled);
-  await expect(row(premium)).toBeFocused();
+  await expect(detailsButton(row(premium))).toBeFocused();
 
-  // A click opens the game too; the breadcrumb leads back the same way.
+  // A click on the row itself opens nothing; the details button does, and the breadcrumb leads back the same way.
   await page.setViewportSize({ width: 1280, height: 720 });
-  await row(forza).click();
+  await row(forza).locator('.c-de').click();
+  await expect(wishlistTable(page)).toBeVisible();
+  await expect(page).not.toHaveURL(/item=/);
+  await detailsButton(row(forza)).click();
   const crumbs = page.getByRole('navigation', { name: 'Pfad' });
   await expect(crumbs).toHaveText(/Wunschliste.*Forza Horizon 5/);
   await crumbs.getByRole('button', { name: 'Wunschliste', exact: true }).click();
   await expect(page.getByLabel('Liste filtern')).toHaveValue('Forza');
-  await expect(row(forza)).toBeFocused();
+  await expect(detailsButton(row(forza))).toBeFocused();
   // The sidebar entry always shows the list, also from a game.
-  await row(forza).click();
+  await detailsButton(row(forza)).click();
   await navTo(page, 'Wunschliste');
   await expect(wishlistTable(page)).toBeVisible();
   await page.getByLabel('Liste filtern').fill('');

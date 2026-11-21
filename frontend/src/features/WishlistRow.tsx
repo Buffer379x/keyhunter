@@ -1,7 +1,7 @@
 import { shopNames } from './shop-names';
 import type { Ref } from 'react';
 import type { PriceBadgeData, WishlistItem } from '../api';
-import { Icon, Pill, Price, Reg, formatPrice } from '../components';
+import { Icon, IconButton, Pill, Price, Reg, formatPrice } from '../components';
 import { relativeTime } from '../time';
 import { itemName, kindName, platformName } from './catalog-ui';
 import { countryData } from './regions';
@@ -63,22 +63,24 @@ function Spark({ trend, code }: { trend: (number | null)[]; code: string }) {
 
 /**
  * One row of the wishlist table (`table.wl`): game, target-country price, cheapest region, saving, alarm target, status,
- * 14-day sparkline and a chevron. The whole row opens the game (click or Enter). Up to 720 px the CSS turns it into a card.
+ * 14-day sparkline and the details button, which opens the game (the row itself is not clickable). Up to 720 px the CSS turns it into a card.
  */
-export default function WishlistRow({ item, badge, facts, code, compare, scopeLabel, targetDisabled, rowRef, onOpen }: {
+export default function WishlistRow({ item, badge, facts, code, compare, scopeLabel, targetDisabled, openRef, onOpen }: {
   item: WishlistItem; badge?: PriceBadgeData; facts: RowFacts;
   /** Target country code ("DE"), or "" without one. */
   code: string;
   /** The badge price is the target-country price (price scope "preferred"), so "CC ist weltweit am günstigsten" is true. */
   compare: boolean;
-  scopeLabel: string; targetDisabled: boolean; rowRef?: Ref<HTMLTableRowElement>; onOpen: () => void;
+  scopeLabel: string; targetDisabled: boolean;
+  /** The details button, so the list can give it the focus back after a visit to the game. */
+  openRef?: Ref<HTMLButtonElement>; onOpen: () => void;
 }) {
   const title = itemName(item);
   const world = facts.world;
   const worldCheaper = world !== null && (facts.price === null || world.cents < facts.price);
   const reg = worldCheaper ? regCode(world.region) : null;
   const origin = [badge?.source ? shopNames[badge.source] ?? badge.source : null, badge?.region ? countryData(badge.region).name : null].filter(Boolean).join(' · ');
-  return <tr ref={rowRef} className="click" tabIndex={0} data-id={item.id} onClick={onOpen} onKeyDown={event => { if (event.key === 'Enter' && event.target === event.currentTarget) { event.preventDefault(); onOpen(); } }}>
+  return <tr data-id={item.id}>
     <td className="c-game"><div className="game-cell"><GameCover small src={item.game?.cover_url} title={title} /><div className="game-name"><b>{title}</b><small>{subline(item)}</small></div></div></td>
     <td className="c-de r" title={badge ? badgeTitle(badge, scopeLabel) : undefined}>
       {facts.price !== null ? <><Price cents={facts.price} tone={badge?.stale ? 'stale' : 'default'} />{origin && <div className="wl-sub">{origin}</div>}</> : <span className="faint">–</span>}
@@ -94,6 +96,6 @@ export default function WishlistRow({ item, badge, facts, code, compare, scopeLa
     <td className="c-target r">{facts.target !== null ? <span className={`mono${targetDisabled ? ' faint' : ''}`} title={targetDisabled ? 'Preisalarm ausgeschaltet' : undefined}>{formatPrice(facts.target)}</span> : <span className="faint">–</span>}</td>
     <td className="c-status"><StatusPills item={item} badge={badge} facts={facts} /></td>
     <td className="c-trend">{facts.trend && <Spark trend={facts.trend} code={code || 'Zielland'} />}</td>
-    <td className="c-more r"><span className="row-more"><Icon name="chev" /></span></td>
+    <td className="c-more r"><IconButton ref={openRef} className="row-open" label={`Details zu ${title}`} onClick={onOpen}><Icon name="details" /></IconButton></td>
   </tr>;
 }

@@ -75,7 +75,7 @@ test('offers are ordered by price and the cheapest region is compared with the t
   await expect(compare.locator('.compare-side.home')).toContainText('30,00');
   await expect(compare.locator('.compare-side.world')).toContainText('5,00');
   await expect(compare.locator('.compare-side.world')).toContainText('Indien');
-  await expect(compare.locator('.compare-side.world .reg')).toHaveText('IN');
+  await expect(compare.locator('.compare-side.world .reg')).toHaveAttribute('aria-label', 'Indien');
   await expect(compare.locator('.compare-side.world')).toContainText('Aktivierung in DE ungeklärt');
   await expect(compare.locator('.delta')).toContainText('−25,00');
   await expect(compare.locator('.delta')).toContainText('−83 %');

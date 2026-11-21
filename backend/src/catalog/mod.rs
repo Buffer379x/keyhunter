@@ -109,6 +109,20 @@ fn default_platform() -> i64 {
     169
 }
 
+/// The IGDB ID in a search text: digits, optionally after "#" or "igdb" ("igdb:119171", "IGDB 119171").
+fn igdb_id(text: &str) -> Option<i64> {
+    let lower = text.trim().to_ascii_lowercase();
+    let rest = lower
+        .strip_prefix("igdb")
+        .map(|rest| rest.trim_start_matches([':', ' ', '#']))
+        .or_else(|| lower.strip_prefix('#'))
+        .unwrap_or(&lower);
+    (!rest.is_empty() && rest.len() <= 10 && rest.bytes().all(|b| b.is_ascii_digit()))
+        .then(|| rest.parse().ok())
+        .flatten()
+        .filter(|id| *id > 0)
+}
+
 pub(crate) async fn search(
     State(state): State<Shared>,
     headers: HeaderMap,
@@ -155,13 +169,30 @@ pub(crate) async fn search(
             ));
         }
     }
-    let games: Vec<_> = state
+    // An IGDB ID ("119171", "#119171", "igdb:119171") finds that game first; the text search still runs, so titles
+    // that are numbers ("1942") keep working.
+    let by_id = match igdb_id(text) {
+        Some(id) => match load_game(&state, id).await {
+            Ok(game) if game.platforms.iter().any(|p| p.id == query.platform) => Some(game),
+            Ok(_) | Err(ApiError(StatusCode::NOT_FOUND, _)) => None,
+            Err(error) => return Err(error),
+        },
+        None => None,
+    };
+    let found = state
         .catalog
         .search(text, query.platform)
         .await
-        .map_err(provider_error)?
-        .into_iter()
-        .filter(|game| game.platforms.iter().any(|p| p.id == query.platform))
+        .map_err(provider_error)?;
+    let games: Vec<_> = by_id
+        .iter()
+        .cloned()
+        .chain(found.into_iter().filter(|game| {
+            game.platforms.iter().any(|p| p.id == query.platform)
+                && by_id
+                    .as_ref()
+                    .is_none_or(|first| first.igdb_id != game.igdb_id)
+        }))
         .take(20)
         .collect();
     save_games(&state, &games).await?;
@@ -316,4 +347,21 @@ pub(crate) async fn edition_comparison(
     Ok(Json(
         json!({"editions":entries,"fetched_at":at,"cached":false}),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::igdb_id;
+    #[test]
+    fn igdb_ids_are_recognised_in_search_texts() {
+        assert_eq!(igdb_id("119171"), Some(119171));
+        assert_eq!(igdb_id(" #1001 "), Some(1001));
+        assert_eq!(igdb_id("igdb:1001"), Some(1001));
+        assert_eq!(igdb_id("IGDB 1001"), Some(1001));
+        assert_eq!(igdb_id("1942"), Some(1942));
+        assert_eq!(igdb_id("Forza 5"), None);
+        assert_eq!(igdb_id("0"), None);
+        assert_eq!(igdb_id("igdb"), None);
+        assert_eq!(igdb_id("12345678901"), None);
+    }
 }

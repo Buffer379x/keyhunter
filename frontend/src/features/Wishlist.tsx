@@ -99,7 +99,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, addOpen, on
   const loadGeneration = useRef(0);
   const listHeading = useRef<HTMLHeadingElement>(null);
   const focusListAfterRemove = useRef(false);
-  const rows = useRef(new Map<string, HTMLTableRowElement>());
+  const rows = useRef(new Map<string, HTMLButtonElement>());
   const selected = items.find(item => item.id === selectedId);
   const updateBadges = useCallback((entries: Record<string, PriceBadgeData>) => { setBadges(current => mergeBadges(current, entries)); }, []);
   const updateBadge = useCallback((id: string, badge: PriceBadgeData) => updateBadges({ [id]: badge }), [updateBadges]);
@@ -369,7 +369,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, addOpen, on
                 </tr></thead>
                 <tbody>{visible.map(item => <WishlistRow key={item.id} item={item} badge={badges[item.id] ?? item.price_badge} facts={facts[item.id]} code={code} compare
                   scopeLabel={scopeLabel} targetDisabled={!!alerts[item.id] && !alerts[item.id].enabled} onOpen={() => open(item.id)}
-                  rowRef={element => { if (element) rows.current.set(item.id, element); else rows.current.delete(item.id); }} />)}</tbody>
+                  openRef={element => { if (element) rows.current.set(item.id, element); else rows.current.delete(item.id); }} />)}</tbody>
               </table>}
       </Inset>
     </Panel>

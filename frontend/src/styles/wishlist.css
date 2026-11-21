@@ -43,9 +43,11 @@ table.wl td.c-target { white-space: nowrap; }
 .spark { display: flex; align-items: flex-end; gap: 2px; height: 22px; }
 .spark i { width: 3px; border-radius: 1px; background: var(--line-2); }
 .spark i.last { background: var(--accent); }
-.row-more { color: var(--faint); display: inline-flex; }
-.row-more svg { width: 16px; height: 16px; }
-table.wl tbody tr:focus-visible { outline-offset: -2px; } /* (added) the focus ring stays inside the inset */
+/* (0.6.3) The game opens with the details button at the end of the row, not with a click on the row. */
+table.wl td.c-more { width: 1%; }
+table.wl .row-open { width: 28px; height: 28px; margin-left: auto; }
+table.wl .row-open:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+
 
 /* Up to 720 px the rows become cards (prototype `table.wl`) */
 @media (max-width: 720px) {
@@ -57,7 +59,7 @@ table.wl tbody tr:focus-visible { outline-offset: -2px; } /* (added) the focus r
   table.wl thead th.no-sort { display: none; }
   table.wl th.r .th-sort { flex-direction: row; }
   table.wl tr {
-    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "g g p" "w w s";
+    display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "g p d" "w s d";
     gap: 8px 10px; padding: 12px; border-bottom: 1px solid var(--line);
   }
   table.wl tr:last-child { border-bottom: 0; }
@@ -66,9 +68,8 @@ table.wl tbody tr:focus-visible { outline-offset: -2px; } /* (added) the focus r
   table.wl td.c-de { grid-area: p; text-align: right; }
   table.wl td.c-world { grid-area: w; }
   table.wl td.c-status { grid-area: s; text-align: right; }
-  table.wl td.c-save, table.wl td.c-target, table.wl td.c-trend, table.wl td.c-more { display: none; }
-  table.wl tbody tr.click:hover td { background: none; } /* (added) the card has no cell backgrounds */
-  table.wl tbody tr.click:hover { background: var(--panel-3); }
+  table.wl td.c-more { grid-area: d; align-self: center; width: auto; }
+  table.wl td.c-save, table.wl td.c-target, table.wl td.c-trend { display: none; }
   .game-cell { min-width: 0; }
   .wl-status { justify-content: flex-end; }
 }

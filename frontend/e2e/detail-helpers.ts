@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 /** Remove the open game from the wishlist through the "⋯" menu and confirm. */
 export async function removeCurrent(page: Page) {
@@ -22,8 +22,10 @@ export async function openTab(page: Page, name: string) {
 export const wishlistTable = (page: Page) => page.getByRole('table', { name: 'Vorgemerkte Spiele', exact: true });
 /** Rows of the wishlist table (one per game; cards up to 720 px). */
 export const wishlistRows = (page: Page) => wishlistTable(page).locator('tbody tr');
+/** The details button of a wishlist row: the only way to open the game from the list (the row is not clickable). */
+export const detailsButton = (row: Locator) => row.getByRole('button', { name: /^Details zu / });
 /** Open a game from the wishlist table by its title (a string matches the whole title, a RegExp any part). */
 export async function openWishlistRow(page: Page, name: string | RegExp) {
   const title = typeof name === 'string' ? new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) : name;
-  await wishlistRows(page).locator('.game-cell b').filter({ hasText: title }).first().click();
+  await detailsButton(wishlistRows(page).filter({ has: page.locator('.game-cell b').filter({ hasText: title }) }).first()).click();
 }

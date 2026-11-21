@@ -50,8 +50,12 @@ test('edition previews keep the saved version, offers keep price order and histo
   await expect(rows.nth(1)).toContainText('10,00');
   await expect(rows.last()).toContainText('Zuordnung prüfen');
   // Region code badges instead of flags; regions without a country keep a short code.
-  await expect(rows.first().locator('.reg')).toHaveText('GL');
-  await expect(rows.filter({ hasText: 'Nordamerika' }).first().locator('.reg')).toHaveText('NA');
+  await expect(rows.first().locator('.reg')).toHaveAttribute('data-code', 'GL');
+  await expect(rows.filter({ hasText: 'Nordamerika' }).first().locator('.reg')).toHaveAttribute('data-code', 'NA');
+  // Global and Nordamerika get the globe, never the flags of Greenland (GL) or Namibia (NA).
+  await expect(rows.first().locator('.reg.area svg')).toBeVisible();
+  await expect(rows.filter({ hasText: 'Nordamerika' }).first().locator('.reg.area svg')).toBeVisible();
+  await expect(page.locator('.reg.flag[data-code="GL"], .reg.flag[data-code="NA"]')).toHaveCount(0);
   await expect(page.locator('.country-flag')).toHaveCount(0);
   const stamp = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium' }).format((now - day) * 1000);
   await expect(rows.first().locator('time')).toHaveAttribute('title', new RegExp(stamp.replace(/\./g, '\\.')));
