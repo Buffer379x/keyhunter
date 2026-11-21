@@ -301,7 +301,8 @@ async fn claim(
 
 pub(crate) enum Work {
     Product(Box<Product>),
-    Discovery(Vec<(String, String)>),
+    /// Candidates and the wait until the next discovery run (None: [`Kind::repeat_after`]).
+    Discovery(Vec<(String, String)>, Option<i64>),
     Search(crate::shops::eneba::SearchPage),
 }
 
@@ -348,7 +349,8 @@ fn next_schedule(
         Ok(Work::Product(_)) => (t + Kind::Product.repeat_after(interval), 0),
         Ok(Work::Search(page)) if page.next_page.is_some() => (t, 0),
         Ok(Work::Search(_)) => (t + Kind::Search.repeat_after(interval), 0),
-        Ok(Work::Discovery(_)) => (t + Kind::Discovery.repeat_after(interval), 0),
+        Ok(Work::Discovery(_, Some(wait))) => (t + wait, 0),
+        Ok(Work::Discovery(_, None)) => (t + Kind::Discovery.repeat_after(interval), 0),
         Err(error) => {
             // Transient errors climb a short ladder; others wait a full interval.
             let retry = match error {
@@ -502,7 +504,9 @@ async fn execute(
             .bind(shop.id())
             .fetch_one(pool)
             .await?;
-        shop.discover(shard as usize).await.map(Work::Discovery)
+        shop.discover(usize::try_from(shard).unwrap_or_default())
+            .await
+            .map(|(found, wait)| Work::Discovery(found, wait))
     })
 }
 
@@ -620,10 +624,10 @@ async fn complete(
             set_success(&mut tx, shop, t, false).await?;
             Some(format!("Seite {}: {found} Produkte", job.search_page))
         }
-        Ok(Work::Discovery(candidates)) => {
+        Ok(Work::Discovery(candidates, _)) => {
             for (url, key) in candidates {
                 sqlx::query("INSERT OR IGNORE INTO shop_candidate(source,url,title_key)
-                    SELECT ?,?,? WHERE (SELECT count(*) FROM shop_candidate WHERE source=?) < 12000")
+                    SELECT ?,?,? WHERE (SELECT count(*) FROM shop_candidate WHERE source=?) < 40000")
                     .bind(shop.id()).bind(url).bind(key).bind(shop.id()).execute(&mut *tx).await?;
             }
             set_success(&mut tx, shop, t, true).await?;
@@ -768,7 +772,7 @@ async fn attach_wish(pool: &SqlitePool, shop: Shop, id: &str, initial: bool) -> 
     let Ok(wish) = offers::wish(pool, id).await else {
         return Ok(());
     };
-    let keys = wish.keys();
+    let keys = shop.candidate_keys(wish.keys());
     if keys.is_empty() {
         return Ok(());
     }
@@ -829,7 +833,12 @@ pub(crate) async fn demand(pool: &SqlitePool, shop: Shop, t: i64) -> sqlx::Resul
         .map(|(link, wish, preview, interval, pace, count)| {
             let kind = Kind::of(link, wish.as_deref());
             let pace = if kind == Kind::Product { pace } else { 1.0 };
-            let period = kind.repeat_after(effective_interval(interval, preview, pace));
+            let interval = effective_interval(interval, preview, pace);
+            let period = if kind == Kind::Discovery {
+                shop.discovery_every(interval)
+            } else {
+                kind.repeat_after(interval)
+            };
             count as f64 * DAY as f64 / period as f64
         })
         .sum())
@@ -1148,8 +1157,23 @@ mod tests {
                 (100 + WEEK.max(interval), 0)
             );
             assert_eq!(
-                next_schedule(&Ok(Work::Discovery(vec![])), 0, 100, interval, 0),
+                next_schedule(&Ok(Work::Discovery(vec![], None)), 0, 100, interval, 0),
                 (100 + DAY.max(interval), 0)
+            );
+            // Driffle: the next sitemap right away during the first pass, else after the wait it returned.
+            assert_eq!(
+                next_schedule(&Ok(Work::Discovery(vec![], Some(0))), 0, 100, interval, 0),
+                (100, 0)
+            );
+            assert_eq!(
+                next_schedule(
+                    &Ok(Work::Discovery(vec![], Some(16200))),
+                    0,
+                    100,
+                    interval,
+                    0
+                ),
+                (16300, 0)
             );
             let page = crate::shops::eneba::SearchPage {
                 urls: vec![],
@@ -1654,7 +1678,7 @@ mod tests {
                         urls: vec![],
                         next_page: None,
                     })),
-                    (None, None) => Ok(Work::Discovery(vec![])),
+                    (None, None) => Ok(Work::Discovery(vec![], None)),
                 };
                 complete(&pool, Shop::Eneba, &job, "aa", result, t + 5, t, 5000)
                     .await
@@ -2387,7 +2411,7 @@ mod tests {
                         urls: vec![],
                         next_page: None,
                     }),
-                    (None, None) => Work::Discovery(vec![]),
+                    (None, None) => Work::Discovery(vec![], None),
                 };
                 complete(&pool, Shop::Eneba, &job, "aa", Ok(result), t, t, 1)
                     .await

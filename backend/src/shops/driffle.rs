@@ -208,32 +208,157 @@ fn decimal_cents(s: &str) -> Option<i64> {
     (1..=10_000_000).contains(&cents).then_some(cents)
 }
 
-pub(super) async fn discover(shop: Shop) -> Result<Vec<(String, String)>, ShopError> {
+/// One product sitemap is read this often once the first pass is through (16 sitemaps: a full pass in three days).
+pub(crate) const SITEMAP_EVERY: i64 = 3 * 86400 / 16;
+/// Words in a slug that mark something other than a game key: add-ons, currency, accounts, gift cards.
+const NOT_A_GAME: [&str; 12] = [
+    "dlc",
+    "addon",
+    "account",
+    "upgrade",
+    "gift",
+    "card",
+    "points",
+    "credits",
+    "bucks",
+    "coins",
+    "currency",
+    "subscription",
+];
+/// Region names Driffle puts between the title and the platform in its slugs ("forza-horizon-5-eu-pc-xbox-…").
+/// A wish key also matches a candidate key followed by one of them ([`candidate_keys`]).
+const REGIONS: [&str; 44] = [
+    "global",
+    "worldwide",
+    "europe",
+    "eu",
+    "row",
+    "rest of the world",
+    "united states",
+    "us",
+    "usa",
+    "north america",
+    "united kingdom",
+    "uk",
+    "argentina",
+    "ar",
+    "turkey",
+    "tr",
+    "brazil",
+    "br",
+    "mexico",
+    "mx",
+    "colombia",
+    "co",
+    "latam",
+    "latin america",
+    "canada",
+    "ca",
+    "switzerland",
+    "ch",
+    "nigeria",
+    "ng",
+    "egypt",
+    "eg",
+    "india",
+    "in",
+    "south africa",
+    "za",
+    "japan",
+    "jp",
+    "korea",
+    "kr",
+    "australia",
+    "au",
+    "new zealand",
+    "nz",
+];
+
+/// Candidate product links from Driffle's product sitemaps (allowed by robots.txt), one sitemap per run.
+/// The first pass reads every sitemap back to back; afterwards one sitemap every [`SITEMAP_EVERY`].
+/// Returns the candidates and the wait until the next run.
+pub(super) async fn discover(
+    shop: Shop,
+    shard: usize,
+) -> Result<(Vec<(String, String)>, i64), ShopError> {
     let mut client = PublicClient::new(shop.host()).await?;
-    let category = Url::parse("https://driffle.com/de/store/collection/xbox-games").unwrap();
-    let body = client.get(&category, 2 * 1024 * 1024, false).await?;
-    Ok(parse_collection(&category, &body))
+    let index = Url::parse("https://driffle.com/sitemap.xml").unwrap();
+    let body = client.get(&index, 256 * 1024, false).await?;
+    let paths = sitemap_paths(&body)?;
+    let path = paths
+        .get(shard % paths.len().max(1))
+        .ok_or(ShopError::Parse)?;
+    let body = client.get(path, 6 * 1024 * 1024, true).await?;
+    let wait = if shard + 1 < paths.len() {
+        0
+    } else {
+        SITEMAP_EVERY
+    };
+    Ok((parse_sitemap(&body)?, wait))
 }
 
-/// Candidate product links and title keys from a collection page; pure so it can be tested on fixtures.
-fn parse_collection(category: &Url, body: &str) -> Vec<(String, String)> {
-    let shop = Shop::Driffle;
-    let document = Html::parse_document(body);
-    let selector = Selector::parse("a[href]").unwrap();
-    let mut seen = BTreeSet::new();
-    document
-        .select(&selector)
-        .filter_map(|node| {
-            let url = shop.product_url(category.join(node.value().attr("href")?).ok()?.as_str())?;
-            let slug = url.path().rsplit('/').next()?;
-            let (before, _) = slug.split_once("-xbox-live-digital-")?;
-            let (title, _) = before
-                .split_once("-pc-")
-                .or_else(|| before.split_once("-xbox-"))?;
-            seen.insert(url.to_string())
-                .then(|| (url.to_string(), title_key(title)))
+/// The product sitemaps of the index, in their order (`/sitemaps/products-sitemap-N.xml`, no language copies).
+fn sitemap_paths(body: &str) -> Result<Vec<Url>, ShopError> {
+    Ok(super::eneba::sitemap_locs(body)?
+        .filter_map(|raw| {
+            let n = raw
+                .strip_prefix("https://driffle.com/sitemaps/products-sitemap-")?
+                .strip_suffix(".xml")?
+                .parse::<u16>()
+                .ok()?;
+            (n > 0).then(|| Url::parse(raw).ok()).flatten()
         })
-        .take(250)
+        .take(100)
+        .collect())
+}
+
+/// Xbox game keys of one product sitemap with the title key of their slug; pure so it can be tested on fixtures.
+fn parse_sitemap(body: &str) -> Result<Vec<(String, String)>, ShopError> {
+    let mut seen = BTreeSet::new();
+    Ok(super::eneba::sitemap_locs(body)?
+        .filter_map(|raw| {
+            let url = Shop::Driffle.product_url(raw)?;
+            let key = slug_key(url.path().rsplit('/').next()?)?;
+            seen.insert(url.to_string()).then(|| (url.to_string(), key))
+        })
+        .take(20_000)
+        .collect())
+}
+
+/// Title key of a product slug: the part before the platforms ("-pc-" or "-xbox-"), region included
+/// ("forza horizon 5 eu"); None for add-ons, currency and accounts.
+fn slug_key(slug: &str) -> Option<String> {
+    let (before, _) = slug.split_once("-xbox-live-digital-")?;
+    let before = format!("{before}-");
+    let end = [before.find("-pc-"), before.find("-xbox-")]
+        .into_iter()
+        .flatten()
+        .min()?;
+    let key = title_key(&before[..end]);
+    (!key.is_empty() && !key.split(' ').any(|word| NOT_A_GAME.contains(&word))).then_some(key)
+}
+
+/// Keys a candidate may carry for a wish with these keys: each key alone and followed by a region. Slugs drop
+/// the apostrophe ("assassins creed"), the title key splits there ("assassin s creed"), so both spellings count.
+pub(crate) fn candidate_keys(keys: &[String]) -> Vec<String> {
+    let mut titles: Vec<String> = Vec::new();
+    for key in keys {
+        let joined = format!("{key} ")
+            .replace(" s ", "s ")
+            .trim_end()
+            .to_string();
+        for title in [key.clone(), joined] {
+            if !titles.contains(&title) {
+                titles.push(title);
+            }
+        }
+    }
+    titles
+        .iter()
+        .flat_map(|key| {
+            std::iter::once(key.clone())
+                .chain(REGIONS.iter().map(move |region| format!("{key} {region}")))
+        })
         .collect()
 }
 
@@ -242,7 +367,7 @@ mod tests {
     use super::*;
 
     const BASE: &str = include_str!("fixtures/driffle-product-base.html");
-    const COLLECTION: &str = include_str!("fixtures/driffle-collection.html");
+    const SITEMAP: &str = include_str!("fixtures/driffle-sitemap.xml");
     const SLUG: &str = "forza-horizon-5-standard-edition-pc-xbox-one-xbox-series-xs-xbox-live-digital-code-p100001";
     const NAME: &str = "Forza Horizon 5 Standard Edition (Global) (PC / Xbox One / Xbox Series X|S) - Xbox Live - Digital Key";
     const NEXT_OPEN: &str = r#"<script id="__NEXT_DATA__" type="application/json">"#;
@@ -822,61 +947,87 @@ mod tests {
     }
 
     #[test]
-    fn collection_extracts_product_links_and_titles_from_slugs() {
-        let category = Url::parse("https://driffle.com/de/store/collection/xbox-games").unwrap();
-        let found = parse_collection(&category, COLLECTION);
-        let base = "https://driffle.com/de/";
+    fn sitemap_index_lists_only_the_product_sitemaps_in_order() {
+        let index = r#"<?xml version="1.0" encoding="UTF-8"?><sitemapindex>
+<sitemap><loc>https://driffle.com/sitemaps/sitemap-static.xml</loc></sitemap>
+<sitemap><loc>https://driffle.com/sitemaps/products-sitemap-1.xml</loc></sitemap>
+<sitemap><loc>https://driffle.com/sitemaps/products-sitemap-2.xml</loc></sitemap>
+<sitemap><loc>https://driffle.com/es/sitemaps/products-sitemap-1.xml</loc></sitemap>
+<sitemap><loc>https://driffle.com/sitemaps/products-sitemap-0.xml</loc></sitemap>
+</sitemapindex>"#;
+        let paths: Vec<_> = sitemap_paths(index)
+            .unwrap()
+            .into_iter()
+            .map(String::from)
+            .collect();
         assert_eq!(
-            found,
+            paths,
             [
-                (
-                    format!(
-                        "{base}age-of-mythology-retold-europe-pc-xbox-series-xs-xbox-live-digital-key-p9917801"
-                    ),
-                    "age of mythology retold europe".to_string()
-                ),
-                (
-                    format!(
-                        "{base}sea-of-thieves-2024-edition-europe-pc-xbox-one-xbox-series-xs-xbox-live-digital-key-p9911202"
-                    ),
-                    "sea of thieves 2024 edition europe".to_string()
-                ),
-                (
-                    format!(
-                        "{base}need-for-speed-unbound-eu-xbox-series-xs-xbox-live-digital-code-p9884403"
-                    ),
-                    "need for speed unbound eu".to_string()
-                ),
-                (
-                    format!(
-                        "{base}fortnite-rogue-scout-pack-dlc-1500-v-bucks-challenge-ar-xbox-one-xbox-series-xs-xbox-live-digital-code-p9892104"
-                    ),
-                    "fortnite rogue scout pack dlc 1500 v bucks challenge ar".to_string()
-                ),
-                (
-                    format!(
-                        "{base}forza-horizon-5-eu-pc-xbox-one-xbox-series-x-s-xbox-live-digital-code-p9897405"
-                    ),
-                    "forza horizon 5 eu".to_string()
-                ),
+                "https://driffle.com/sitemaps/products-sitemap-1.xml",
+                "https://driffle.com/sitemaps/products-sitemap-2.xml"
             ]
         );
-        // Duplicate card links, navigation, foreign hosts, query strings, other platforms and slugs without
-        // a platform separator are all ignored. The region token stays part of the title (known quirk).
+        assert!(sitemap_paths("<html>Changed</html>").is_err());
     }
 
     #[test]
-    fn collection_is_capped_at_250_unique_links_and_empty_for_unrelated_pages() {
-        let category = Url::parse("https://driffle.com/de/store/collection/xbox-games").unwrap();
-        let mut html = String::new();
-        for n in 0..300 {
-            html.push_str(&format!(
-                "<a href='/de/game-{n}-eu-pc-xbox-one-xbox-live-digital-code-p{n}0001'>x</a>"
-            ));
+    fn sitemap_keeps_xbox_game_keys_with_their_title_and_region() {
+        let found = parse_sitemap(SITEMAP).unwrap();
+        let base = "https://driffle.com/de/";
+        let expected = [
+            (
+                "forza-horizon-5-eu-pc-xbox-one-xbox-series-x-s-xbox-live-digital-code-p9897405",
+                "forza horizon 5 eu",
+            ),
+            (
+                "forza-horizon-5-standard-edition-pc-xbox-one-xbox-series-xs-xbox-live-digital-code-p100001",
+                "forza horizon 5 standard edition",
+            ),
+            (
+                "road-96-united-states-xbox-one-xbox-series-xs-xbox-live-digital-key-p9900001",
+                "road 96 united states",
+            ),
+            (
+                "among-us-xbox-one-xbox-series-xs-xbox-live-digital-code-p9900002",
+                "among us",
+            ),
+        ];
+        assert_eq!(
+            found,
+            expected.map(|(slug, key)| (format!("{base}{slug}"), key.to_string()))
+        );
+        // Steam keys, accounts, add-ons, currency, upper-case slugs and duplicates are skipped.
+    }
+
+    #[test]
+    fn wish_keys_match_candidates_with_or_without_a_region() {
+        let keys = candidate_keys(&["forza horizon 5".into(), "among us".into()]);
+        for key in [
+            "forza horizon 5",
+            "forza horizon 5 eu",
+            "forza horizon 5 united states",
+            "among us",
+            "among us ar",
+        ] {
+            assert!(keys.iter().any(|k| k == key), "{key}");
         }
-        let found = parse_collection(&category, &html);
-        assert_eq!(found.len(), 250);
-        assert_eq!(found[0].1, "game 0 eu");
-        assert!(parse_collection(&category, "<html><body>Changed</body></html>").is_empty());
+        // A region is only added, never taken away: "among us" does not become "among".
+        assert!(!keys.iter().any(|k| k == "among" || k == "forza horizon"));
+        let keys = candidate_keys(&["assassin s creed odyssey".into()]);
+        assert!(keys.iter().any(|k| k == "assassins creed odyssey eu"));
+        assert!(keys.iter().any(|k| k == "assassin s creed odyssey"));
+        assert_eq!(
+            slug_key("the-game-pc-xbox-live-digital-key-p1").as_deref(),
+            Some("the game")
+        );
+        assert_eq!(
+            slug_key("fortnite-pack-dlc-ar-xbox-one-xbox-live-digital-code-p2"),
+            None
+        );
+        assert_eq!(
+            slug_key("minecraft-minecoins-1000-points-global-xbox-live-digital-code-p3"),
+            None
+        );
+        assert_eq!(slug_key("no-platform-xbox-live-digital-key-p4"), None);
     }
 }

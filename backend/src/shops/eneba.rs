@@ -234,7 +234,7 @@ pub(super) async fn discover(shop: Shop, shard: usize) -> Result<Vec<(String, St
 }
 
 /// Extract complete loc elements from a bounded prefix. External entities and declarations are never processed.
-fn sitemap_locs(body: &str) -> Result<impl Iterator<Item = &str>, ShopError> {
+pub(super) fn sitemap_locs(body: &str) -> Result<impl Iterator<Item = &str>, ShopError> {
     if body.contains("<!") || !(body.contains("<sitemapindex") || body.contains("<urlset")) {
         return Err(ShopError::Parse);
     }

@@ -1,5 +1,17 @@
 # Änderungen
 
+## 0.7.2 – 2026-11-21
+
+Driffle findet jetzt deine Spiele, die Bibliothek nimmt Spiele direkt auf und hat eine Listenansicht. Beim Start passt die Datenbank den Driffle-Index automatisch an, sonst ist beim Update nichts zu tun.
+
+### Behoben
+- **Driffle lieferte keine Angebote:** Driffle las bisher nur eine einzige Übersichtsseite mit rund 28 Spielen, und die Region blieb im Titel stehen („forza horizon 5 eu“), sodass praktisch kein Wunsch einen Driffle-Treffer bekam. Jetzt liest KeyHunter Driffles Produkt-Sitemaps (16 Dateien, laut robots.txt freigegeben): nach dem Update einmal alle direkt nacheinander, danach eine Datei alle 4,5 Stunden, also alle drei Tage den ganzen Katalog. Regionen im Titel zählen beim Abgleich mit, Zusatzinhalte, Währungen und Konten bleiben außen vor. Ein neu hinzugefügtes Spiel bekommt seine Driffle-Treffer spätestens nach drei Tagen.
+- Driffle führt ein Spiel oft in mehreren Regionen (Europa, Global, Argentinien, USA …); jede Region wird ein eigener Link mit eigenen Abfragen. Reicht das Tageslimit für Driffle unter Key-Shops nicht, prüft KeyHunter die Regionen entsprechend seltener.
+
+### Neu
+- **Direkt zur Bibliothek hinzufügen:** In der Bibliothek öffnet „Spiel hinzufügen“ einen eigenen Dialog; das gewählte Spiel landet sofort als gekauft in der Bibliothek, ohne Umweg über die Wunschliste und ohne Preisabfragen. Ohne Katalogtreffer lässt sich ein Titel auch manuell hinzufügen. Steht das Spiel schon auf der Wunschliste, fragt KeyHunter nach und verschiebt es dann wie „Gekauft“ samt Preisverlauf. Auf dem Handy sitzt der Knopf als „+“ im Kopf der Bibliothek.
+- **Kacheln oder Liste:** Zwei Symbole im Kopf der Bibliothek schalten zwischen den Cover-Kacheln und einer Liste mit kleinem Cover, System und Kaufdatum um. Die Wahl bleibt im Browser gespeichert.
+
 ## 0.7.1 – 2026-11-21
 
 Mehr Einstellungen für die Wunschliste, Play/Pause direkt am Abrufstatus und ein ruhigerer Schriftzug im Logo. Die Datenbank bekommt beim Start automatisch zwei neue Spalten, sonst ist beim Update nichts zu tun.

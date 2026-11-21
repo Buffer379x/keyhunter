@@ -20,6 +20,27 @@
 .library-page .lib-tools .icon-btn.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--danger); border-color: var(--danger); }
 .library-page .lib-lock.open { border-color: var(--accent); color: var(--accent); }
 
+/* Add button in the head only on phones; wider screens use "Spiel hinzufügen" in the top bar (0.7.2). */
+.library-page .lib-add { display: none; }
+.library-page .lib-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.library-page .lib-view button { display: inline-flex; align-items: center; justify-content: center; width: 32px; padding: 0; }
+
+/* List view: one row per game with a small cover, title, system and purchase date; the tools sit at the end. */
+.library-page .lib.rows { display: block; border: 1px solid var(--line); border-radius: var(--r-md, 10px); background: var(--panel); }
+.library-page .lib.rows .lib-item { grid-template-rows: none; grid-template-columns: 36px minmax(0, 1fr); align-items: center; gap: 12px; padding: 8px 12px; }
+.library-page .lib.rows .lib-item + .lib-item { border-top: 1px solid var(--line); }
+.library-page .lib.rows .lib-cover { position: static; display: contents; }
+.library-page .lib.rows .lib-item .game-cover { width: 36px; border-radius: 5px; }
+.library-page .lib.rows .lib-item:has(.lib-tools) { grid-template-columns: 36px minmax(0, 1fr) auto; }
+.library-page .lib.rows .lib-item .game-cover { grid-column: 1; grid-row: 1; }
+.library-page .lib.rows .lib-info { grid-column: 2; grid-row: 1; grid-template-rows: none; }
+.library-page .lib.rows .lib-info b { -webkit-line-clamp: 1; line-clamp: 1; }
+.library-page .lib.rows .lib-sub { color: var(--muted); font-size: var(--t-xs); }
+.library-page .lib.rows .lib-tools { position: static; grid-column: 3; grid-row: 1; }
+.library-page .lib.rows .lib-tools .icon-btn { box-shadow: none; }
+.library-page .lib.rows.lib-skeleton .lib-ghost.cover { width: 36px; border-radius: 5px; }
+.library-page .lib.rows.lib-skeleton .lib-item { grid-template-columns: 36px minmax(0, 1fr); }
+
 .library-page .lib-skeleton { pointer-events: none; }
 .library-page .lib-ghost { display: block; border-radius: var(--r-sm); background: var(--panel); border: 1px solid var(--line); }
 .library-page .lib-ghost.cover { aspect-ratio: 3 / 4; border-radius: 10px; }
@@ -27,5 +48,6 @@
 /* Phones: three smaller covers per row (two below 360 px). */
 @media (max-width: 720px) {
   .library-page .lib { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 14px 10px; }
+  .library-page .lib-add { display: inline-flex; }
 }
 @media (max-width: 359px) { .library-page .lib { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

@@ -33,6 +33,7 @@ export default function App() {
   const [csrf, setCsrf] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [libraryAddOpen, setLibraryAddOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [wishlistRevision, setWishlistRevision] = useState(0);
   const [page, setPage] = useState<Page>(routePage);
@@ -82,7 +83,7 @@ export default function App() {
     } catch (e) { setError(errorText(e)); }
     finally { setBusy(false); }
   }
-  const resetSession = () => { setCsrf(''); setWishlistCount(null); setLibraryCount(null); setAlertCount(null); setSearchOpen(false); setAddOpen(false); setNavOpen(false); };
+  const resetSession = () => { setCsrf(''); setWishlistCount(null); setLibraryCount(null); setAlertCount(null); setSearchOpen(false); setAddOpen(false); setLibraryAddOpen(false); setNavOpen(false); };
   async function logout() {
     setBusy(true); setError('');
     try {
@@ -144,9 +145,11 @@ export default function App() {
     if (url.href !== window.location.href) window.history.pushState(null, '', url);
     setPage('wishlist'); setError(''); setWishlistRevision(n => n + 1);
   }, []);
-  /** "Spiel hinzufügen" in the top bar: the add dialog belongs to the wishlist, so open that page first. */
+  /** "Spiel hinzufügen" in the top bar: in the library it adds straight to the library (0.7.2); elsewhere the
+   * dialog belongs to the wishlist, so open that page first. */
   function openAdd() {
-    if (page !== 'wishlist') navigate('wishlist', 'general', true); else setAddOpen(true);
+    if (page === 'library') setLibraryAddOpen(true);
+    else if (page !== 'wishlist') navigate('wishlist', 'general', true); else setAddOpen(true);
   }
   /** Breadcrumb "Wunschliste" in the game view: back to the list without a selection; URL-bound views follow through popstate. */
   function backToList() {
@@ -253,7 +256,7 @@ export default function App() {
       <main id="main-content" className="content" tabIndex={-1}>
         {error && <Notice error>{error}</Notice>}
         {page === 'wishlist' ? <Wishlist key={wishlistRevision} csrf={csrf} targetCountry={savedCountry} columns={auto.saved?.wishlist_columns} hidden={auto.saved?.wishlist_hidden} opener={auto.saved?.wishlist_open} targetLabel={targetLabel ?? 'Noch nicht gewählt'} addOpen={addOpen} onAddOpen={setAddOpen} onTitle={setGameTitle} onSettings={() => openSettings()} onCountChange={setWishlistCount} onError={handleProtectedError} />
-          : page === 'library' ? <Library csrf={csrf} onRestored={selectSearchResult} onOpenWishlist={() => navigate('wishlist')} onCountChange={setLibraryCount} onError={handleProtectedError} />
+          : page === 'library' ? <Library csrf={csrf} addOpen={libraryAddOpen} onAddOpen={setLibraryAddOpen} onRestored={selectSearchResult} onOpenWishlist={() => navigate('wishlist')} onCountChange={setLibraryCount} onError={handleProtectedError} />
             : page === 'alerts' ? <PriceAlerts csrf={csrf} targetCountry={savedCountry} targetLabel={targetLabel ?? 'Zielland'} onError={handleProtectedError} />
               : auto.settings && <SettingsPage section={section} onSection={openSettings} settings={auto.settings} auto={auto} csrf={csrf} busy={busy} countries={countries} sourceStatus={sourceStatus}
                 onSourcesChanged={refreshSources} onShopsChanged={saved => { auto.reset(saved); refreshSources(); }} onError={handleProtectedError} onHelp={() => setDialogOpen(true)} onLogout={() => void logout()} />}

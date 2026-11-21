@@ -2233,3 +2233,112 @@ async fn price_badges_carry_a_daily_target_country_trend() {
         .await;
     assert_eq!(badges[&id]["trend"], json!(vec![Value::Null; 14]));
 }
+
+#[tokio::test]
+async fn games_can_be_added_straight_to_the_library() {
+    let f = Fixture::new().await;
+    // A catalog game and a manual title go straight into the library, without a wish or a shop search.
+    let (status, added) = f
+        .call(
+            "POST",
+            "/api/v1/library",
+            json!({"igdb_id":1,"platform_id":169}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(added["created"], true);
+    assert!(added["item"]["acquired_at"].as_i64().unwrap() > 0);
+    let id = added["item"]["id"].as_str().unwrap().to_string();
+    let (status, manual) = f
+        .call(
+            "POST",
+            "/api/v1/library",
+            json!({"manual_title":"Old Disc Game","platform_id":49}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(manual["item"]["manual_title"], "Old Disc Game");
+    let (_, owned) = f.call("GET", "/api/v1/library", Value::Null).await;
+    assert_eq!(owned.as_array().unwrap().len(), 2);
+    assert_eq!(
+        f.call("GET", "/api/v1/wishlist", Value::Null).await.1,
+        json!([])
+    );
+    let pool = sqlx::SqlitePool::connect_with(
+        sqlx::sqlite::SqliteConnectOptions::new().filename(f.config.data_dir.join("keyhunter.db")),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM shop_job WHERE wish_id IS NOT NULL")
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+        0,
+        "nothing is searched for a game already owned"
+    );
+    // Adding it again returns the same entry.
+    let (status, again) = f
+        .call(
+            "POST",
+            "/api/v1/library",
+            json!({"igdb_id":1,"platform_id":169}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        (again["item"]["id"].as_str(), again["created"].clone()),
+        (Some(id.as_str()), json!(false))
+    );
+
+    // A game on the wishlist moves over only after confirmation, as if bought; its alert stops.
+    let (_, wish) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":6,"platform_id":169}),
+        )
+        .await;
+    let wish_id = wish["item"]["id"].as_str().unwrap().to_string();
+    sqlx::query("INSERT INTO alert_rule(wish_id,mode,basis,enabled) VALUES(?,'low','base',1)")
+        .bind(&wish_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let input = json!({"igdb_id":6,"platform_id":169});
+    let (status, warning) = f.call("POST", "/api/v1/library", input.clone()).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(warning["code"], "wished_game");
+    assert_eq!(
+        f.call("GET", "/api/v1/wishlist", Value::Null).await.1[0]["id"],
+        wish_id
+    );
+    let mut confirmed = input;
+    confirmed["confirm_wished"] = json!(true);
+    let (status, moved) = f.call("POST", "/api/v1/library", confirmed).await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(moved["item"]["id"], wish_id);
+    assert_eq!(
+        f.call("GET", "/api/v1/wishlist", Value::Null).await.1,
+        json!([])
+    );
+    assert!(
+        !sqlx::query_scalar::<_, bool>("SELECT enabled FROM alert_rule WHERE wish_id=?")
+            .bind(&wish_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+    );
+    // Same checks as the wishlist: unknown platform, empty title, both or neither field.
+    for bad in [
+        json!({"igdb_id":1,"platform_id":6}),
+        json!({"manual_title":" ","platform_id":169}),
+        json!({"igdb_id":1,"manual_title":"Both","platform_id":169}),
+        json!({"platform_id":169}),
+    ] {
+        assert_eq!(
+            f.call("POST", "/api/v1/library", bad).await.0,
+            StatusCode::BAD_REQUEST
+        );
+    }
+}

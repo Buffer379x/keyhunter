@@ -81,10 +81,34 @@ impl Shop {
         }
     }
 
-    pub(crate) async fn discover(self, shard: usize) -> Result<Vec<(String, String)>, ShopError> {
+    /// Candidates of one discovery run and the wait until the next one (None: the default of [`Self::discovery_every`]).
+    pub(crate) async fn discover(
+        self,
+        shard: usize,
+    ) -> Result<(Vec<(String, String)>, Option<i64>), ShopError> {
         match self {
-            Self::Eneba => eneba::discover(self, shard).await,
-            Self::Driffle => driffle::discover(self).await,
+            Self::Eneba => eneba::discover(self, shard)
+                .await
+                .map(|found| (found, None)),
+            Self::Driffle => driffle::discover(self, shard)
+                .await
+                .map(|(found, wait)| (found, Some(wait))),
+        }
+    }
+
+    /// Steady-state time between two discovery runs (a daily sitemap at Eneba, one of Driffle's 16 sitemaps).
+    pub(crate) fn discovery_every(self, interval: i64) -> i64 {
+        match self {
+            Self::Eneba => interval.max(86400),
+            Self::Driffle => driffle::SITEMAP_EVERY,
+        }
+    }
+
+    /// Candidate keys that belong to a wish with these title keys (Driffle slugs keep the region).
+    pub(crate) fn candidate_keys(self, keys: Vec<String>) -> Vec<String> {
+        match self {
+            Self::Eneba => keys,
+            Self::Driffle => driffle::candidate_keys(&keys),
         }
     }
 }

@@ -24,6 +24,8 @@ const shapes = {
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,
   play: <path d="M8 5.5v13l11-6.5z" />,
   pause: <path d="M9 5.5v13M15 5.5v13" />,
+  tiles: <><rect x="4" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" /><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" /></>,
+  rows: <path d="M9 6h11M9 12h11M9 18h11M4.5 6h.5M4.5 12h.5M4.5 18h.5" />,
   grip: <><circle cx="9" cy="6" r="1" /><circle cx="15" cy="6" r="1" /><circle cx="9" cy="12" r="1" /><circle cx="15" cy="12" r="1" /><circle cx="9" cy="18" r="1" /><circle cx="15" cy="18" r="1" /></>,
   download: <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />,
   logout: <path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" />,
