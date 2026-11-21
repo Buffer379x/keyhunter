@@ -9,7 +9,7 @@
 }
 .auth-card { width: min(100%, 400px); }
 .auth-brand { display: flex; align-items: center; min-height: 48px; padding: 16px 16px 14px; }
-.auth-brand .brand { height: 30px; }
+.auth-brand .brand { height: 32px; } /* 1:1, whole pixels */
 .auth-body { display: grid; gap: 16px; padding: 18px 16px 16px; }
 .auth-body > .notice { margin: 0; }
 .auth-body > .btn { justify-self: start; }

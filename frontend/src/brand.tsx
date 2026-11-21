@@ -1,36 +1,24 @@
-import { useId } from 'react';
+// Brand v3 for 0.7.0 (docs/modernization/branding/v3/ENTSCHEIDUNG.md, direction D "Preisschild massiv").
+// The mark is a dark price tag with one large key hole on a solid orange tile, drawn on a 32 grid (master: v3/d-icon.svg).
+// TAG is the master's stroked tag (stroke 1.6, round joins) expanded to a plain outline, with the key hole cut out (even-odd),
+// so the mark needs no stroke, mask or id and renders identically in every browser.
+const TAG = 'M4.392 15.481L11.392 7.281A.8 .8 0 0 1 12 7H26.2A.8 .8 0 0 1 27 7.8V24.2A.8 .8 0 0 1 26.2 25H12A.8 .8 0 0 1 11.392 24.719L4.392 16.519A.8 .8 0 0 1 4.392 15.481ZM16.956 16.537A3.3 3.3 0 1 1 20.644 16.537L21.6 21H16Z';
+// "KEYHUNTER" in JetBrains Mono SemiBold (600), letter spacing .1em, converted to outlined paths (no font file needed).
+// Sized to the icon: cap height 18 = the visible height of the tag (y 7 to 25), so the wordmark sits on the tile's optical centre;
+// the ink starts 9 units after the 32-unit tile.
+const WORDMARK = 'M43.89 25L41 25L41 7L43.89 7L43.89 14.4L46.13 14.4L49.68 7L52.79 7L48.67 15.63L53.01 25L49.78 25L46.11 16.99L43.89 16.99L43.89 25ZM69.21 25L58.53 25L58.53 7L69.21 7L69.21 9.52L61.37 9.52L61.37 14.42L68.35 14.42L68.35 16.94L61.37 16.94L61.37 22.48L69.21 22.48L69.21 25ZM82.38 25L79.52 25L79.52 18.42L74.19 7L77.18 7L80.18 13.53Q80.5 14.22 80.71 14.87Q80.92 15.51 81 15.88L81 15.88Q81.07 15.51 81.28 14.87Q81.49 14.22 81.79 13.53L81.79 13.53L84.72 7L87.7 7L82.38 18.42L82.38 25ZM95.69 25L92.81 25L92.81 7L95.69 7L95.69 14.35L100.72 14.35L100.72 7L103.61 7L103.61 25L100.72 25L100.72 17.01L95.69 17.01L95.69 25ZM115.47 25.25L115.47 25.25Q112.85 25.25 111.41 23.82Q109.97 22.39 109.97 19.92L109.97 19.92L109.97 7L112.83 7L112.83 19.9Q112.83 21.23 113.5 21.98Q114.16 22.73 115.47 22.73L115.47 22.73Q116.75 22.73 117.43 21.98Q118.11 21.23 118.11 19.9L118.11 19.9L118.11 7L120.97 7L120.97 19.92Q120.97 22.39 119.54 23.82Q118.11 25.25 115.47 25.25ZM129.87 25L127.23 25L127.23 7L130.78 7L135.91 21.75Q135.86 21.01 135.77 19.98Q135.69 18.96 135.64 17.86Q135.59 16.76 135.59 15.9L135.59 15.9L135.59 7L138.23 7L138.23 25L134.68 25L129.57 10.25Q129.65 10.92 129.71 11.91Q129.77 12.89 129.82 13.94Q129.87 14.99 129.87 15.88L129.87 15.88L129.87 25ZM151.42 25L148.56 25L148.56 9.64L143.78 9.64L143.78 6.98L156.2 6.98L156.2 9.64L151.42 9.64L151.42 25ZM172.77 25L162.1 25L162.1 7L172.77 7L172.77 9.52L164.93 9.52L164.93 14.42L171.91 14.42L171.91 16.94L164.93 16.94L164.93 22.48L172.77 22.48L172.77 25ZM181.95 25L179.08 25L179.08 7L184.76 7Q186.51 7 187.8 7.65Q189.1 8.31 189.81 9.5Q190.53 10.7 190.53 12.3L190.53 12.3Q190.53 14.1 189.61 15.45Q188.7 16.79 187.15 17.33L187.15 17.33L190.77 25L187.54 25L184.31 17.73L181.95 17.73L181.95 25ZM181.95 9.54L181.95 15.19L184.76 15.19Q186.06 15.19 186.84 14.43Q187.62 13.68 187.62 12.38L187.62 12.38Q187.62 11.07 186.84 10.3Q186.06 9.54 184.76 9.54L184.76 9.54L181.95 9.54Z';
 
-// Brand assets from docs/modernization/branding/v2 (approved drawing, unchanged).
-// The mark is the price tag with a key hole inside a target reticle ("Visier").
-const TAG = 'M3.5 16l7.1-8.8Q11.5 6 13 6h13q3 0 3 3v14q0 3-3 3H13q-1.5 0-2.4-1.2z';
-const TAG_16 = 'M3.5 16l7.1-8.8Q11.5 6 13 6h13q3 0 3 3v14q0 3-3 3H13q-1.5 0-2.4-1.2z M20 11.1a3.2 3.2 0 0 0-1.6 5.97l-1 4.93h5.2l-1-4.93A3.2 3.2 0 0 0 20 11.1z';
-// "KEYHUNTER" in Archivo ExtraBold, width 125 %, 18 px, letter spacing 0.4, converted to outlined paths
-// (the logo file asks for this) so that no Archivo font file is needed.
-const WORDMARK = 'M41.53 27.5L41.53 15.13L45.18 15.13L45.18 21.13L51.92 15.13L56.56 15.13L50.89 20.23L56.69 27.5L52.13 27.5L48.19 22.44L45.18 24.85L45.18 27.5ZM59.05 27.5L59.05 15.13L71.94 15.13L71.94 17.83L62.72 17.83L62.72 19.92L70.8 19.92L70.8 22.55L62.72 22.55L62.72 24.78L72.1 24.78L72.1 27.5ZM79.88 27.5L79.88 22.57L73.76 15.13L78.1 15.13L81.71 19.76L81.88 19.76L85.51 15.13L89.67 15.13L83.55 22.57L83.55 27.5ZM91.91 27.5L91.91 15.13L95.56 15.13L95.56 19.74L102.99 19.74L102.99 15.13L106.65 15.13L106.65 27.5L102.99 27.5L102.99 22.68L95.56 22.68L95.56 27.5ZM117.29 27.72Q114.84 27.72 113.24 27Q111.64 26.28 110.85 24.93Q110.05 23.59 110.05 21.69L110.05 15.13L113.73 15.13L113.73 21.51Q113.73 23.16 114.65 24.07Q115.58 24.98 117.29 24.98Q119.02 24.98 119.94 24.07Q120.87 23.16 120.87 21.51L120.87 15.13L124.54 15.13L124.54 21.69Q124.54 23.59 123.75 24.93Q122.96 26.28 121.36 27Q119.76 27.72 117.29 27.72ZM127.93 27.5L127.93 15.13L131.21 15.13L137.62 20.89Q137.78 21.04 138.04 21.29Q138.3 21.54 138.58 21.82Q138.86 22.1 139.06 22.32L139.22 22.32Q139.22 21.99 139.21 21.51Q139.2 21.02 139.2 20.64L139.2 15.13L142.66 15.13L142.66 27.5L139.42 27.5L133.17 21.85Q132.74 21.47 132.26 21Q131.78 20.53 131.51 20.26L131.37 20.26Q131.37 20.5 131.38 21.02Q131.39 21.54 131.39 22.14L131.39 27.5ZM150.4 27.5L150.4 18.09L145.02 18.09L145.02 15.13L159.42 15.13L159.42 18.09L154.05 18.09L154.05 27.5ZM161.78 27.5L161.78 15.13L174.67 15.13L174.67 17.83L165.45 17.83L165.45 19.92L173.53 19.92L173.53 22.55L165.45 22.55L165.45 24.78L174.83 24.78L174.83 27.5ZM177.71 27.5L177.71 15.13L188.01 15.13Q189.34 15.13 190.23 15.68Q191.12 16.23 191.56 17.14Q192.01 18.05 192.01 19.13Q192.01 20.3 191.46 21.26Q190.91 22.23 189.79 22.78L192.31 27.5L188.17 27.5L186.14 23.38L181.37 23.38L181.37 27.5ZM181.37 20.68L186.8 20.68Q187.47 20.68 187.87 20.27Q188.26 19.87 188.26 19.24Q188.26 18.77 188.08 18.46Q187.9 18.16 187.58 18Q187.25 17.83 186.8 17.83L181.37 17.83Z';
-
-function VisierMask({ id }: { id: string }) {
-  return <mask id={id}>
-    <rect width="32" height="32" fill="#fff" />
-    <circle cx="20" cy="16" r="6.05" fill="none" stroke="#000" strokeWidth="1.6" strokeDasharray="6.9 2.6" strokeDashoffset="8.2" />
-    <path d="M20 9.4v3M26.6 16h-3M13.4 16h3" stroke="#000" strokeWidth="1.3" />
-    <path d="M20 12.9a2.1 2.1 0 0 0-.8 4.04l-.5 2.76h2.6l-.5-2.76A2.1 2.1 0 0 0 20 12.9z" fill="#000" />
-  </mask>;
-}
-const useMaskId = () => 'visier-' + useId().replace(/[^a-zA-Z0-9]/g, '');
-
-/** The key-hole price tag. Orange via CSS (`.key-mark`); `small` is only a size hint for old call sites. Decorative. */
-export function KeyMark({ small = false, simple = false }: { small?: boolean; simple?: boolean }) {
-  const id = useMaskId();
+/** The key-hole price tag without the tile. Colour via CSS (`.key-mark-fill`); `small` and `simple` are kept for old call sites. Decorative. */
+export function KeyMark({ small = false }: { small?: boolean; simple?: boolean }) {
   return <svg className={small ? 'key-mark small' : 'key-mark'} viewBox="0 0 32 32" aria-hidden="true">
-    {simple ? <path className="key-mark-fill" fillRule="evenodd" d={TAG_16} /> : <><defs><VisierMask id={id} /></defs><path className="key-mark-fill" mask={`url(#${id})`} d={TAG} /></>}
+    <path className="key-mark-fill" fillRule="evenodd" d={TAG} />
   </svg>;
 }
-/** Mark and wordmark as one horizontal logo. Give it a size with the CSS height (default 36 px). */
+/** Mark (orange tile with the tag) and wordmark as one horizontal logo. Give it a size with the CSS height (default 32 px). */
 export function Brand({ label = 'KeyHunter' }: { label?: string }) {
-  const id = useMaskId();
-  return <svg className="brand" viewBox="0 0 196 40" role="img" aria-label={label}>
-    <defs><VisierMask id={id} /></defs>
-    <g transform="translate(0 4)"><path className="key-mark-fill" mask={`url(#${id})`} d={TAG} /></g>
+  return <svg className="brand" viewBox="0 0 191 32" role="img" aria-label={label}>
+    <rect className="brand-tile" width="32" height="32" rx="7" />
+    <path className="brand-tag" fillRule="evenodd" d={TAG} />
     <path className="brand-word" d={WORDMARK} />
   </svg>;
 }

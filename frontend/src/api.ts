@@ -134,7 +134,10 @@ export interface FetchRun {
   outcome: string;
   detail: string | null;
 }
-export interface FetchStatusResponse { shops: FetchShopStatus[]; errors_24h: number; recent_runs: FetchRun[] }
+/** `paused_at`: the owner paused the automatic checks at this time (0.7.0); null or missing while they run. */
+export interface FetchStatusResponse { paused_at?: number | null; shops: FetchShopStatus[]; errors_24h: number; recent_runs: FetchRun[] }
+/** Event on window after the automatic checks were paused or resumed, so every status view reloads at once. */
+export const FETCH_STATUS_CHANGED = 'keyhunter:fetch-status';
 
 /** GET /alerts: ntfy channel state and the delivery log (wish_id is null for test messages). */
 export interface AlertEvent { id: number; wish_id: string | null; state: string; observed_at: number; sent_at: number | null; cents: number | null; attempts: number }

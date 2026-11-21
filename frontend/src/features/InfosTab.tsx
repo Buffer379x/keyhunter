@@ -37,7 +37,7 @@ export default function InfosTab({ item, game, state }: { item: WishlistItem; ga
     <LinkReview link={reviewLink} game={itemName(item)} busy={busy} error={error} onClose={() => setReviewing(null)} onConfirm={link => void confirm(link)} />
     <Panel aria-labelledby="infos-title">
       <PanelHead><Label id="infos-title">Infos</Label></PanelHead>
-      <Inset><ul className="facts">
+      <Inset><ul className="facts info-facts">
         <li><Icon name="info" /><span>Erscheinungsjahr</span><span className="r mono" title={released ? new Intl.DateTimeFormat('de-DE', { dateStyle: 'long', timeZone: 'UTC' }).format(released) : undefined}>{released ? released.getUTCFullYear() : 'unbekannt'}</span></li>
         <li><Icon name="globe" /><span>Plattformen</span><span className="r">{platforms}</span></li>
         <li><Icon name="store" /><span>Beobachtete Shop-Seiten</span><span className="r mono">{view ? links.length : '…'}</span></li>
@@ -46,7 +46,7 @@ export default function InfosTab({ item, game, state }: { item: WishlistItem; ga
         {game?.aliases.length ? <li><Icon name="book" /><span>Auch bekannt als</span><span className="r">{game.aliases.join(' · ')}</span></li> : null}
         {game && <li><Icon name="search" /><span>Spieldaten</span>{game.slug ? <a className="r" href={`https://www.igdb.com/games/${game.slug}`} target="_blank" rel="noopener noreferrer">IGDB · {game.igdb_id}<Icon name="ext" /></a> : <span className="r mono">IGDB · {game.igdb_id}</span>}</li>}
       </ul></Inset>
-      {game?.summary && <p className="about">{game.summary}</p>}
+      {game?.summary && <Inset className="about-box"><p className="label">Beschreibung</p><p className="about">{game.summary}</p></Inset>}
     </Panel>
     <Panel aria-labelledby="match-title">
       <PanelHead><Label id="match-title">Produktzuordnungen</Label></PanelHead>

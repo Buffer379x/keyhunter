@@ -105,7 +105,9 @@ export function cheaperKpi(rows: Row[]): CheaperKpi {
 /** First two words of a title for the KPI foot ("Indiana Jones und der Große Kreis" → "Indiana Jones"). */
 export const shortTitle = (title: string) => title.split(/\s+/).filter(Boolean).slice(0, 2).join(' ').replace(/[:,–-]+$/, '');
 
-export interface FetchKpi { used: number; limit: number; demand: number | null; ticks: number[] }
+export interface FetchKpi { used: number; limit: number; demand: number | null; ticks: number[];
+  /** The owner paused the automatic checks (0.7.0). */
+  paused: boolean }
 /** "Abrufe heute" summed over the enabled shops; demand and the hourly ticks only when the backend reports them. */
 export function fetchKpi(status: FetchStatusResponse | null, nowMs = Date.now()): FetchKpi | null {
   const shops = status?.shops.filter(shop => shop.enabled) ?? [];
@@ -124,7 +126,7 @@ export function fetchKpi(status: FetchStatusResponse | null, nowMs = Date.now())
     let total = 0;
     ticks = perHour.slice(0, end + 1).map(value => (total += value));
   }
-  return { used, limit, demand, ticks };
+  return { used, limit, demand, ticks, paused: !!status?.paused_at };
 }
 
 /** Was an alarm (not a test message) delivered today (local day)? */

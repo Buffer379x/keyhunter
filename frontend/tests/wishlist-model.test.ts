@@ -80,8 +80,8 @@ test('fetch KPI: sums enabled shops, demand and hourly ticks only when reported'
   const hours = (values: Record<number, number>) => Array.from({ length: 24 }, (_, hour) => values[hour] ?? 0);
   const at3 = new Date(2026, 10, 20, 3, 30).getTime();
   const full = fetchKpi({ shops: [shop({ used: 30, limit: 120, demand_per_day: 200, by_hour: hours({ 0: 10, 2: 20 }) }), shop({ used: 5, limit: 100, demand_per_day: 40, by_hour: hours({ 1: 5 }) }), shop({ used: 99, limit: 99 }, false)], errors_24h: 0, recent_runs: [] }, at3);
-  assert.deepEqual(full, { used: 35, limit: 220, demand: 240, ticks: [10, 15, 35, 35] });
-  assert.deepEqual(fetchKpi({ shops: [shop({ used: 3, limit: 10 })], errors_24h: 0, recent_runs: [] }, at3), { used: 3, limit: 10, demand: null, ticks: [] }, 'older server: no demand, no ticks');
+  assert.deepEqual(full, { used: 35, limit: 220, demand: 240, ticks: [10, 15, 35, 35], paused: false });
+  assert.deepEqual(fetchKpi({ shops: [shop({ used: 3, limit: 10 })], errors_24h: 0, recent_runs: [] }, at3), { used: 3, limit: 10, demand: null, ticks: [], paused: false }, 'older server: no demand, no ticks');
   assert.equal(fetchKpi(null), null);
   assert.equal(fetchKpi({ shops: [shop({ used: 1, limit: 2 }, false)], errors_24h: 0, recent_runs: [] }), null);
 });
@@ -98,4 +98,10 @@ test('sparkline heights follow the prototype scale and keep empty days', () => {
   assert.equal(heights[1], Math.max(3, (1000 - 920) / (2000 - 920) * 22));
   assert.equal(heights[2], 22);
   assert.deepEqual(sparkHeights([null, null]), [null, null]);
+});
+
+test('fetch KPI reports a pause of the automatic checks', () => {
+  const shop = { source: 'eneba', enabled: true, last_success_at: null, last_error: null, paused_until: null, budget: { used: 1, limit: 10 }, backlog: { due: 0, requested: 0, products: 0, searches: 0 }, oldest_due_at: null, next_due_at: null, worker_seen_at: null };
+  assert.equal(fetchKpi({ paused_at: 1_800_000_000, shops: [shop as never], errors_24h: 0, recent_runs: [] })?.paused, true);
+  assert.equal(fetchKpi({ paused_at: null, shops: [shop as never], errors_24h: 0, recent_runs: [] })?.paused, false);
 });

@@ -1172,6 +1172,51 @@ async fn wishlist_price_scope_defaults_and_validates() {
 }
 
 #[tokio::test]
+async fn automatic_checks_can_be_paused_and_resumed() {
+    let f = Fixture::new().await;
+    let (_, status) = f.call("GET", "/api/v1/status/fetch", Value::Null).await;
+    assert!(status["paused_at"].is_null());
+    let (code, paused) = f
+        .call(
+            "POST",
+            "/api/v1/status/fetch/pause",
+            json!({"paused": true}),
+        )
+        .await;
+    assert_eq!(code, StatusCode::OK);
+    let since = paused["paused_at"].as_i64().unwrap();
+    // Pausing again keeps the start of the pause.
+    let (_, again) = f
+        .call(
+            "POST",
+            "/api/v1/status/fetch/pause",
+            json!({"paused": true}),
+        )
+        .await;
+    assert_eq!(again["paused_at"].as_i64(), Some(since));
+    let (_, status) = f.call("GET", "/api/v1/status/fetch", Value::Null).await;
+    assert_eq!(status["paused_at"].as_i64(), Some(since));
+    let (_, resumed) = f
+        .call(
+            "POST",
+            "/api/v1/status/fetch/pause",
+            json!({"paused": false}),
+        )
+        .await;
+    assert!(resumed["paused_at"].is_null());
+    assert_eq!(
+        f.call(
+            "POST",
+            "/api/v1/status/fetch/pause",
+            json!({"paused": "yes"})
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+}
+
+#[tokio::test]
 async fn wishlist_column_order_defaults_saves_and_validates() {
     let f = Fixture::new().await;
     let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;

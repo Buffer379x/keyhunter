@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from './api';
+import { api, FETCH_STATUS_CHANGED } from './api';
 import type { FetchShopStatus, FetchStatusResponse } from './api';
 import { whenVisible } from './poll';
 import { relativeTime } from './time';
@@ -43,7 +43,9 @@ export default function FetchStatus({ onOpen }: { onOpen: () => void }) {
         .finally(() => { if (!controller.signal.aborted) cancel = whenVisible(load, REFRESH_MS); });
     };
     load();
-    return () => { controller.abort(); cancel(); };
+    const reload = () => { cancel(); load(); };
+    window.addEventListener(FETCH_STATUS_CHANGED, reload);
+    return () => { controller.abort(); cancel(); window.removeEventListener(FETCH_STATUS_CHANGED, reload); };
   }, []);
   if (!data || data.shops.length === 0) return null;
   const nowSeconds = Date.now() / 1000;
@@ -53,7 +55,7 @@ export default function FetchStatus({ onOpen }: { onOpen: () => void }) {
   return <button type="button" className="fetch-mini" onClick={onOpen}>
     <span className="label">Abrufstatus</span>
     {data.shops.map(shop => {
-      const state = describe(shop, nowSeconds);
+      const state = data.paused_at ? { tone: 'warn' as Tone, text: 'pausiert', title: `Automatische Abfragen pausiert seit ${new Date(data.paused_at * 1000).toLocaleString('de-DE')}` } : describe(shop, nowSeconds);
       return <span key={shop.source} className="fetch-row" title={state.title}>
         <i className={`dot${state.tone === 'ok' ? '' : ` ${state.tone}`}`} aria-hidden="true" />{shopNames[shop.source] ?? shop.source}<span className="mono">{state.text}</span>
       </span>;

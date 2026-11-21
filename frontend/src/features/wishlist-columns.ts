@@ -24,4 +24,15 @@ export function moveColumn(order: WishlistColumn[], index: number, step: -1 | 1)
   return next;
 }
 
+/** The order with the column at `from` taken out and put in at `to` (drag and drop). */
+export function moveColumnTo(order: WishlistColumn[], from: number, to: number): WishlistColumn[] {
+  if (from < 0 || from >= order.length) return order;
+  const target = Math.max(0, Math.min(order.length - 1, to));
+  if (target === from) return order;
+  const next = [...order];
+  const [column] = next.splice(from, 1);
+  next.splice(target, 0, column);
+  return next;
+}
+
 export const isDefaultOrder = (order: readonly string[]) => order.every((key, index) => key === WISHLIST_COLUMNS[index]);

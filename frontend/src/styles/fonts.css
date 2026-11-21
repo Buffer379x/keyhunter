@@ -3,7 +3,7 @@
  * The files come from the pinned npm packages @fontsource-variable/inter and @fontsource/jetbrains-mono
  * and are bundled by Vite. The server sends CSP default-src 'self', so no CDN is used.
  * Inter is the variable font (weights 400, 500 and 600 are used); JetBrains Mono ships 400 and 500.
- * The Archivo wordmark is drawn as outlined SVG paths (src/brand.tsx) and needs no font file.
+ * The wordmark (JetBrains Mono 600) is drawn as outlined SVG paths (src/brand.tsx) and needs no font file.
  */
 @font-face {
   font-family: 'Inter';
