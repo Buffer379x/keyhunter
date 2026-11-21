@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 image=mcr.microsoft.com/playwright:v1.65.1-noble
 update=
 case "${1:-}" in
-  --update) update=--update-snapshots ;;
+  --update) update=--update-snapshots=all ;; # all, not only those above the threshold (else old pixels survive)
   '') ;;
   *) echo "usage: $0 [--update]" >&2; exit 2 ;;
 esac
