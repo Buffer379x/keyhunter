@@ -203,7 +203,7 @@ async fn request(
 }
 
 #[tokio::test]
-async fn unregistered_shops_cannot_receive_manual_product_jobs() {
+async fn switched_off_shops_cannot_receive_manual_product_jobs() {
     let f = Fixture::new().await;
     let (_, saved) = f
         .call(
@@ -213,6 +213,18 @@ async fn unregistered_shops_cannot_receive_manual_product_jobs() {
         )
         .await;
     let id = saved["item"]["id"].as_str().unwrap();
+    // Driffle is listed (0.7.4) but switched off in the fixture.
+    let (_, settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
+    let driffle = settings["sources"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["id"] == "driffle")
+        .unwrap();
+    assert_eq!(
+        (&driffle["configured"], &driffle["enabled"]),
+        (&json!(true), &json!(false))
+    );
     let status = f
         .call(
             "POST",
@@ -366,9 +378,9 @@ async fn edition_comparison_returns_content_status_without_requiring_prices_or_a
 }
 
 #[tokio::test]
-async fn shops_require_a_compatible_reader_and_keep_configured_intervals() {
+async fn shops_are_always_listed_and_keep_configured_intervals() {
     let f = Fixture::new().await;
-    let (_, settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
+    let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
     let eneba = settings["sources"]
         .as_array()
         .unwrap()
@@ -376,37 +388,19 @@ async fn shops_require_a_compatible_reader_and_keep_configured_intervals() {
         .find(|s| s["id"] == "eneba")
         .unwrap();
     assert_eq!(eneba["poll_interval_seconds"], 28800);
-    for url in [
-        "http://127.0.0.1",
-        "https://www.gamivo.com",
-        "https://driffle.com@untrusted.example",
-        "https://driffle.com/?token=private",
+    // The registration endpoints are gone (0.7.4); every shop reader is listed and switched by "Aktiv".
+    for (method, path) in [
+        ("POST", "/api/v1/settings/shops"),
+        ("DELETE", "/api/v1/settings/shops/driffle"),
+        ("GET", "/api/v1/settings/shop-readers"),
     ] {
-        assert_eq!(
-            f.call("POST", "/api/v1/settings/shops", json!({"url":url}))
+        assert_ne!(
+            f.call(method, path, json!({"url":"https://driffle.com"}))
                 .await
                 .0,
-            StatusCode::UNPROCESSABLE_ENTITY
+            StatusCode::OK
         );
     }
-    let (status, mut settings) = f
-        .call(
-            "POST",
-            "/api/v1/settings/shops",
-            json!({"url":"https://driffle.com"}),
-        )
-        .await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(
-        f.call(
-            "POST",
-            "/api/v1/settings/shops",
-            json!({"url":"https://driffle.com"})
-        )
-        .await
-        .0,
-        StatusCode::CONFLICT
-    );
     let source = settings["sources"]
         .as_array_mut()
         .unwrap()
@@ -414,6 +408,9 @@ async fn shops_require_a_compatible_reader_and_keep_configured_intervals() {
         .find(|s| s["id"] == "driffle")
         .unwrap();
     assert_eq!(source["configured"], true);
+    source["enabled"] = json!(true);
+    // A client cannot take a shop off the list any more.
+    source["configured"] = json!(false);
     source["poll_interval_seconds"] = json!(3600);
     let (_, wish) = f
         .call(
@@ -455,6 +452,17 @@ async fn shops_require_a_compatible_reader_and_keep_configured_intervals() {
             .unwrap(),
         observed + 3600
     );
+    let (_, saved) = f.call("GET", "/api/v1/settings", Value::Null).await;
+    let driffle = saved["sources"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["id"] == "driffle")
+        .unwrap();
+    assert_eq!(
+        (&driffle["configured"], &driffle["enabled"]),
+        (&json!(true), &json!(true))
+    );
 
     settings["sources"]
         .as_array_mut()
@@ -466,21 +474,6 @@ async fn shops_require_a_compatible_reader_and_keep_configured_intervals() {
         f.call("PUT", "/api/v1/settings", settings).await.0,
         StatusCode::BAD_REQUEST
     );
-    assert_eq!(
-        f.call("DELETE", "/api/v1/settings/shops/driffle", Value::Null)
-            .await
-            .0,
-        StatusCode::OK
-    );
-    let (_, settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
-    let source = settings["sources"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|s| s["id"] == "driffle")
-        .unwrap();
-    assert_eq!(source["configured"], false);
-    assert_eq!(source["poll_interval_seconds"], 3600);
 }
 
 #[tokio::test]
@@ -2063,7 +2056,13 @@ async fn badges_always_compare_the_target_country_with_the_cheapest_region() {
 
 async fn fetch_budget(f: &Fixture) -> Value {
     let (_, status) = f.call("GET", "/api/v1/status/fetch", Value::Null).await;
-    status["shops"][0]["budget"].clone()
+    status["shops"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|shop| shop["source"] == "eneba")
+        .unwrap()["budget"]
+        .clone()
 }
 
 #[tokio::test]

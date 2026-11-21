@@ -1,7 +1,7 @@
 use crate::{ApiError, ApiResult, Shared, auth};
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::State,
     http::{HeaderMap, StatusCode},
 };
 use serde::{Deserialize, Serialize};
@@ -249,7 +249,8 @@ pub(crate) async fn put_settings(
         .fetch_one(&mut *tx)
         .await?;
         let daily_jobs = stored_daily_jobs(&source);
-        sqlx::query("UPDATE source_settings SET enabled=?,fee_estimation_enabled=?,fee_basis_points=?,configured=?,poll_interval_seconds=?,daily_jobs=? WHERE id=?")
+        // Shops are always listed since 0.7.4 (migration 0021); only "Aktiv" (enabled) switches them.
+        sqlx::query("UPDATE source_settings SET enabled=?,fee_estimation_enabled=?,fee_basis_points=?,configured=CASE WHEN kind='shop' THEN 1 ELSE ? END,poll_interval_seconds=?,daily_jobs=? WHERE id=?")
             .bind(source.enabled).bind(source.fee_estimation_enabled).bind(source.fee_basis_points)
             .bind(source.configured).bind(source.poll_interval_seconds).bind(daily_jobs).bind(&source.id).execute(&mut *tx).await?;
         if previous_jobs != daily_jobs {
@@ -285,67 +286,6 @@ fn stored_daily_jobs(source: &SourceSettings) -> Option<i64> {
     source
         .daily_jobs
         .filter(|v| *v != crate::jobs::daily_budget())
-}
-
-#[derive(Deserialize)]
-pub(crate) struct RegisterShop {
-    url: String,
-}
-
-pub(crate) async fn shop_readers(
-    State(state): State<Shared>,
-    headers: HeaderMap,
-) -> ApiResult<Json<serde_json::Value>> {
-    auth::authenticate(&state, &headers).await?;
-    Ok(Json(serde_json::json!([
-        {"id":"eneba","name":"Eneba","url":"https://www.eneba.com","recommended_interval_seconds":28800},
-        {"id":"driffle","name":"Driffle","url":"https://driffle.com","recommended_interval_seconds":28800}
-    ])))
-}
-
-pub(crate) async fn register_shop(
-    State(state): State<Shared>,
-    headers: HeaderMap,
-    Json(input): Json<RegisterShop>,
-) -> ApiResult<Json<Settings>> {
-    let session = auth::authenticate(&state, &headers).await?;
-    auth::require_csrf(&state, &headers, &session)?;
-    let url = url::Url::parse(input.url.trim()).ok();
-    let shop=url.filter(|u|u.scheme()=="https" && u.username().is_empty() && u.password().is_none()
-        && u.port().is_none() && u.query().is_none() && u.fragment().is_none() && u.path()=="/")
-        .and_then(|u|match u.host_str()? { "www.eneba.com"|"eneba.com"=>Some("eneba"),"driffle.com"=>Some("driffle"),_=>None })
-        .ok_or(ApiError(StatusCode::UNPROCESSABLE_ENTITY,"Für diese Shop-URL ist kein geprüfter Reader verfügbar. Unterstützt werden Eneba und Driffle (HTTPS)."))?;
-    let added = sqlx::query(
-        "UPDATE source_settings SET configured=1,enabled=1 WHERE id=? AND configured=0",
-    )
-    .bind(shop)
-    .execute(&state.pool)
-    .await?
-    .rows_affected();
-    if added == 0 {
-        return Err(ApiError(
-            StatusCode::CONFLICT,
-            "Dieser Dienst ist bereits hinzugefügt.",
-        ));
-    }
-    Ok(Json(load(&state).await?))
-}
-
-pub(crate) async fn unregister_shop(
-    State(state): State<Shared>,
-    headers: HeaderMap,
-    Path(id): Path<String>,
-) -> ApiResult<Json<Settings>> {
-    let session = auth::authenticate(&state, &headers).await?;
-    auth::require_csrf(&state, &headers, &session)?;
-    if crate::shops::Shop::from_id(&id).is_none() {
-        return Err(ApiError(StatusCode::NOT_FOUND, "Key-Shop nicht gefunden."));
-    }
-    sqlx::query("UPDATE source_settings SET configured=0,enabled=0 WHERE id=?")
-        .bind(id)
-        .execute(&state.pool)
-        .await?;
-    Ok(Json(load(&state).await?))
 }
 
 pub(crate) async fn put_igdb_credentials(

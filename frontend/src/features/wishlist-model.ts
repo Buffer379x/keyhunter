@@ -68,6 +68,24 @@ export function rowFacts(badge: PriceBadgeData | undefined, rule: TargetRule | n
   };
 }
 
+/**
+ * Shops named by the filter text (0.7.4): every shop whose name starts with it, from three letters on ("eneb", "Driffle").
+ * The list then also shows the rows where such a shop has the cheapest price, in Preis DE or Preis INT.
+ */
+export function filterShops(text: string, names: Record<string, string>): string[] {
+  const query = text.trim().toLocaleLowerCase('de-DE');
+  if (query.length < 3) return [];
+  return Object.entries(names).filter(([, name]) => name.toLocaleLowerCase('de-DE').startsWith(query)).map(([id]) => id);
+}
+
+/** The text filter: a title or alias contains the text, or a named shop ([filterShops]) has the row's cheapest price. */
+export function matchesText(titles: string[], facts: RowFacts, text: string, shops: string[]): boolean {
+  const query = text.trim().toLocaleLowerCase('de-DE');
+  if (!query) return true;
+  if (titles.some(title => title.toLocaleLowerCase('de-DE').includes(query))) return true;
+  return shops.some(shop => facts.source === shop || facts.world?.source === shop);
+}
+
 export type ChipFilter = 'alle' | 'ziel' | 'welt' | 'offen';
 export const isWorldCheaper = (facts: RowFacts) => facts.share !== null && facts.share >= WORLD_SHARE - 1e-9;
 export function matchesChip(facts: RowFacts, chip: ChipFilter): boolean {

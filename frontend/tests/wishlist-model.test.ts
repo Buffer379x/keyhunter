@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addedTicks, alarmSentToday, cheaperKpi, fetchKpi, matchesChip, reachedTrend, rowFacts, shortTitle, sparkHeights } from '../src/features/wishlist-model.ts';
+import { addedTicks, alarmSentToday, cheaperKpi, fetchKpi, filterShops, matchesChip, matchesText, reachedTrend, rowFacts, shortTitle, sparkHeights } from '../src/features/wishlist-model.ts';
 import type { Row, TargetRule } from '../src/features/wishlist-model.ts';
 import type { FetchShopStatus, PriceBadgeData, WishlistItem } from '../src/api.ts';
 
@@ -125,4 +125,23 @@ test('fetch KPI reports a pause of the automatic checks', () => {
   const shop = { source: 'eneba', enabled: true, last_success_at: null, last_error: null, paused_until: null, budget: { used: 1, limit: 10 }, backlog: { due: 0, requested: 0, products: 0, searches: 0 }, oldest_due_at: null, next_due_at: null, worker_seen_at: null };
   assert.equal(fetchKpi({ paused_at: 1_800_000_000, shops: [shop as never], errors_24h: 0, recent_runs: [] })?.paused, true);
   assert.equal(fetchKpi({ paused_at: null, shops: [shop as never], errors_24h: 0, recent_runs: [] })?.paused, false);
+});
+
+test('list filter: titles, and shop names keep the rows where that shop is cheapest (Preis DE or INT)', () => {
+  const names = { eneba: 'Eneba', driffle: 'Driffle' };
+  assert.deepEqual(filterShops('eneba', names), ['eneba']);
+  assert.deepEqual(filterShops(' DRIF ', names), ['driffle']);
+  assert.deepEqual(filterShops('dr', names), [], 'from three letters on');
+  assert.deepEqual(filterShops('forza', names), []);
+  const home = rowFacts(badge(1000, 800, { source: 'eneba', world: { cents: 800, region: 'IN', source: 'driffle', observed_at: 1 } }), undefined);
+  const none = rowFacts(badge(null), undefined);
+  assert.equal(matchesText(['Forza Horizon 5'], home, 'horizon', []), true);
+  assert.equal(matchesText(['Forza Horizon 5'], home, 'Eneba', filterShops('Eneba', names)), true, 'cheapest in the target country');
+  assert.equal(matchesText(['Forza Horizon 5'], home, 'Driffle', filterShops('Driffle', names)), true, 'cheapest worldwide');
+  assert.equal(matchesText(['Halo'], none, 'Eneba', filterShops('Eneba', names)), false, 'no price, no shop');
+  assert.equal(matchesText(['Halo'], none, '', []), true);
+  // With fees the cheapest shop may change: the filter follows the shown prices.
+  const fees = rowFacts(badge(1000, null, { source: 'driffle', with_fees: { cents: 1090, base_cents: 1000, observed_at: 1, stale: false, source: 'eneba', region: 'Global', world: null, trend: [] } }), undefined, 'estimate');
+  assert.equal(matchesText(['Halo'], fees, 'Driffle', ['driffle']), false);
+  assert.equal(matchesText(['Halo'], fees, 'Eneba', ['eneba']), true);
 });

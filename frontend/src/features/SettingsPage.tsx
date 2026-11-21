@@ -31,7 +31,7 @@ interface Props {
   settings: Settings; auto: SettingsDraft; csrf: string; countries: { code: string; name: string }[];
   sourceStatus: SourceStatuses | null; busy: boolean;
   onSection: (section: Section) => void;
-  onSourcesChanged: () => void; onShopsChanged: (saved: Settings) => void; onError: (error: unknown) => void; onHelp: () => void; onLogout: () => void;
+  onSourcesChanged: () => void; onError: (error: unknown) => void; onHelp: () => void; onLogout: () => void;
 }
 
 /**
@@ -55,7 +55,7 @@ function SaveBar({ auto }: { auto: SettingsDraft }) {
   </div>;
 }
 
-export default function SettingsPage({ section, settings, auto, csrf, countries, sourceStatus, busy, onSection, onSourcesChanged, onShopsChanged, onError, onHelp, onLogout }: Props) {
+export default function SettingsPage({ section, settings, auto, csrf, countries, sourceStatus, busy, onSection, onSourcesChanged, onError, onHelp, onLogout }: Props) {
   const fetched = useFetchStatus(section === 'shops' || section === 'status');
   const alerts = useAlertOverview();
   const igdbState = sourceStatus?.igdb?.state;
@@ -74,8 +74,7 @@ export default function SettingsPage({ section, settings, auto, csrf, countries,
     </div>}
     <div id="settings-panel" className="set-panel" data-section={section}>
       {section === 'general' && <General settings={settings} countries={countries} edit={auto.edit} onError={onError} />}
-      {section === 'shops' && <Shops settings={settings} feeDraft={auto.feeDraft} edit={auto.edit} editFee={auto.editFee} dirty={auto.dirty} status={fetched.data?.shops}
-        csrf={csrf} onShopsChanged={onShopsChanged} onHelp={onHelp} onError={onError} />}
+      {section === 'shops' && <Shops settings={settings} feeDraft={auto.feeDraft} edit={auto.edit} editFee={auto.editFee} status={fetched.data?.shops} onHelp={onHelp} />}
       {section === 'index' && <Index settings={settings} edit={auto.edit} igdbState={igdbState} igdbConfigured={sourceStatus?.igdb?.configured} csrf={csrf} onChanged={onSourcesChanged} onError={onError} />}
       {section === 'notifications' && <Notifications overview={alerts.data} failed={alerts.failed} csrf={csrf} reload={alerts.reload} onError={onError} />}
       {section === 'status' && <FetchPanel data={fetched.data} failed={fetched.failed} loadedAt={fetched.loadedAt} intervals={Object.fromEntries(settings.sources.map(s => [s.id, s.poll_interval_seconds]))} onShops={() => onSection('shops')} />}

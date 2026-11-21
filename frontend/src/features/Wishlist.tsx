@@ -11,7 +11,8 @@ import { mergeBadges } from './price-badges';
 import type { Rule } from './PriceAlerts';
 import { nextSort, parseSort, serializeSort, sortWishlist } from './wishlist-sort';
 import type { SortKey, WishlistSort } from './wishlist-sort';
-import { addedTicks, alarmSentToday, cheaperKpi, fetchKpi, matchesChip, reachedTrend, rowFacts, shortTitle } from './wishlist-model';
+import { addedTicks, alarmSentToday, cheaperKpi, fetchKpi, filterShops, matchesChip, matchesText, reachedTrend, rowFacts, shortTitle } from './wishlist-model';
+import { shopNames } from './shop-names';
 import type { ChipFilter, PriceBasis, Row, RowFacts } from './wishlist-model';
 import { itemName } from './catalog-ui';
 import { whenVisible } from '../poll';
@@ -46,6 +47,8 @@ function SortHeader({ id, sort, onSort, right = false, children }: { id: SortKey
 }
 const SORT_KEY = 'keyhunter.wishlist.sort';
 const BASIS_KEY = 'keyhunter.wishlist.basis';
+/** Key-shops the list filter knows by name (IGDB is a catalog, not a shop). */
+const SHOP_NAMES = Object.fromEntries(Object.entries(shopNames).filter(([id]) => id !== 'igdb'));
 const FETCH_REFRESH_MS = 60_000;
 /**
  * History state of a game opened from the list: the number of history entries since the list (opening the game plus
@@ -294,8 +297,9 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
   // Derived list data: facts per row (price, cheapest region, saving, target), chips, sorting and KPI tiles.
   const facts = useMemo(() => Object.fromEntries(items.map(item => [item.id, rowFacts(badges[item.id] ?? item.price_badge, alerts[item.id], basis)])) as Record<string, RowFacts>, [items, badges, alerts, basis]);
   const all: Row[] = useMemo(() => items.map(item => ({ item, facts: facts[item.id] })), [items, facts]);
-  const text = filter.toLocaleLowerCase('de-DE');
-  const matching = items.filter(item => matchesChip(facts[item.id], chip) && (!text || [itemName(item), ...(item.game?.aliases ?? [])].some(name => name.toLocaleLowerCase('de-DE').includes(text))));
+  // The filter matches titles, and shop names: "Eneba" keeps the games where Eneba has the cheapest price (0.7.4).
+  const shops = filterShops(filter, SHOP_NAMES);
+  const matching = items.filter(item => matchesChip(facts[item.id], chip) && matchesText([itemName(item), ...(item.game?.aliases ?? [])], facts[item.id], filter, shops));
   const visible = sortWishlist(matching, facts, sort);
   const priced = all.filter(row => row.facts.price !== null).length;
   const reachedCount = all.filter(row => row.facts.reached).length;
@@ -376,19 +380,20 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
         <span className="spacer" />
         <Seg className="wl-basis" label="Preise" value={basis} onChange={chooseBasis}
           options={[{ value: 'base', label: 'Ohne Gebühren' }, { value: 'estimate', label: 'Mit Gebühren' }]} />
-        <Field icon="search" className="wl-q"><input type="search" placeholder="Liste filtern …" aria-label="Liste filtern" value={filter} maxLength={200} onChange={event => filterList(event.target.value)} disabled={!ready || items.length === 0} /></Field>
+        <Field icon="search" className="wl-q"><input type="search" placeholder="Spiel oder Shop filtern …" aria-label="Liste filtern" title="Filtert nach Titel; ein Shop-Name zeigt die Spiele, bei denen dieser Shop am günstigsten ist" value={filter} maxLength={200} onChange={event => filterList(event.target.value)} disabled={!ready || items.length === 0} /></Field>
       </PanelHead>
       <Inset className="table-wrap">
         {loading ? <p className="empty" role="status">Wunschliste wird geladen …</p>
           : items.length === 0 ? <EmptyState icon="heart" title={listError ? 'Die Liste ist derzeit nicht abrufbar.' : 'Deine Liste ist noch leer.'}
             action={!listError && <Button variant="primary" onClick={() => onAddOpen(true)}><Icon name="search" />Im Katalog suchen</Button>}>{listError ? '' : 'Suche ein Spiel und merke es vor, dann beobachtet KeyHunter den Preis.'}</EmptyState>
             : visible.length === 0 ? <p className="empty">Kein Spiel passt zu diesem Filter.</p>
-              : <table className="wl" aria-label="Vorgemerkte Spiele">
+              : <>{shops.length > 0 && <p className="wl-shop-note" role="status">{shops.map(id => SHOP_NAMES[id]).join(', ')}: Spiele, bei denen {shops.length === 1 ? 'dieser Shop' : 'einer dieser Shops'} den günstigsten Preis {code || 'im Zielland'} oder INT hat.</p>}
+              <table className="wl" aria-label="Vorgemerkte Spiele">
                 <thead><tr>{order.map(column => headers[column])}</tr></thead>
                 <tbody>{visible.map(item => <WishlistRow key={item.id} item={item} badge={badges[item.id] ?? item.price_badge} facts={facts[item.id]} columns={order} mode={mode} code={code} compare
                   scopeLabel={scopeLabel} targetDisabled={!!alerts[item.id] && !alerts[item.id].enabled} onOpen={() => open(item.id)}
                   openRef={element => { if (element) rows.current.set(item.id, element); else rows.current.delete(item.id); }} />)}</tbody>
-              </table>}
+              </table></>}
       </Inset>
     </Panel>
     {dialogs}
