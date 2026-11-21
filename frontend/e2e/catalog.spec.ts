@@ -21,6 +21,8 @@ test('catalog choice persists, editions stay distinct, filters and removal work 
   await dialog.getByLabel('Spiel im Katalog suchen').fill('forza');
   await expect(dialog.getByRole('button', { name: 'Forza Horizon 5: Premium Edition vormerken', exact: true })).toBeDisabled();
   await dialog.getByRole('button', { name: 'Forza Horizon 5 vormerken', exact: true }).click();
+  // The dialog closes while the game page opens; only then is the page heading the only one.
+  await expect(dialog).toBeHidden();
   await expect(page.getByRole('heading', { name: 'Forza Horizon 5', exact: true })).toBeVisible();
   // The game is a page of its own: "Wunschliste" in the breadcrumb leads back to the list.
   await page.getByRole('navigation', { name: 'Pfad' }).getByRole('button', { name: 'Wunschliste', exact: true }).click();

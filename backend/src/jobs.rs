@@ -1514,7 +1514,7 @@ mod tests {
         .execute(&pool)
         .await
         .unwrap();
-        sqlx::query("UPDATE source_settings SET configured=1 WHERE id='driffle'")
+        sqlx::query("UPDATE source_settings SET enabled=1 WHERE id='driffle'")
             .execute(&pool)
             .await
             .unwrap();

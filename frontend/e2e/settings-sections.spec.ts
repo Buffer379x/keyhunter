@@ -100,8 +100,8 @@ test('leaving the settings with unsaved changes asks to save, discard or go back
   const before = await interval.inputValue();
   const other = await interval.locator('option').evaluateAll((options, value) => options.map(o => (o as HTMLOptionElement).value).find(v => v !== value)!, before);
   await interval.selectOption(other);
-  // Adding or removing a shop waits until the draft is saved or discarded.
-  await expect(eneba.getByRole('button', { name: 'Entfernen', exact: true })).toBeDisabled();
+  // 0.7.4: shops are switched, not removed.
+  await expect(eneba.getByRole('button', { name: 'Entfernen', exact: true })).toHaveCount(0);
   await navTo(page, 'Wunschliste');
   const dialog = page.getByRole('dialog', { name: 'Änderungen speichern?', exact: true });
   await expect(dialog).toBeVisible();

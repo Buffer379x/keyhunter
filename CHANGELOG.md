@@ -1,5 +1,18 @@
 # Änderungen
 
+## 0.7.4 – 2026-11-21
+
+Die Wunschliste filtert auch nach Shops, und Key-Shops zeigt jeden eingebauten Shop direkt mit seinem Schalter. Beim Start stellt die Datenbank die Shop-Liste automatisch um, sonst ist beim Update nichts zu tun.
+
+### Neu
+- **Nach Shop filtern:** Das Filterfeld der Wunschliste („Spiel oder Shop filtern …“) nimmt neben Titeln auch Shop-Namen an, ab drei Buchstaben („Ene“, „Driffle“). Dann bleiben die Spiele stehen, bei denen dieser Shop den günstigsten Preis DE oder INT hat; ein Hinweis über der Tabelle sagt das. Der Filter folgt dem Umschalter „Ohne/Mit Gebühren“.
+
+### Geändert
+- **Key-Shops ohne „Weiteren Shop hinzufügen“:** Jeder Shop braucht einen eigenen, geprüften Reader, eine Shop-URL allein reicht nie. Deshalb stehen alle eingebauten Shops (Eneba, Driffle) immer in der Liste, und der Schalter „Aktiv“ ist die einzige Steuerung; „Entfernen“ entfällt. Ein Shop, den du vorher nicht hinzugefügt oder entfernt hattest, erscheint ausgeschaltet. Einen Produktlink kannst du nur für einen eingeschalteten Shop ergänzen.
+
+### Nicht enthalten
+- **Gamivo:** Gamivo sperrt über Cloudflare alle Seiten außer robots.txt für automatische Abrufe (HTTP 403). KeyHunter umgeht keinen Bot-Schutz, deshalb gibt es keinen Gamivo-Reader.
+
 ## 0.7.3 – 2026-11-21
 
 Falsche Produktzuordnungen lassen sich löschen, und die Wunschliste zeigt Preise wahlweise mit geschätzten Gebühren. Beim Start legt die Datenbank automatisch eine neue Tabelle an, sonst ist beim Update nichts zu tun.

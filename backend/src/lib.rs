@@ -233,12 +233,6 @@ async fn create_app_inner(
             get(edition_tracking::get).post(edition_tracking::prepare),
         )
         .route("/wishlist/{id}/preview", post(wishlist::preview))
-        .route("/settings/shop-readers", get(settings::shop_readers))
-        .route("/settings/shops", post(settings::register_shop))
-        .route(
-            "/settings/shops/{id}",
-            axum::routing::delete(settings::unregister_shop),
-        )
         .route(
             "/wishlist/{id}/offers",
             get(offers::list).post(offers::add_link),

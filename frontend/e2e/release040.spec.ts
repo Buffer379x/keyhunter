@@ -14,15 +14,14 @@ test('settings separate key shops from games index and persist source intervals'
   await saveSettings(page);
   await page.reload();
   await expect(eneba.getByLabel('Produktseiten abfragen alle', { exact: true })).toHaveValue(String(2 * 3600));
-  await page.getByLabel('Shop-URL', { exact: true }).fill('https://www.gamivo.com');
-  await page.getByRole('button', { name: 'Dienst hinzufügen', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('kein geprüfter Reader');
-  await page.getByLabel('Shop-URL', { exact: true }).fill('https://driffle.com');
-  await page.getByRole('button', { name: 'Dienst hinzufügen', exact: true }).click();
-  await expect(page.getByRole('article', { name: 'Driffle', exact: true })).toBeVisible();
-  await page.getByRole('article', { name: 'Driffle', exact: true }).getByRole('button', { name: 'Entfernen', exact: true }).click();
-  await page.getByRole('dialog', { name: 'Driffle entfernen?' }).getByRole('button', { name: 'Entfernen bestätigen', exact: true }).click();
-  await expect(page.getByRole('article', { name: 'Driffle', exact: true })).not.toBeVisible();
+  // 0.7.4: every built-in shop is listed and switched with "Aktiv"; there is no adding or removing.
+  const driffle = page.getByRole('article', { name: 'Driffle', exact: true });
+  await expect(driffle).toBeVisible();
+  await expect(driffle.getByRole('switch', { name: 'Driffle Aktiv' })).not.toBeChecked();
+  await expect(page.getByRole('heading', { name: 'Weiteren Shop hinzufügen' })).toHaveCount(0);
+  await expect(page.getByLabel('Shop-URL', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Entfernen', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Wie werden Gebühren behandelt?', exact: true })).toBeVisible();
   await navTo(page, 'Spieleindex');
   await expect(page.getByRole('region', { name: 'IGDB-Zugang' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Editionsinhalte von Microsoft / Xbox' })).toBeVisible();

@@ -259,7 +259,7 @@ export default function App() {
           : page === 'library' ? <Library csrf={csrf} addOpen={libraryAddOpen} onAddOpen={setLibraryAddOpen} onRestored={selectSearchResult} onOpenWishlist={() => navigate('wishlist')} onCountChange={setLibraryCount} onError={handleProtectedError} />
             : page === 'alerts' ? <PriceAlerts csrf={csrf} targetCountry={savedCountry} targetLabel={targetLabel ?? 'Zielland'} onError={handleProtectedError} />
               : auto.settings && <SettingsPage section={section} onSection={openSettings} settings={auto.settings} auto={auto} csrf={csrf} busy={busy} countries={countries} sourceStatus={sourceStatus}
-                onSourcesChanged={refreshSources} onShopsChanged={saved => { auto.reset(saved); refreshSources(); }} onError={handleProtectedError} onHelp={() => setDialogOpen(true)} onLogout={() => void logout()} />}
+                onSourcesChanged={refreshSources} onError={handleProtectedError} onHelp={() => setDialogOpen(true)} onLogout={() => void logout()} />}
       </main>
     </div>
     <InfoDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />

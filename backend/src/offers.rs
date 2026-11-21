@@ -444,14 +444,15 @@ pub(crate) async fn add_link(
     let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     let (shop, url) = shops::product_link(input.url.trim()).ok_or(BAD_URL)?;
-    let configured: bool = sqlx::query_scalar("SELECT configured FROM source_settings WHERE id=?")
-        .bind(shop.id())
-        .fetch_one(&state.pool)
-        .await?;
-    if !configured {
+    let enabled: bool =
+        sqlx::query_scalar("SELECT enabled AND configured FROM source_settings WHERE id=?")
+            .bind(shop.id())
+            .fetch_one(&state.pool)
+            .await?;
+    if !enabled {
         return Err(ApiError(
             StatusCode::UNPROCESSABLE_ENTITY,
-            "Füge diesen Key-Shop zuerst in den Einstellungen hinzu.",
+            "Schalte diesen Key-Shop zuerst unter Einstellungen › Key-Shops ein.",
         ));
     }
     crate::wishlist::require_unowned(&state.pool, &id).await?;
