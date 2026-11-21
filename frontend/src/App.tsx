@@ -235,7 +235,7 @@ export default function App() {
         </div>
       </nav>
       <div className="side-foot">
-        <FetchStatus onOpen={() => openSettings('status')} />
+        <FetchStatus csrf={csrf} onOpen={() => openSettings('status')} />
         <button type="button" className="nav-item" onClick={() => void logout()} disabled={busy}><Icon name="logout" />Abmelden</button>
       </div>
     </aside>
@@ -252,7 +252,7 @@ export default function App() {
       </header>
       <main id="main-content" className="content" tabIndex={-1}>
         {error && <Notice error>{error}</Notice>}
-        {page === 'wishlist' ? <Wishlist key={wishlistRevision} csrf={csrf} targetCountry={savedCountry} columns={auto.saved?.wishlist_columns} targetLabel={targetLabel ?? 'Noch nicht gewählt'} addOpen={addOpen} onAddOpen={setAddOpen} onTitle={setGameTitle} onSettings={() => openSettings()} onCountChange={setWishlistCount} onError={handleProtectedError} />
+        {page === 'wishlist' ? <Wishlist key={wishlistRevision} csrf={csrf} targetCountry={savedCountry} columns={auto.saved?.wishlist_columns} hidden={auto.saved?.wishlist_hidden} opener={auto.saved?.wishlist_open} targetLabel={targetLabel ?? 'Noch nicht gewählt'} addOpen={addOpen} onAddOpen={setAddOpen} onTitle={setGameTitle} onSettings={() => openSettings()} onCountChange={setWishlistCount} onError={handleProtectedError} />
           : page === 'library' ? <Library csrf={csrf} onRestored={selectSearchResult} onOpenWishlist={() => navigate('wishlist')} onCountChange={setLibraryCount} onError={handleProtectedError} />
             : page === 'alerts' ? <PriceAlerts csrf={csrf} targetCountry={savedCountry} targetLabel={targetLabel ?? 'Zielland'} onError={handleProtectedError} />
               : auto.settings && <SettingsPage section={section} onSection={openSettings} settings={auto.settings} auto={auto} csrf={csrf} busy={busy} countries={countries} sourceStatus={sourceStatus}

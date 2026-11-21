@@ -38,8 +38,17 @@
 .nav-item[aria-current='page'] svg { color: var(--accent); }
 .nav-item .count { margin-left: auto; font: 400 var(--t-xs) var(--f-mono); color: var(--faint); }
 .side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
-.fetch-mini { border: 1px solid var(--line); border-radius: var(--r-lg); padding: 10px; background: var(--panel); display: grid; gap: 8px; text-align: left; color: var(--text); }
-.fetch-mini:hover { border-color: var(--line-2); }
+.fetch-mini { border: 1px solid var(--line); border-radius: var(--r-lg); padding: 10px; background: var(--panel); display: grid; gap: 6px; color: var(--text); }
+.fetch-mini:has(.fetch-open:hover) { border-color: var(--line-2); }
+/* (0.7.1) Head with the play / pause button; the status below is the button that opens Abrufstatus. */
+.fetch-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; }
+.fetch-toggle.icon-btn { width: 24px; height: 24px; border-radius: var(--r-sm); }
+.fetch-toggle.icon-btn svg { width: 13px; height: 13px; }
+.fetch-mini.paused .fetch-toggle { color: var(--accent); border-color: var(--accent-line); }
+.fetch-open { display: grid; gap: 8px; padding: 0; margin: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.fetch-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+.fetch-paused { color: var(--warn); font-size: var(--t-xs); }
+.fetch-error { color: var(--danger); font-size: var(--t-label); }
 .fetch-row { display: flex; align-items: center; gap: 8px; font-size: var(--t-xs); min-width: 0; }
 .fetch-row .mono { margin-left: auto; color: var(--muted); font-size: var(--t-label); white-space: nowrap; }
 .fetch-budget { color: var(--muted); font-size: var(--t-label); }

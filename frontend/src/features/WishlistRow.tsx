@@ -9,7 +9,7 @@ import GameCover from './GameCover';
 import { badgeStateText, badgeTitle } from './PriceBadge';
 import { WORLD_SHARE, sparkHeights } from './wishlist-model';
 import type { RowFacts } from './wishlist-model';
-import type { WishlistColumn } from './wishlist-columns';
+import type { OpenMode, WishlistColumn } from './wishlist-columns';
 
 /** Is this entry something the owner has to look at (unconfirmed match, or the shop mapping needs review)? */
 export const needsReview = (item: WishlistItem, badge?: PriceBadgeData) => badge?.state === 'review' || item.verification !== 'catalog';
@@ -31,7 +31,7 @@ function subline(item: WishlistItem) {
   return `${edition} · ${year !== null && Number.isFinite(year) ? year : platformName(item.platform_id)}`;
 }
 
-/** Text of the "Günstigste Region" cell when nothing is known about prices yet (the status column says whether a search runs). */
+/** Text of the "Preis INT" cell (cheapest region worldwide) when nothing is known about prices yet (the status column says whether a search runs). */
 function missingWorld(badge: PriceBadgeData | undefined) {
   if (badge?.state === 'no_offer') return 'In keinem Shop gefunden';
   if (badge?.state === 'unknown') return 'Noch nicht abgefragt';
@@ -63,20 +63,23 @@ function Spark({ trend, code }: { trend: (number | null)[]; code: string }) {
 }
 
 /**
- * One row of the wishlist table (`table.wl`): game, target-country price, cheapest region, saving, alarm target, status,
- * 14-day sparkline and the details button, which opens the game (the row itself is not clickable). The cells follow the column
+ * One row of the wishlist table (`table.wl`): game, target-country price, Preis INT (cheapest region worldwide), saving,
+ * alarm target, status, 14-day sparkline and the details button. Exactly one element opens the game, chosen in the settings:
+ * the details button, the title or the cover (the row itself is not clickable). The cells are the visible columns in the
  * order of the settings; up to 720 px the CSS turns the row into a card with a fixed layout.
  */
-export default function WishlistRow({ item, badge, facts, columns, code, compare, scopeLabel, targetDisabled, openRef, onOpen }: {
+export default function WishlistRow({ item, badge, facts, columns, mode, code, compare, scopeLabel, targetDisabled, openRef, onOpen }: {
   item: WishlistItem; badge?: PriceBadgeData; facts: RowFacts;
-  /** Column order of the settings (every column once). */
+  /** Visible columns in the order of the settings. */
   columns: WishlistColumn[];
+  /** What opens the game page (settings): the details button, the title or the cover; the other two are plain. */
+  mode: OpenMode;
   /** Target country code ("DE"), or "" without one. */
   code: string;
   /** The badge price is the target-country price (price scope "preferred"), so a cheapest region that is not cheaper means the target country is cheapest. */
   compare: boolean;
   scopeLabel: string; targetDisabled: boolean;
-  /** The details button, so the list can give it the focus back after a visit to the game. */
+  /** The element that opens the game (button, title or cover), so the list can give it the focus back after a visit. */
   openRef?: Ref<HTMLButtonElement>; onOpen: () => void;
 }) {
   const title = itemName(item);
@@ -85,16 +88,24 @@ export default function WishlistRow({ item, badge, facts, columns, code, compare
   const reg = world ? regCode(world.region) : null;
   /** The target country itself is the cheapest worldwide: shown like every other region, only slightly highlighted. */
   const homeCheapest = !worldCheaper && compare && world !== null && facts.price !== null;
-  const origin = [badge?.source ? shopNames[badge.source] ?? badge.source : null, badge?.region ? countryData(badge.region).name : null].filter(Boolean).join(' · ');
+  // Under each price only the shop; the region of the target-country price is the column itself, the INT region shows as a flag.
+  const origin = badge?.source ? shopNames[badge.source] ?? badge.source : '';
+  const worldShop = world?.source ? shopNames[world.source] ?? world.source : '';
+  const cover = <GameCover small src={item.game?.cover_url} title={title} />;
   const cells: Record<WishlistColumn, ReactNode> = {
-    game: <td key="game" className="c-game"><div className="game-cell"><GameCover small src={item.game?.cover_url} title={title} /><div className="game-name"><b>{title}</b><small>{subline(item)}</small></div></div></td>,
+    game: <td key="game" className="c-game"><div className="game-cell">
+      {mode === 'cover' ? <button ref={openRef} type="button" className="cover-open" aria-label={`Details zu ${title}`} title="Details öffnen" onClick={onOpen}>{cover}</button> : cover}
+      <div className="game-name">{mode === 'title' ? <button ref={openRef} type="button" className="title-open" title="Details öffnen" onClick={onOpen}><b>{title}</b></button> : <b>{title}</b>}<small>{subline(item)}</small></div>
+    </div></td>,
     price: <td key="price" className="c-de r" title={badge ? badgeTitle(badge, scopeLabel) : undefined}>
       {facts.price !== null ? <><Price cents={facts.price} tone={badge?.stale ? 'stale' : 'default'} />{origin && <div className="wl-sub">{origin}</div>}</> : <span className="faint">–</span>}
     </td>,
     world: <td key="world" className="c-world">
-      {worldCheaper ? <div className="world-cell" title={`Günstigste Region weltweit: ${reg?.name ?? 'Region unbekannt'}. Nicht automatisch im Zielland aktivierbar.`}>{reg && <Reg code={reg.code} />}<Price cents={world.cents} tone="world" /></div>
-        : homeCheapest ? <div className="world-cell home-best" title={`Günstigste Region weltweit: ${reg?.name ?? 'Region unbekannt'}. In ${code || 'deinem Zielland'} gibt es kein günstigeres Angebot.`}>
+      {worldCheaper ? <><div className="world-cell" title={`Günstigste Region weltweit: ${reg?.name ?? 'Region unbekannt'}. Nicht automatisch im Zielland aktivierbar.`}>{reg && <Reg code={reg.code} />}<Price cents={world.cents} tone="world" /></div>
+          {worldShop && <div className="wl-sub">{worldShop}</div>}</>
+        : homeCheapest ? <><div className="world-cell home-best" title={`Günstigste Region weltweit: ${reg?.name ?? 'Region unbekannt'}. In ${code || 'deinem Zielland'} gibt es kein günstigeres Angebot.`}>
             {reg && <Reg code={reg.code} home={reg.code === code} />}<Price cents={world!.cents} tone="world" /><span className="sr-only">, im Zielland am günstigsten</span></div>
+            {worldShop && <div className="wl-sub">{worldShop}</div>}</>
           : facts.price !== null ? <span className="faint">–</span>
             : <span className="wl-note faint">{missingWorld(badge)}</span>}
     </td>,

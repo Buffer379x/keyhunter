@@ -1,6 +1,4 @@
-import { useState } from 'react';
-import { api, FETCH_STATUS_CHANGED } from '../../api';
-import { Button, EmptyState, Icon, Notice, Panel, Pill } from '../../components';
+import { EmptyState, Icon, Panel, Pill } from '../../components';
 import type { FetchRun, FetchShopStatus, FetchStatusResponse } from '../../api';
 import { relativeTime } from '../../time';
 import { paceText } from '../../FetchStatus';
@@ -80,46 +78,17 @@ function RunsTable({ runs }: { runs: FetchRun[] }) {
   </table></div>;
 }
 
-/**
- * Pause and resume of the automatic checks (0.7.0): while paused no shop is asked on its own; a refresh the owner asks for
- * in a game and the first search of a newly added game still run. Takes effect at once, no "Speichern" needed.
- */
-function PauseControl({ pausedAt, csrf, now, onChanged }: { pausedAt: number | null; csrf: string; now: number; onChanged: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  async function toggle() {
-    setBusy(true); setError('');
-    try {
-      await api('/status/fetch/pause', 'POST', { paused: pausedAt === null }, csrf);
-      onChanged(); window.dispatchEvent(new Event(FETCH_STATUS_CHANGED));
-    } catch (e) { setError(e instanceof Error ? e.message : 'Konnte nicht umgeschaltet werden.'); }
-    finally { setBusy(false); }
-  }
-  return <SettingsPanel title="Automatische Abfragen" titleId="pause-title"
-    aside={<Pill tone={pausedAt === null ? 'ok' : 'warn'}><i className={`dot${pausedAt === null ? '' : ' warn'}`} aria-hidden="true" />{pausedAt === null ? 'Laufen' : 'Pausiert'}</Pill>}>
-    <div className="set-row set-pad">
-      <div>{pausedAt === null
-        ? <p className="hint">Pausieren, wenn du gerade keine Preise brauchst. Danach fragt KeyHunter keinen Shop mehr von sich aus ab, bis du fortsetzt. „Jetzt aktualisieren“ in einem Spiel funktioniert weiter.</p>
-        : <p className="hint"><b className="set-paused">Pausiert seit {dateTimeText(pausedAt)} ({relativeTime(pausedAt, now * 1000)}).</b> Preise werden nicht automatisch aktualisiert und gelten nach einem Tag als veraltet. Nach dem Fortsetzen holt KeyHunter die fälligen Abfragen gleichmäßig verteilt nach.</p>}</div>
-      <Button variant={pausedAt === null ? 'default' : 'primary'} loading={busy} onClick={() => void toggle()}>
-        <Icon name={pausedAt === null ? 'clock' : 'refresh'} />{pausedAt === null ? 'Abfragen pausieren' : 'Abfragen fortsetzen'}</Button>
-    </div>
-    {error && <Notice error>{error}</Notice>}
-  </SettingsPanel>;
-}
-
 /** Recommended product interval of both shops (settings::shop_readers). */
 const RECOMMENDED_INTERVAL = 28800;
 
-export default function FetchPanel({ data, failed, loadedAt, intervals = {}, csrf, onChanged, onShops }: {
-  data: FetchStatusResponse | null; failed: boolean; loadedAt: number | null; intervals?: Record<string, number>; csrf: string; onChanged: () => void; onShops: () => void;
+export default function FetchPanel({ data, failed, loadedAt, intervals = {}, onShops }: {
+  data: FetchStatusResponse | null; failed: boolean; loadedAt: number | null; intervals?: Record<string, number>; onShops: () => void;
 }) {
   if (!data) return <p role="status" className="hint">{failed ? 'Der Abrufstatus konnte nicht gelesen werden.' : 'Abrufstatus wird geladen …'}</p>;
   if (data.shops.length === 0) return <Panel><EmptyState icon="activity" title="Noch kein Shop eingerichtet" headingLevel={3}>Sobald ein Key-Shop eingerichtet ist, siehst du hier Tagesbudget, nächste und letzte Abrufe.</EmptyState></Panel>;
   const now = Date.now() / 1000;
   return <>
     {failed && loadedAt !== null && <p className="hint" role="status">Aktualisierung fehlgeschlagen · Stand {new Date(loadedAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr</p>}
-    <PauseControl pausedAt={data.paused_at ?? null} csrf={csrf} now={now} onChanged={onChanged} />
     {!data.paused_at && data.shops.map(shop => <DemandNote key={shop.source} shop={shop} interval={intervals[shop.source]} onShops={onShops} />)}
     <div className="shops">{data.shops.map(shop => <ShopStatus key={shop.source} shop={shop} now={now} paused={!!data.paused_at} />)}</div>
     <SettingsPanel title="Letzte Abrufe" titleId="runs-title" insetClassName="set-runs">

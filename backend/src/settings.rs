@@ -55,6 +55,15 @@ fn is_column_order(columns: &[String]) -> bool {
             .all(|key| columns.iter().filter(|c| c == key).count() == 1)
 }
 
+/// Hidden columns are known columns, each once. The column that opens the game page cannot be hidden: the details
+/// button (`open`) with the "button" mode, the game column (title and cover) with "title" or "cover".
+fn valid_hidden(hidden: &[String], open: &str) -> bool {
+    let opener = if open == "button" { "open" } else { "game" };
+    hidden.iter().enumerate().all(|(i, key)| {
+        WISHLIST_COLUMNS.contains(&key.as_str()) && key != opener && !hidden[..i].contains(key)
+    })
+}
+
 /// The stored order, or the default order when nothing (or an outdated list) is stored.
 fn column_order(stored: &str) -> Vec<String> {
     let columns: Vec<String> = stored.split(',').map(str::to_string).collect();
@@ -73,6 +82,12 @@ pub(crate) struct Settings {
     /// Order of the wishlist table columns. Absent on PUT keeps the stored order.
     #[serde(default)]
     wishlist_columns: Option<Vec<String>>,
+    /// Hidden wishlist columns (0.7.1). Absent on PUT keeps the stored set.
+    #[serde(default)]
+    wishlist_hidden: Option<Vec<String>>,
+    /// What opens the game page from the list: "button", "title" or "cover" (0.7.1). Absent on PUT keeps it.
+    #[serde(default)]
+    wishlist_open: Option<String>,
     sources: Vec<SourceSettings>,
     #[serde(default)]
     countries: Vec<String>,
@@ -86,7 +101,7 @@ fn default_price_scope() -> String {
 
 async fn load(state: &Shared) -> ApiResult<Settings> {
     let row = sqlx::query(
-        "SELECT target_country, currency, wishlist_price_scope, wishlist_columns FROM app_settings WHERE id = 1",
+        "SELECT target_country, currency, wishlist_price_scope, wishlist_columns, wishlist_hidden, wishlist_open FROM app_settings WHERE id = 1",
     )
     .fetch_one(&state.pool)
     .await?;
@@ -96,6 +111,14 @@ async fn load(state: &Shared) -> ApiResult<Settings> {
         currency: row.get("currency"),
         wishlist_price_scope: row.get("wishlist_price_scope"),
         wishlist_columns: Some(column_order(row.get("wishlist_columns"))),
+        wishlist_hidden: Some(
+            row.get::<String, _>("wishlist_hidden")
+                .split(',')
+                .filter(|key| WISHLIST_COLUMNS.contains(key))
+                .map(str::to_string)
+                .collect(),
+        ),
+        wishlist_open: Some(row.get("wishlist_open")),
         sources: rows
             .into_iter()
             .map(|r| {
@@ -155,6 +178,10 @@ pub(crate) async fn put_settings(
             .wishlist_columns
             .as_ref()
             .is_some_and(|columns| !is_column_order(columns))
+        || input
+            .wishlist_open
+            .as_deref()
+            .is_some_and(|open| !matches!(open, "button" | "title" | "cover"))
     {
         return Err(bad());
     }
@@ -180,7 +207,27 @@ pub(crate) async fn put_settings(
             return Err(bad());
         }
     }
+    let (stored_hidden, stored_open): (String, String) =
+        sqlx::query_as("SELECT wishlist_hidden, wishlist_open FROM app_settings WHERE id = 1")
+            .fetch_one(&state.pool)
+            .await?;
+    let open = input.wishlist_open.clone().unwrap_or(stored_open);
+    let hidden: Vec<String> = input.wishlist_hidden.clone().unwrap_or_else(|| {
+        stored_hidden
+            .split(',')
+            .filter(|key| !key.is_empty())
+            .map(str::to_string)
+            .collect()
+    });
+    if !valid_hidden(&hidden, &open) {
+        return Err(bad());
+    }
     let mut tx = state.pool.begin().await?;
+    sqlx::query("UPDATE app_settings SET wishlist_hidden = ?, wishlist_open = ? WHERE id = 1")
+        .bind(hidden.join(","))
+        .bind(&open)
+        .execute(&mut *tx)
+        .await?;
     sqlx::query(
         "UPDATE app_settings SET target_country = ?, wishlist_price_scope = ? WHERE id = 1",
     )

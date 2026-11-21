@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api } from '../../api';
+import { api, FETCH_STATUS_CHANGED } from '../../api';
 import type { AlertOverview, FetchStatusResponse } from '../../api';
 import { whenVisible } from '../../poll';
 
@@ -25,7 +25,9 @@ export function useFetchStatus(poll: boolean) {
         .finally(() => { if (!controller.signal.aborted && poll) cancel = whenVisible(load, FETCH_REFRESH_MS); });
     };
     load();
-    return () => { controller.abort(); cancel(); };
+    const reload = () => { cancel(); load(); };
+    window.addEventListener(FETCH_STATUS_CHANGED, reload);
+    return () => { controller.abort(); cancel(); window.removeEventListener(FETCH_STATUS_CHANGED, reload); };
   }, [poll, tick]);
   const reload = useCallback(() => setTick(n => n + 1), []);
   return { data, failed, loadedAt, reload };

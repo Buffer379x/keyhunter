@@ -22,6 +22,8 @@ const shapes = {
   alert: <><path d="M12 4l9 16H3z" /><path d="M12 10v4M12 17v.5" /></>,
   globe: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18" /></>,
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,
+  play: <path d="M8 5.5v13l11-6.5z" />,
+  pause: <path d="M9 5.5v13M15 5.5v13" />,
   grip: <><circle cx="9" cy="6" r="1" /><circle cx="15" cy="6" r="1" /><circle cx="9" cy="12" r="1" /><circle cx="15" cy="12" r="1" /><circle cx="9" cy="18" r="1" /><circle cx="15" cy="18" r="1" /></>,
   download: <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />,
   logout: <path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" />,

@@ -20,6 +20,9 @@ export interface Settings {
   wishlist_price_scope: 'preferred' | 'all';
   /** Order of the wishlist table columns (keys of `WISHLIST_COLUMNS`); the server returns a complete order. */
   wishlist_columns?: string[];
+  /** Hidden wishlist columns and what opens the game page ("button", "title", "cover"), 0.7.1. */
+  wishlist_hidden?: string[];
+  wishlist_open?: string;
   sources: SourceSettings[];
   countries: string[];
   confirmed_activation_countries?: string[];

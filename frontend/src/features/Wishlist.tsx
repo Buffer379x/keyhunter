@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { AlertEvent, CatalogGame, FetchStatusResponse, PriceBadgeData, WishlistItem } from '../api';
-import { api } from '../api';
+import { api, FETCH_STATUS_CHANGED } from '../api';
 import { Button, Chip, ConfirmDialog, EmptyState, Field, Icon, Inset, Kpi, Notice, Panel, PanelHead, formatPrice } from '../components';
 import CatalogSearch from './CatalogSearch';
 import GameDetail, { isTab } from './GameDetail';
@@ -16,13 +16,13 @@ import type { ChipFilter, Row, RowFacts } from './wishlist-model';
 import { itemName } from './catalog-ui';
 import { whenVisible } from '../poll';
 import { downloadJson, wishlistExport } from './wishlist-export';
-import { columnOrder } from './wishlist-columns';
+import { columnOrder, openMode, visibleColumns } from './wishlist-columns';
 import type { WishlistColumn } from './wishlist-columns';
 
 interface Props {
   csrf: string; targetCountry: string | null; targetLabel: string;
-  /** Column order from the settings; missing or invalid means the default order. */
-  columns?: string[];
+  /** Column order, hidden columns and what opens the game page, from the settings (missing = defaults). */
+  columns?: string[]; hidden?: string[]; opener?: string;
   /** The add dialog; the top bar's "Spiel hinzufügen" opens it, so the state lives in the shell. */
   addOpen: boolean; onAddOpen: (open: boolean) => void;
   /** Title of the open game for the breadcrumb (null without a selection). */
@@ -77,7 +77,7 @@ const emptyFoot = <span aria-hidden="true">{'\u00a0'}</span>;
  * Wishlist page: the list (KPI tiles, filter chips, table) or, with `?item=`, the game detail as its own full-width page.
  * The list state (filter, sort, scroll position) survives a visit to a game; browser back returns to the same place.
  */
-export default function Wishlist({ csrf, targetCountry, targetLabel, columns, addOpen, onAddOpen, onTitle, onSettings, onCountChange, onError }: Props) {
+export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hidden, opener, addOpen, onAddOpen, onTitle, onSettings, onCountChange, onError }: Props) {
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState('');
@@ -166,7 +166,9 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, ad
         .finally(() => { if (!controller.signal.aborted) cancel = whenVisible(load, FETCH_REFRESH_MS); });
     };
     load();
-    return () => { controller.abort(); cancel(); };
+    const reload = () => { cancel(); load(); };
+    window.addEventListener(FETCH_STATUS_CHANGED, reload);
+    return () => { controller.abort(); cancel(); window.removeEventListener(FETCH_STATUS_CHANGED, reload); };
   }, []);
   const closeSearch = useCallback(() => onAddOpen(false), [onAddOpen]);
 
@@ -309,11 +311,12 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, ad
   const scopeLabel = `Tiefster aktivierbarer Grundpreis · ${targetLabel}`;
   const code = targetCountry?.toUpperCase() ?? '';
   const priceLabel = code ? `Preis ${code}` : 'Preis';
-  const order = columnOrder(columns);
+  const mode = openMode(opener);
+  const order = visibleColumns(columnOrder(columns), hidden, mode);
   const headers: Record<WishlistColumn, ReactNode> = {
     game: <SortHeader key="game" id="title" sort={sort} onSort={sortBy}>Spiel</SortHeader>,
     price: <SortHeader key="price" id="price" sort={sort} onSort={sortBy} right>{priceLabel}</SortHeader>,
-    world: <SortHeader key="world" id="world" sort={sort} onSort={sortBy}>Günstigste Region</SortHeader>,
+    world: <SortHeader key="world" id="world" sort={sort} onSort={sortBy}>Preis INT</SortHeader>,
     save: <SortHeader key="save" id="save" sort={sort} onSort={sortBy} right>Ersparnis</SortHeader>,
     target: <SortHeader key="target" id="target" sort={sort} onSort={sortBy} right>Ziel</SortHeader>,
     status: <SortHeader key="status" id="status" sort={sort} onSort={sortBy}>Status</SortHeader>,
@@ -376,7 +379,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, ad
             : visible.length === 0 ? <p className="empty">Kein Spiel passt zu diesem Filter.</p>
               : <table className="wl" aria-label="Vorgemerkte Spiele">
                 <thead><tr>{order.map(column => headers[column])}</tr></thead>
-                <tbody>{visible.map(item => <WishlistRow key={item.id} item={item} badge={badges[item.id] ?? item.price_badge} facts={facts[item.id]} columns={order} code={code} compare
+                <tbody>{visible.map(item => <WishlistRow key={item.id} item={item} badge={badges[item.id] ?? item.price_badge} facts={facts[item.id]} columns={order} mode={mode} code={code} compare
                   scopeLabel={scopeLabel} targetDisabled={!!alerts[item.id] && !alerts[item.id].enabled} onOpen={() => open(item.id)}
                   openRef={element => { if (element) rows.current.set(item.id, element); else rows.current.delete(item.id); }} />)}</tbody>
               </table>}

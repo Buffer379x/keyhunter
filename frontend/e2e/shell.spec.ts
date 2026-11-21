@@ -13,7 +13,9 @@ test('sidebar fetch card sums the budget, shows the pace when the backend sends 
   await page.route('**/api/v1/status/fetch', route => route.fulfill({ json: { shops: [shop('eneba', 300, 500, 180), shop('driffle', 112, 500)], errors_24h: 0, recent_runs: [] } }));
   await signInToFixture(page);
   const sidebar = page.getByRole('complementary', { name: 'Seitenleiste' });
-  const card = sidebar.getByRole('button', { name: /^Abrufstatus Eneba/ });
+  // The status part of the card is the button (its text is its name); the play / pause button sits beside it.
+  const card = sidebar.locator('.fetch-mini .fetch-open');
+  await expect(card).toHaveRole('button');
   await expect(card).toContainText('alle 3 Min.');
   await expect(card).toContainText('412 von 1000 Abrufen heute');
   await card.click();

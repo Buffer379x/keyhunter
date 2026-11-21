@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { navTo, navItem, saveButton, signInToFixture } from './helpers';
-import { backToList, openTab, removeCurrent } from './detail-helpers';
+import { navTo, saveButton, signInToFixture } from './helpers';
+import { openTab, removeCurrent } from './detail-helpers';
 
 async function addForza(page: Page) {
   await page.getByRole('searchbox', { name: 'Nach Spielen suchen', exact: true }).fill('forza');
@@ -42,32 +42,6 @@ test('the column order can be changed by drag and drop', async ({ page }) => {
   await expect(rows.nth(1)).toContainText('Spiel (Cover und Titel)');
   await page.getByRole('button', { name: 'Verwerfen', exact: true }).click();
   await expect(rows.first()).toContainText('Spiel (Cover und Titel)');
-});
-
-test('automatic checks can be paused and resumed on the Abrufstatus page', async ({ page }) => {
-  await signInToFixture(page);
-  await navTo(page, 'Abrufstatus');
-  const panel = page.getByRole('region', { name: 'Automatische Abfragen', exact: true });
-  await expect(panel).toContainText('Laufen');
-  await panel.getByRole('button', { name: 'Abfragen pausieren', exact: true }).click();
-  await expect(panel).toContainText('Pausiert seit');
-  await expect(panel.getByRole('button', { name: 'Abfragen fortsetzen', exact: true })).toBeVisible();
-  expect((await (await page.request.get('/api/v1/status/fetch')).json()).paused_at).toEqual(expect.any(Number));
-  // The sidebar card and the wishlist tile say so at once.
-  await expect(page.locator('.fetch-mini .fetch-row').first()).toContainText('pausiert');
-  // A game added during the pause still gets its first search (a direct action of the owner).
-  await addForza(page);
-  await backToList(page);
-  await expect(page.locator('.kpi').filter({ hasText: 'Abrufe heute' })).toContainText('pausiert');
-  await navTo(page, 'Abrufstatus');
-  await panel.getByRole('button', { name: 'Abfragen fortsetzen', exact: true }).click();
-  await expect(panel).toContainText('Laufen');
-  expect((await (await page.request.get('/api/v1/status/fetch')).json()).paused_at).toBeNull();
-  await expect(page.locator('.fetch-mini .fetch-row').first()).not.toContainText('pausiert');
-  await expect(navItem(page, 'Abrufstatus')).toHaveAttribute('aria-current', 'page');
-  await navTo(page, 'Wunschliste');
-  await page.locator('table.wl tbody tr').first().getByRole('button', { name: /^Details zu / }).click();
-  await removeCurrent(page);
 });
 
 test('long facts wrap inside the Infos box and the description has a box of its own', async ({ page }) => {

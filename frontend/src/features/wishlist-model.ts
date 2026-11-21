@@ -16,7 +16,7 @@ export interface RowFacts {
   /** Best base price valid in the target country (the badge price), null without one. */
   price: number | null;
   /** Cheapest current offer of any region. */
-  world: { cents: number; region: string | null } | null;
+  world: { cents: number; region: string | null; source: string | null } | null;
   /** Cents the cheapest region saves against `price` (only when it is really cheaper). */
   saving: number | null;
   /** `saving` as a share of `price` (0..1). */
@@ -37,7 +37,7 @@ const comparable = (rule?: TargetRule | null) => !!rule && rule.enabled && rule.
 
 export function rowFacts(badge: PriceBadgeData | undefined, rule: TargetRule | null | undefined): RowFacts {
   const price = hasPrice(badge) ? badge!.cents! : null;
-  const world = badge?.world && Number.isFinite(badge.world.cents) ? { cents: badge.world.cents, region: badge.world.region } : null;
+  const world = badge?.world && Number.isFinite(badge.world.cents) ? { cents: badge.world.cents, region: badge.world.region, source: badge.world.source ?? null } : null;
   const saving = price !== null && world !== null && world.cents < price ? price - world.cents : null;
   const target = rule && rule.mode === 'target' ? rule.target_cents : null;
   const trend = badge?.trend && badge.trend.some(value => value !== null) ? badge.trend : null;
