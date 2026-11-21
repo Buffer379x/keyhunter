@@ -16,7 +16,6 @@ import { shopNames } from './shop-names';
 import type { ChipFilter, PriceBasis, Row, RowFacts } from './wishlist-model';
 import { itemName } from './catalog-ui';
 import { whenVisible } from '../poll';
-import { downloadJson, wishlistExport } from './wishlist-export';
 import { columnOrder, openMode, visibleColumns } from './wishlist-columns';
 import type { WishlistColumn } from './wishlist-columns';
 
@@ -24,6 +23,8 @@ interface Props {
   csrf: string; targetCountry: string | null; targetLabel: string;
   /** Column order, hidden columns and what opens the game page, from the settings (missing = defaults). */
   columns?: string[]; hidden?: string[]; opener?: string;
+  /** Order and hidden columns of the offers table on the game page (0.8.2). */
+  offersColumns?: string[]; offersHidden?: string[];
   /** The add dialog; the top bar's "Spiel hinzufügen" opens it, so the state lives in the shell. */
   addOpen: boolean; onAddOpen: (open: boolean) => void;
   /** Title of the open game for the breadcrumb (null without a selection). */
@@ -81,7 +82,7 @@ const emptyFoot = <span aria-hidden="true">{'\u00a0'}</span>;
  * Wishlist page: the list (KPI tiles, filter chips, table) or, with `?item=`, the game detail as its own full-width page.
  * The list state (filter, sort, scroll position) survives a visit to a game; browser back returns to the same place.
  */
-export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hidden, opener, addOpen, onAddOpen, onTitle, onSettings, onCountChange, onError }: Props) {
+export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hidden, opener, offersColumns, offersHidden, addOpen, onAddOpen, onTitle, onSettings, onCountChange, onError }: Props) {
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState('');
@@ -320,9 +321,6 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
       requestAnimationFrame(() => listHeading.current?.focus({ preventScroll: true }));
     } catch (error) { onError(error); } finally { setPurchasing(false); }
   }
-  function exportList() {
-    downloadJson('keyhunter-wunschliste.json', wishlistExport(items));
-  }
 
   // Derived list data: facts per row (price, cheapest region, saving, target), chips, sorting and KPI tiles.
   const facts = useMemo(() => Object.fromEntries(items.map(item => [item.id, rowFacts(badges[item.id] ?? item.price_badge, alerts[item.id], basis)])) as Record<string, RowFacts>, [items, badges, alerts, basis]);
@@ -374,7 +372,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
   if (selected && viewed) return <>
     {message && <Notice>{message}</Notice>}
     <GameDetail key={selected.id} item={selected} viewed={viewed} preview={!!preview} variants={variants} editionItems={editionItems} editionError={editionError} badges={badges}
-      csrf={csrf} targetCountry={targetCountry} targetLabel={targetLabel} tab={tab} purchasing={purchasing} carting={carting} onCart={() => void toggleCart()} onCartOffer={(source, scope) => void cartOffer(source, scope)} onTab={changeTab} onBack={closeDetail} onPurchase={() => void purchase()}
+      csrf={csrf} targetCountry={targetCountry} targetLabel={targetLabel} tab={tab} purchasing={purchasing} carting={carting} onCart={() => void toggleCart()} onCartOffer={(source, scope) => void cartOffer(source, scope)} offersColumns={offersColumns} offersHidden={offersHidden} onTab={changeTab} onBack={closeDetail} onPurchase={() => void purchase()}
       onRemove={() => { setRemoveError(''); setRemoveItem(selected); }} onView={chooseEdition} onClearPreview={() => setPreview(null)} onBadge={updateBadge} onSettings={onSettings} onError={onError} onRule={updateRule} />
     {dialogs}
   </>;
@@ -386,7 +384,6 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
   return <div className="page wishlist-page">
     <header className="page-head">
       <div><h1 id="wishlist-title" ref={listHeading} tabIndex={-1}>Wunschliste</h1><p>{sub}</p></div>
-      <div className="head-actions"><Button disabled={!ready || !items.length} onClick={exportList}><Icon name="download" />Liste exportieren</Button></div>
     </header>
     {message && <Notice>{message}</Notice>}
     {!loading && selectedId && !selected && <Notice>Der verlinkte Eintrag ist nicht mehr in deiner Wunschliste.</Notice>}

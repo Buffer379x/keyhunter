@@ -48,11 +48,39 @@ const WISHLIST_COLUMNS: [&str; 8] = [
     "game", "price", "world", "save", "target", "status", "trend", "open",
 ];
 
+/// Columns of the offers table (0.8.2); the actions ("Zum Shop", cart) always stay last and are not listed.
+const OFFERS_COLUMNS: [&str; 7] = [
+    "shop", "region", "validity", "price", "diff", "score", "seen",
+];
+/// The price column cannot be hidden: without it the table has no purpose.
+const OFFERS_REQUIRED: &str = "price";
+
 fn is_column_order(columns: &[String]) -> bool {
-    columns.len() == WISHLIST_COLUMNS.len()
-        && WISHLIST_COLUMNS
+    is_order_of(columns, &WISHLIST_COLUMNS)
+}
+/// Every known column exactly once.
+fn is_order_of(columns: &[String], known: &[&str]) -> bool {
+    columns.len() == known.len()
+        && known
             .iter()
             .all(|key| columns.iter().filter(|c| c == key).count() == 1)
+}
+/// Hidden offers columns: known ones, each once, never the price.
+fn valid_offers_hidden(hidden: &[String]) -> bool {
+    hidden.iter().enumerate().all(|(i, key)| {
+        OFFERS_COLUMNS.contains(&key.as_str())
+            && key != OFFERS_REQUIRED
+            && !hidden[..i].contains(key)
+    })
+}
+/// The stored offers order, or the default one.
+fn offers_order(stored: &str) -> Vec<String> {
+    let columns: Vec<String> = stored.split(',').map(str::to_string).collect();
+    if is_order_of(&columns, &OFFERS_COLUMNS) {
+        columns
+    } else {
+        OFFERS_COLUMNS.iter().map(|c| c.to_string()).collect()
+    }
 }
 
 /// Hidden columns are known columns, each once. The column that opens the game page cannot be hidden: the details
@@ -88,6 +116,11 @@ pub(crate) struct Settings {
     /// What opens the game page from the list: "button", "title" or "cover" (0.7.1). Absent on PUT keeps it.
     #[serde(default)]
     wishlist_open: Option<String>,
+    /// Order and hidden columns of the offers table (0.8.2). Absent on PUT keeps the stored ones.
+    #[serde(default)]
+    offers_columns: Option<Vec<String>>,
+    #[serde(default)]
+    offers_hidden: Option<Vec<String>>,
     sources: Vec<SourceSettings>,
     #[serde(default)]
     countries: Vec<String>,
@@ -101,7 +134,7 @@ fn default_price_scope() -> String {
 
 async fn load(state: &Shared) -> ApiResult<Settings> {
     let row = sqlx::query(
-        "SELECT target_country, currency, wishlist_price_scope, wishlist_columns, wishlist_hidden, wishlist_open FROM app_settings WHERE id = 1",
+        "SELECT target_country, currency, wishlist_price_scope, wishlist_columns, wishlist_hidden, wishlist_open, offers_columns, offers_hidden FROM app_settings WHERE id = 1",
     )
     .fetch_one(&state.pool)
     .await?;
@@ -119,6 +152,14 @@ async fn load(state: &Shared) -> ApiResult<Settings> {
                 .collect(),
         ),
         wishlist_open: Some(row.get("wishlist_open")),
+        offers_columns: Some(offers_order(row.get("offers_columns"))),
+        offers_hidden: Some(
+            row.get::<String, _>("offers_hidden")
+                .split(',')
+                .filter(|key| OFFERS_COLUMNS.contains(key) && *key != OFFERS_REQUIRED)
+                .map(str::to_string)
+                .collect(),
+        ),
         sources: rows
             .into_iter()
             .map(|r| {
@@ -182,6 +223,14 @@ pub(crate) async fn put_settings(
             .wishlist_open
             .as_deref()
             .is_some_and(|open| !matches!(open, "button" | "title" | "cover"))
+        || input
+            .offers_columns
+            .as_ref()
+            .is_some_and(|columns| !is_order_of(columns, &OFFERS_COLUMNS))
+        || input
+            .offers_hidden
+            .as_ref()
+            .is_some_and(|hidden| !valid_offers_hidden(hidden))
     {
         return Err(bad());
     }
@@ -235,6 +284,18 @@ pub(crate) async fn put_settings(
     .bind(input.wishlist_price_scope)
     .execute(&mut *tx)
     .await?;
+    if let Some(columns) = &input.offers_columns {
+        sqlx::query("UPDATE app_settings SET offers_columns = ? WHERE id = 1")
+            .bind(columns.join(","))
+            .execute(&mut *tx)
+            .await?;
+    }
+    if let Some(hidden) = &input.offers_hidden {
+        sqlx::query("UPDATE app_settings SET offers_hidden = ? WHERE id = 1")
+            .bind(hidden.join(","))
+            .execute(&mut *tx)
+            .await?;
+    }
     if let Some(columns) = &input.wishlist_columns {
         sqlx::query("UPDATE app_settings SET wishlist_columns = ? WHERE id = 1")
             .bind(columns.join(","))

@@ -16,7 +16,7 @@ export function columnOrder(stored: readonly string[] | null | undefined): Wishl
 }
 
 /** The order with the column at `index` moved one place up (-1) or down (+1). */
-export function moveColumn(order: WishlistColumn[], index: number, step: -1 | 1): WishlistColumn[] {
+export function moveColumn<T>(order: T[], index: number, step: -1 | 1): T[] {
   const target = index + step;
   if (index < 0 || target < 0 || target >= order.length) return order;
   const next = [...order];
@@ -25,7 +25,7 @@ export function moveColumn(order: WishlistColumn[], index: number, step: -1 | 1)
 }
 
 /** The order with the column at `from` taken out and put in at `to` (drag and drop). */
-export function moveColumnTo(order: WishlistColumn[], from: number, to: number): WishlistColumn[] {
+export function moveColumnTo<T>(order: T[], from: number, to: number): T[] {
   if (from < 0 || from >= order.length) return order;
   const target = Math.max(0, Math.min(order.length - 1, to));
   if (target === from) return order;

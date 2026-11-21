@@ -53,7 +53,7 @@ test('columns can be hidden, and either the button, the title or the cover opens
   await backToList(page);
 
   await navTo(page, 'Allgemein');
-  await page.getByRole('button', { name: 'Standard wiederherstellen', exact: true }).click();
+  await page.getByRole('region', { name: 'Wunschliste · Spalten', exact: true }).getByRole('button', { name: 'Standard wiederherstellen', exact: true }).click();
   await saveSettings(page);
   const reset = await (await page.request.get('/api/v1/settings')).json();
   expect([reset.wishlist_open, reset.wishlist_hidden]).toEqual(['button', []]);

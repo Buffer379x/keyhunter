@@ -80,9 +80,13 @@ impl Wish {
             && product.key_game
             && product.platform_ids.contains(&self.platform_id)
     }
+    /// A product the owner may confirm: same title, a key game, for the wish's system. A wish for the Xbox 360 or the
+    /// original Xbox also takes an Xbox One key (0.8.2): shops sell those classics as backward-compatible Xbox Live keys.
+    /// Such a match is never confirmed automatically ([`Self::auto_matches`] stays exact), the owner checks it once.
     pub(crate) fn matches(&self, product: &Product) -> bool {
         product.key_game
-            && product.platform_ids.contains(&self.platform_id)
+            && (product.platform_ids.contains(&self.platform_id)
+                || (matches!(self.platform_id, 12 | 11) && product.platform_ids.contains(&49)))
             && self.keys().contains(&title_key(&product.title))
     }
 }
@@ -141,6 +145,12 @@ pub(crate) struct Link {
     /// Interval of the next check in seconds (shop interval, validity in the target country, price-trend pace).
     #[sqlx(default)]
     pub check_every: Option<i64>,
+    /// Interval factor of the job from the price trend (0.5 to 2, `shop_job.pace`); `None` without a job yet.
+    #[sqlx(default)]
+    pub pace: Option<f64>,
+    /// An edition preview: checked half as often.
+    #[sqlx(default)]
+    pub preview: bool,
 }
 impl Link {
     /// Fingerprint stored at confirmation.
@@ -155,6 +165,18 @@ impl Link {
         self.review == "confirmed"
             && (wish.matches(product) || self.manual_match)
             && self.fingerprint.as_deref() == Some(product.fingerprint().as_str())
+    }
+    /// Score 0 to 100 (0.8.2) of a confirmed, measured product: how it does in the check plan. It follows the interval
+    /// factor against the shop interval, `pace × 2` for a preview (see `jobs::effective_interval`), on a log scale:
+    /// factor 0.5 (steadily the cheapest of the game, checked twice as often) → 100, 1 (no trend yet, average) → 50,
+    /// 2 (steadily the most expensive, or sold out; checked half as often) → 0. `None` for products that are not
+    /// checked for a price: unconfirmed, rejected, switched-off shop, not measured yet.
+    pub(crate) fn score(&self) -> Option<i64> {
+        (self.review == "confirmed" && self.enabled && self.observed_at.is_some()).then(|| {
+            let factor =
+                self.pace.unwrap_or(1.0).clamp(0.5, 2.0) * if self.preview { 2.0 } else { 1.0 };
+            (50.0 * (1.0 - factor.log2())).round().clamp(0.0, 100.0) as i64
+        })
     }
     pub(crate) fn estimate(&self, cents: i64) -> Option<i64> {
         self.fee_estimation_enabled
@@ -186,6 +208,8 @@ impl Link {
             retry_at: 0,
             cheap_score: 0.5,
             check_every: None,
+            pace: None,
+            preview: false,
         }
     }
 }
@@ -206,7 +230,8 @@ pub(crate) async fn links<'e>(
         COALESCE(j.lease_until>?,0) OR COALESCE(j.due<=? AND s.enabled AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<COALESCE(s.daily_jobs,?))
             AND ((SELECT fetch_paused_at FROM app_settings WHERE id=1) IS NULL OR j.requested_at>?),0) AS queued,
         CAST(MIN(604800,MAX(MIN(900,s.poll_interval_seconds),ROUND(s.poll_interval_seconds
-            *CASE WHEN w.state='preview' THEN 2 ELSE 1 END*j.pace))) AS INTEGER) AS check_every
+            *CASE WHEN w.state='preview' THEN 2 ELSE 1 END*j.pace))) AS INTEGER) AS check_every,
+        j.pace AS pace, w.state='preview' AS preview
         FROM offer_link l JOIN source_settings s ON s.id=l.source JOIN shop_state p ON p.source=l.source
         JOIN wishlist_item w ON w.id=l.wish_id LEFT JOIN shop_job j ON j.link_id=l.id WHERE l.wish_id=? ORDER BY l.id")
         .bind(ts).bind(ts).bind(ts).bind(ts/86400).bind(crate::jobs::daily_budget()).bind(ts-900).bind(id).fetch_all(executor).await
@@ -370,7 +395,7 @@ pub(crate) async fn list(
         }
         rows.push(json!({"id":link.id,"source":link.source,"url":link.url,
             "review": if confirmed { "confirmed" } else if link.review == "confirmed" { "pending" } else { &link.review },
-            "can_confirm":matching,"manual_match":link.manual_match && confirmed,"eligible":eligible,"reasons":verdict,"queued":link.queued,"enabled":link.enabled,"cheap_score":link.cheap_score,"check_every":link.check_every,
+            "can_confirm":matching,"manual_match":link.manual_match && confirmed,"eligible":eligible,"reasons":verdict,"queued":link.queued,"enabled":link.enabled,"cheap_score":link.cheap_score,"check_every":link.check_every,"score":link.score(),
             "observed_at":link.observed_at,"attempted_at":link.attempted_at,"last_error":link.last_error,
             "retry_at":link.retry_at,"stale":link.observed_at.is_some_and(|at|t-at > FRESH),
             // A confirmed product the shop renamed since: the price counts, the title is worth a look.
@@ -635,6 +660,67 @@ mod tests {
     use crate::shops::{Availability, Quote};
 
     #[test]
+    fn older_xbox_wishes_take_backward_compatible_one_keys_but_only_by_hand() {
+        let payload=serde_json::json!({"igdb_id":1,"name":"Fable Anniversary","slug":null,"summary":null,"first_release_date":null,
+            "platforms":[{"id":12,"name":"Xbox 360"},{"id":11,"name":"Xbox"}],"aliases":[],"cover_url":null,
+            "version_parent":null,"edition_name":null,"kind":"base_game","fetched_at":0}).to_string();
+        let mut product = Product {
+            id: "fable".into(),
+            name: "Fable Anniversary XBOX LIVE Key ARGENTINA".into(),
+            title: "Fable Anniversary".into(),
+            platform_ids: vec![49, 169],
+            key_game: true,
+            region: None,
+            allowed: vec![],
+            blocked: vec![],
+            purchase_country: None,
+            offers: vec![],
+            availability: Availability::Unknown,
+        };
+        for platform in [12, 11] {
+            let wish = Wish::from_parts(platform, None, Some(payload.clone()));
+            assert!(wish.matches(&product), "{platform}: confirm by hand");
+            assert!(
+                !wish.auto_matches(&product),
+                "{platform}: never automatically"
+            );
+        }
+        // Only Series X|S: no Xbox One key, no match; a real 360 key matches the 360 wish automatically.
+        product.platform_ids = vec![169];
+        assert!(!Wish::from_parts(12, None, Some(payload.clone())).matches(&product));
+        product.platform_ids = vec![12];
+        assert!(Wish::from_parts(12, None, Some(payload.clone())).auto_matches(&product));
+        assert!(!Wish::from_parts(11, None, Some(payload)).matches(&product));
+    }
+
+    #[test]
+    fn score_follows_the_check_interval_factor() {
+        let mut link = Link::fixture(1, "confirmed", None, Some(1));
+        for (pace, preview, score) in [
+            (Some(0.5), false, 100),
+            (Some(0.707), false, 75),
+            (Some(1.0), false, 50),
+            (None, false, 50),
+            (Some(1.414), false, 25),
+            (Some(2.0), false, 0),
+            (Some(0.5), true, 50),
+            (Some(1.0), true, 0),
+        ] {
+            link.pace = pace;
+            link.preview = preview;
+            assert_eq!(link.score(), Some(score), "{pace:?} {preview}");
+        }
+        assert_eq!(Link::fixture(1, "pending", None, Some(1)).score(), None);
+        assert_eq!(
+            Link::fixture(1, "confirmed", None, None).score(),
+            None,
+            "not measured yet"
+        );
+        link.enabled = false;
+        assert_eq!(link.score(), None, "switched-off shop");
+    }
+
+    #[test]
     fn automatic_confirmation_requires_catalog_identity() {
         let payload=serde_json::json!({"igdb_id":1,"name":"Forza Horizon 5","slug":null,"summary":null,"first_release_date":null,
             "platforms":[{"id":169,"name":"Xbox Series X|S"}],"aliases":["Unrelated Name"],"cover_url":null,
@@ -710,6 +796,8 @@ mod tests {
             retry_at: 0,
             cheap_score: 0.5,
             check_every: None,
+            pace: None,
+            preview: false,
         };
         assert_eq!(link.estimate(2392), Some(2440));
         link.fee_estimation_enabled = false;

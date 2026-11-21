@@ -6,6 +6,7 @@ import { downloadJson, wishlistExport } from '../wishlist-export';
 import { SettingsPanel } from './parts';
 import type { SettingsDraft } from './draft';
 import WishlistColumns from './WishlistColumns';
+import OffersColumns from './OffersColumns';
 
 
 export default function General({ settings, countries, edit, onError }: {
@@ -44,6 +45,7 @@ export default function General({ settings, countries, edit, onError }: {
     </SettingsPanel>
 
     <WishlistColumns settings={settings} edit={edit} />
+    <OffersColumns settings={settings} edit={edit} />
 
     <SettingsPanel title="Export" titleId="general-export-title">
       <div className="form-grid">

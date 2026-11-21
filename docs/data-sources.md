@@ -74,6 +74,10 @@ Zu einem gemerkten Katalogspiel werden bis zu 30 zur Plattform und IGDB-Editions
 
 Versteckte Editionen bleiben nur mit einem aktiven gemerkten Anker für Preisabfragen zugelassen. Kauf oder Löschen dieses Ankers beendet ihre Hintergrundabfragen, soweit kein anderer Wunsch sie weiter benötigt. Die Obergrenze für versteckte Editionen beträgt 3000. Bibliothekseinträge bleiben von Shopabfragen ausgeschlossen. Die Länderzeilen sortieren ausschließlich nach Grundpreis bzw. gewählter Gebührenschätzung; die günstigste Region steht oben, auch wenn sie im Zielland nicht gilt. Jede Zeile nennt, ob sie für das Zielland zählt, oder den Grund ihres Ausschlusses. Darüber vergleicht die Übersicht immer den besten im Zielland gültigen Preis mit der günstigsten Region aller Länder und nennt die Differenz. Der Preisverlauf zeigt beide Reihen gemeinsam.
 
+## Score
+
+Jedes bestätigte, schon gemessene Angebot hat einen Score von 0 bis 100 (`score` in `GET /api/v1/wishlist/{id}/offers`, 0.8.2). Er folgt dem Faktor, mit dem das Abfrageintervall vom Shop-Intervall abweicht (`shop_job.pace`, bei Editionsvorschauen mal 2), auf einer logarithmischen Skala: Faktor 0,5 ergibt 100, 1 ergibt 50, 2 und mehr ergibt 0. Das Tempo kommt aus dem Preistrend des Angebots unter allen Regionen des Spiels; ausverkaufte Angebote haben Tempo 2.
+
 ## Warenkorb
 
 Der Warenkorb (`cart_item`, 0.8.0) speichert nur, welche Wünsche darin liegen; `GET /api/v1/cart` liefert sie mit demselben Preis-Badge wie die Wunschliste. Je Spiel zählt das günstigste Angebot nach Key-Preis, wahlweise im Zielland aktivierbar oder aus allen Regionen, mit der Gebührenschätzung seines Shops. Kauf (`state='owned'`) und Löschen entfernen den Eintrag. Seit 0.8.1 hat jeder Eintrag einen Shop (`source`, leer: der günstigste) und eine Preisgrundlage (`scope`: `world` jede Region, `home` im Zielland aktivierbar); `GET /api/v1/cart` liefert dafür je Shop das beste Angebot beider Grundlagen, `PUT /api/v1/cart/{id}` ändert beides.
