@@ -4,7 +4,7 @@ export type WishlistColumn = typeof WISHLIST_COLUMNS[number];
 
 /** Names in the settings list (the price column is named after the target country there, like its header). */
 export const columnNames: Record<WishlistColumn, string> = {
-  game: 'Spiel (Cover und Titel)', price: 'Preis im Zielland', world: 'Günstigste Region', save: 'Ersparnis',
+  game: 'Spiel (Cover und Titel)', price: 'Preis im Zielland', world: 'Preis INT', save: 'Ersparnis',
   target: 'Ziel', status: 'Status', trend: '14 Tage', open: 'Details öffnen',
 };
 
@@ -34,5 +34,19 @@ export function moveColumnTo(order: WishlistColumn[], from: number, to: number):
   next.splice(target, 0, column);
   return next;
 }
+
+/** What opens the game page from the list (0.7.1): the details button, the title or the cover; only one of them. */
+export type OpenMode = 'button' | 'title' | 'cover';
+export const openModes: { value: OpenMode; label: string }[] = [{ value: 'button', label: 'Button' }, { value: 'title', label: 'Titel' }, { value: 'cover', label: 'Cover' }];
+export const openMode = (stored: string | null | undefined): OpenMode => stored === 'title' || stored === 'cover' ? stored : 'button';
+/** The column that opens the game page and therefore cannot be hidden. */
+export const openerColumn = (mode: OpenMode): WishlistColumn => mode === 'button' ? 'open' : 'game';
+/** Columns the table shows, in order: not hidden, and the button column only when the button opens the game. */
+export function visibleColumns(order: WishlistColumn[], hidden: readonly string[] | null | undefined, mode: OpenMode): WishlistColumn[] {
+  const opener = openerColumn(mode);
+  return order.filter(column => column === opener || (!hidden?.includes(column) && (column !== 'open' || mode === 'button')));
+}
+/** Hidden columns after choosing a mode: the new opener is always shown. */
+export const hiddenFor = (hidden: readonly string[] | null | undefined, mode: OpenMode) => (hidden ?? []).filter(column => column !== openerColumn(mode));
 
 export const isDefaultOrder = (order: readonly string[]) => order.every((key, index) => key === WISHLIST_COLUMNS[index]);

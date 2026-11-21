@@ -83,9 +83,6 @@
 .settings-page .col-order .icon-btn { width: 28px; height: 28px; }
 .settings-page .col-order .icon-btn:disabled { opacity: .35; cursor: default; }
 
-/* (0.7.0) Pause of the automatic checks on the Abrufstatus page. */
-.settings-page .set-paused { color: var(--warn); font-weight: 500; }
-
 /* (0.7.0) Drag and drop of the column order: the grip, the held row and no text selection while dragging. */
 .settings-page .col-order .col-grip { display: grid; place-items: center; width: 20px; height: 28px; margin-left: -6px; color: var(--faint); cursor: grab; touch-action: none; }
 .settings-page .col-order .col-grip:hover { color: var(--text-2); }
@@ -94,3 +91,6 @@
 .settings-page .col-order.dragging .col-grip { cursor: grabbing; }
 .settings-page .col-order li.held { background: var(--accent-bg); box-shadow: inset 2px 0 0 var(--accent); }
 .settings-page .col-order li.held .col-name { color: var(--text); }
+/* (0.7.1) Show / hide switch per column; hidden columns read quieter. */
+.settings-page .col-order .switch { flex: none; margin-right: 4px; }
+.settings-page .col-order li:has(input[role="switch"]:not(:checked)) .col-name { color: var(--muted); }

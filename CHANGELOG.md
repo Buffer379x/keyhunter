@@ -1,5 +1,19 @@
 # Änderungen
 
+## 0.7.1 – 2026-11-21
+
+Mehr Einstellungen für die Wunschliste, Play/Pause direkt am Abrufstatus und ein ruhigerer Schriftzug im Logo. Die Datenbank bekommt beim Start automatisch zwei neue Spalten, sonst ist beim Update nichts zu tun.
+
+### Neu
+- **Spalten ein- und ausblenden:** In „Wunschliste · Spalten“ hat jede Spalte einen Schalter. Die Spalte, die das Spiel öffnet, bleibt immer sichtbar.
+- **Was die Detailseite öffnet:** Unter „Detailseite öffnen über“ wählst du Button, Titel oder Cover; nur dieses eine Element öffnet das Spiel.
+- **Play/Pause am Abrufstatus:** Die automatischen Abfragen pausierst und setzt du jetzt mit dem Knopf in der Abrufstatus-Karte der Seitenleiste fort; die Karte zeigt, seit wann pausiert ist. Das Feld dafür in den Einstellungen entfällt.
+
+### Oberfläche
+- **Preis INT:** Die Spalte „Günstigste Region“ heißt jetzt „Preis INT“, passend zu „Preis DE“ (bzw. dem Kürzel deines Ziellands).
+- **Anbieter unter den Preisen:** Unter „Preis DE“ steht nur noch der Anbieter (die Region ergibt sich aus der Spalte), unter „Preis INT“ jetzt ebenfalls der Anbieter.
+- **Logo:** Der Schriftzug ist kleiner (zwischen der Größe vor 0.7.0 und der von 0.7.0), mittig zur Kachel und füllt den Kasten bis zum rechten Rand; die Kachel steht unverändert.
+
 ## 0.7.0 – 2026-11-21
 
 Neues Logo und neue Icons, Abfragen lassen sich pausieren, und die Spalten der Wunschliste lassen sich per Drag & Drop anordnen. Die Datenbank bekommt beim Start automatisch eine neue Spalte, sonst ist beim Update nichts zu tun.

@@ -1217,6 +1217,49 @@ async fn automatic_checks_can_be_paused_and_resumed() {
 }
 
 #[tokio::test]
+async fn wishlist_columns_can_be_hidden_and_the_opener_chosen() {
+    let f = Fixture::new().await;
+    let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
+    assert_eq!(settings["wishlist_hidden"], json!([]));
+    assert_eq!(settings["wishlist_open"], "button");
+    settings["wishlist_hidden"] = json!(["trend", "target"]);
+    settings["wishlist_open"] = json!("title");
+    let (code, saved) = f.call("PUT", "/api/v1/settings", settings.clone()).await;
+    assert_eq!(code, StatusCode::OK);
+    assert_eq!(saved["wishlist_hidden"], json!(["trend", "target"]));
+    assert_eq!(saved["wishlist_open"], "title");
+    // Without the details button the button column may be hidden, the game column (title, cover) not.
+    settings["wishlist_hidden"] = json!(["open"]);
+    assert_eq!(
+        f.call("PUT", "/api/v1/settings", settings.clone()).await.0,
+        StatusCode::OK
+    );
+    for (hidden, open) in [
+        (json!(["game"]), "title"),
+        (json!(["game"]), "cover"),
+        (json!(["open"]), "button"),
+        (json!(["trend", "trend"]), "button"),
+        (json!(["sparkline"]), "button"),
+        (json!([]), "row"),
+    ] {
+        settings["wishlist_hidden"] = hidden;
+        settings["wishlist_open"] = json!(open);
+        assert_eq!(
+            f.call("PUT", "/api/v1/settings", settings.clone()).await.0,
+            StatusCode::BAD_REQUEST
+        );
+    }
+    // A client that sends neither keeps both.
+    let mut without = settings.clone();
+    let object = without.as_object_mut().unwrap();
+    object.remove("wishlist_hidden");
+    object.remove("wishlist_open");
+    let (_, kept) = f.call("PUT", "/api/v1/settings", without).await;
+    assert_eq!(kept["wishlist_hidden"], json!(["open"]));
+    assert_eq!(kept["wishlist_open"], "title");
+}
+
+#[tokio::test]
 async fn wishlist_column_order_defaults_saves_and_validates() {
     let f = Fixture::new().await;
     let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;

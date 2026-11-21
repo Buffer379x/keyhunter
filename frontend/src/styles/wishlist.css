@@ -75,3 +75,11 @@ table.wl .row-open:hover:not(:disabled) { color: var(--accent); border-color: va
   .game-cell { min-width: 0; }
   .wl-status { justify-content: flex-end; }
 }
+
+/* (0.7.1) The title or the cover opens the game when the settings say so (instead of the details button). */
+.game-cell .title-open, .game-cell .cover-open { padding: 0; margin: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.game-cell .cover-open { display: block; flex: none; border-radius: 5px; }
+.game-cell .title-open { display: block; max-width: 100%; }
+.game-cell .title-open:hover b { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.game-cell .cover-open:hover .gcover { outline: 2px solid var(--accent); outline-offset: 1px; }
+.game-cell .title-open:focus-visible, .game-cell .cover-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }

@@ -19,7 +19,7 @@ test('row facts: saving only when the cheapest region is really cheaper', () => 
   assert.equal(cheaper.reached, true);
   assert.equal(rowFacts(badge(1875, 1875)).saving, null, 'same price is no saving');
   assert.equal(rowFacts(badge(null, 990)).saving, null, 'no target price, no saving');
-  assert.deepEqual(rowFacts(badge(null, 990)).world, { cents: 990, region: 'IN' });
+  assert.deepEqual(rowFacts(badge(null, 990)).world, { cents: 990, region: 'IN', source: null });
 });
 test('row facts: only enabled target rules on the base price count as reached, the target is shown anyway', () => {
   assert.equal(rowFacts(badge(2000), rule(2500, { enabled: false })).reached, false);

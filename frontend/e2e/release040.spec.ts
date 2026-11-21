@@ -138,7 +138,7 @@ test('wishlist column headers sort by name, price, saving and target distance an
   const head=wishlistTable(page).locator('thead');
   const header=(name:string|RegExp)=>head.getByRole('button',{name,exact:typeof name==='string'});
   const sorted=(name:string|RegExp)=>head.getByRole('columnheader',{name});
-  await expect(head.getByRole('button')).toHaveText(['Spiel',/^Preis [A-Z]{2}$/,'Günstigste Region','Ersparnis','Ziel','Status']);
+  await expect(head.getByRole('button')).toHaveText(['Spiel',/^Preis [A-Z]{2}$/,'Preis INT','Ersparnis','Ziel','Status']);
   await expect(first()).toContainText('Neuer Treffer');
   await header('Ersparnis').click();
   await expect(sorted('Ersparnis')).toHaveAttribute('aria-sort','descending');
