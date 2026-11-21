@@ -1,5 +1,20 @@
 # Änderungen
 
+## 0.8.1 – 2026-11-21
+
+Der Warenkorb rechnet jetzt pro Spiel mit Shop und Region nach Wahl, Angebote lassen sich einzeln hineinlegen, und Spiele für Xbox 360 und die erste Xbox lassen sich erfassen. Beim Start baut die Datenbank die Wunschlisten-Tabelle mit vorheriger Sicherung um; alle Einträge, Preise und Alarme bleiben erhalten.
+
+### Neu
+- **Günstigste Variante:** „In den Warenkorb“ auf der Seite eines Spiels nimmt automatisch das günstigste Angebot, egal welcher Shop und welche Region.
+- **Angebot in den Warenkorb:** Im Tab „Angebote“ hat jedes Angebot einen Warenkorb-Knopf. Er legt das Spiel mit diesem Shop in den Warenkorb, mit dem Preis im Zielland, wenn das Angebot dort aktivierbar ist, sonst mit der günstigsten Region; liegt das Spiel schon darin, wechselt es auf dieses Angebot.
+- **Shop und DE/INT pro Spiel:** Im Warenkorb hat jedes Spiel eine Shop-Auswahl („Günstigster“ oder ein fester Shop, mit Preis) und einen eigenen Schalter DE/INT. Der Schalter gilt für den Shop, den das Spiel gerade zeigt; nach einem Shop-Wechsel für den neuen Shop. Der globale Schalter oben entfällt.
+- **Mehrkosten:** Sobald ein Spiel nicht mit seiner günstigsten Variante zählt, zeigt der Warenkorb, wie viel du mehr zahlst als bei der günstigsten Zusammensetzung, mit Gebühren und nur für die Keys.
+- **„Alle“ beim Hinzufügen:** Der Hinzufügen-Dialog (Wunschliste und Bibliothek) sucht standardmäßig in allen Xbox-Systemen und zeigt jeden Treffer mit seinem System, ein Spiel für mehrere Systeme einmal je System. Die Systemauswahl daneben bietet „Alle“ und die Systeme, für die schon ein Spiel in der Liste steht; ein System verschwindet mit dem letzten Spiel dafür. Ein Titel ohne Katalogtreffer bekommt sein System in einer eigenen Auswahl.
+- **Xbox 360 und Xbox:** Spiele für Xbox 360 und die erste Xbox lassen sich auf die Wunschliste und in die Bibliothek legen. Die Shop-Reader erkennen bisher nur Keys für Xbox Series X|S und Xbox One; für ältere Systeme gefundene Produkte musst du unter Infos selbst bestätigen.
+
+### Oberfläche
+- **Bibliothek als Liste:** Ohne „gekauft am“, nur Titel und System.
+
 ## 0.8.0 – 2026-11-21
 
 Neu ist ein Warenkorb: Mehrere Wünsche zusammen ergeben einen Gesamtpreis mit und ohne Gebühren, aufgeteilt nach Shops. Beim Start legt die Datenbank automatisch eine neue Tabelle an, sonst ist beim Update nichts zu tun.

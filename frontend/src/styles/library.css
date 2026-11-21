@@ -25,7 +25,7 @@
 .library-page .lib-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .library-page .lib-view button { display: inline-flex; align-items: center; justify-content: center; width: 32px; padding: 0; }
 
-/* List view: one row per game with a small cover, title, system and purchase date; the tools sit at the end. */
+/* List view: one row per game with a small cover, title and system; the tools sit at the end. */
 .library-page .lib.rows { display: block; border: 1px solid var(--line); border-radius: var(--r-md, 10px); background: var(--panel); }
 .library-page .lib.rows .lib-item { grid-template-rows: none; grid-template-columns: 36px minmax(0, 1fr); align-items: center; gap: 12px; padding: 8px 12px; }
 .library-page .lib.rows .lib-item + .lib-item { border-top: 1px solid var(--line); }

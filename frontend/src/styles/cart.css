@@ -9,7 +9,14 @@
 .cart-page .cart-table .game-cell b { overflow-wrap: anywhere; }
 .cart-page .cart-table td { white-space: nowrap; }
 .cart-page .cart-table td.c-game { white-space: normal; }
-.cart-page .cart-shop { display: inline-flex; align-items: center; gap: 6px; }
+/* Per entry (0.8.1): the shop ("Günstigster" or a fixed one) with the region of the counted offer, and DE/INT. */
+.cart-page .cart-table td.c-shop select { width: auto; min-width: 150px; max-width: 220px; height: 30px; font-size: var(--t-xs); }
+.cart-page .cart-region { display: flex; align-items: center; gap: 6px; margin-top: 4px; color: var(--muted); font-size: var(--t-xs); }
+.cart-page .cart-table td.c-scope .seg button { height: 24px; padding: 0 10px; }
+.cart-page .cart-table tr.chosen td.c-shop select { border-color: var(--accent); }
+.cart-page .cart-extra { display: grid; gap: 4px; margin: 12px 0 0; padding: 10px 12px; border: 1px solid var(--accent); border-radius: var(--r-sm); }
+.cart-page .cart-extra dt { color: var(--text-2); font-size: var(--t-xs); }
+.cart-page .cart-extra dd { margin: 0; color: var(--accent); }
 .cart-page .cart-table .icon-btn { width: 30px; height: 30px; }
 .cart-page .cart-table .icon-btn svg { width: 15px; height: 15px; }
 
@@ -28,16 +35,19 @@
 .cart-page .cart-totals dd.cart-grand .price { font-size: 1.35em; }
 .cart-page .cart-sum .hint { margin: 10px 0 0; }
 
-@media (max-width: 1100px) { .cart-page .cart-grid { grid-template-columns: minmax(0, 1fr); } }
+/* Shop and DE/INT per game need the width (0.8.1): below 1500 px the totals go under the games. */
+@media (max-width: 1499px) { .cart-page .cart-grid { grid-template-columns: minmax(0, 1fr); } .cart-page .cart-sum { max-width: 640px; } }
 /* Phones: each game as a card (title, then shop and the three amounts). */
 @media (max-width: 720px) {
   .cart-page .cart-table thead { display: none; }
   .cart-page .cart-table, .cart-page .cart-table tbody { display: block; }
-  .cart-page .cart-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "g x" "s t" "k f"; gap: 6px 10px; padding: 12px; border-bottom: 1px solid var(--line); }
+  .cart-page .cart-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "g x" "s c" "k t" "f f"; gap: 8px 10px; padding: 12px; border-bottom: 1px solid var(--line); }
   .cart-page .cart-table td { border: 0; padding: 0; }
   .cart-page .cart-table td.c-game { grid-area: g; }
   .cart-page .cart-table td.c-remove { grid-area: x; justify-self: end; }
   .cart-page .cart-table td.c-shop { grid-area: s; }
+  .cart-page .cart-table td.c-shop select { min-width: 0; max-width: 100%; width: 100%; }
+  .cart-page .cart-table td.c-scope { grid-area: c; align-self: start; }
   .cart-page .cart-table td.c-total { grid-area: t; }
   .cart-page .cart-table td.c-key { grid-area: k; text-align: left; }
   .cart-page .cart-table td.c-key::before { content: "Key "; color: var(--muted); font-size: var(--t-xs); }

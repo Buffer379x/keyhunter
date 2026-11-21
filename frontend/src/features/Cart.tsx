@@ -6,15 +6,14 @@ import { Button, EmptyState, Icon, IconButton, Inset, Label, Notice, PageHeading
 import { whenVisible } from '../poll';
 import { itemName } from './catalog-ui';
 import GameCover from './GameCover';
-import { cartSums } from './cart-model';
-import type { CartEntry, CartScope } from './cart-model';
+import { cartSums, entryShop } from './cart-model';
+import type { CartEntry, CartLine, CartScope } from './cart-model';
 import { shopNames } from './shop-names';
 import { regCode } from './WishlistRow';
 import '../styles/cart.css';
 
 /** Prices follow the saved shop checks: the cart reads them again this often while the tab is visible. */
 const REFRESH_MS = 60_000;
-const SCOPE_KEY = 'keyhunter.cart.scope';
 const games = (n: number) => `${n} ${n === 1 ? 'Spiel' : 'Spiele'}`;
 const shopName = (id: string | null) => id ? shopNames[id] ?? id : 'Shop unbekannt';
 const time = (ms: number) => new Date(ms).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
@@ -41,8 +40,6 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
   const [busy, setBusy] = useState(false);
   const [pick, setPick] = useState('');
   const [reload, setReload] = useState(0);
-  const [scope, setScope] = useState<CartScope>(() => { try { return localStorage.getItem(SCOPE_KEY) === 'world' ? 'world' : 'home'; } catch { return 'home'; } });
-  const chooseScope = (value: CartScope) => { setScope(value); try { localStorage.setItem(SCOPE_KEY, value); } catch { /* Keep in memory. */ } };
   const code = targetCountry.toUpperCase();
 
   useEffect(() => {
@@ -67,7 +64,7 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
     return () => { controller.abort(); cancel(); };
   }, [reload, onError]);
 
-  const change = useCallback(async (method: 'POST' | 'DELETE', path: string, body?: unknown) => {
+  const change = useCallback(async (method: 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown) => {
     setBusy(true); setError('');
     try {
       await api(path, method, body, csrf);
@@ -85,9 +82,16 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
     if (pick && await change('POST', '/cart', { wish_id: pick })) setPick('');
   }
 
-  const sums = entries ? cartSums(entries, {}, scope) : null;
+  const sums = entries ? cartSums(entries) : null;
+  const homeLabel = `Preis ${code || 'Zielland'}`;
+  /** An entry's shop and scope (0.8.1). DE/INT keeps the shop it shows, so a cheapest-shop entry then keeps that shop. */
+  const choose = (line: CartLine, next: { source?: string | null; scope?: CartScope }) => {
+    const source = next.source !== undefined ? next.source : line.item.source ?? entryShop(line.item);
+    // "Günstigster Shop" is the cheapest variant of any region, like the button on the game page.
+    const scope = next.source === null ? 'world' : next.scope ?? line.item.scope;
+    void change('PUT', `/cart/${encodeURIComponent(line.item.id)}`, { source, scope });
+  };
   const addable = wishes.filter(wish => !wish.in_cart && !entries?.some(entry => entry.id === wish.id)).sort((a, b) => itemName(a).localeCompare(itemName(b), 'de'));
-  const priceLabel = scope === 'home' ? `Preis ${code || 'Zielland'}` : 'Preis INT';
   const sub = !entries ? 'Wird geladen …' : entries.length === 0 ? 'Leer · lege Spiele aus der Wunschliste hinein'
     : `${games(entries.length)} · Preise aus den letzten Shop-Abfragen${loadedAt ? `, Stand ${time(loadedAt)}` : ''}`;
   // Only while a wish is left to add; with none on the wishlist the empty state links to it.
@@ -100,8 +104,7 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
   </form>;
 
   return <section className="page cart-page" aria-labelledby="cart-title">
-    <PageHeading id="cart-title" title="Warenkorb" sub={sub} actions={entries && entries.length > 0 ? <Seg label="Preisgrundlage" value={scope} onChange={chooseScope}
-      options={[{ value: 'home', label: `Preis ${code || 'Zielland'}` }, { value: 'world', label: 'Preis INT' }]} /> : undefined} />
+    <PageHeading id="cart-title" title="Warenkorb" sub={sub} />
     {loadError && <Notice error>{loadError}<Button size="sm" onClick={() => setReload(n => n + 1)}>Erneut laden</Button></Notice>}
     {error && <Notice error>{error}</Notice>}
     {entries?.length === 0 && <Panel><EmptyState icon="cart" title="Der Warenkorb ist leer"
@@ -112,16 +115,25 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
         <PanelHead><Label id="cart-items-title">Im Warenkorb</Label><span className="spacer" />{picker}</PanelHead>
         <Inset className="table-wrap">
           <table className="cart-table" aria-label="Spiele im Warenkorb">
-            <thead><tr><th>Spiel</th><th>Shop</th><th className="r">Key-Preis</th><th className="r">Gebühren</th><th className="r">Gesamt</th><th><span className="sr-only">Entfernen</span></th></tr></thead>
+            <thead><tr><th>Spiel</th><th>Shop</th><th>Preis</th><th className="r">Key-Preis</th><th className="r">Gebühren</th><th className="r">Gesamt</th><th><span className="sr-only">Entfernen</span></th></tr></thead>
             <tbody>{sums.lines.map(line => {
               const name = itemName(line.item);
               const reg = regCode(line.region);
-              return <tr key={line.item.id}>
+              const shops = Object.keys(line.item.offers ?? {}).sort((a, b) => shopName(a).localeCompare(shopName(b), 'de'));
+              const shopPrice = (id: string) => { const offer = line.item.offers[id]?.[line.item.scope]; return offer ? ` · ${formatPrice(offer.cents)}` : ''; };
+              return <tr key={line.item.id} className={line.item.source !== null || line.item.scope !== 'world' ? 'chosen' : undefined}>
                 <td className="c-game"><div className="game-cell"><GameCover small src={line.item.game?.cover_url} title={name} />
                   <button type="button" className="title-open" title="Details öffnen" onClick={() => onOpen(line.item)}><b>{name}</b></button></div></td>
-                <td className="c-shop">{line.base !== null ? <span className="cart-shop">{reg && <Reg code={reg.code} title={reg.name} />}{shopName(line.source)}</span> : <span className="faint">–</span>}</td>
+                <td className="c-shop"><select aria-label={`Shop für ${name}`} value={line.item.source ?? ''} disabled={busy}
+                    onChange={event => choose(line, { source: event.target.value || null })}>
+                    <option value="">Günstigster{line.item.source === null && line.source ? ` (${shopName(line.source)})` : ''}</option>
+                    {shops.map(id => <option key={id} value={id}>{shopName(id)}{shopPrice(id)}</option>)}
+                  </select>
+                  {line.base !== null && reg && <span className="cart-region"><Reg code={reg.code} title={reg.name} />{reg.name}</span>}</td>
+                <td className="c-scope"><Seg label={`Preisgrundlage für ${name}`} value={line.item.scope} onChange={scope => choose(line, { scope })}
+                  options={[{ value: 'home', label: code || 'DE', disabled: busy }, { value: 'world', label: 'INT', disabled: busy }]} /></td>
                 <td className="c-key r">{line.base !== null ? <><Price cents={line.base} tone={line.stale ? 'stale' : 'default'} />{line.stale && <div className="wl-sub">zuletzt bekannt</div>}</>
-                  : <span className="wl-note faint">Kein aktueller {priceLabel}</span>}</td>
+                  : <span className="wl-note faint">{line.item.scope === 'home' ? `Kein ${homeLabel}` : 'Kein Angebot'}{line.item.source ? ` bei ${shopName(line.item.source)}` : ''}</span>}</td>
                 <td className="c-fee r">{line.base === null ? <span className="faint">–</span> : line.fee !== null ? <span className="mono">+{formatPrice(line.fee)}</span>
                   : <span className="wl-note faint" title={`Für ${shopName(line.source)} ist keine Gebührenschätzung eingestellt`}>unbekannt</span>}</td>
                 <td className="c-total r">{line.base !== null ? <Price cents={line.base + (line.fee ?? 0)} /> : <span className="faint">–</span>}</td>
@@ -132,7 +144,7 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
         </Inset>
       </Panel>
       <Panel aria-labelledby="cart-sum-title" className="cart-sum">
-        <PanelHead><Label id="cart-sum-title">Gesamt · {priceLabel}</Label></PanelHead>
+        <PanelHead><Label id="cart-sum-title">Gesamt</Label></PanelHead>
         <Inset>
           <ul className="cart-shops" aria-label="Nach Shops">
             {sums.shops.map(shop => <li key={shop.source}>
@@ -149,9 +161,13 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
             <dt className="cart-grand">Gesamt mit Gebühren</dt><dd className="cart-grand"><Price cents={sums.total} /></dd>
             <dt>Gesamt ohne Gebühren</dt><dd><Price cents={sums.keys} /></dd>
           </dl>
+          {sums.extra && <dl className="cart-extra" aria-label="Mehrkosten">
+            <dt>Mehrkosten gegenüber der günstigsten Zusammensetzung</dt>
+            <dd><span className="mono">{sums.extra.total >= 0 ? '+' : '−'}{formatPrice(Math.abs(sums.extra.total))}</span> mit Gebühren · <span className="mono">{sums.extra.keys >= 0 ? '+' : '−'}{formatPrice(Math.abs(sums.extra.keys))}</span> Keys</dd>
+          </dl>}
           {sums.unknownFees.length > 0 && <p className="hint">Für {sums.unknownFees.map(shopName).join(', ')} ist keine Gebührenschätzung eingestellt (Einstellungen › Key-Shops); dort zählt nur der Key-Preis.</p>}
-          {sums.missing.length > 0 && <p className="hint">Nicht eingerechnet, ohne aktuellen {priceLabel}: {sums.missing.map(itemName).join(', ')}.</p>}
-          <p className="hint">Je Spiel zählt das günstigste Angebot nach Key-Preis{scope === 'home' ? `, das in ${code || 'deinem Zielland'} aktivierbar ist` : ' aller Regionen, auch wenn es im Zielland nicht gilt'}. Die Gebühren sind Schätzungen aus den Einstellungen.</p>
+          {sums.missing.length > 0 && <p className="hint">Nicht eingerechnet, ohne Preis für den gewählten Shop: {sums.missing.map(itemName).join(', ')}.</p>}
+          <p className="hint">„Günstigster“ nimmt je Spiel das günstigste Angebot nach Key-Preis, egal welcher Shop und welche Region. {code || 'DE'} zählt nur im Zielland aktivierbare Keys des gewählten Shops, INT die günstigste Region dieses Shops. Die Gebühren sind Schätzungen aus den Einstellungen.</p>
         </Inset>
       </Panel>
     </div>}

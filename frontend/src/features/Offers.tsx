@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, EmptyState, Icon, Inset, Label, Panel, PanelHead, Pill, Price, Reg, Switch } from '../components';
+import { Button, EmptyState, Icon, IconButton, Inset, Label, Panel, PanelHead, Pill, Price, Reg, Switch } from '../components';
 import { relativeTime } from '../time';
 import { regionCode } from './regions';
 import { dateTime, money } from './price-format';
@@ -18,6 +18,8 @@ const missingText = (row: OfferRow) => row.status === 'sold_out' ? 'ausverkauft'
 type Props = {
   state: OffersState; rows: OfferRow[]; summary: Summary; basis: Basis; onBasis: (basis: Basis) => void; hasEstimates: boolean;
   code: string; searching: boolean; reviewCount: number; onTab: (tab: string) => void;
+  /** Put this offer's shop into the cart (0.8.1): its target-country price when the offer counts there, else any region. */
+  onCart?: (source: string, scope: 'home' | 'world') => void; cartBusy?: boolean;
 };
 
 function Seen({ row }: { row: OfferRow }) {
@@ -28,7 +30,7 @@ function Seen({ row }: { row: OfferRow }) {
 }
 
 /** Angebote: every offer of every region, ordered by price only, with its validity in the target country and the difference to its best price. */
-export default function OffersTab({ state, rows, summary, basis, onBasis, hasEstimates, code, searching, reviewCount, onTab }: Props) {
+export default function OffersTab({ state, rows, summary, basis, onBasis, hasEstimates, code, searching, reviewCount, onTab, onCart, cartBusy = false }: Props) {
   const { view, busy, write } = state;
   // Off by default: cheaper regions are never hidden unless the owner asks for it.
   const [onlyValid, setOnlyValid] = useState(false);
@@ -64,7 +66,8 @@ export default function OffersTab({ state, rows, summary, basis, onBasis, hasEst
               <td className="r">{diff === null ? <span className="save none">–</span> : Math.abs(diff) < 1 ? <span className="save none">bester</span>
                 : <span className={diff < 0 ? 'save big' : 'save none'}>{diff < 0 ? '−' : '+'}{money(Math.abs(diff))}</span>}</td>
               <td className="muted nowrap"><Seen row={row} /></td>
-              <td className="r"><a className="btn sm" href={row.link.url} target="_blank" rel="noopener noreferrer" aria-label={`Zum Shop: ${shopName(row)} · ${regionName(row)}`}>Zum Shop<Icon name="ext" /></a></td>
+              <td className="r"><span className="offer-actions">{onCart && row.price !== null && <IconButton className="offer-cart" disabled={cartBusy} onClick={() => onCart(row.link.source, row.eligible ? 'home' : 'world')}
+                label={`${shopName(row)} · ${regionName(row)} in den Warenkorb`}><Icon name="cart" /></IconButton>}<a className="btn sm" href={row.link.url} target="_blank" rel="noopener noreferrer" aria-label={`Zum Shop: ${shopName(row)} · ${regionName(row)}`}>Zum Shop<Icon name="ext" /></a></span></td>
             </tr>;
           })}</tbody>
         </table>}

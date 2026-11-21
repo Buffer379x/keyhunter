@@ -76,7 +76,7 @@ Versteckte Editionen bleiben nur mit einem aktiven gemerkten Anker für Preisabf
 
 ## Warenkorb
 
-Der Warenkorb (`cart_item`, 0.8.0) speichert nur, welche Wünsche darin liegen; `GET /api/v1/cart` liefert sie mit demselben Preis-Badge wie die Wunschliste. Je Spiel zählt das günstigste Angebot nach Key-Preis, wahlweise im Zielland aktivierbar oder aus allen Regionen, mit der Gebührenschätzung seines Shops. Kauf (`state='owned'`) und Löschen entfernen den Eintrag.
+Der Warenkorb (`cart_item`, 0.8.0) speichert nur, welche Wünsche darin liegen; `GET /api/v1/cart` liefert sie mit demselben Preis-Badge wie die Wunschliste. Je Spiel zählt das günstigste Angebot nach Key-Preis, wahlweise im Zielland aktivierbar oder aus allen Regionen, mit der Gebührenschätzung seines Shops. Kauf (`state='owned'`) und Löschen entfernen den Eintrag. Seit 0.8.1 hat jeder Eintrag einen Shop (`source`, leer: der günstigste) und eine Preisgrundlage (`scope`: `world` jede Region, `home` im Zielland aktivierbar); `GET /api/v1/cart` liefert dafür je Shop das beste Angebot beider Grundlagen, `PUT /api/v1/cart/{id}` ändert beides.
 
 ## Gamivo (nicht unterstützt)
 

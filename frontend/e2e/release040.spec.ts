@@ -31,8 +31,8 @@ test('edition previews keep the saved version, offers keep price order and histo
   await page.setViewportSize({ width: 1440, height: 900 });
   await signInToFixture(page);
   await page.getByRole('searchbox', { name: 'Nach Spielen suchen', exact: true }).fill('forza');
-  await page.getByRole('region', { name: 'Suchergebnisse' }).getByRole('button', { name: 'Forza Horizon 5 vormerken', exact: true }).click();
-  await expect(page.getByRole('heading', { name:'Forza Horizon 5',exact:true })).toBeVisible();
+  await page.getByRole('region', { name: 'Suchergebnisse' }).getByRole('button', { name: 'Forza Horizon 5 (Xbox Series X|S) vormerken', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Forza Horizon 5', exact: true, level: 1 })).toBeVisible();
   await expect(page).toHaveURL(/[?&]item=[a-f0-9]{32}/);
   const originalUrl = page.url();
   const now = Math.floor(Date.now() / 1000), day = 86400;
@@ -59,7 +59,7 @@ test('edition previews keep the saved version, offers keep price order and histo
   const stamp = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium' }).format((now - day) * 1000);
   await expect(rows.first().locator('time')).toHaveAttribute('title', new RegExp(stamp.replace(/\./g, '\\.')));
   await editionSelect(page).selectOption({ label: 'Premium Edition' });
-  await expect(page.getByRole('heading', { name:'Forza Horizon 5: Premium Edition',exact:true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Forza Horizon 5: Premium Edition', exact: true, level: 1 })).toBeVisible();
   expect(await (await page.request.get('/api/v1/wishlist')).json()).toHaveLength(1);
   expect(new URL(page.url()).searchParams.get('item')).toBe(new URL(originalUrl).searchParams.get('item'));
   await expect(editionSelect(page).locator('option')).toHaveText(['Standard Edition · gemerkt', 'Premium Edition · Vorschau']);
@@ -111,7 +111,7 @@ test('edition previews keep the saved version, offers keep price order and histo
   await expect(page.getByRole('rowheader', { name:'Zusatzpaket',exact:true })).toBeVisible();
   await expect(page.getByRole('table', { name: 'Angebote nach Preis' })).toHaveCount(0);
   await page.getByRole('button', { name:'Zur gemerkten Edition',exact:true }).click();
-  await expect(page.getByRole('heading', { name:'Forza Horizon 5',exact:true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Forza Horizon 5', exact: true, level: 1 })).toBeVisible();
   await removeCurrent(page);
 });
 
@@ -119,8 +119,8 @@ test('wishlist column headers sort by name, price, saving and target distance an
   await signInToFixture(page);
   const input=page.getByRole('searchbox',{name:'Nach Spielen suchen',exact:true});
   await input.fill('forza');
-  await page.getByRole('region',{name:'Suchergebnisse'}).getByRole('button',{name:'Forza Horizon 5 vormerken',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Forza Horizon 5',exact:true})).toBeVisible();
+  await page.getByRole('region',{name:'Suchergebnisse'}).getByRole('button',{name:'Forza Horizon 5 (Xbox Series X|S) vormerken',exact:true}).click();
+  await expect(page.getByRole('heading', { name: 'Forza Horizon 5', exact: true, level: 1 })).toBeVisible();
   await input.fill('neu');
   await page.getByRole('region',{name:'Suchergebnisse'}).getByRole('button',{name:'Neuer Treffer vormerken',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Neuer Treffer',exact:true})).toBeVisible();

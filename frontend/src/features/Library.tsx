@@ -14,7 +14,6 @@ const stored = (key: string, fallback: string) => { try { return localStorage.ge
 const store = (key: string, value: string) => { try { localStorage.setItem(key, value); } catch { /* Keep in memory. */ } };
 const SORT_KEY = 'keyhunter.library.order';
 const VIEW_KEY = 'keyhunter.library.view';
-const bought = (seconds: number) => new Date(seconds * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 const games = (n: number) => `${n} ${n === 1 ? 'Spiel' : 'Spiele'}`;
 
 interface Props {
@@ -134,7 +133,7 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
           </div>
           <div className="lib-info">
             <b title={name}>{name}</b>
-            {view === 'rows' && <span className="lib-sub">{platformName(item.platform_id)}{item.acquired_at > 0 && ` · gekauft am ${bought(item.acquired_at)}`}</span>}
+            {view === 'rows' && <span className="lib-sub">{platformName(item.platform_id)}</span>}
           </div>
         </li>;
       })}

@@ -11,10 +11,11 @@ const day = 86400;
 async function addThree(page: Page): Promise<Item[]> {
   const search = page.getByRole('searchbox', { name: 'Nach Spielen suchen', exact: true });
   const results = page.getByRole('region', { name: 'Suchergebnisse' });
-  for (const [query, name] of [['forza', 'Forza Horizon 5'], ['forza', 'Forza Horizon 5: Premium Edition'], ['neu', 'Neuer Treffer']]) {
+  // Under "Alle" (0.8.1) a game on two systems is listed once per system; Neuer Treffer is on one only.
+  for (const [query, name, label] of [['forza', 'Forza Horizon 5', 'Forza Horizon 5 (Xbox Series X|S)'], ['forza', 'Forza Horizon 5: Premium Edition', 'Forza Horizon 5: Premium Edition (Xbox Series X|S)'], ['neu', 'Neuer Treffer', 'Neuer Treffer']]) {
     await search.fill(query);
-    await results.getByRole('button', { name: `${name} vormerken`, exact: true }).click();
-    await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
+    await results.getByRole('button', { name: `${label} vormerken`, exact: true }).click();
+    await expect(page.getByRole('heading', { name, exact: true, level: 1 })).toBeVisible();
   }
   return (await page.request.get('/api/v1/wishlist')).json();
 }
@@ -152,7 +153,7 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
   const scrolled = await main.evaluate(element => element.scrollTop);
   expect(scrolled).toBeGreaterThan(100);
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('heading', { name: 'Forza Horizon 5: Premium Edition', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Forza Horizon 5: Premium Edition', exact: true, level: 1 })).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`[?&]item=${premium.id}`));
   await expect(wishlistTable(page)).toHaveCount(0); // no split view: the game replaces the list
   expect(await main.evaluate(element => element.scrollTop)).toBe(0);

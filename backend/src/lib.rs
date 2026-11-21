@@ -253,7 +253,10 @@ async fn create_app_inner(
         .route("/alerts/test", post(alerts::test_message))
         .route("/wishlist/{id}", axum::routing::delete(wishlist::remove))
         .route("/cart", get(cart::list).post(cart::add))
-        .route("/cart/{id}", axum::routing::delete(cart::remove))
+        .route(
+            "/cart/{id}",
+            axum::routing::put(cart::change).delete(cart::remove),
+        )
         .route(
             "/settings",
             get(settings::get_settings).put(settings::put_settings),
@@ -615,5 +618,98 @@ mod migration_tests {
             .await
             .unwrap();
         assert_eq!(previews, 1, "the old tables stay untouched");
+    }
+
+    /// 0.8.1: the rebuilt wishlist table keeps every row and every reference, takes Xbox 360 and the
+    /// original Xbox, still cascades, and cart entries start with the cheapest shop of any region.
+    #[tokio::test]
+    async fn platform_rebuild_keeps_all_references_and_accepts_older_xbox_systems() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(
+                "sqlite::memory:"
+                    .parse::<sqlx::sqlite::SqliteConnectOptions>()
+                    .unwrap()
+                    .foreign_keys(true),
+            )
+            .await
+            .unwrap();
+        up_to(&pool, 22).await;
+        sqlx::raw_sql(
+            "INSERT INTO game(id,manual_title,manual_key,created_at) VALUES('g','Game','game',0),('h','Other','other',0);
+            INSERT INTO wishlist_item(id,game_id,platform_id,created_at,state,acquired_at) VALUES('wish','g',169,1,'wished',NULL),('preview','g',49,2,'preview',NULL),('owned','h',169,3,'owned',9);
+            INSERT INTO offer_link(id,wish_id,source,url) VALUES(1,'wish','eneba','https://www.eneba.com/de/xbox-game-key');
+            INSERT INTO price_observation(link_id,product_id,observed_at,market,fingerprint,offers,activation,availability) VALUES(1,'p',1,'DE','f','[]','unknown','in_stock');
+            INSERT INTO alert_rule(wish_id,mode,basis,target_cents,enabled) VALUES('wish','target','base',1000,1);
+            INSERT INTO edition_watch VALUES('wish','preview');
+            INSERT INTO cart_item(wish_id,added_at) VALUES('wish',5);",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        up_to_only(&pool, 23).await;
+        let rows: Vec<(String, i64, String, Option<i64>)> = sqlx::query_as(
+            "SELECT id,platform_id,state,acquired_at FROM wishlist_item ORDER BY created_at",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            rows,
+            [
+                ("wish".into(), 169, "wished".into(), None),
+                ("preview".into(), 49, "preview".into(), None),
+                ("owned".into(), 169, "owned".into(), Some(9))
+            ]
+        );
+        let broken: Vec<(String,)> = sqlx::query_as("PRAGMA foreign_key_check")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+        assert!(broken.is_empty(), "{broken:?}");
+        let cart: (Option<String>, String) =
+            sqlx::query_as("SELECT source,scope FROM cart_item WHERE wish_id='wish'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(cart, (None, "world".into()));
+        for platform in [12, 11] {
+            sqlx::query(
+                "INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES(?,'h',?,4)",
+            )
+            .bind(format!("old-{platform}"))
+            .bind(platform)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+        assert!(
+            sqlx::query(
+                "INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES('pc','h',6,4)"
+            )
+            .execute(&pool)
+            .await
+            .is_err(),
+            "PC stays out"
+        );
+        // Deleting a wish still removes what hangs on it.
+        sqlx::query("DELETE FROM wishlist_item WHERE id='wish'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        for table in [
+            "offer_link",
+            "price_observation",
+            "alert_rule",
+            "edition_watch",
+            "cart_item",
+        ] {
+            let count: i64 =
+                sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT COUNT(*) FROM {table}")))
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap();
+            assert_eq!(count, 0, "{table}");
+        }
     }
 }
