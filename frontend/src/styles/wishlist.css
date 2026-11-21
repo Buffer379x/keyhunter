@@ -53,6 +53,8 @@ table.wl .row-open:hover:not(:disabled) { color: var(--accent); border-color: va
 
 /* Up to 720 px the rows become cards (prototype `table.wl`) */
 @media (max-width: 720px) {
+  /* Fee switch and filter share one line under the chips (0.7.3). */
+  .wishlist-page .wl-q { flex: 1 1 120px; width: auto; min-width: 0; }
   /* (added, 0.6.2) The headers stay as a row of sort buttons above the cards. */
   table.wl, table.wl tbody, table.wl thead { display: block; }
   table.wl thead { border-bottom: 1px solid var(--line); }

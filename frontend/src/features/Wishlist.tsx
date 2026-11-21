@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { ReactNode } from 'react';
 import type { AlertEvent, CatalogGame, FetchStatusResponse, PriceBadgeData, WishlistItem } from '../api';
 import { api, FETCH_STATUS_CHANGED } from '../api';
-import { Button, Chip, ConfirmDialog, EmptyState, Field, Icon, Inset, Kpi, Notice, Panel, PanelHead, formatPrice } from '../components';
+import { Button, Chip, ConfirmDialog, EmptyState, Field, Icon, Inset, Kpi, Notice, Panel, PanelHead, Seg, formatPrice } from '../components';
 import CatalogSearch from './CatalogSearch';
 import GameDetail, { isTab } from './GameDetail';
 import type { TabId } from './GameDetail';
@@ -12,7 +12,7 @@ import type { Rule } from './PriceAlerts';
 import { nextSort, parseSort, serializeSort, sortWishlist } from './wishlist-sort';
 import type { SortKey, WishlistSort } from './wishlist-sort';
 import { addedTicks, alarmSentToday, cheaperKpi, fetchKpi, matchesChip, reachedTrend, rowFacts, shortTitle } from './wishlist-model';
-import type { ChipFilter, Row, RowFacts } from './wishlist-model';
+import type { ChipFilter, PriceBasis, Row, RowFacts } from './wishlist-model';
 import { itemName } from './catalog-ui';
 import { whenVisible } from '../poll';
 import { downloadJson, wishlistExport } from './wishlist-export';
@@ -45,6 +45,7 @@ function SortHeader({ id, sort, onSort, right = false, children }: { id: SortKey
   </th>;
 }
 const SORT_KEY = 'keyhunter.wishlist.sort';
+const BASIS_KEY = 'keyhunter.wishlist.basis';
 const FETCH_REFRESH_MS = 60_000;
 /**
  * History state of a game opened from the list: the number of history entries since the list (opening the game plus
@@ -86,6 +87,9 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
   const [chip, setChip] = useState<ChipFilter>('alle');
   const [selectedId, setSelectedId] = useState<string | null>(routeSelection);
   const [preview, setPreview] = useState<WishlistItem | null>(null);
+  // Prices without or with the estimated shop fees (0.7.3); a view choice of this browser, like the sort.
+  const [basis, setBasis] = useState<PriceBasis>(() => { try { return localStorage.getItem(BASIS_KEY) === 'estimate' ? 'estimate' : 'base'; } catch { return 'base'; } });
+  const chooseBasis = (value: PriceBasis) => { setBasis(value); try { localStorage.setItem(BASIS_KEY, value); } catch { /* Keep in memory. */ } };
   const [sort, setSort] = useState<WishlistSort>(() => { try { return parseSort(localStorage.getItem(SORT_KEY)); } catch { return parseSort(null); } });
   const [badges, setBadges] = useState<Record<string, PriceBadgeData>>({});
   const [alerts, setAlerts] = useState<AlertRules>({});
@@ -288,7 +292,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
   }
 
   // Derived list data: facts per row (price, cheapest region, saving, target), chips, sorting and KPI tiles.
-  const facts = useMemo(() => Object.fromEntries(items.map(item => [item.id, rowFacts(badges[item.id] ?? item.price_badge, alerts[item.id])])) as Record<string, RowFacts>, [items, badges, alerts]);
+  const facts = useMemo(() => Object.fromEntries(items.map(item => [item.id, rowFacts(badges[item.id] ?? item.price_badge, alerts[item.id], basis)])) as Record<string, RowFacts>, [items, badges, alerts, basis]);
   const all: Row[] = useMemo(() => items.map(item => ({ item, facts: facts[item.id] })), [items, facts]);
   const text = filter.toLocaleLowerCase('de-DE');
   const matching = items.filter(item => matchesChip(facts[item.id], chip) && (!text || [itemName(item), ...(item.game?.aliases ?? [])].some(name => name.toLocaleLowerCase('de-DE').includes(text))));
@@ -308,7 +312,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
   const title = selected ? itemName(selected) : null;
   useEffect(() => { onTitle(title); }, [title, onTitle]);
   useEffect(() => () => onTitle(null), [onTitle]);
-  const scopeLabel = `Tiefster aktivierbarer Grundpreis · ${targetLabel}`;
+  const scopeLabel = basis === 'estimate' ? `Tiefster aktivierbarer Gesamtpreis mit geschätzten Gebühren · ${targetLabel}` : `Tiefster aktivierbarer Grundpreis · ${targetLabel}`;
   const code = targetCountry?.toUpperCase() ?? '';
   const priceLabel = code ? `Preis ${code}` : 'Preis';
   const mode = openMode(opener);
@@ -370,6 +374,8 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
           {chipLabels.map(([id, label]) => <Chip key={id} pressed={chip === id} count={ready ? chipCounts[id] : null} disabled={!ready} onClick={() => setChip(id)}>{label}</Chip>)}
         </div>
         <span className="spacer" />
+        <Seg className="wl-basis" label="Preise" value={basis} onChange={chooseBasis}
+          options={[{ value: 'base', label: 'Ohne Gebühren' }, { value: 'estimate', label: 'Mit Gebühren' }]} />
         <Field icon="search" className="wl-q"><input type="search" placeholder="Liste filtern …" aria-label="Liste filtern" value={filter} maxLength={200} onChange={event => filterList(event.target.value)} disabled={!ready || items.length === 0} /></Field>
       </PanelHead>
       <Inset className="table-wrap">

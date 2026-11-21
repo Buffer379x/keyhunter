@@ -55,7 +55,7 @@ export interface PriceBadgeData {
   stale:boolean;
   pending:boolean;
   /** Cheapest current offer of any region (valid in the target country or not). */
-  world?:{cents:number;source?:string;region:string|null;observed_at:number|null}|null;
+  world?:WorldBest|null;
   /**
    * Best price valid in the target country at the end of each of the last 14 UTC days (cents, oldest → newest, today = now);
    * null for a day without a valid price. Comes with 0.6.1; optional so older servers keep working.
@@ -64,6 +64,23 @@ export interface PriceBadgeData {
   /** Shop and region of the target-country price, when the server reports them . */
   source?:string|null;
   region?:string|null;
+  /** Estimated total (shop fee from the settings) of the offer behind `cents`; null while that shop has no fee estimate (0.7.3). */
+  estimate_cents?:number|null;
+  /** The same prices compared by estimated totals; shops without a fee estimate do not count (0.7.3). */
+  with_fees?:FeeView;
+}
+/** Cheapest current offer of any region. `cents` is the compared amount (base price, or estimated total in `with_fees`). */
+export interface WorldBest {cents:number;source?:string;region:string|null;observed_at:number|null;base_cents?:number;estimate_cents?:number|null}
+export interface FeeView {
+  cents:number|null;
+  /** Base price of the offer behind `cents`. */
+  base_cents:number|null;
+  observed_at:number|null;
+  stale:boolean;
+  source:string|null;
+  region:string|null;
+  world:WorldBest|null;
+  trend:(number|null)[];
 }
 export interface WishlistItem {
   price_badge?:PriceBadgeData;

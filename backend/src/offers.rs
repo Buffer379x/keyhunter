@@ -158,7 +158,7 @@ impl Link {
     }
     pub(crate) fn estimate(&self, cents: i64) -> Option<i64> {
         self.fee_estimation_enabled
-            .then(|| cents + (cents * self.fee_basis_points + 5000) / 10000)
+            .then(|| with_fee(cents, self.fee_basis_points))
     }
     #[cfg(test)]
     pub(crate) fn fixture(
@@ -188,6 +188,11 @@ impl Link {
             check_every: None,
         }
     }
+}
+
+/// Estimated total of a base price with the shop's fee in basis points, rounded to the cent.
+pub(crate) fn with_fee(cents: i64, basis_points: i64) -> i64 {
+    cents + (cents * basis_points + 5000) / 10000
 }
 
 pub(crate) async fn links<'e>(
@@ -463,6 +468,13 @@ pub(crate) async fn add_link(
     .bind(&id)
     .fetch_optional(&mut *tx)
     .await?;
+    // Adding a link by hand lifts an earlier deletion of the same product (migration 0020).
+    sqlx::query("DELETE FROM offer_link_block WHERE wish_id=? AND source=? AND url=?")
+        .bind(&id)
+        .bind(shop.id())
+        .bind(url.as_str())
+        .execute(&mut *tx)
+        .await?;
     if let Some(link) = link {
         // The first price of a link added by hand is a direct user action (jobs.rs).
         sqlx::query("INSERT INTO shop_job(source,link_id,due,initial) VALUES(?,?,?,1)")
@@ -547,6 +559,40 @@ pub(crate) async fn review(
             "Ungültige Prüfentscheidung.",
         ));
     }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Deletes a completely wrong product mapping with its price history. The automatic search does not
+/// suggest the product for this wish again (`offer_link_block`); adding the link by hand lifts that.
+pub(crate) async fn remove_link(
+    State(state): State<Shared>,
+    Path((id, link_id)): Path<(String, i64)>,
+    headers: HeaderMap,
+) -> ApiResult<StatusCode> {
+    let session = auth::authenticate(&state, &headers).await?;
+    auth::require_csrf(&state, &headers, &session)?;
+    crate::wishlist::require_unowned(&state.pool, &id).await?;
+    let mut tx = state.pool.begin().await?;
+    let blocked = sqlx::query(
+        "INSERT INTO offer_link_block(wish_id,source,url,blocked_at)
+        SELECT wish_id,source,url,? FROM offer_link WHERE id=? AND wish_id=?
+        ON CONFLICT(wish_id,source,url) DO UPDATE SET blocked_at=excluded.blocked_at",
+    )
+    .bind(now())
+    .bind(link_id)
+    .bind(&id)
+    .execute(&mut *tx)
+    .await?;
+    if blocked.rows_affected() == 0 {
+        return Err(NOT_FOUND);
+    }
+    // Jobs and price observations go with the link (ON DELETE CASCADE).
+    sqlx::query("DELETE FROM offer_link WHERE id=? AND wish_id=?")
+        .bind(link_id)
+        .bind(&id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

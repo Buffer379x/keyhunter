@@ -246,7 +246,7 @@ async fn create_app_inner(
         .route("/wishlist/{id}/offers/refresh", post(offers::refresh))
         .route(
             "/wishlist/{id}/offers/{link}",
-            axum::routing::put(offers::review),
+            axum::routing::put(offers::review).delete(offers::remove_link),
         )
         .route(
             "/wishlist/{id}/alert",

@@ -27,7 +27,7 @@ Bei exakter Übereinstimmung des Katalogtitels, der Edition, des Keytyps und der
 
 ## Gebühren und Verfügbarkeit
 
-Die Schätzung ist je Shop standardmäßig ausgeschaltet. Der vorbereitete Wert beträgt 2,00 % und lässt sich in Schritten von 0,01 % einstellen. Die im Projekt genannten 1–3 % sind eine Orientierung. Die beobachteten Shopseiten liefern die EUR-Grundpreise. Gebühren bzw. der endgültige Kaufpreis sind unbekannt. Die Ansicht führt den niedrigsten passenden Grundpreis und den niedrigsten passenden Schätzpreis getrennt. Die zweite Reihe berücksichtigt Quellen mit aktivierter Schätzung.
+Die Schätzung ist je Shop standardmäßig ausgeschaltet. Der vorbereitete Wert beträgt 2,00 % und lässt sich in Schritten von 0,01 % einstellen. Die im Projekt genannten 1–3 % sind eine Orientierung. Die beobachteten Shopseiten liefern die EUR-Grundpreise. Gebühren bzw. der endgültige Kaufpreis sind unbekannt. Die Ansicht führt den niedrigsten passenden Grundpreis und den niedrigsten passenden Schätzpreis getrennt. Die zweite Reihe berücksichtigt Quellen mit aktivierter Schätzung. Die Wunschliste schaltet ihre Tabelle mit „Ohne Gebühren / Mit Gebühren“ zwischen beiden Reihen um (`with_fees` im Preis-Badge); ohne Gebühren nennt der Hinweistext des Preises den Schätzpreis desselben Angebots (`estimate_cents`).
 
 2.392 Cent mit 200 Basispunkten ergeben gerundet 48 Cent Aufschlag und 2.440 Cent geschätzten Gesamtpreis. Halbe Cent werden aufgerundet. Ausverkaufte Produkte und Anfragen ohne verfügbaren EUR-Preis erzeugen keinen Nullpreis. Bei Fehlern bleibt der letzte Wert erhalten und ist vom aktuellen Vergleich ausgeschlossen. Nach 24 Stunden ohne Beobachtung gilt er als veraltet.
 
@@ -66,7 +66,7 @@ Bibliothekseinträge bewahren Titel, Cover und bisherige Preisbeobachtungen, lö
 
 ## Gespeicherte Preis-Badges und Editionsvorbereitung ab 0.4.2
 
-Preis-Badges zeigen die letzte passende bestätigte Produktbeobachtung mit EUR-Grundpreis, auch bei einer Abrufpause oder nach Ablauf der 24-Stunden-Frische. Zeitstempel und eine farbliche Kennzeichnung unterscheiden einen älteren bzw. noch nicht erneut geprüften Preis. Ausverkaufte oder verworfene Produkte und abweichende Editionen liefern keinen Preis. Die Länderpräferenz bleibt für `preferred` als Aktivierungs- und Kaufkontextfilter erhalten. Live-Angebotseignung und Preisalarme verwenden weiterhin die strengere Frische-/Fehlerprüfung.
+Preis-Badges zeigen die letzte passende bestätigte Produktbeobachtung mit EUR-Grundpreis, auch bei einer Abrufpause oder nach Ablauf der 24-Stunden-Frische. Zeitstempel und eine farbliche Kennzeichnung unterscheiden einen älteren bzw. noch nicht erneut geprüften Preis. Ausverkaufte oder verworfene Produkte und abweichende Editionen liefern keinen Preis. Eine gelöschte Zuordnung entfällt samt ihrer Beobachtungen; `offer_link_block` hält die automatische Suche davon ab, dasselbe Produkt für denselben Wunsch erneut vorzuschlagen, bis der Link von Hand wieder hinzugefügt wird. Die Länderpräferenz bleibt für `preferred` als Aktivierungs- und Kaufkontextfilter erhalten. Live-Angebotseignung und Preisalarme verwenden weiterhin die strengere Frische-/Fehlerprüfung.
 
 „Unbekannt“ gilt ausschließlich vor der ersten Preisabfrage. Nach einer Abfrage unterscheiden die Badges „Kein Angebot“, „Zuordnung prüfen“ und „Abfrage fehlgeschlagen“. Der erste Wunschlistenabruf enthält bereits gespeicherte Badges; nachfolgende lokale Abfragen und die Angebotsansicht aktualisieren sie, ohne ältere Antworten über neuere Daten zu schreiben.
 

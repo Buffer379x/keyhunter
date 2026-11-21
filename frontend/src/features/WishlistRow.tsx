@@ -31,11 +31,23 @@ function subline(item: WishlistItem) {
   return `${edition} · ${year !== null && Number.isFinite(year) ? year : platformName(item.platform_id)}`;
 }
 
+/** Observation time of the shown price (base price or estimated total). */
+const observedAt = (badge: PriceBadgeData, facts: RowFacts) => facts.basis === 'estimate' ? badge.with_fees?.observed_at ?? null : badge.observed_at;
+
 /** Text of the "Preis INT" cell (cheapest region worldwide) when nothing is known about prices yet (the status column says whether a search runs). */
 function missingWorld(badge: PriceBadgeData | undefined) {
   if (badge?.state === 'no_offer') return 'In keinem Shop gefunden';
   if (badge?.state === 'unknown') return 'Noch nicht abgefragt';
   return badgeStateText(badge);
+}
+
+/**
+ * The same offer on the other price basis for the title of a price: with base prices the estimated total ("Mit Gebühren
+ * geschätzt", the shop fee from the settings), with totals the base price.
+ */
+function otherText(facts: RowFacts, other: number | null, shop: string) {
+  if (facts.basis === 'estimate') return other !== null ? `Grundpreis ${formatPrice(other)}` : null;
+  return other !== null ? `Mit Gebühren geschätzt: ${formatPrice(other)}` : `Mit Gebühren: unbekannt, für ${shop || 'diesen Shop'} ist keine Gebührenschätzung eingestellt`;
 }
 
 /** Status column: the main state first, then every hint of the row (stale price, unconfirmed match) so nothing is lost. */
@@ -48,7 +60,7 @@ function StatusPills({ item, badge, facts }: { item: WishlistItem; badge?: Price
     else if (badge.state === 'no_offer') pills.push(<Pill key="s" tone="dim">Kein Angebot</Pill>);
     else if (badge.state === 'review') pills.push(<Pill key="s" tone="warn" icon="alert">Zuordnung prüfen</Pill>);
     else if (badge.state === 'error') pills.push(<Pill key="s" tone="danger" icon="alert">Abruf fehlgeschlagen</Pill>);
-    if (badge.state === 'price' && badge.stale) pills.push(<Pill key="stale" tone="dim" icon="clock">Veraltet{badge.observed_at ? ` · ${relativeTime(badge.observed_at)}` : ''}</Pill>);
+    if (facts.stale) pills.push(<Pill key="stale" tone="dim" icon="clock">Veraltet{observedAt(badge, facts) ? ` · ${relativeTime(observedAt(badge, facts)!)}` : ''}</Pill>);
   }
   if (item.verification !== 'catalog' && badge?.state !== 'review') pills.push(<Pill key="review" tone="warn" icon="alert">{item.game ? 'Prüfen' : 'Ungeprüft'}</Pill>);
   return pills.length ? <div className="wl-status">{pills}</div> : null;
@@ -89,25 +101,33 @@ export default function WishlistRow({ item, badge, facts, columns, mode, code, c
   /** The target country itself is the cheapest worldwide: shown like every other region, only slightly highlighted. */
   const homeCheapest = !worldCheaper && compare && world !== null && facts.price !== null;
   // Under each price only the shop; the region of the target-country price is the column itself, the INT region shows as a flag.
-  const origin = badge?.source ? shopNames[badge.source] ?? badge.source : '';
+  const origin = facts.source ? shopNames[facts.source] ?? facts.source : '';
+  const badgeShop = badge?.source ? shopNames[badge.source] ?? badge.source : '';
+  /** "Mit Gebühren" without a fee estimate for the shops that have a base price. */
+  const feesUnknown = facts.basis === 'estimate' && facts.price === null && badge?.state === 'price';
+  const priceTitle = !badge ? undefined : facts.basis === 'estimate'
+    ? [badgeTitle({ ...badge, observed_at: observedAt(badge, facts), stale: facts.stale }, scopeLabel), facts.price !== null ? otherText(facts, facts.other, origin) : null].filter(Boolean).join(' · ')
+    : [facts.price !== null ? otherText(facts, facts.other, origin) : null, badgeTitle(badge, scopeLabel)].filter(Boolean).join(' · ');
   const worldShop = world?.source ? shopNames[world.source] ?? world.source : '';
+  const worldOther = world ? ` ${otherText(facts, world.other, worldShop) ?? ''}`.trimEnd() : '';
   const cover = <GameCover small src={item.game?.cover_url} title={title} />;
   const cells: Record<WishlistColumn, ReactNode> = {
     game: <td key="game" className="c-game"><div className="game-cell">
       {mode === 'cover' ? <button ref={openRef} type="button" className="cover-open" aria-label={`Details zu ${title}`} title="Details öffnen" onClick={onOpen}>{cover}</button> : cover}
       <div className="game-name">{mode === 'title' ? <button ref={openRef} type="button" className="title-open" title="Details öffnen" onClick={onOpen}><b>{title}</b></button> : <b>{title}</b>}<small>{subline(item)}</small></div>
     </div></td>,
-    price: <td key="price" className="c-de r" title={badge ? badgeTitle(badge, scopeLabel) : undefined}>
-      {facts.price !== null ? <><Price cents={facts.price} tone={badge?.stale ? 'stale' : 'default'} />{origin && <div className="wl-sub">{origin}</div>}</> : <span className="faint">–</span>}
+    price: <td key="price" className="c-de r" title={feesUnknown ? `Gebühren unbekannt: Für ${badgeShop || 'diesen Shop'} ist keine Gebührenschätzung eingestellt (Einstellungen › Key-Shops).` : priceTitle}>
+      {facts.price !== null ? <><Price cents={facts.price} tone={facts.stale ? 'stale' : 'default'} />{origin && <div className="wl-sub">{origin}</div>}</>
+        : feesUnknown ? <span className="wl-note faint">Gebühren unbekannt</span> : <span className="faint">–</span>}
     </td>,
     world: <td key="world" className="c-world">
-      {worldCheaper ? <><div className="world-cell" title={`Günstigste Region weltweit: ${reg?.name ?? 'Region unbekannt'}. Nicht automatisch im Zielland aktivierbar.`}>{reg && <Reg code={reg.code} />}<Price cents={world.cents} tone="world" /></div>
+      {worldCheaper ? <><div className="world-cell" title={`Günstigste Region weltweit: ${reg?.name ?? 'Region unbekannt'}. Nicht automatisch im Zielland aktivierbar.${worldOther}`}>{reg && <Reg code={reg.code} />}<Price cents={world.cents} tone="world" /></div>
           {worldShop && <div className="wl-sub">{worldShop}</div>}</>
-        : homeCheapest ? <><div className="world-cell home-best" title={`Günstigste Region weltweit: ${reg?.name ?? 'Region unbekannt'}. In ${code || 'deinem Zielland'} gibt es kein günstigeres Angebot.`}>
+        : homeCheapest ? <><div className="world-cell home-best" title={`Günstigste Region weltweit: ${reg?.name ?? 'Region unbekannt'}. In ${code || 'deinem Zielland'} gibt es kein günstigeres Angebot.${worldOther}`}>
             {reg && <Reg code={reg.code} home={reg.code === code} />}<Price cents={world!.cents} tone="world" /><span className="sr-only">, im Zielland am günstigsten</span></div>
             {worldShop && <div className="wl-sub">{worldShop}</div>}</>
           : facts.price !== null ? <span className="faint">–</span>
-            : <span className="wl-note faint">{missingWorld(badge)}</span>}
+            : <span className="wl-note faint">{feesUnknown ? 'Gebühren unbekannt' : missingWorld(badge)}</span>}
     </td>,
     save: <td key="save" className="c-save r">
       {facts.saving !== null ? <><span className={`save${facts.share! >= WORLD_SHARE - 1e-9 ? ' big' : ''}`}>−{formatPrice(facts.saving)}</span><div className="save-pct faint mono">−{Math.round(facts.share! * 100)} %</div></> : <span className="save none">–</span>}
