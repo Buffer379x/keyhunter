@@ -108,7 +108,7 @@ impl Wish {
     }
 
     /// Confirmed without the owner: the catalog title (or its standard edition), a key game, exactly the wish's
-    /// platform, and no same-titled game of another year in the catalog ([`Self::same_release`], FUNC-01, 1.0).
+    /// platform, and no same-titled game of another year in the catalog ([`Self::same_release`], FUNC-01, 0.9.3).
     pub(crate) fn auto_matches(&self, product: &Product, peers: &[Peer]) -> bool {
         self.game().is_some_and(|game| {
             game.selection_allowed()
@@ -135,7 +135,7 @@ impl Wish {
         self.keys().contains(&title_key(&product.title))
     }
 
-    /// An Xbox activation code the wish's system can use (FUNC-04, 1.0): the wish's platform, or an Xbox One key for
+    /// An Xbox activation code the wish's system can use (FUNC-04, 0.9.3): the wish's platform, or an Xbox One key for
     /// an Xbox 360, original Xbox or Series X|S wish (backward compatible). Nothing else ever counts as a key price,
     /// not even confirmed by hand: accounts, gifts, PC-only products, Series-only keys for older systems.
     pub(crate) fn takes_key(&self, product: &Product) -> bool {
@@ -144,7 +144,7 @@ impl Wish {
                 || (self.platform_id == XBOX_SERIES && product.platform_ids.contains(&XBOX_ONE)))
     }
 
-    /// The product is the wished release and not a same-titled game of another year (FUNC-01, 1.0). The shops name no
+    /// The product is the wished release and not a same-titled game of another year (FUNC-01, 0.9.3). The shops name no
     /// release year, so the catalog decides: another catalog game with the product's title on one of its platforms,
     /// released more than a year apart (or without a known date), makes the title ambiguous ("Doom" 1993 and 2016). An
     /// Xbox One key for an Xbox 360 or original Xbox wish may always be a newer game of the same name.

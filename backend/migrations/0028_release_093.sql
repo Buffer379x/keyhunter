@@ -1,4 +1,4 @@
--- 1.0 (FUNC-02): the lowest valid quote of an observation that was in stock, whatever its activation, so the trend
+-- 0.9.3 (FUNC-02): the lowest valid quote of an observation that was in stock, whatever its activation, so the trend
 -- of a target country elsewhere in the EU market can count it with the product's activation there (pricing::counts_in).
 -- Same bounds as valid_cents (migration 0014); observations are immutable, so a trigger fills it once.
 ALTER TABLE price_observation ADD COLUMN stock_cents INTEGER;
@@ -16,6 +16,6 @@ UPDATE price_observation SET stock_cents = CASE WHEN availability = 'in_stock' T
 DROP INDEX price_history;
 CREATE INDEX price_history ON price_observation(link_id, fingerprint, observed_at DESC, market, valid_cents, stock_cents);
 
--- 1.0 (FUNC-13): consecutive "not found" or unreadable results of a product link; from 5 on it is checked four
+-- 0.9.3 (FUNC-13): consecutive "not found" or unreadable results of a product link; from 5 on it is checked four
 -- times less often until a fetch succeeds again (jobs::dead_link).
 ALTER TABLE shop_job ADD COLUMN dead_failures INTEGER NOT NULL DEFAULT 0;

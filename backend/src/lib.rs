@@ -635,10 +635,10 @@ mod migration_tests {
         assert_eq!(initial, [("new".into(), 1), ("old".into(), 0)]);
     }
 
-    /// 1.0 (FUNC-02, FUNC-13): stock prices for old and new observations, whatever their activation; the trend
+    /// 0.9.3 (FUNC-02, FUNC-13): stock prices for old and new observations, whatever their activation; the trend
     /// index reads them; the dead-link count starts at zero.
     #[tokio::test]
-    async fn release_100_migration_backfills_stock_prices_and_counts_dead_links() {
+    async fn release_093_migration_backfills_stock_prices_and_counts_dead_links() {
         let pool = SqlitePoolOptions::new()
             .max_connections(1)
             .connect("sqlite::memory:")

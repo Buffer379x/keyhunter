@@ -28,7 +28,7 @@ pub(crate) struct WishlistItem {
     paused: bool,
     paused_until: Option<i64>,
     /// Offers of the confirmed products of active shops, one per valid seller price (0.9.1, the count of the tab
-    /// Angebote; one rule since 1.0, [`crate::offers::Link::offer_count`], FUNC-11). Only with the price badge.
+    /// Angebote; one rule since 0.9.3, [`crate::offers::Link::offer_count`], FUNC-11). Only with the price badge.
     #[serde(skip_serializing_if = "Option::is_none")]
     offer_count: Option<i64>,
     /// Mappings waiting for the owner (0.9.1): products not yet confirmed or rejected, and confirmed ones the shop renamed.

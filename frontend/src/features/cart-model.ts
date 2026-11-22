@@ -15,7 +15,7 @@ export interface CartOffer {
   region: string | null;
   observed_at: number;
   stale: boolean;
-  /** Can be bought for the target country (1.0, RESP-14): always for `home`, not always for a `world` offer. */
+  /** Can be bought for the target country (0.9.3, RESP-14): always for `home`, not always for a `world` offer. */
   fits_target?: boolean;
   /** Activation of the offer in the target country. */
   activation?: 'confirmed' | 'blocked' | 'unknown';

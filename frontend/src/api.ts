@@ -90,7 +90,7 @@ export interface WorldBest {
   observed_at: number | null;
   base_cents?: number;
   estimate_cents?: number | null;
-  /** The region can be bought for the target country: activation confirmed there and the same market (1.0, RESP-14). */
+  /** The region can be bought for the target country: activation confirmed there and the same market (0.9.3, RESP-14). */
   fits_target?: boolean;
   /** Activation of the offer in the target country. */
   activation?: 'confirmed' | 'blocked' | 'unknown';

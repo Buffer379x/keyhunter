@@ -27,11 +27,11 @@ export type Link = {
   score?: number | null;
   product: { name: string; region: string | null; market: string | null; activation: string; availability: string } | null;
   quotes: Quote[];
-  /** Why the product does not match plainly (1.0, FUNC-01/FUNC-04); empty for a plain match. */
+  /** Why the product does not match plainly (0.9.3, FUNC-01/FUNC-04); empty for a plain match. */
   mismatch?: Mismatch[];
   /** The owner may confirm it by hand: an Xbox key for the wish's system (accounts and PC-only products never). */
   manual_allowed?: boolean;
-  /** State of the link's data (1.0): only `current` prices may be offered as a saving or a cart action. */
+  /** State of the link's data (0.9.3): only `current` prices may be offered as a saving or a cart action. */
   data_state?: 'current' | 'stale' | 'failed' | 'unknown';
   /** A current price of its region (confirmed, fresh, in stock), whatever the target country. */
   current?: boolean;

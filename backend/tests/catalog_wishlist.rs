@@ -3364,7 +3364,7 @@ async fn accounts_never_count_as_key_prices_even_confirmed_by_hand_func04() {
             .await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{slug}");
         assert!(body["error"].as_str().unwrap().contains("kein Xbox-Key"));
-        // Confirmed by hand before 1.0: the mapping stays, its price does not count anywhere.
+        // Confirmed by hand before 0.9.3: the mapping stays, its price does not count anywhere.
         sqlx::query(
             "UPDATE offer_link SET review='confirmed',fingerprint=?,manual_match=1 WHERE id=?",
         )
