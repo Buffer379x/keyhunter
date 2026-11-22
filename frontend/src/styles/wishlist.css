@@ -92,3 +92,5 @@ table.wl .row-open:hover:not(:disabled) { color: var(--accent); border-color: va
 .game-cell .in-cart { display: inline-flex; flex: none; color: var(--accent); }
 /* (0.9.0) A wish paused on its own: the yellow pause symbol after the title, like the basket of the cart. */
 .game-cell .wish-paused { display: inline-flex; flex: none; color: var(--warn); }
+/* (0.9.1) Mappings to review: a warning triangle after the title, next to basket and pause. */
+.game-cell .wish-review { display: inline-flex; flex: none; color: var(--warn); }

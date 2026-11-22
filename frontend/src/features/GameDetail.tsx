@@ -136,7 +136,6 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
     {item.verification !== 'catalog' && <Notice>{item.verification === 'needs_review' ? 'Die Katalogdaten bestätigen diese Auswahl nicht mehr. Bitte prüfe Plattform und Produkttyp.' : 'Manueller Titel · Zuordnungen werden vor dem Preisvergleich geprüft.'}</Notice>}
     <Tabs id="gd" label="Spieldetails" items={items} value={tab} onChange={go} />
     {state.error && <Notice error>{state.error}<Button size="sm" onClick={state.refetch}>Erneut laden</Button></Notice>}
-    {state.message && <Notice>{state.message}</Notice>}
     <TabPanel id="gd" tab="preis" value={tab}>
       {loading ?? <PriceTab view={view} rows={rows} summary={summary} basis={basis} onBasis={setBasis} hasEstimates={hasEstimates} code={code || 'Zielland'} land={land} rule={rule} searching={searching} onTab={go} />}
     </TabPanel>

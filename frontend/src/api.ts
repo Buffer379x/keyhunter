@@ -99,6 +99,9 @@ export interface WishlistItem {
   /** Paused on its own (0.9.0): no automatic checks until `paused_until` (null: until resumed by hand). */
   paused?: boolean;
   paused_until?: number | null;
+  /** Offers of the confirmed products (0.9.1, the count of the tab Angebote) and mappings waiting for a review. */
+  offer_count?: number;
+  review_count?: number;
 }
 export interface LibraryItem extends WishlistItem { acquired_at:number; }
 export type SourceStatuses = Record<string, { state: string; enabled: boolean; configured?: boolean; last_success_at: number | null; retry_at: number | null }>;

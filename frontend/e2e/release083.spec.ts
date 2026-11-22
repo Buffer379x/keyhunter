@@ -127,7 +127,7 @@ test('Abrufstatus pages through the runs with their game and shows the next five
     await route.fulfill({ json });
   });
   await signInToFixture(page);
-  await page.evaluate(() => localStorage.setItem('keyhunter.runs.perPage', '25'));
+  await page.evaluate(() => localStorage.setItem('keyhunter.list.runs', JSON.stringify({ perPage: 25 })));
   await navTo(page, 'Abrufstatus');
   const next = page.getByRole('table', { name: 'Nächste Abfragen', exact: true });
   await expect(next.getByRole('columnheader')).toHaveText(['Wann', 'Shop', 'Art', 'Spiel', 'Ziel']);

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, HttpError } from '../api';
+import { notify } from '../notify';
 import type { AlertOverview } from '../api';
-import { Button, Help, Icon, Inset, Label, Notice, Panel, PanelHead, Seg, Switch, Toast } from '../components';
+import { Button, Help, Icon, Inset, Label, Notice, Panel, PanelHead, Seg, Switch } from '../components';
 import { SetupLink } from './PriceAlerts';
 import type { AlertState, Rule } from './PriceAlerts';
 import { channelLine } from './settings/channels';
@@ -34,8 +35,8 @@ export default function AlarmTab({ id, alert, editionName, code, hasEstimates, o
   const [enabled, setEnabled] = useState(true);
   const [target, setTarget] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [toast, setToast] = useState('');
+  /** Results and errors are popups at the bottom right (0.9.1). */
+  const setError = (text: string) => notify(text, 'error');
   const [events, setEvents] = useState<AlertOverview['events'] | null>(null);
   const [reload, setReload] = useState(0);
   useEffect(() => {
@@ -52,8 +53,8 @@ export default function AlarmTab({ id, alert, editionName, code, hasEstimates, o
   }, [id, reload]);
 
   async function run(action: () => Promise<void>, success: string) {
-    setBusy(true); setError('');
-    try { await action(); setToast(success); setReload(n => n + 1); }
+    setBusy(true);
+    try { await action(); notify(success); setReload(n => n + 1); }
     catch (err) { setError(err instanceof Error ? err.message : 'Alarmregel konnte nicht gespeichert werden.'); if (err instanceof HttpError && err.status === 401) onError(err); }
     finally { setBusy(false); }
   }
@@ -77,7 +78,6 @@ export default function AlarmTab({ id, alert, editionName, code, hasEstimates, o
             <Switch checked={enabled} onChange={setEnabled}>{mode === 'target' ? `Benachrichtigen, wenn ein in ${code} aktivierbarer Key das Ziel erreicht` : `Benachrichtigen bei einem neuen Tiefstpreis eines in ${code} aktivierbaren Keys`}</Switch>
             <div className="with-help"><span className="hint">{channelLine(channels)}{!channels.length && <> · die Regel wird trotzdem gespeichert · <SetupLink /></>}</span>
               <Help label="Hilfe zum Preisalarm">Es zählen nur in {code} aktivierbare Keys; {mode === 'target' ? 'der Alarm kommt, wenn der Preis auf oder unter das Ziel fällt' : 'der Alarm kommt bei jedem neuen Tiefstpreis seit dem Speichern'}, höchstens einmal je Spiel in 24 Stunden.</Help></div>
-            {error && <Notice error>{error}</Notice>}
             <div className="actions">
               <Button type="submit" variant="primary" loading={busy}>Speichern</Button>
               {rule && <Button variant="ghost" disabled={busy} onClick={() => void run(async () => { await alert.remove(); setTarget(''); setMode('target'); setBasis('base'); setEnabled(true); }, 'Alarmregel entfernt.')}>Alarm entfernen</Button>}
@@ -95,6 +95,5 @@ export default function AlarmTab({ id, alert, editionName, code, hasEstimates, o
             <span className="r mono muted">{when(event.sent_at ?? event.observed_at)}</span></li>)}
       </ul></Inset>
     </Panel>
-    <Toast message={toast} onDone={() => setToast('')} />
   </div>;
 }

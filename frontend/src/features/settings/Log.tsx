@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import type { LogLevel, LogPage } from '../../api';
 import { Help, Inset, Label, Panel, PanelHead, Pill } from '../../components';
 import { Pager, PagedTools, usePaged } from './paged';
@@ -12,16 +11,16 @@ const when = (seconds: number) => new Date(seconds * 1000).toLocaleString('de-DE
 
 /** Einstellungen › Log (0.8.3): what happened in KeyHunter in the last 7 days, newest first, by level and full text. */
 export default function Log() {
-  const [level, setLevel] = useState<LevelFilter>('');
-  const list = usePaged<LogPage>('/log', 'level', level, 'keyhunter.log.perPage');
+  const list = usePaged<LogPage, LevelFilter>('/log', 'level', 'keyhunter.list.log', levels.map(l => l.value), '');
+  const level = list.filter;
   const { data } = list;
   return <Panel aria-labelledby="log-title" className="paged">
     <PanelHead className="paged-title"><Label as="h2" tone="soft" id="log-title">Ereignisse · 7 Tage</Label>
       <Help label="Hilfe zum Log"><span>Anmeldungen, Änderungen an Wunschliste, Bibliothek, Warenkorb und Einstellungen, bestätigte oder gelöschte Zuordnungen, Benachrichtigungen und Fehler beim Abruf.</span>
         <span>Einträge bleiben 7 Tage, dann löscht KeyHunter den ältesten automatisch. Passphrase, Zugangsdaten und Tokens stehen nie im Log.</span></Help>
     </PanelHead>
-    <PagedTools label="Log" filter={level} filters={levels} onFilter={setLevel} text={list.text} onText={list.setText} placeholder="Meldung, Bereich …"
-      perPage={list.perPage} onPerPage={list.choosePerPage} />
+    <PagedTools label="Log" filter={level} filters={levels} onFilter={list.setFilter} text={list.text} onText={list.setText} placeholder="Meldung, Bereich …"
+      perPage={list.perPage} onPerPage={list.setPerPage} />
     <Inset className="table-wrap">
       {!data ? <p className="hint set-pad" role="status">{list.failed ? 'Das Log konnte nicht gelesen werden.' : 'Log wird geladen …'}</p>
         : data.entries.length === 0 ? <p className="hint set-pad">{level || list.text.trim() ? 'Kein Eintrag passt zu diesem Filter.' : 'Noch keine Ereignisse aufgezeichnet.'}</p>

@@ -101,13 +101,6 @@
 .settings-page .paged-title { border-bottom: 1px solid var(--line); }
 .settings-page .paged-tools { gap: 10px; border-bottom: 1px solid var(--line); }
 .settings-page .paged-q { width: 240px; }
-.settings-page .paged-size { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: var(--t-xs); white-space: nowrap; }
-.settings-page .paged-size select { width: auto; height: var(--h-btn); }
-.settings-page .pager { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: var(--t-xs); }
-.settings-page .pager .icon-btn { width: 30px; height: 30px; }
-.settings-page .pager .pager-double { margin-left: -11px; }
-.settings-page .pager-at { padding: 0 6px; white-space: nowrap; }
-.settings-page .pager-at b { color: var(--text); font-weight: 500; }
 .settings-page .log-table td { white-space: nowrap; vertical-align: top; }
 .settings-page .log-table td.log-msg { white-space: normal; min-width: 240px; color: var(--text-2); overflow-wrap: anywhere; }
 .settings-page .log-table tr.lv-error td.log-msg { color: var(--text); }
@@ -115,7 +108,6 @@
 .settings-page .set-runs td.set-run-game b { font-weight: 500; }
 @media (max-width: 720px) {
   .settings-page .paged-q { flex: 1 1 160px; width: auto; }
-  .settings-page .pager-at { display: none; }
 }
 /* (0.8.3) Tabellenspalten: one panel, a tab per table; tools (open mode, help, reset) above the list. */
 .settings-page .col-panel { display: grid; gap: 14px; }

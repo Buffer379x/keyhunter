@@ -10,6 +10,7 @@ import { relativeTime } from '../time';
 import { money } from './price-format';
 import { channelLine } from './settings/channels';
 import { openSection } from './settings/sections';
+import { notify } from '../notify';
 
 export type Rule = { mode: 'target' | 'low'; basis: 'base' | 'estimate'; target_cents: number | null; enabled: boolean };
 type RuleView = Rule & { wish_id: string; title: string; delivery: string | null };
@@ -79,7 +80,7 @@ export default function PriceAlerts({ csrf, targetCountry, targetLabel, onError 
   const [badges, setBadges] = useState<Record<string, PriceBadgeData>>({});
   const [items, setItems] = useState<Record<string, WishlistItem>>({});
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
+  const setMessage = notify;
   const [reload, setReload] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
@@ -119,7 +120,6 @@ export default function PriceAlerts({ csrf, targetCountry, targetLabel, onError 
     <PageHeading id="alerts-title" title="Preisalarme" help={`Benachrichtigung über jeden aktiven Kanal (Einstellungen › Benachrichtigungen), sobald ein in ${targetLabel} aktivierbarer Key das Ziel erreicht. Höchstens eine Nachricht je Spiel und 24 Stunden.`}
       actions={<>{channel}<Button disabled={!data?.configured || busy} loading={busy} onClick={() => void testChannel()}><Icon name="send" />Testnachricht senden</Button></>} />
     {loadError && <Notice error>{loadError} <Button size="sm" onClick={() => setReload(n => n + 1)}>Erneut laden</Button></Notice>}
-    {message && <Notice>{message}</Notice>}
     <Panel aria-labelledby="rules-title">
       <PanelHead><Label as="h2" tone="soft" id="rules-title">Alle Ziele · nach Abstand</Label></PanelHead>
       <Inset className="table-wrap">

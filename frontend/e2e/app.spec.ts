@@ -74,7 +74,7 @@ test('owner replaces and removes the IGDB credentials from settings', async ({ p
   expect((await update).postDataJSON()).toEqual({
     client_id: 'browser-fixture-client', client_secret: 'browser-fixture-secret',
   });
-  await expect(igdb.getByText('IGDB-Zugang gespeichert und geprüft.')).toBeVisible();
+  await expect(page.locator('.toast-pop').filter({ hasText: 'IGDB-Zugang gespeichert und geprüft.' })).toBeVisible();
   await expect(igdb.getByLabel('Client Secret', { exact: true })).toHaveValue('');
   await page.reload();
   await expect(igdb.getByLabel('Client-ID', { exact: true })).toHaveValue('');

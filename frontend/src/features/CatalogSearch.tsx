@@ -135,7 +135,7 @@ export default function CatalogSearch({ csrf, open, inline = false, target = 'wi
   }} onBlur={event => { if (!busy && !ownedWarning && event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) onClose(); }}>
     <div className="search-box" role="search"><Icon name="search" size={15} />{searchInput}<span className="kbd" aria-hidden="true">Ctrl K</span></div>
     {open && <section className="search-pop" id="global-results" aria-label="Suchergebnisse">
-      <div className="search-pop-head"><span className="label">Spiele suchen · IGDB</span><span className="spacer" />{platformField}<IconButton variant="ghost" label="Suche schließen" disabled={busy} onClick={onClose}><Icon name="x" /></IconButton></div>
+      <div className="search-pop-head"><span className="label">Suche · IGDB</span><span className="spacer" />{platformField}<IconButton variant="ghost" label="Suche schließen" disabled={busy} onClick={onClose}><Icon name="x" /></IconButton></div>
       {resultsPanel}
     </section>}
   </div>;

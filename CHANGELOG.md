@@ -1,5 +1,27 @@
 # Änderungen
 
+## 0.9.1 – 2026-11-22
+
+Meldungen erscheinen als Popup unten rechts, die Wunschliste blättert seitenweise, und der Warenkorb steht wieder nebeneinander. Die Datenbank bleibt unverändert, beim Update ist nichts zu tun.
+
+### Sicherheit
+- **Telegram-Token-Meldung geprüft:** GitHubs Secret-Scanning meldete seit 0.9.0 einen „Telegram Bot Token“ im Repository. Es war kein echter Token, sondern ein ausgedachter Testwert (Bot-ID 123456789, „fixtureTokenOnlyForTests“) in den Backend-Tests, der wie ein echter aussieht. Die Testwerte für Telegram, Pushover und Discord werden jetzt aus Teilen zusammengesetzt, damit kein Scanner sie mehr für echte Zugangsdaten hält.
+- **Weitere Prüfung ohne Befund:**
+  - gitleaks über die gesamte Git-Historie findet nichts.
+  - Die API gibt keine Tokens, Passwörter oder geheimen Adressen heraus; Log und Fehlermeldungen enthalten sie nicht.
+  - Die Secret-Dateien und Sicherungen im Datenverzeichnis sind nur für den Besitzer lesbar.
+  - Im Docker-Image und in den GitHub-Workflows liegen keine Zugangsdaten.
+
+### Oberfläche
+- **Meldungen als Popup:** Rückmeldungen nach einer Aktion („… pausiert“, „Gespeichert“, „liegt im Warenkorb“, Fehler) erscheinen unten rechts statt oben in der Seite, so verschiebt sich das Layout nicht mehr. Erfolge schließen sich nach einigen Sekunden, Fehler bleiben länger. Jede Meldung lässt sich mit dem X schließen und bleibt offen, solange die Maus darauf liegt. Ladefehler mit „Erneut laden“ und Meldungen in Dialogen bleiben an ihrem Platz.
+- **Wunschliste seitenweise:** Wie im Log wählst du 25, 50, 100 oder 200 Spiele pro Seite und blätterst unter der Tabelle.
+- **Anzeige bleibt erhalten:** Wunschliste, Log und Abrufe merken sich Filter, Suchtext und Einträge pro Seite in diesem Browser, die geöffnete Seite für die Sitzung. Nach einem Seitenwechsel sieht die Liste wieder so aus wie vorher.
+- **Erste und letzte Seite:** Die Knöpfe zeigen jetzt einen Pfeil gegen einen Strich (|‹ und ›|) statt zweier verrutschter Pfeile.
+- **Warenkorb wieder nebeneinander:** Links die Spiele, rechts die Summe. DE/INT steht jetzt unter dem Shop, so passt die Tabelle samt Papierkorb neben die Summe. Auf schmaleren Bildschirmen steht die Summe weiter darunter.
+- **Angebote in der Wunschliste:** Hinter dem Erscheinungsjahr steht, wie viele Angebote vorliegen, zum Beispiel „2021 (38 Angebote)“.
+- **Warndreieck:** Hinter dem Titel steht neben Einkaufskorb und Pause ein gelbes Warndreieck, sobald unter Infos Zuordnungen auf eine Prüfung warten (ungeprüfte oder umbenannte Produkte) oder die Katalogzuordnung nicht mehr passt.
+- **Suchfenster:** Beim ersten Öffnen setzte sich der Kopf sichtbar neu zusammen. Die Systeme der Plattform-Auswahl kommen erst nach dem Öffnen, verbreiterten die Auswahl und schoben das X in eine eigene Zeile. Die Auswahl hat jetzt eine feste Breite, der Kopf bleibt einzeilig.
+
 ## 0.9.0 – 2026-11-22
 
 Preisalarme kommen jetzt auch über Telegram, Discord, E-Mail, Gotify, Pushover oder einen Webhook. Die Wunschliste hat keine Obergrenze mehr, einzelne Spiele lassen sich pausieren, und jedes EU-Zielland zählt wie Deutschland. Beim Start ergänzt die Datenbank die Pause je Spiel und die Benachrichtigungskanäle (mit Sicherung vorher). Eine vorhandene /config/ntfy.env funktioniert weiter, sonst ist beim Update nichts zu tun.

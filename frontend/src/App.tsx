@@ -9,7 +9,8 @@ import type { WishlistItem } from './api';
 import PriceAlerts from './features/PriceAlerts';
 import SettingsPage from './features/SettingsPage';
 import AuthScreen from './features/AuthScreen';
-import { Brand, Button, Icon, IconButton, Notice } from './components';
+import { Brand, Button, Icon, IconButton, Toaster } from './components';
+import { notify } from './notify';
 import type { IconName } from './components';
 import FetchStatus from './FetchStatus';
 import { mediaQuery } from './breakpoints';
@@ -95,7 +96,9 @@ export default function App() {
     } catch (e) { handleProtectedError(e); }
     finally { setBusy(false); }
   }
+  // On the signed-in app an error is a popup (0.9.1); the sign-in screen shows its own.
   const handleProtectedError = useCallback((e: unknown) => {
+    if (!(e instanceof HttpError && e.status === 401)) { notify(errorText(e), 'error'); return; }
     setError(errorText(e));
     if (e instanceof HttpError && e.status === 401) { setCsrf(''); setWishlistCount(null); setSearchOpen(false); setAddOpen(false); setScreen('login'); }
   }, []);
@@ -270,7 +273,6 @@ export default function App() {
         </div>
       </header>
       <main id="main-content" className="content" tabIndex={-1}>
-        {error && <Notice error>{error}</Notice>}
         {page === 'wishlist' ? <Wishlist key={wishlistRevision} csrf={csrf} targetCountry={savedCountry} columns={auto.saved?.wishlist_columns} hidden={auto.saved?.wishlist_hidden} opener={auto.saved?.wishlist_open} offersColumns={auto.saved?.offers_columns} offersHidden={auto.saved?.offers_hidden} targetLabel={targetLabel ?? 'Noch nicht gewählt'} addOpen={addOpen} onAddOpen={setAddOpen} onTitle={setGameTitle} onSettings={() => openSettings()} onCountChange={setWishlistCount} onError={handleProtectedError} />
           : page === 'library' ? <Library csrf={csrf} addOpen={libraryAddOpen} onAddOpen={setLibraryAddOpen} onRestored={selectSearchResult} onOpenWishlist={() => navigate('wishlist')} onCountChange={setLibraryCount} onError={handleProtectedError} />
             : page === 'cart' ? <Cart csrf={csrf} targetCountry={savedCountry ?? ''} onOpen={selectSearchResult} onOpenWishlist={() => navigate('wishlist')} onError={handleProtectedError} />
@@ -279,6 +281,7 @@ export default function App() {
                 onSourcesChanged={refreshSources} onError={handleProtectedError} onLogout={() => void logout()} />}
       </main>
     </div>
+    <Toaster />
     <UnsavedDialog open={leaving !== null && auto.dirty} error={auto.state === 'error' ? auto.error : ''}
       onSave={async () => { const ok = await auto.save(); if (ok) setLeaving(null); return ok; }}
       onDiscard={() => { auto.discard(); setLeaving(null); }}

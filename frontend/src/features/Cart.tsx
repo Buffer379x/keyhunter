@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, CART_CHANGED, HttpError } from '../api';
+import { notify } from '../notify';
 import type { WishlistItem } from '../api';
 import { Button, EmptyState, Icon, Help, IconButton, Inset, Label, Notice, PageHeading, Panel, PanelHead, Price, Reg, Seg, formatPrice } from '../components';
 import { whenVisible } from '../poll';
@@ -34,7 +35,6 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
   const [entries, setEntries] = useState<CartEntry[] | null>(null);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
   const [loadError, setLoadError] = useState('');
-  const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [reload, setReload] = useState(0);
   const code = targetCountry.toUpperCase();
@@ -60,14 +60,14 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
   }, [reload, onError]);
 
   const change = useCallback(async (method: 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown) => {
-    setBusy(true); setError('');
+    setBusy(true);
     try {
       await api(path, method, body, csrf);
       window.dispatchEvent(new Event(CART_CHANGED));
       setReload(n => n + 1);
       return true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Warenkorb konnte nicht geändert werden.');
+      if (!(e instanceof HttpError && e.status === 401)) notify(e instanceof Error ? e.message : 'Warenkorb konnte nicht geändert werden.', 'error');
       if (e instanceof HttpError && e.status === 401) onError(e);
       return false;
     } finally { setBusy(false); }
@@ -89,7 +89,6 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
     <PageHeading id="cart-title" title="Warenkorb" sub={sub} help={<><span>Die Preise kommen aus den letzten Shop-Abfragen und aktualisieren sich von selbst.</span>
       <span>„Günstigster“ nimmt je Spiel das günstigste Angebot nach Key-Preis, egal welcher Shop und welche Region. {code || 'Zielland'} zählt nur im Zielland aktivierbare Keys des gewählten Shops, INT die günstigste Region dieses Shops.</span></>} />
     {loadError && <Notice error>{loadError}<Button size="sm" onClick={() => setReload(n => n + 1)}>Erneut laden</Button></Notice>}
-    {error && <Notice error>{error}</Notice>}
     {entries?.length === 0 && <Panel><EmptyState icon="cart" title="Der Warenkorb ist leer"
       action={<Button variant="ghost" onClick={onOpenWishlist}>Zur Wunschliste</Button>}>
       Lege Spiele über „In den Warenkorb“ auf der Seite eines Spiels hinein, dann siehst du den Gesamtpreis mit und ohne Gebühren, nach Shops aufgeteilt.</EmptyState></Panel>}
@@ -98,7 +97,7 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
         <PanelHead><Label id="cart-items-title">Im Warenkorb</Label></PanelHead>
         <Inset className="table-wrap">
           <table className="cart-table" aria-label="Spiele im Warenkorb">
-            <thead><tr><th>Spiel</th><th>Shop</th><th>Preis</th><th className="r">Key-Preis</th><th className="r">Gebühren</th><th className="r">Gesamt</th><th><span className="sr-only">Entfernen</span></th></tr></thead>
+            <thead><tr><th>Spiel</th><th>Shop · Preis</th><th className="r">Key-Preis</th><th className="r">Gebühren</th><th className="r">Gesamt</th><th><span className="sr-only">Entfernen</span></th></tr></thead>
             <tbody>{sums.lines.map(line => {
               const name = itemName(line.item);
               const reg = regCode(line.region);
@@ -112,9 +111,10 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
                     <option value="">Günstigster{line.item.source === null && line.source ? ` (${shopName(line.source)})` : ''}</option>
                     {shops.map(id => <option key={id} value={id}>{shopName(id)}{shopPrice(id)}</option>)}
                   </select>
-                  {line.base !== null && reg && <span className="cart-region"><Reg code={reg.code} title={reg.name} />{reg.name}</span>}</td>
-                <td className="c-scope"><Seg label={`Preisgrundlage für ${name}`} value={line.item.scope} onChange={scope => choose(line, { scope })}
-                  options={[{ value: 'home', label: code || 'Ziel', disabled: busy }, { value: 'world', label: 'INT', disabled: busy }]} /></td>
+                  {/* 0.9.1: DE/INT under the shop, one column less, so the table fits next to the totals. */}
+                  <span className="cart-scope"><Seg label={`Preisgrundlage für ${name}`} value={line.item.scope} onChange={scope => choose(line, { scope })}
+                    options={[{ value: 'home', label: code || 'Ziel', disabled: busy }, { value: 'world', label: 'INT', disabled: busy }]} />
+                    {line.base !== null && reg && <span className="cart-region"><Reg code={reg.code} title={reg.name} />{reg.name}</span>}</span></td>
                 <td className="c-key r">{line.base !== null ? <><Price cents={line.base} tone={line.stale ? 'stale' : 'default'} />{line.stale && <div className="wl-sub">zuletzt bekannt</div>}</>
                   : <span className="wl-note faint">{line.item.scope === 'home' ? `Kein ${homeLabel}` : 'Kein Angebot'}{line.item.source ? ` bei ${shopName(line.item.source)}` : ''}</span>}</td>
                 <td className="c-fee r">{line.base === null ? <span className="faint">–</span> : line.fee !== null ? <span className="mono">+{formatPrice(line.fee)}</span>
