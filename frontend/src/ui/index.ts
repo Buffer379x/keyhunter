@@ -1,14 +1,11 @@
 export { Icon } from './Icon';
 export type { IconName } from './Icon';
 export { Button, IconButton } from './Button';
-export type { ButtonVariant } from './Button';
 export { Chip, Pill, Reg } from './Chip';
 export type { PillTone } from './Chip';
 export { Price, BigPrice, formatPrice } from './Price';
 export { Tabs, TabPanel, Seg } from './Tabs';
-export type { TabItem } from './Tabs';
 export { Field, FormRow, Switch } from './Form';
-export { Panel, PanelHead, Inset, Label, Kpi, Ticks, EmptyState } from './Layout';
-export { Toast } from './Toast';
+export { Panel, PanelHead, Inset, Label, Kpi, EmptyState } from './Layout';
 export { Help } from './Help';
 export { Toaster } from './Toaster';

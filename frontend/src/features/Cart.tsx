@@ -27,7 +27,6 @@ import { cartSums, entryShop } from './cart-model';
 import type { CartEntry, CartLine, CartScope } from './cart-model';
 import { shopNames } from './shop-names';
 import { regCode } from './WishlistRow';
-import '../styles/cart.css';
 
 /** Prices follow the saved shop checks: the cart reads them again this often while the tab is visible. */
 const REFRESH_MS = 60_000;

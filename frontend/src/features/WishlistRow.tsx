@@ -7,13 +7,10 @@ import { itemName, kindName, platformName } from './catalog-ui';
 import { countryData } from './regions';
 import GameCover from './GameCover';
 import { pauseText } from './wish-pause';
-import { badgeStateText, badgeTitle } from './PriceBadge';
+import { badgeStateText, badgeTitle } from './price-badge-text';
 import { WORLD_SHARE, sparkHeights } from './wishlist-model';
 import type { RowFacts } from './wishlist-model';
 import type { OpenMode, WishlistColumn } from './wishlist-columns';
-
-/** Is this entry something the owner has to look at (unconfirmed match, or the shop mapping needs review)? */
-export const needsReview = (item: WishlistItem, badge?: PriceBadgeData) => badge?.state === 'review' || item.verification !== 'catalog';
 
 /** Short region code for the `.reg` badge: ISO codes as they are, "GL" for global, the region keys shortened. */
 export function regCode(region: string | null | undefined): { code: string; name: string } | null {
@@ -41,7 +38,7 @@ function subline(item: WishlistItem) {
 }
 
 /** Why a row carries the warning symbol (0.9.1): mappings to review under Infos, or a catalog choice that is not confirmed. */
-export function reviewText(item: WishlistItem): string {
+function reviewText(item: WishlistItem): string {
   const parts: string[] = [];
   const count = item.review_count ?? 0;
   if (count > 0) parts.push(count === 1 ? '1 ungeprüfte Zuordnung' : `${count} ungeprüfte Zuordnungen`);

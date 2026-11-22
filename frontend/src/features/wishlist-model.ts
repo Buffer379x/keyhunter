@@ -112,7 +112,7 @@ export function matchesText(titles: string[], facts: RowFacts, text: string, sho
 
 /** 'pause': wishes paused on their own (0.9.0); a fact of the item, checked by the list itself. */
 export type ChipFilter = 'alle' | 'ziel' | 'welt' | 'offen' | 'pause';
-export const isWorldCheaper = (facts: RowFacts) => facts.share !== null && facts.share >= WORLD_SHARE - 1e-9;
+const isWorldCheaper = (facts: RowFacts) => facts.share !== null && facts.share >= WORLD_SHARE - 1e-9;
 export function matchesChip(facts: RowFacts, chip: ChipFilter): boolean {
   if (chip === 'ziel') return facts.reached;
   if (chip === 'welt') return isWorldCheaper(facts);
@@ -170,7 +170,7 @@ export function reachedTrend(rows: Row[], rules: Record<string, TargetRule | und
   return { since, ticks };
 }
 
-export interface CheaperKpi {
+interface CheaperKpi {
   count: number;
   best: Row | null;
   ticks: number[];
@@ -191,7 +191,7 @@ export const shortTitle = (title: string) =>
     .join(' ')
     .replace(/[:,–-]+$/, '');
 
-export interface FetchKpi {
+interface FetchKpi {
   used: number;
   limit: number;
   demand: number | null;

@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from 'react';
 import { Icon, IconButton } from '../components';
 
 /** Entries per page to choose from (Log, Abrufe, Wunschliste). */
-export const PER_PAGE = [25, 50, 100, 200];
+const PER_PAGE = [25, 50, 100, 200];
 
 interface Stored {
   filter?: unknown;

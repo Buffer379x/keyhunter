@@ -43,7 +43,7 @@ const flagUrl = (code: string) => flags[`/node_modules/flag-icons/flags/4x3/${co
 const areas: Record<string, string> = { GL: 'Global', NA: 'Nordamerika', ROW: 'Rest der Welt', LATAM: 'Lateinamerika' };
 let regionNames: Intl.DisplayNames | null = null;
 /** German name of a region code: "Indien", "Europa", "Global". */
-export function regName(code: string): string {
+function regName(code: string): string {
   const upper = code.toUpperCase();
   if (upper === 'EU') return 'Europa';
   if (areas[upper]) return areas[upper];

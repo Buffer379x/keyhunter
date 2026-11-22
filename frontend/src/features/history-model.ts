@@ -76,7 +76,7 @@ export function columns(home: HistoryPoint[], world: HistoryPoint[], days: numbe
   return out;
 }
 
-export type Stats = { low: { cents: number; back: number; region: string | null } | null; high: number | null; average: number | null };
+type Stats = { low: { cents: number; back: number; region: string | null } | null; high: number | null; average: number | null };
 /** Lowest (with its most recent day), highest and mean of the daily minima over the last `days` days; days without data do not count. */
 export function dailyStats(points: HistoryPoint[], days: number, now: number): Stats {
   const daily = columns(points, [], days, days, now).flatMap(column => (column.home ? [{ ...column.home, back: column.toBack }] : []));

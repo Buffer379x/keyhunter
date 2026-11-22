@@ -20,7 +20,6 @@ import {
   Switch,
   TabPanel,
   Tabs,
-  Toast,
 } from './index';
 import { Brand } from '../brand';
 
@@ -30,7 +29,6 @@ export default function Gallery() {
   const [range, setRange] = useState('90');
   const [filter, setFilter] = useState('alle');
   const [on, setOn] = useState(true);
-  const [toast, setToast] = useState('');
   const items = [
     { id: 'preis', label: 'Preis' },
     { id: 'angebote', label: 'Angebote', count: 12 },
@@ -230,21 +228,12 @@ export default function Gallery() {
         </Panel>
       </section>
       <section>
-        <Label>Leerer Zustand und Toast</Label>
+        <Label>Leerer Zustand</Label>
         <Panel>
-          <EmptyState
-            icon="heart"
-            title="Noch keine Spiele"
-            action={
-              <Button variant="primary" onClick={() => setToast('Zielland: Österreich')}>
-                Toast zeigen
-              </Button>
-            }
-          >
+          <EmptyState icon="heart" title="Noch keine Spiele">
             Suche ein Spiel und merke es vor.
           </EmptyState>
         </Panel>
-        <Toast message={toast} onDone={() => setToast('')} />
       </section>
     </main>
   );

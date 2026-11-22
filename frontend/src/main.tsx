@@ -13,6 +13,10 @@ import './styles/alerts.css';
 import './styles/wishlist.css';
 import './styles/offers.css';
 import './styles/shell.css';
+// Feature stylesheets come last so they win over tokens/ui in the cascade (DS-05).
+import './styles/cart.css';
+import './styles/library.css';
+import './styles/settings.css';
 
 const root = createRoot(document.getElementById('root')!);
 if (import.meta.env.DEV && window.location.pathname === '/_ui') {

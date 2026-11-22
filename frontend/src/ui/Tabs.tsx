@@ -3,7 +3,7 @@ import type { KeyboardEvent, ReactNode } from 'react';
 import { Icon } from './Icon';
 import type { IconName } from './Icon';
 
-export interface TabItem {
+interface TabItem {
   id: string;
   label: string;
   count?: number | null;

@@ -1,7 +1,7 @@
-import type { FetchBudget, FetchRun, FetchShopStatus } from '../../api.ts';
+import type { FetchBudget, FetchShopStatus } from '../../api.ts';
 
 /** Seconds without a worker heartbeat after which the backend itself calls a worker stalled (jobs.rs STALL_AFTER). */
-export const WORKER_STALLED_AFTER = 300;
+const WORKER_STALLED_AFTER = 300;
 
 export const shopTitle = (id: string) => (({ eneba: 'Eneba', driffle: 'Driffle', igdb: 'IGDB' }) as Record<string, string>)[id] ?? id;
 
@@ -30,7 +30,7 @@ export function parseDailyJobs(text: string): number | null {
   return value >= DAILY_JOBS_MIN && value <= DAILY_JOBS_MAX ? value : null;
 }
 
-export type Tone = 'ok' | 'warn' | 'error' | 'off';
+type Tone = 'ok' | 'warn' | 'error' | 'off';
 const clock = (seconds: number) => new Date(seconds * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 /** "20:35 Uhr" within the next 20 hours, otherwise with the date ("21.11., 20:35 Uhr"). */
 const pauseEnd = (seconds: number, nowSeconds: number) => (seconds - nowSeconds < 20 * 3600 ? `${clock(seconds)} Uhr` : `${dateTimeText(seconds)} Uhr`);
@@ -38,7 +38,7 @@ export const dateTimeText = (seconds: number) =>
   new Date(seconds * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 /** Short German name of an error code in `last_error` and `outcome`. */
-export const outcomeNames: Record<string, string> = {
+const outcomeNames: Record<string, string> = {
   ok: 'Erfolgreich',
   network: 'Netzwerkfehler',
   not_found: 'Nicht gefunden',
@@ -50,7 +50,7 @@ export const outcomeText = (code: string) => outcomeNames[code] ?? code;
 export function outcomeTone(code: string): 'ok' | 'warn' | 'error' {
   return code === 'ok' ? 'ok' : code === 'rate_limited' || code === 'not_found' ? 'warn' : 'error';
 }
-export const kindNames: Record<string, string> = { product: 'Preis', search: 'Suche', discovery: 'Discovery' };
+const kindNames: Record<string, string> = { product: 'Preis', search: 'Suche', discovery: 'Discovery' };
 export const kindText = (kind: string) => kindNames[kind] ?? kind;
 export function durationText(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)} ms`;
@@ -87,9 +87,6 @@ export function workerState(
 export function budgetShare(used: number, limit: number): number {
   return limit > 0 ? Math.min(1, Math.max(0, used / limit)) : 0;
 }
-
-/** "11:02" (local time of a Unix timestamp). */
-export const clockText = clock;
 
 /** "in 2 Min." for a time in the future, "jetzt" when it is due. */
 export function untilText(seconds: number, nowSeconds: number): string {
@@ -133,5 +130,3 @@ export function budgetView(budget: FetchBudget) {
     fromEnv: budget.limit_source === 'env',
   };
 }
-
-export type { FetchRun };

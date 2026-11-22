@@ -14,7 +14,7 @@ import { notify } from '../notify';
 
 export type Rule = { mode: 'target' | 'low'; basis: 'base' | 'estimate'; target_cents: number | null; enabled: boolean };
 type RuleView = Rule & { wish_id: string; title: string; delivery: string | null };
-export type AlertEvent = {
+type AlertEvent = {
   id: number;
   wish_id: string | null;
   state: string;
@@ -166,7 +166,6 @@ export default function PriceAlerts({
   const [badges, setBadges] = useState<Record<string, PriceBadgeData>>({});
   const [items, setItems] = useState<Record<string, WishlistItem>>({});
   const [busy, setBusy] = useState(false);
-  const setMessage = notify;
   const [reload, setReload] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
@@ -203,10 +202,9 @@ export default function PriceAlerts({
   }, [reload, onError]);
   async function testChannel() {
     setBusy(true);
-    setMessage('');
     try {
       await api('/alerts/test', 'POST', undefined, csrf);
-      setMessage('Testnachricht zur Zustellung vorgemerkt.');
+      notify('Testnachricht zur Zustellung vorgemerkt.');
       setReload(n => n + 1);
     } catch (error) {
       onError(error);

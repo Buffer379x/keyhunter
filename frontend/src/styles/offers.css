@@ -1,10 +1,4 @@
 /* Angebote tab of the game detail (design v4 prototype, tabOffers): the price-ordered offer table. Tokens only. */
-.world-cell {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-}
 table.offers td {
   white-space: nowrap;
 }

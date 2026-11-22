@@ -138,7 +138,6 @@ export default function Wishlist({
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState('');
   /** Messages after an action are popups at the bottom right (0.9.1). */
-  const setMessage = notify;
   // The view (chip, search, page size, page) is kept when the owner leaves the list and comes back (0.9.1).
   const view = useListView<ChipFilter>('keyhunter.list.wishlist', CHIPS, 'alle');
   const chip = view.filter;
@@ -372,7 +371,6 @@ export default function Wishlist({
     if (!showingDetail.current) listScroll.current = scroller()?.scrollTop ?? 0;
     returnFocus.current = showingDetail.current ? null : id;
     setSelectedId(id);
-    setMessage('');
     const url = new URL(window.location.href);
     url.hash = '';
     url.searchParams.delete('view');
@@ -427,7 +425,7 @@ export default function Wishlist({
     filterList('');
     setChip('alle');
     open(item.id);
-    setMessage(created ? `${itemName(item)} wurde vorgemerkt.` : 'Dieser Titel ist bereits auf deiner Wunschliste.');
+    notify(created ? `${itemName(item)} wurde vorgemerkt.` : 'Dieser Titel ist bereits auf deiner Wunschliste.');
   }
   async function remove() {
     if (!removeItem || removing) return;
@@ -445,7 +443,7 @@ export default function Wishlist({
         closeDetail();
       }
       focusListAfterRemove.current = true;
-      setMessage(`${itemName(removeItem)} wurde aus der Wunschliste entfernt.`);
+      notify(`${itemName(removeItem)} wurde aus der Wunschliste entfernt.`);
       setRemoveItem(null);
     } catch (e) {
       setRemoveError(e instanceof Error ? e.message : 'Entfernen fehlgeschlagen.');
@@ -460,13 +458,12 @@ export default function Wishlist({
     if (!selected || preview || carting) return;
     const inCart = !!selected.in_cart;
     setCarting(true);
-    setMessage('');
     try {
       if (inCart) await api(`/cart/${encodeURIComponent(selected.id)}`, 'DELETE', undefined, csrf);
       else await api('/cart', 'POST', { wish_id: selected.id }, csrf);
       setItems(current => current.map(item => (item.id === selected.id ? { ...item, in_cart: !inCart } : item)));
       window.dispatchEvent(new Event(CART_CHANGED));
-      setMessage(inCart ? `${itemName(selected)} ist nicht mehr im Warenkorb.` : `${itemName(selected)} liegt jetzt im Warenkorb.`);
+      notify(inCart ? `${itemName(selected)} ist nicht mehr im Warenkorb.` : `${itemName(selected)} liegt jetzt im Warenkorb.`);
     } catch (error) {
       onError(error);
     } finally {
@@ -478,7 +475,6 @@ export default function Wishlist({
   async function pauseWish(until: number | null | false) {
     if (!selected || preview || pausing) return;
     setPausing(true);
-    setMessage('');
     try {
       const next = await api<WishlistItem>(
         `/wishlist/${encodeURIComponent(selected.id)}/pause`,
@@ -487,7 +483,7 @@ export default function Wishlist({
         csrf,
       );
       setItems(current => current.map(item => (item.id === selected.id ? { ...item, paused: next.paused, paused_until: next.paused_until } : item)));
-      setMessage(until === false ? `Die Abfragen für ${itemName(selected)} laufen wieder.` : `${itemName(selected)}: ${pauseText(next)}.`);
+      notify(until === false ? `Die Abfragen für ${itemName(selected)} laufen wieder.` : `${itemName(selected)}: ${pauseText(next)}.`);
     } catch (error) {
       onError(error);
     } finally {
@@ -498,16 +494,13 @@ export default function Wishlist({
   async function cartOffer(source: string, scope: 'home' | 'world') {
     if (!selected || preview || carting) return;
     setCarting(true);
-    setMessage('');
     try {
       if (selected.in_cart) await api(`/cart/${encodeURIComponent(selected.id)}`, 'PUT', { source, scope }, csrf);
       else await api('/cart', 'POST', { wish_id: selected.id, source, scope }, csrf);
       setItems(current => current.map(item => (item.id === selected.id ? { ...item, in_cart: true } : item)));
       window.dispatchEvent(new Event(CART_CHANGED));
       const shop = shopNames[source] ?? source;
-      setMessage(
-        `${itemName(selected)} liegt im Warenkorb: ${shop}, ${scope === 'home' ? `Preis ${targetCountry?.toUpperCase() || 'Zielland'}` : 'Preis INT'}.`,
-      );
+      notify(`${itemName(selected)} liegt im Warenkorb: ${shop}, ${scope === 'home' ? `Preis ${targetCountry?.toUpperCase() || 'Zielland'}` : 'Preis INT'}.`);
     } catch (error) {
       onError(error);
     } finally {
@@ -517,7 +510,6 @@ export default function Wishlist({
   async function purchase() {
     if (!selected || preview || purchasing) return;
     setPurchasing(true);
-    setMessage('');
     try {
       await api(`/wishlist/${selected.id}/purchase`, 'POST', {}, csrf);
       ++loadGeneration.current;
@@ -528,7 +520,7 @@ export default function Wishlist({
       if (selected.in_cart) window.dispatchEvent(new Event(CART_CHANGED));
       returnFocus.current = null;
       closeDetail();
-      setMessage(`${itemName(selected)} wurde in die Bibliothek verschoben.`);
+      notify(`${itemName(selected)} wurde in die Bibliothek verschoben.`);
       requestAnimationFrame(() => listHeading.current?.focus({ preventScroll: true }));
     } catch (error) {
       onError(error);

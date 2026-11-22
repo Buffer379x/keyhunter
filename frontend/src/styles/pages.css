@@ -1,13 +1,4 @@
-/* Sign-in and setup (features/AuthScreen.tsx) and a leftover shared by the alert editor. Tokens only. */
-.alert-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: end;
-}
-.alert-form .form-row {
-  flex: 1 1 min(100%, 200px);
-}
+/* Sign-in and setup (features/AuthScreen.tsx). Tokens only. */
 
 /* A centred 400 px panel: the logo in the head, the form in the inset (prototype panel language). */
 .auth-layout {

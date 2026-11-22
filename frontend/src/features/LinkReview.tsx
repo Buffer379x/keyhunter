@@ -10,7 +10,7 @@ const activationNames: Record<string, string> = { confirmed: 'bestätigt', block
 const availabilityNames: Record<string, string> = { in_stock: 'lieferbar', sold_out: 'ausverkauft', unknown: 'unbekannt' };
 
 /** Host and path of a shop link, so the owner sees where the button leads before opening it. */
-export function linkParts(url: string): { host: string; path: string } {
+function linkParts(url: string): { host: string; path: string } {
   try {
     const parsed = new URL(url);
     return { host: parsed.host.replace(/^www\./, ''), path: `${parsed.pathname}${parsed.search}` };

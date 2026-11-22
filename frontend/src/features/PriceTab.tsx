@@ -27,7 +27,7 @@ export function BasisSwitch({ basis, onChange }: { basis: Basis; onChange: (basi
 export const shopName = (row: OfferRow) => shopNames[row.link.source] ?? row.link.source;
 export const regionName = (row: OfferRow) => countryData(row.link.product?.region).name;
 /** "Stand 20. Nov · 11:00" */
-export const stand = (seconds: number) => {
+const stand = (seconds: number) => {
   const date = new Date(seconds * 1000);
   return `Stand ${date.toLocaleDateString('de-DE', { day: 'numeric', month: 'short' }).replace(/\.$/, '')} · ${date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
 };

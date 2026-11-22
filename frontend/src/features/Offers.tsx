@@ -13,7 +13,6 @@ import { shopNames } from './shop-names';
 import type { OffersState } from './useOffersView';
 
 export { shopNames } from './shop-names';
-export { money, dateTime } from './price-format';
 const sourceErrors: Record<string, string> = {
   network: 'Verbindung fehlgeschlagen',
   rate_limited: 'Abruflimit erreicht',

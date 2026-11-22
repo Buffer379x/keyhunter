@@ -131,7 +131,7 @@ export type OfferRow = {
  * decides (`data_state`, and `current` for a key that counts at all). Frontend and backend ship in the same image, so
  * this page never meets an older payload without these fields (0.9.3, CODE-05).
  */
-export function isCurrent(link: Link): boolean {
+function isCurrent(link: Link): boolean {
   return link.data_state === 'current' && link.current;
 }
 
@@ -222,7 +222,7 @@ export function nextAttempt(view: OffersView, now: number): number | null {
 }
 
 /** Prüftempo of a link (SCORE-03) from the check interval factor (`score`, 0 to 100: factor 0.5 = 100, 1 = 50, 2 = 0). */
-export type Tempo = 'häufig' | 'normal' | 'selten';
+type Tempo = 'häufig' | 'normal' | 'selten';
 /**
  * Buckets: from 70 on "häufig" (the interval is at most about three quarters of the shop interval), up to 30 "selten"
  * (at least about a third longer), else "normal". The Help text of the column names the same limits.
@@ -259,7 +259,7 @@ export const inSentence = (label: string) =>
     ? label.charAt(0).toLowerCase() + label.slice(1)
     : label;
 
-export type Validity = { tone: 'ok' | 'warn' | 'dim' | 'danger'; icon: 'check' | 'alert' | 'x' | 'clock'; text: string };
+type Validity = { tone: 'ok' | 'warn' | 'dim' | 'danger'; icon: 'check' | 'alert' | 'x' | 'clock'; text: string };
 /** Whether an offer works in the target country, as pill text: valid, unclear (warn) or the main reason why not. */
 export function validity(row: OfferRow, code: string): Validity {
   const country = code || 'Zielland';
@@ -284,7 +284,7 @@ export function validity(row: OfferRow, code: string): Validity {
  * same: the target country is the cheapest anywhere. cheaper: another region undercuts it (access says whether the key works
  * in the target country). only_world: no valid offer for the target country, but a price elsewhere.
  */
-export type Verdict =
+type Verdict =
   | { kind: 'same' }
   | {
       kind: 'cheaper';

@@ -4,10 +4,10 @@ import type { FetchStatusResponse } from './api';
 import { whenVisible } from './poll';
 
 /** Polling of GET /status/fetch: every 60 s, every 30 s while a settings section that shows it is open. */
-export const FETCH_REFRESH_MS = 60_000;
-export const FETCH_FAST_MS = 30_000;
+const FETCH_REFRESH_MS = 60_000;
+const FETCH_FAST_MS = 30_000;
 
-export type FetchStatusState = {
+type FetchStatusState = {
   data: FetchStatusResponse | null;
   /** The last read failed; `data` keeps the last answer. */
   failed: boolean;

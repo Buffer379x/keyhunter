@@ -52,7 +52,7 @@ export interface CartLine {
   cheapest: { source: string; base: number; fee: number | null } | null;
 }
 
-export interface ShopSum {
+interface ShopSum {
   source: string;
   count: number;
   keys: number;
@@ -60,7 +60,7 @@ export interface ShopSum {
   total: number;
 }
 
-export interface CartSums {
+interface CartSums {
   lines: CartLine[];
   shops: ShopSum[];
   keys: number;
