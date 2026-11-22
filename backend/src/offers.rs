@@ -1,3 +1,4 @@
+use crate::extract::{ApiJson, ApiPath};
 use crate::{
     ApiError, ApiResult, Shared, auth,
     eventlog::{self, Area, Level},
@@ -6,7 +7,7 @@ use crate::{
 };
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::State,
     http::{HeaderMap, StatusCode},
 };
 use serde::{Deserialize, Serialize};
@@ -385,11 +386,12 @@ fn link_query(filter: &str, queued: &str) -> String {
     format!(
         "SELECT l.*, (s.enabled AND s.configured) AS enabled, s.fee_estimation_enabled, s.fee_basis_points, p.retry_at,
         COALESCE({queued},0) AS queued,
-        CAST(MIN(604800,MAX(MIN(900,s.poll_interval_seconds),ROUND(s.poll_interval_seconds
+        CAST(MIN(604800,MAX(MIN({min},s.poll_interval_seconds),ROUND(s.poll_interval_seconds
             *CASE WHEN t.state='preview' THEN 2 ELSE 1 END*j.pace))) AS INTEGER) AS check_every,
         j.pace AS pace, t.state='preview' AS preview
         FROM offer_link l JOIN source_settings s ON s.id=l.source JOIN shop_state p ON p.source=l.source
-        JOIN wishlist_item t ON t.id=l.wish_id LEFT JOIN shop_job j ON j.link_id=l.id WHERE {filter} ORDER BY l.id"
+        JOIN wishlist_item t ON t.id=l.wish_id LEFT JOIN shop_job j ON j.link_id=l.id WHERE {filter} ORDER BY l.id",
+        min = crate::jobs::MIN_INTERVAL
     )
 }
 
@@ -400,9 +402,9 @@ pub(crate) fn clock<'q, O>(
 ) -> sqlx::query::QueryAs<'q, sqlx::Sqlite, O, sqlx::sqlite::SqliteArguments> {
     query
         .bind(ts)
-        .bind(ts / 86400)
+        .bind(ts / crate::DAY)
         .bind(crate::jobs::daily_budget())
-        .bind(ts - 900)
+        .bind(ts - crate::jobs::REQUEST_WINDOW)
 }
 
 pub(crate) async fn links<'e>(
@@ -461,16 +463,8 @@ struct OfferView {
     estimated_total_cents: Option<i64>,
 }
 #[derive(Serialize)]
-struct History {
-    link_id: i64,
-    observed_at: i64,
-    base_cents: Option<i64>,
-    availability: String,
-}
-#[derive(Serialize)]
 pub(crate) struct OffersView {
     links: Vec<Value>,
-    history: Vec<History>,
     histories: HistoryScopes,
     price_badge: crate::price_badges::PriceBadge,
     best_base: Option<i64>,
@@ -490,12 +484,45 @@ struct HistoryScopes {
     all: Vec<crate::history::Point>,
 }
 
+/// One observation for the history: link, time, quotes, availability, market, activation.
+type Observation = (i64, i64, String, String, String, String);
+
+/// The newest 180 observations of each confirmed link with its confirmed product, newest first, in one query (CODE-08).
+async fn samples(
+    pool: &SqlitePool,
+    wish: &Wish,
+    links: &[Link],
+) -> sqlx::Result<BTreeMap<i64, Vec<Observation>>> {
+    let wanted: Vec<(i64, String)> = links
+        .iter()
+        .filter_map(|link| {
+            let product = link.product()?;
+            link.confirmed(wish, &product)
+                .then(|| (link.id, product.fingerprint()))
+        })
+        .collect();
+    let rows: Vec<Observation> = sqlx::query_as(
+        "SELECT o.link_id,o.observed_at,o.offers,o.availability,o.market,o.activation FROM json_each(?) w
+        JOIN price_observation o ON o.id IN (SELECT x.id FROM price_observation x
+            WHERE x.link_id=json_extract(w.value,'$[0]') AND x.fingerprint=json_extract(w.value,'$[1]')
+            ORDER BY x.observed_at DESC LIMIT 180)
+        ORDER BY o.link_id,o.observed_at DESC",
+    )
+    .bind(serde_json::to_string(&wanted).unwrap_or_default())
+    .fetch_all(pool)
+    .await?;
+    let mut map: BTreeMap<i64, Vec<Observation>> = BTreeMap::new();
+    for row in rows {
+        map.entry(row.0).or_default().push(row);
+    }
+    Ok(map)
+}
+
 pub(crate) async fn list(
     State(state): State<Shared>,
-    Path(id): Path<String>,
-    headers: HeaderMap,
+    _: auth::Session,
+    ApiPath(id): ApiPath<String>,
 ) -> ApiResult<Json<OffersView>> {
-    auth::authenticate(&state, &headers).await?;
     let wish = wish(&state.pool, &id).await?;
     let target = target(&state.pool).await?;
     let t = now();
@@ -507,7 +534,6 @@ pub(crate) async fn list(
         .execute(&state.pool)
         .await?;
     let mut rows = Vec::new();
-    let mut history = Vec::new();
     let mut all_samples = Vec::new();
     let mut preferred_samples = Vec::new();
     let mut best_base = None;
@@ -516,7 +542,9 @@ pub(crate) async fn list(
     let mut offer_count = 0;
     let scope = pricing::Scope::target(&target);
     let peers = peers(&state.pool, &wish).await?;
-    for link in links(&state.pool, &id, t).await? {
+    let links = links(&state.pool, &id, t).await?;
+    let mut samples = samples(&state.pool, &wish, &links).await?;
+    for link in links {
         let product = link.product();
         let mismatch = product
             .as_ref()
@@ -563,15 +591,9 @@ pub(crate) async fn list(
             })
             .collect();
         if confirmed && let Some(p) = &product {
-            let samples: Vec<(i64, String, String, String, String)> = sqlx::query_as(
-                "SELECT observed_at,offers,availability,market,activation FROM price_observation
-                WHERE link_id=? AND fingerprint=? ORDER BY observed_at DESC LIMIT 180",
-            )
-            .bind(link.id)
-            .bind(p.fingerprint())
-            .fetch_all(&state.pool)
-            .await?;
-            for (observed_at, offers, availability, market, activation) in samples {
+            for (_, observed_at, offers, availability, market, activation) in
+                samples.remove(&link.id).unwrap_or_default()
+            {
                 let offers: Vec<shops::Quote> =
                     serde_json::from_str(&offers).map_err(|_| internal())?;
                 let cents = offers.into_iter().map(|q| q.cents).min();
@@ -580,19 +602,13 @@ pub(crate) async fn list(
                     observed_at,
                     fresh_for: link.fresh_for(),
                     base_cents: cents,
-                    availability: availability.clone(),
+                    availability,
                     region: p.region.clone(),
                     source: link.source.clone(),
                 };
                 // The same market rule as the price (FUNC-02): an EU target counts observations of the EU market.
                 if pricing::counts_in(&market, &activation, p, &target) {
                     preferred_samples.push(sample.clone());
-                    history.push(History {
-                        link_id: link.id,
-                        observed_at,
-                        base_cents: cents,
-                        availability,
-                    });
                 }
                 all_samples.push(sample);
             }
@@ -616,7 +632,6 @@ pub(crate) async fn list(
                 "market":p.purchase_country,"activation":p.activation(&target),"availability":p.availability})),
             "quotes":quotes}));
     }
-    history.sort_unstable_by_key(|a| std::cmp::Reverse(a.observed_at));
     // The search of this item and the shop-wide discoveries, pending by the scheduler's own rule. A discovery
     // does not count for a paused item: what it finds waits for the end of the pause.
     type SearchRow = (
@@ -673,12 +688,10 @@ pub(crate) async fn list(
             json!({"source":source,"status":status,"checked_at":checked,"last_error":error,"result_count":count})
         })
         .collect();
-    let (_, scope) = crate::price_badges::context(&state.pool).await?;
-    let price_badge = crate::price_badges::load(&state, &id, &target, &scope).await?;
+    let price_badge = crate::price_badges::load(&state, &id, &target).await?;
     Ok(Json(OffersView {
         price_badge,
         links: rows,
-        history,
         histories: HistoryScopes {
             preferred: crate::history::minimum_series(&preferred_samples),
             all: crate::history::minimum_series(&all_samples),
@@ -708,11 +721,11 @@ pub(crate) struct AddLink {
 }
 pub(crate) async fn add_link(
     State(state): State<Shared>,
-    Path(id): Path<String>,
+    session: auth::Session,
+    ApiPath(id): ApiPath<String>,
     headers: HeaderMap,
-    Json(input): Json<AddLink>,
+    ApiJson(input): ApiJson<AddLink>,
 ) -> ApiResult<StatusCode> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     let (shop, url) = shops::product_link(input.url.trim()).ok_or(BAD_URL)?;
     let enabled: bool =
@@ -798,11 +811,11 @@ const NOT_A_KEY: ApiError = ApiError(
 );
 pub(crate) async fn review(
     State(state): State<Shared>,
-    Path((id, link_id)): Path<(String, i64)>,
+    session: auth::Session,
+    ApiPath((id, link_id)): ApiPath<(String, i64)>,
     headers: HeaderMap,
-    Json(input): Json<Review>,
+    ApiJson(input): ApiJson<Review>,
 ) -> ApiResult<StatusCode> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     crate::wishlist::require_unowned(&state.pool, &id).await?;
     let wish = wish(&state.pool, &id).await?;
@@ -879,10 +892,10 @@ async fn log_review(state: &Shared, id: &str, link: i64, how: &str) {
 /// suggest the product for this wish again (`offer_link_block`); adding the link by hand lifts that.
 pub(crate) async fn remove_link(
     State(state): State<Shared>,
-    Path((id, link_id)): Path<(String, i64)>,
+    session: auth::Session,
+    ApiPath((id, link_id)): ApiPath<(String, i64)>,
     headers: HeaderMap,
 ) -> ApiResult<StatusCode> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     crate::wishlist::require_unowned(&state.pool, &id).await?;
     let mut tx = state.pool.begin().await?;
@@ -912,12 +925,15 @@ pub(crate) async fn remove_link(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// A manual check skips searches and links fetched within this time.
+const REFRESH_SPACING: i64 = 900;
+
 pub(crate) async fn refresh(
     State(state): State<Shared>,
-    Path(id): Path<String>,
+    session: auth::Session,
+    ApiPath(id): ApiPath<String>,
     headers: HeaderMap,
 ) -> ApiResult<StatusCode> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     crate::wishlist::require_unowned(&state.pool, &id).await?;
     wish(&state.pool, &id).await?;
@@ -926,10 +942,10 @@ pub(crate) async fn refresh(
     // A requested refresh gets top priority, also for links whose last fetch failed. The whole
     // search run is a direct user action and bypasses pacing (jobs.rs).
     sqlx::query("UPDATE shop_job SET due=MIN(due,?),requested_at=?,search_page=1,result_count=0,initial=1 WHERE wish_id=? AND lease_until<=? AND COALESCE(checked_at,0)<=?")
-        .bind(t).bind(t).bind(&id).bind(t).bind(t-900).execute(&state.pool).await?;
+        .bind(t).bind(t).bind(&id).bind(t).bind(t-REFRESH_SPACING).execute(&state.pool).await?;
     sqlx::query("UPDATE shop_job SET due=MIN(due,?),requested_at=? WHERE lease_until<=?
         AND link_id IN (SELECT id FROM offer_link WHERE wish_id=? AND review!='rejected' AND COALESCE(attempted_at,0)<=?)")
-        .bind(t).bind(t).bind(t).bind(&id).bind(t-900).execute(&state.pool).await?;
+        .bind(t).bind(t).bind(t).bind(&id).bind(t-REFRESH_SPACING).execute(&state.pool).await?;
     let game = eventlog::game(&state.pool, &id).await;
     log(&state, format!("Aktualisierung für {game} angefordert")).await;
     Ok(StatusCode::ACCEPTED)

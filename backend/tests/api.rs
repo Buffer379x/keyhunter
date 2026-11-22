@@ -1539,3 +1539,386 @@ async fn responses_are_compressed_and_static_files_carry_cache_rules_perf03_perf
         .is_none()
     );
 }
+
+/// Every API route of the router in `src/lib.rs` as (method, path), read from the source, so a new route is part of
+/// the matrix below without being listed by hand.
+fn api_routes() -> Vec<(String, String)> {
+    let source = include_str!("../src/lib.rs");
+    let mut routes = Vec::new();
+    for (start, _) in source.match_indices(".route(") {
+        let rest = &source[start + ".route(".len()..];
+        let mut depth = 1;
+        let end = rest
+            .char_indices()
+            .find(|(_, c)| {
+                depth += match c {
+                    '(' => 1,
+                    ')' => -1,
+                    _ => 0,
+                };
+                depth == 0
+            })
+            .unwrap()
+            .0;
+        let call = &rest[..end];
+        let path = call.split('"').nth(1).unwrap();
+        if path.starts_with("/health/") {
+            continue;
+        }
+        for method in ["get", "post", "put", "delete"] {
+            let token = format!("{method}(");
+            let found = call.match_indices(&token).any(|(at, _)| {
+                at == 0 || matches!(call.as_bytes()[at - 1], b'.' | b':' | b'(' | b' ' | b'\n')
+            });
+            if found {
+                routes.push((method.to_uppercase(), path.to_string()));
+            }
+        }
+    }
+    routes
+}
+
+/// A request with a raw body; answers status, content type and the JSON body (`Null` if it is none).
+async fn raw(
+    app: &Router,
+    method: &str,
+    path: &str,
+    body: &str,
+    content_type: Option<&str>,
+    session: Option<(&str, &str)>,
+) -> (StatusCode, String, Value) {
+    let mut req = Request::builder()
+        .method(method)
+        .uri(path)
+        .header("Origin", "http://localhost:3000");
+    if let Some(value) = content_type {
+        req = req.header("Content-Type", value);
+    }
+    if let Some((cookie, csrf)) = session {
+        req = req.header("Cookie", cookie).header("X-CSRF-Token", csrf);
+    }
+    let response = app
+        .clone()
+        .oneshot(req.body(Body::from(body.to_string())).unwrap())
+        .await
+        .unwrap();
+    let status = response.status();
+    let kind = response
+        .headers()
+        .get("Content-Type")
+        .map(|v| v.to_str().unwrap().to_string())
+        .unwrap_or_default();
+    let bytes = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+    (
+        status,
+        kind,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
+/// The error shape of the API: JSON with a German `error` and a `code`, never Axum's English plain text.
+fn assert_api_error(route: &str, status: StatusCode, kind: &str, data: &Value) {
+    assert!(
+        kind.starts_with("application/json"),
+        "{route}: {status} {kind}"
+    );
+    let code = data["code"].as_str().unwrap_or_default();
+    let error = data["error"].as_str().unwrap_or_default();
+    assert!(!code.is_empty() && !error.is_empty(), "{route}: {data}");
+    for english in [
+        "Failed",
+        "missing field",
+        "invalid type",
+        "Cannot parse",
+        "Expected request",
+    ] {
+        assert!(!error.contains(english), "{route}: {error}");
+    }
+}
+
+/// CODE-02 / FUNC-15 / SEC-06, the route matrix: a broken body gets 401 without a session on every protected route,
+/// before anything is parsed; with a session every error is German JSON with a `code`. Only the setup and the
+/// sign-in answer without a session, and no route resets the owner (that needs a shell, SEC-03).
+#[tokio::test]
+async fn every_route_checks_the_session_first_and_answers_errors_as_german_json_code02() {
+    let f = Fixture::new().await;
+    let (cookie, csrf) = setup(&f).await;
+    let mut routes = api_routes();
+    assert!(routes.len() >= 45, "{routes:?}");
+    assert!(routes.iter().all(|(_, path)| !path.contains("reset")));
+    let public = [("GET", "/setup"), ("POST", "/setup"), ("POST", "/session")];
+    // Ending the session last, the one of this browser at the very end.
+    routes.sort_by_key(|(method, path)| {
+        (
+            method == "DELETE" && path.starts_with("/session"),
+            path == "/session",
+        )
+    });
+    for (method, path) in &routes {
+        let route = format!("{method} {path}");
+        let url = format!(
+            "/api/v1{}",
+            path.replace("{id}", "abc")
+                .replace("{link}", "abc")
+                .replace("{kind}", "abc")
+        );
+        let (status, kind, data) =
+            raw(&f.app, method, &url, "{", Some("application/json"), None).await;
+        if public.contains(&(method.as_str(), path.as_str())) {
+            if method == "POST" {
+                assert_eq!(status, StatusCode::BAD_REQUEST, "{route}");
+                assert_api_error(&route, status, &kind, &data);
+            }
+        } else {
+            assert_eq!(status, StatusCode::UNAUTHORIZED, "{route}");
+            assert_api_error(&route, status, &kind, &data);
+            assert_eq!(data["code"], "unauthenticated", "{route}");
+        }
+        let (status, kind, data) = raw(
+            &f.app,
+            method,
+            &url,
+            "{",
+            Some("application/json"),
+            Some((&cookie, &csrf)),
+        )
+        .await;
+        if !status.is_success() {
+            assert!(status.is_client_error(), "{route}: {status} {data}");
+            assert_api_error(&route, status, &kind, &data);
+        }
+    }
+}
+
+/// CODE-02 / FUNC-15: the rejections of body, query and path, the method and the size, each with its own message.
+#[tokio::test]
+async fn extractor_rejections_name_the_problem_in_german_code02() {
+    let f = Fixture::new().await;
+    let (cookie, csrf) = setup(&f).await;
+    let session = Some((cookie.as_str(), csrf.as_str()));
+    let cases = [
+        (
+            "PUT",
+            "/api/v1/settings",
+            "{",
+            Some("application/json"),
+            400,
+            "invalid_request",
+            "Die Anfrage ist kein gültiges JSON.",
+        ),
+        (
+            "PUT",
+            "/api/v1/settings",
+            r#"{"currency":5}"#,
+            Some("application/json"),
+            400,
+            "invalid_request",
+            "Die Anfrage enthält ungültige oder fehlende Werte.",
+        ),
+        (
+            "PUT",
+            "/api/v1/settings",
+            "{}",
+            None,
+            415,
+            "unsupported_media_type",
+            "Die Anfrage muss als JSON gesendet werden.",
+        ),
+        (
+            "GET",
+            "/api/v1/catalog/games/abc?platform=169",
+            "",
+            None,
+            400,
+            "invalid_request",
+            "Die Adresse enthält einen ungültigen Wert.",
+        ),
+        (
+            "GET",
+            "/api/v1/catalog/search?q=halo&platform=x",
+            "",
+            None,
+            400,
+            "invalid_request",
+            "Die Adresse enthält ungültige Parameter.",
+        ),
+        (
+            "PATCH",
+            "/api/v1/settings",
+            "{}",
+            Some("application/json"),
+            405,
+            "method_not_allowed",
+            "Diese Methode ist für den Endpunkt nicht erlaubt.",
+        ),
+    ];
+    for (method, path, body, kind, status, code, error) in cases {
+        let (got, content, data) = raw(&f.app, method, path, body, kind, session).await;
+        assert_eq!(got.as_u16(), status, "{method} {path}: {data}");
+        assert!(content.starts_with("application/json"), "{method} {path}");
+        assert_eq!(
+            data,
+            json!({"code": code, "error": error}),
+            "{method} {path}"
+        );
+    }
+    let large = format!(r#"{{"password":"{}"}}"#, "x".repeat(20 * 1024));
+    let (status, _, data) = raw(
+        &f.app,
+        "POST",
+        "/api/v1/session",
+        &large,
+        Some("application/json"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+    assert_eq!(data["code"], "too_large");
+}
+
+/// SEC-03 (c): `keyhunter --reset-owner` ends the owner's access for a forgotten passphrase. The owner and every
+/// session are gone, a new setup code replaces the old one and works on the running server without a restart; the
+/// wishlist and the settings stay, and the log names the reset.
+#[tokio::test]
+async fn reset_owner_allows_a_new_setup_and_keeps_the_data_sec03() {
+    let f = Fixture::new().await;
+    let (cookie, csrf) = setup(&f).await;
+    let origin = Some("http://localhost:3000");
+    let (status, _, _) = call(
+        &f.app,
+        "POST",
+        "/api/v1/wishlist",
+        json!({"manual_title": "Altes Lieblingsspiel", "platform_id": 49}),
+        Some(&cookie),
+        Some(&csrf),
+        origin,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let (_, mut settings, _) = call(
+        &f.app,
+        "GET",
+        "/api/v1/settings",
+        Value::Null,
+        Some(&cookie),
+        None,
+        None,
+    )
+    .await;
+    settings["target_country"] = json!("AT");
+    let (status, _, _) = call(
+        &f.app,
+        "PUT",
+        "/api/v1/settings",
+        settings,
+        Some(&cookie),
+        Some(&csrf),
+        origin,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let reset = keyhunter::reset_owner(&f.config).await.unwrap();
+    assert!(reset.had_owner);
+    assert_eq!(reset.ended_sessions, 1);
+    let token = std::fs::read_to_string(&reset.setup_file).unwrap();
+    assert_ne!(token.trim(), f.token.trim());
+    use std::os::unix::fs::PermissionsExt;
+    assert_eq!(
+        std::fs::metadata(&reset.setup_file)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o600
+    );
+
+    let (status, _, _) = call(
+        &f.app,
+        "GET",
+        "/api/v1/me",
+        Value::Null,
+        Some(&cookie),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "the old session ended");
+    let (_, status_view, _) = call(
+        &f.app,
+        "GET",
+        "/api/v1/setup",
+        Value::Null,
+        None,
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(status_view["required"], true);
+    let (status, _, _) = call(
+        &f.app,
+        "POST",
+        "/api/v1/setup",
+        json!({"token": f.token.trim(), "password": "a new and long passphrase"}),
+        None,
+        None,
+        origin,
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "the old setup code is void"
+    );
+    let (status, data, new_cookie) = call(
+        &f.app,
+        "POST",
+        "/api/v1/setup",
+        json!({"token": token.trim(), "password": "a new and long passphrase"}),
+        None,
+        None,
+        origin,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let new_cookie = new_cookie.unwrap();
+    let new_cookie = new_cookie.split(';').next().unwrap();
+    assert!(data["csrf_token"].is_string());
+    let (_, wishes, _) = call(
+        &f.app,
+        "GET",
+        "/api/v1/wishlist",
+        Value::Null,
+        Some(new_cookie),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(wishes[0]["manual_title"], "Altes Lieblingsspiel");
+    let (_, settings, _) = call(
+        &f.app,
+        "GET",
+        "/api/v1/settings",
+        Value::Null,
+        Some(new_cookie),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(settings["target_country"], "AT");
+    let (_, log, _) = call(
+        &f.app,
+        "GET",
+        "/api/v1/log?q=Kommandozeile",
+        Value::Null,
+        Some(new_cookie),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(
+        log["entries"][0]["message"],
+        "Eigentümerzugang über die Kommandozeile zurückgesetzt, 1 Sitzung beendet; Einrichtung mit neuem Code möglich"
+    );
+    assert_eq!(log["entries"][0]["level"], "warn");
+}

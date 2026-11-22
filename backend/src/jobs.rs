@@ -38,8 +38,9 @@
 //!
 //! Links attached at start-up or after a shop-wide discovery are never direct user actions.
 
+use crate::extract::ApiJson;
 use crate::{
-    ApiResult, Shared, alerts, auth,
+    ApiResult, DAY, Shared, alerts, auth,
     eventlog::{self, Area, GAME_NAME, Level},
     now, offers, random_token,
     shops::{Availability, Product, Shop, ShopError},
@@ -61,7 +62,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-const DAY: i64 = 86400;
 const WEEK: i64 = 7 * DAY;
 /// Delays after the first, second and third consecutive transient failure.
 const RETRY_LADDER: [i64; 3] = [120, 600, 3600];
@@ -72,7 +72,9 @@ const DEAD_BACKOFF: i64 = 4;
 /// A search walks at most this many result pages per run.
 const MAX_SEARCH_PAGES: i64 = 5;
 /// A requested refresh keeps top priority this long.
-const REQUEST_WINDOW: i64 = 900;
+pub(crate) const REQUEST_WINDOW: i64 = 900;
+/// An edition preview is fetched while it was viewed within this time.
+const PREVIEW_VIEWED_WITHIN: i64 = 14 * DAY;
 /// Fetch history is kept this long.
 const RUN_RETENTION: i64 = 30 * DAY;
 /// A worker that has not looped for this long counts as stalled.
@@ -200,14 +202,22 @@ pub(crate) const JOBS: &str = "shop_job j JOIN source_settings s ON s.id=j.sourc
 pub(crate) const PAUSED_AT: &str = "(SELECT fetch_paused_at FROM app_settings WHERE id=1)";
 const NOT_OWNED: &str = "COALESCE(t.state,'wished')!='owned'";
 /// A preview is fetched while an active wish that is not paused (0.9.0) watches it and it was viewed in the last 14 days.
-const WATCHED_IF_PREVIEW: &str = "(COALESCE(t.state,'wished')!='preview' OR (COALESCE(t.viewed_at,0)>?2-1209600 AND EXISTS(SELECT 1 FROM edition_watch ew JOIN wishlist_item aw ON aw.id=ew.wish_id WHERE ew.track_id=t.id AND aw.state='wished' AND (aw.paused_at IS NULL OR (aw.paused_until IS NOT NULL AND aw.paused_until<=?2)))))";
+fn watched_if_preview() -> String {
+    format!(
+        "(COALESCE(t.state,'wished')!='preview' OR (COALESCE(t.viewed_at,0)>?2-{PREVIEW_VIEWED_WITHIN} AND EXISTS(SELECT 1 FROM edition_watch ew JOIN wishlist_item aw ON aw.id=ew.wish_id WHERE ew.track_id=t.id AND aw.state='wished' AND (aw.paused_at IS NULL OR (aw.paused_until IS NOT NULL AND aw.paused_until<=?2)))))"
+    )
+}
 /// Uncorrelated scalar subquery, so SQLite evaluates it once per statement. As `EXISTS(…)` SQLite 3.51 turned it
 /// into a join with every job row, quadratic in the size of the wishlist (PERF-01).
 const ANY_ACTIVE_WISH: &str =
     "(SELECT 1 FROM wishlist_item any_wish WHERE any_wish.state='wished' LIMIT 1) IS NOT NULL";
 /// A wish paused on its own (0.9.0) waits until its pause ends; a check the owner requested still runs.
-/// Independent of the global pause: resuming that leaves these wishes paused. 900 is REQUEST_WINDOW.
-const NOT_HELD: &str = "(t.paused_at IS NULL OR (t.paused_until IS NOT NULL AND t.paused_until<=?2) OR j.requested_at>?2-900)";
+/// Independent of the global pause: resuming that leaves these wishes paused.
+fn not_held() -> String {
+    format!(
+        "(t.paused_at IS NULL OR (t.paused_until IS NOT NULL AND t.paused_until<=?2) OR j.requested_at>?2-{REQUEST_WINDOW})"
+    )
+}
 /// The shop can start a job now: no retry pause, budget left today.
 const SHOP_READY: &str =
     "p.retry_at<=?2 AND (p.budget_day!=?3 OR p.jobs_today<COALESCE(s.daily_jobs,?4))";
@@ -215,7 +225,9 @@ const SHOP_READY: &str =
 /// Jobs the scheduler runs at all (whenever they are due); idle jobs stay out.
 fn queued() -> String {
     format!(
-        "(j.link_id IS NULL OR l.review!='rejected') AND {NOT_OWNED} AND {WATCHED_IF_PREVIEW} AND {ANY_ACTIVE_WISH} AND {NOT_HELD}"
+        "(j.link_id IS NULL OR l.review!='rejected') AND {NOT_OWNED} AND {} AND {ANY_ACTIVE_WISH} AND {}",
+        watched_if_preview(),
+        not_held()
     )
 }
 
@@ -482,7 +494,7 @@ const PACE_FASTEST: f64 = 0.5;
 /// The steadily most expensive product gets the same pace from its trend.
 const SOLD_OUT_PACE: f64 = 2.0;
 /// Shortest interval the settings allow.
-const MIN_INTERVAL: i64 = 900;
+pub(crate) const MIN_INTERVAL: i64 = 900;
 /// Prices older than this do not take part in the comparison.
 const TREND_PRICE_AGE: i64 = WEEK;
 
@@ -925,45 +937,71 @@ async fn attach(pool: &SqlitePool, shop: Shop) -> anyhow::Result<()> {
         sqlx::query_scalar("SELECT id FROM wishlist_item w WHERE w.state!='owned'")
             .fetch_all(pool)
             .await?;
-    for id in ids {
-        attach_wish(pool, shop, &id, false).await?;
-    }
-    Ok(())
+    attach_items(pool, shop, &ids, false).await
 }
 
 /// Attach indexed candidates to one item (when it is saved, restored or previewed);
 /// `initial` when a user action asked for it.
 async fn attach_wish(pool: &SqlitePool, shop: Shop, id: &str, initial: bool) -> anyhow::Result<()> {
+    attach_items(pool, shop, &[id.to_string()], initial).await
+}
+
+/// Links the indexed candidates of the shop whose title keys fit an item to that item, with the same few queries
+/// for one item or the whole wishlist (PERF-08). Items that are gone are skipped.
+async fn attach_items(
+    pool: &SqlitePool,
+    shop: Shop,
+    ids: &[String],
+    initial: bool,
+) -> anyhow::Result<()> {
     let active: bool =
         sqlx::query_scalar("SELECT configured AND enabled FROM source_settings WHERE id=?")
             .bind(shop.id())
             .fetch_one(pool)
             .await?;
-    if !active {
+    if !active || ids.is_empty() {
         return Ok(());
     }
-    let Ok(wish) = offers::wish(pool, id).await else {
-        return Ok(());
-    };
-    let keys = shop.candidate_keys(wish.keys());
-    if keys.is_empty() {
+    let ids_json = serde_json::to_string(ids)?;
+    let keys: Vec<(String, Vec<String>)> = offers::wishes(pool, &ids_json)
+        .await?
+        .into_iter()
+        .map(|(id, wish)| (id, shop.candidate_keys(wish.keys())))
+        .filter(|(_, keys)| !keys.is_empty())
+        .collect();
+    let wanted: std::collections::BTreeSet<&String> =
+        keys.iter().flat_map(|(_, keys)| keys).collect();
+    if wanted.is_empty() {
         return Ok(());
     }
-    let urls: Vec<String> = sqlx::query_scalar(
-        "SELECT url FROM shop_candidate c WHERE source=?
-        AND title_key IN (SELECT value FROM json_each(?))
-        AND NOT EXISTS(SELECT 1 FROM offer_link l WHERE l.wish_id=? AND l.source=c.source AND l.url=c.url) ORDER BY url",
+    let candidates: Vec<(String, String)> = sqlx::query_as(
+        "SELECT title_key,url FROM shop_candidate WHERE source=? AND title_key IN (SELECT value FROM json_each(?)) ORDER BY url",
     )
     .bind(shop.id())
-    .bind(serde_json::to_string(&keys)?)
-    .bind(id)
+    .bind(serde_json::to_string(&wanted)?)
     .fetch_all(pool)
     .await?;
-    if urls.is_empty() {
-        return Ok(());
-    }
+    let linked: std::collections::BTreeSet<(String, String)> = sqlx::query_as(
+        "SELECT wish_id,url FROM offer_link WHERE source=? AND wish_id IN (SELECT value FROM json_each(?))",
+    )
+    .bind(shop.id())
+    .bind(&ids_json)
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .collect();
+    let t = now();
     let mut tx = pool.begin().await?;
-    enqueue_candidates(&mut tx, shop, id, &urls, now(), initial).await?;
+    for (id, keys) in &keys {
+        let urls: Vec<String> = candidates
+            .iter()
+            .filter(|(key, url)| keys.contains(key) && !linked.contains(&(id.clone(), url.clone())))
+            .map(|(_, url)| url.clone())
+            .collect();
+        if !urls.is_empty() {
+            enqueue_candidates(&mut tx, shop, id, &urls, t, initial).await?;
+        }
+    }
     tx.commit().await?;
     Ok(())
 }
@@ -1087,10 +1125,10 @@ async fn budget_status(pool: &SqlitePool, shop: Shop, t: i64) -> sqlx::Result<Va
 /// While paused only direct user actions run (requested refresh, first search of a new wish).
 pub(crate) async fn set_paused(
     State(state): State<Shared>,
+    session: auth::Session,
     headers: HeaderMap,
-    Json(input): Json<Value>,
+    ApiJson(input): ApiJson<Value>,
 ) -> ApiResult<Json<Value>> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     let Some(paused) = input["paused"].as_bool() else {
         return Err(crate::ApiError(
@@ -1139,9 +1177,8 @@ async fn backlog(
 /// GET /api/v1/status/fetch: queue, budget, pauses and recent runs per shop.
 pub(crate) async fn status(
     State(state): State<Shared>,
-    headers: HeaderMap,
+    _: auth::Session,
 ) -> ApiResult<Json<Value>> {
-    auth::authenticate(&state, &headers).await?;
     let t = now();
     type ShopRow = (String, bool, Option<i64>, Option<String>, i64);
     let rows: Vec<ShopRow> = sqlx::query_as(
@@ -1240,10 +1277,9 @@ pub(crate) struct RunsQuery {
 /// GET /api/v1/status/fetch/runs?tone=&q=&page=&per_page=: the fetch history (30 days), newest first.
 pub(crate) async fn runs(
     State(state): State<Shared>,
-    headers: HeaderMap,
+    _: auth::Session,
     query: Result<Query<RunsQuery>, QueryRejection>,
 ) -> ApiResult<Json<Value>> {
-    auth::authenticate(&state, &headers).await?;
     let Query(query) = query.map_err(|_| eventlog::BAD_FILTER)?;
     let tone = eventlog::choice(query.tone.as_deref(), &["ok", "warn", "error"])?;
     let pattern = eventlog::pattern(query.q.as_deref())?;

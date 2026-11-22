@@ -1,3 +1,4 @@
+use crate::extract::ApiJson;
 use crate::{
     ApiError, ApiResult, Shared, digest,
     eventlog::{self, Area, Level},
@@ -7,8 +8,9 @@ use crate::{
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier, password_hash::SaltString};
 use axum::{
     Json,
-    extract::State,
-    http::{HeaderMap, HeaderValue, StatusCode, header, uri::Authority},
+    extract::{FromRequestParts, Request, State},
+    http::{HeaderMap, HeaderValue, StatusCode, header, request::Parts, uri::Authority},
+    middleware::Next,
     response::{IntoResponse, Response},
 };
 use serde::Deserialize;
@@ -16,9 +18,39 @@ use serde_json::{Value, json};
 use std::net::IpAddr;
 use subtle::ConstantTimeEq;
 
+/// The owner's session of a request on a protected route, found by [`require_session`].
+#[derive(Clone)]
 pub(crate) struct Session {
     pub token_hash: String,
     pub csrf_token: String,
+}
+
+/// Layer of the protected routes: checks the session before any extractor reads the path, the query or the body
+/// (CODE-02, SEC-06) and hands it to the handler as [`Session`].
+pub(crate) async fn require_session(
+    State(state): State<Shared>,
+    mut req: Request,
+    next: Next,
+) -> Response {
+    match authenticate(&state, req.headers()).await {
+        Ok(session) => {
+            req.extensions_mut().insert(session);
+            next.run(req).await
+        }
+        Err(error) => error.into_response(),
+    }
+}
+
+impl<S: Send + Sync> FromRequestParts<S> for Session {
+    type Rejection = ApiError;
+    /// Fails closed: a handler outside the protected routes never gets a session.
+    async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, ApiError> {
+        parts
+            .extensions
+            .get::<Session>()
+            .cloned()
+            .ok_or(ApiError(StatusCode::UNAUTHORIZED, "Bitte anmelden."))
+    }
 }
 
 pub(crate) fn require_origin(state: &Shared, headers: &HeaderMap) -> ApiResult<bool> {
@@ -66,7 +98,7 @@ fn checked_transport(config: &crate::config::Config, headers: &HeaderMap) -> Opt
     Some(secure)
 }
 
-pub(crate) async fn authenticate(state: &Shared, headers: &HeaderMap) -> ApiResult<Session> {
+async fn authenticate(state: &Shared, headers: &HeaderMap) -> ApiResult<Session> {
     let token = headers
         .get(header::COOKIE)
         .and_then(|h| h.to_str().ok())
@@ -249,7 +281,7 @@ pub(crate) async fn setup(
     State(state): State<Shared>,
     Peer(peer): Peer,
     headers: HeaderMap,
-    Json(input): Json<SetupInput>,
+    ApiJson(input): ApiJson<SetupInput>,
 ) -> ApiResult<Response> {
     let secure = require_origin(&state, &headers)?;
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM owner")
@@ -273,10 +305,13 @@ pub(crate) async fn setup(
     }
     let source = source(&state, peer, &headers);
     reserve_attempt(&state, source).await?;
-    let expected = state.bootstrap_hash.ok_or(ApiError(
-        StatusCode::CONFLICT,
-        "Einrichtung bereits abgeschlossen.",
-    ))?;
+    let expected = crate::setup_code(&state.bootstrap_file).map_err(|error| {
+        tracing::error!(%error, "Setup token file unusable");
+        ApiError(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Der Einrichtungscode kann nicht gelesen werden. Container-Protokoll prüfen.",
+        )
+    })?;
     if !bool::from(expected.ct_eq(&digest(input.token.trim()))) {
         eventlog::record(
             &state.pool,
@@ -326,7 +361,7 @@ pub(crate) async fn login(
     State(state): State<Shared>,
     Peer(peer): Peer,
     headers: HeaderMap,
-    Json(input): Json<LoginInput>,
+    ApiJson(input): ApiJson<LoginInput>,
 ) -> ApiResult<Response> {
     let secure = require_origin(&state, &headers)?;
     let source = source(&state, peer, &headers);
@@ -352,9 +387,8 @@ async fn login_failed(state: &Shared) -> ApiError {
     ApiError(StatusCode::UNAUTHORIZED, "Anmeldung fehlgeschlagen.")
 }
 
-pub(crate) async fn me(State(state): State<Shared>, headers: HeaderMap) -> ApiResult<Json<Value>> {
-    let session = authenticate(&state, &headers).await?;
-    Ok(Json(json!({"csrf_token":session.csrf_token})))
+pub(crate) async fn me(session: Session) -> Json<Value> {
+    Json(json!({"csrf_token":session.csrf_token}))
 }
 
 /// The response that ends the session in this browser.
@@ -372,15 +406,18 @@ fn signed_out(secure: bool) -> ApiResult<Response> {
 }
 
 /// "1 Sitzung", "2 Sitzungen".
-fn sessions(count: usize) -> String {
+pub(crate) fn sessions(count: usize) -> String {
     format!(
         "{count} {}",
         if count == 1 { "Sitzung" } else { "Sitzungen" }
     )
 }
 
-pub(crate) async fn logout(State(state): State<Shared>, headers: HeaderMap) -> ApiResult<Response> {
-    let session = authenticate(&state, &headers).await?;
+pub(crate) async fn logout(
+    State(state): State<Shared>,
+    session: Session,
+    headers: HeaderMap,
+) -> ApiResult<Response> {
     let secure = require_csrf(&state, &headers, &session)?;
     sqlx::query("DELETE FROM session WHERE token_hash = ?")
         .bind(session.token_hash)
@@ -393,9 +430,9 @@ pub(crate) async fn logout(State(state): State<Shared>, headers: HeaderMap) -> A
 /// DELETE /api/v1/sessions: ends every session, this one included (SEC-03).
 pub(crate) async fn logout_everywhere(
     State(state): State<Shared>,
+    session: Session,
     headers: HeaderMap,
 ) -> ApiResult<Response> {
-    let session = authenticate(&state, &headers).await?;
     let secure = require_csrf(&state, &headers, &session)?;
     let active: Vec<bool> = sqlx::query_scalar("DELETE FROM session RETURNING expires_at > ?")
         .bind(now())
@@ -422,10 +459,10 @@ pub(crate) struct PassphraseInput {
 pub(crate) async fn change_passphrase(
     State(state): State<Shared>,
     Peer(peer): Peer,
+    session: Session,
     headers: HeaderMap,
-    Json(input): Json<PassphraseInput>,
+    ApiJson(input): ApiJson<PassphraseInput>,
 ) -> ApiResult<Json<Value>> {
-    let session = authenticate(&state, &headers).await?;
     require_csrf(&state, &headers, &session)?;
     check_strength(&input.new)?;
     let source = source(&state, peer, &headers);

@@ -1,13 +1,11 @@
+use crate::DAY;
+use crate::extract::ApiQuery;
 use crate::shops::Product;
 use crate::{
     ApiError, ApiResult, AppState, Shared, auth, jobs, now, offers,
     pricing::{self, Reason},
 };
-use axum::{
-    Json,
-    extract::{Query, State},
-    http::{HeaderMap, StatusCode},
-};
+use axum::{Json, extract::State, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use sqlx::{AssertSqlSafe, SqlitePool};
 use std::{
@@ -64,7 +62,6 @@ pub(crate) struct FeeView {
 
 /// Number of UTC days in [`PriceBadge::trend`].
 const TREND_DAYS: i64 = 14;
-const DAY: i64 = 86400;
 
 #[derive(Clone, Serialize)]
 pub(crate) struct WorldBest {
@@ -83,22 +80,9 @@ pub(crate) struct WorldBest {
     pub activation: &'static str,
 }
 
-pub(crate) async fn context(pool: &SqlitePool) -> ApiResult<(String, String)> {
-    let (target, scope): (Option<String>, String) =
-        sqlx::query_as("SELECT target_country, wishlist_price_scope FROM app_settings WHERE id=1")
-            .fetch_one(pool)
-            .await?;
-    Ok((target.unwrap_or_default(), scope))
-}
-
 /// Display a saved observation; live alert eligibility remains stricter.
-pub(crate) async fn load(
-    state: &AppState,
-    id: &str,
-    target: &str,
-    scope: &str,
-) -> ApiResult<PriceBadge> {
-    load_many(state, &[id.to_string()], target, scope)
+pub(crate) async fn load(state: &AppState, id: &str, target: &str) -> ApiResult<PriceBadge> {
+    load_many(state, &[id.to_string()], target)
         .await?
         .remove(id)
         .ok_or(ApiError(
@@ -281,7 +265,6 @@ pub(crate) async fn load_many(
     state: &AppState,
     ids: &[String],
     target: &str,
-    scope: &str,
 ) -> ApiResult<BTreeMap<String, PriceBadge>> {
     let pool = &state.pool;
     let t = now();
@@ -307,9 +290,6 @@ pub(crate) async fn load_many(
     .await?;
     let mut jobs: BTreeMap<String, JobSummary> =
         jobs.into_iter().map(|j| (j.item.clone(), j)).collect();
-    // Since 0.6.1 the wishlist always shows the target-country price next to the cheapest region
-    // worldwide (`world`), so the stored scope setting no longer changes `cents`.
-    let _ = scope;
     let start = t - t.rem_euclid(DAY) - (TREND_DAYS - 1) * DAY;
     let mut shown = vec![];
     let mut badges: Vec<(String, PriceBadge, Vec<LinkFee>)> = wishes
@@ -361,7 +341,7 @@ fn compute(
     target: &str,
     t: i64,
 ) -> (PriceBadge, Vec<ShownLink>) {
-    let price_scope = &pricing::Scope::for_wishlist(target, "preferred");
+    let price_scope = &pricing::Scope::target(target);
     let mut result = PriceBadge {
         cents: None,
         state: "unknown",
@@ -550,7 +530,7 @@ pub(crate) async fn shop_offers(
     let ids_json = serde_json::to_string(ids).map_err(|_| crate::internal())?;
     let wishes = offers::wishes(pool, &ids_json).await?;
     let mut links = offers::links_of_items(pool, &ids_json).await?;
-    let home_scope = pricing::Scope::for_wishlist(target, "preferred");
+    let home_scope = pricing::Scope::target(target);
     let mut result = BTreeMap::new();
     for (id, wish) in wishes {
         let mut by_shop: BTreeMap<String, Vec<_>> = BTreeMap::new();
@@ -628,13 +608,12 @@ pub(crate) struct BadgeQuery {
 
 pub(crate) async fn list(
     State(state): State<Shared>,
-    headers: HeaderMap,
-    Query(query): Query<BadgeQuery>,
+    _: auth::Session,
+    ApiQuery(query): ApiQuery<BadgeQuery>,
 ) -> ApiResult<Json<BTreeMap<String, PriceBadge>>> {
-    auth::authenticate(&state, &headers).await?;
-    let (target, scope) = context(&state.pool).await?;
+    let target = offers::target(&state.pool).await?;
     let ids:Vec<String>=sqlx::query_scalar("SELECT w.id FROM wishlist_item w WHERE w.state!='owned' AND (w.state='wished' OR EXISTS(SELECT 1 FROM edition_watch e JOIN wishlist_item a ON a.id=e.wish_id WHERE e.track_id=w.id AND (?1 IS NULL OR a.id=?1) AND a.state='wished'))").bind(query.anchor).fetch_all(&state.pool).await?;
-    Ok(Json(load_many(&state, &ids, &target, &scope).await?))
+    Ok(Json(load_many(&state, &ids, &target).await?))
 }
 
 #[cfg(test)]

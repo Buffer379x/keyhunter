@@ -28,6 +28,16 @@ Hinter einem Reverse Proxy kommen alle Anfragen von der Adresse des Proxys und z
 
 Unter **Einstellungen → System** änderst du die Passphrase: aktuelle Passphrase und zweimal die neue mit 12 bis 128 Zeichen. Die Sitzung in diesem Browser bleibt, alle anderen enden. **Überall abmelden** beendet alle Sitzungen, auch die aktuelle, etwa nach dem Verlust eines Geräts.
 
+### Passphrase vergessen
+
+Ohne Passphrase setzt du den Eigentümerzugang über die Kommandozeile zurück. Das geht nur mit Zugriff auf den Docker-Host bzw. das Datenvolume, nie über die Weboberfläche oder die API. `keyhunter --reset-owner` entfernt den Eigentümer und beendet alle Sitzungen, schreibt einen neuen Einrichtungscode in `bootstrap-token` im Datenverzeichnis (bzw. in die Datei aus `KEYHUNTER_BOOTSTRAP_FILE`) und vermerkt das im Log. Wunschliste, Bibliothek, Preise, Zuordnungen, Alarme und Einstellungen bleiben erhalten. Danach öffnest du KeyHunter und richtest den Zugang mit dem neuen Code und einer neuen Passphrase wieder ein; ein Neustart ist nicht nötig, der alte Code gilt nicht mehr.
+
+Der Befehl muss als Eigentümer des Datenordners laufen, wie der Dienst selbst, sonst bricht er ohne Änderung ab:
+
+- **Unraid** (der Container startet als root und wechselt dann zu UID 10001): im Unraid-Terminal `docker exec --user 10001:10001 KeyHunter /app/keyhunter --reset-owner`. Den Containernamen zeigt der Docker-Tab.
+- **Compose**: `docker compose exec keyhunter /app/keyhunter --reset-owner`.
+- **Gestoppter Container**, als einmaliger Lauf mit demselben Datenvolume: `docker run --rm --user 10001:10001 -v /mnt/user/appdata/keyhunter:/data ghcr.io/buffer379x/keyhunter:latest --reset-owner` (Pfad und Benutzer an deine Installation anpassen, bei Compose z. B. `--user 1000:1000`). Danach den Container wieder starten.
+
 Bei einem Upgrade auf 0.2.2 kannst du für den direkten Zugriff per LAN-IP eine alte `KEYHUNTER_ORIGIN` entfernen oder leeren. Falls `KEYHUNTER_ALLOW_INSECURE_HTTP` auf `false` steht, setze es auf `true` oder entferne es. Das Datenvolume bleibt erhalten.
 
 Bei einem bereits eingerichteten Container kannst du das Feld **Repository** direkt auf `ghcr.io/buffer379x/keyhunter:latest` ändern. Behalte das Datenvolume und die lokale Konfiguration. Unraids Funktion **Check for Updates** erkennt neue Images unter diesem Tag. Für eine feste Version lässt sich `latest` durch eine Versionsnummer ersetzen.

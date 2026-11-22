@@ -103,15 +103,6 @@ impl Scope {
     pub(crate) fn target(country: &str) -> Self {
         Self::Target(country.to_string())
     }
-
-    /// The scope of the wishlist badge setting (`preferred` or `all`).
-    pub(crate) fn for_wishlist(country: &str, setting: &str) -> Self {
-        if setting == "all" {
-            Self::AllRegions
-        } else {
-            Self::target(country)
-        }
-    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]

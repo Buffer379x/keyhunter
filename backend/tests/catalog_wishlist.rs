@@ -305,23 +305,18 @@ async fn preferred_and_global_history_follow_the_actual_lowest_country_and_withd
     );
     sqlx::query("UPDATE offer_link SET latest=json_set(latest,'$.offers[0].cents',500) WHERE json_extract(latest,'$.region')='India'").execute(&pool).await.unwrap();
     let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
-    // The stored scope no longer changes the badge: the target-country price stays, the cheaper
-    // region appears as the world comparison (0.6.1).
+    // The target-country price stays, the cheaper region appears as the world comparison (0.6.1). A cached older
+    // frontend that still sends the retired price scope changes nothing (CODE-05).
     settings["wishlist_price_scope"] = json!("all");
-    f.call("PUT", "/api/v1/settings", settings.clone()).await;
+    assert_eq!(
+        f.call("PUT", "/api/v1/settings", settings).await.0,
+        StatusCode::OK
+    );
     let (_, badges) = f
         .call("GET", "/api/v1/wishlist/price-badges", Value::Null)
         .await;
     assert_eq!(badges[id]["cents"], 900);
     assert_eq!(badges[id]["world"]["cents"], 500);
-    settings["wishlist_price_scope"] = json!("preferred");
-    f.call("PUT", "/api/v1/settings", settings).await;
-    assert_eq!(
-        f.call("GET", "/api/v1/wishlist/price-badges", Value::Null)
-            .await
-            .1[id]["cents"],
-        900
-    );
     sqlx::query("UPDATE offer_link SET latest=json_set(latest,'$.offers[0].cents',1000) WHERE json_extract(latest,'$.region')='India'").execute(&pool).await.unwrap();
     let path = format!("/api/v1/wishlist/{id}/offers");
     let (_, view) = f.call("GET", &path, Value::Null).await;
@@ -1128,10 +1123,10 @@ async fn owned_exact_manual_and_catalog_readd_is_confirmed_and_atomic() {
 }
 
 #[tokio::test]
-async fn wishlist_price_scope_defaults_and_validates() {
+async fn settings_no_longer_carry_the_retired_price_scope_code05() {
     let f = Fixture::new().await;
     let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
-    assert_eq!(settings["wishlist_price_scope"], "preferred");
+    assert!(settings.get("wishlist_price_scope").is_none());
     assert!(
         settings["sources"]
             .as_array()
@@ -1139,16 +1134,11 @@ async fn wishlist_price_scope_defaults_and_validates() {
             .iter()
             .all(|s| s["poll_interval_seconds"] == 28800)
     );
-    settings["wishlist_price_scope"] = json!("all");
-    assert_eq!(
-        f.call("PUT", "/api/v1/settings", settings.clone()).await.1["wishlist_price_scope"],
-        "all"
-    );
+    // An older frontend may still send it: ignored, whatever the value.
     settings["wishlist_price_scope"] = json!("invalid");
-    assert_eq!(
-        f.call("PUT", "/api/v1/settings", settings).await.0,
-        StatusCode::BAD_REQUEST
-    );
+    let (status, saved) = f.call("PUT", "/api/v1/settings", settings).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(saved.get("wishlist_price_scope").is_none());
 }
 
 #[tokio::test]
@@ -1585,10 +1575,8 @@ async fn saved_badges_distinguish_unqueried_empty_error_and_retained_observation
         f.call("GET", badges, Value::Null).await.1[id]["state"],
         "no_offer"
     );
-    settings["wishlist_price_scope"] = json!("all");
-    f.call("PUT", "/api/v1/settings", settings.clone()).await;
-    // The stored scope no longer widens the badge (0.6.1): still nothing valid in AT, and the
-    // world comparison only uses current observations, so the day-old price is not repeated there.
+    // Still nothing valid in AT, and the world comparison only uses current observations, so the day-old price is not
+    // repeated there.
     let (_, shown) = f.call("GET", badges, Value::Null).await;
     assert_eq!(shown[id]["state"], "no_offer");
     assert!(shown[id]["cents"].is_null(), "no price is valid in AT");
@@ -3297,7 +3285,10 @@ async fn an_eu_target_country_gets_price_trend_and_history_alike_func02() {
         [2599, 2499, 2399],
         "the AT history has every point"
     );
-    assert_eq!(view["history"].as_array().unwrap().len(), 3);
+    assert!(
+        view.get("history").is_none(),
+        "only `histories`; the raw copy is gone (CODE-05)"
+    );
     // Not activatable in FR: no price, no trend, no history; outside the EU market (CH) neither.
     for country in ["FR", "CH"] {
         set_target(&f, country).await;
@@ -3585,4 +3576,67 @@ async fn offers_say_how_current_they_are_and_whether_they_fit_the_target_country
         .call("GET", "/api/v1/wishlist/price-badges", Value::Null)
         .await;
     assert_eq!(badges[&id]["stale"], true);
+}
+
+/// CODE-08: `/counts` gives the navigation the numbers of the four lists without building them: wishes, cart entries
+/// of wishes, library entries and enabled alarms of wishes.
+#[tokio::test]
+async fn counts_match_the_lists_of_the_navigation_code08() {
+    let f = Fixture::new().await;
+    set_target(&f, "DE").await;
+    let mut ids = vec![];
+    for body in [
+        json!({"igdb_id":1,"platform_id":169,"confirm_owned":true}),
+        json!({"igdb_id":6,"platform_id":169,"confirm_owned":true}),
+        json!({"manual_title":"Handeintrag","platform_id":49}),
+    ] {
+        let (status, saved) = f.call("POST", "/api/v1/wishlist", body).await;
+        assert!(status.is_success(), "{saved}");
+        ids.push(saved["item"]["id"].as_str().unwrap().to_string());
+    }
+    for id in &ids[..2] {
+        f.call("POST", "/api/v1/cart", json!({ "wish_id": id }))
+            .await;
+    }
+    for (id, enabled) in [(&ids[0], true), (&ids[1], false), (&ids[2], true)] {
+        let path = format!("/api/v1/wishlist/{id}/alert");
+        let rule = json!({"mode":"low","basis":"base","target_cents":null,"enabled":enabled});
+        assert_eq!(f.call("PUT", &path, rule).await.0, StatusCode::NO_CONTENT);
+    }
+    // Bought: into the library, out of the cart; its alarm no longer counts.
+    let path = format!("/api/v1/wishlist/{}/purchase", ids[0]);
+    assert!(f.call("POST", &path, json!({})).await.0.is_success());
+    let (status, counts) = f.call("GET", "/api/v1/counts", Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    let mut lengths = vec![];
+    for path in ["/api/v1/wishlist", "/api/v1/cart", "/api/v1/library"] {
+        lengths.push(
+            f.call("GET", path, Value::Null)
+                .await
+                .1
+                .as_array()
+                .unwrap()
+                .len(),
+        );
+    }
+    let (_, alerts) = f.call("GET", "/api/v1/alerts", Value::Null).await;
+    let enabled = alerts["rules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|rule| rule["enabled"] == true)
+        .count();
+    assert_eq!(
+        counts,
+        json!({
+            "wishlist": lengths[0],
+            "cart": lengths[1],
+            "library": lengths[2],
+            "alerts": enabled,
+        })
+    );
+    assert_eq!(
+        counts,
+        json!({"wishlist": 2, "cart": 1, "library": 1, "alerts": 1})
+    );
 }

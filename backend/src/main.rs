@@ -1,5 +1,5 @@
-use anyhow::Result;
-use keyhunter::{config::Config, create_app};
+use anyhow::{Result, bail};
+use keyhunter::{config::Config, create_app, reset_owner};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -10,6 +10,26 @@ async fn main() -> Result<()> {
         )
         .init();
     let config = Config::from_env()?;
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    match args.as_slice() {
+        [] => {}
+        // Owner recovery for a forgotten passphrase (SEC-03), from a shell only: docs/operations.md.
+        [flag] if flag == "--reset-owner" => {
+            let reset = reset_owner(&config).await?;
+            println!(
+                "KeyHunter: owner {}, {} session(s) ended. Open KeyHunter and set it up again with the new code in {}. Wishlist, prices and settings are kept.",
+                if reset.had_owner {
+                    "removed"
+                } else {
+                    "was not set up yet"
+                },
+                reset.ended_sessions,
+                reset.setup_file.display()
+            );
+            return Ok(());
+        }
+        _ => bail!("Unknown arguments {args:?}. Usage: keyhunter [--reset-owner]"),
+    }
     let bind = config.bind;
     let app = create_app(config).await?;
     let listener = tokio::net::TcpListener::bind(bind).await?;
