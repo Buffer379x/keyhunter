@@ -3183,3 +3183,405 @@ async fn a_paused_wish_is_not_pending_and_only_owner_fetches_are_refreshing() {
     let (_, data) = f.call("GET", badges, Value::Null).await;
     assert_eq!(state(&data[id]), (json!(true), json!(false)));
 }
+
+/// A saved wish of game 1 with the given target country, and a pool on the fixture's database.
+async fn wish_with_target(f: &Fixture, country: &str) -> (String, sqlx::SqlitePool, i64) {
+    let (_, saved) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":1,"platform_id":169}),
+        )
+        .await;
+    let id = saved["item"]["id"].as_str().unwrap().to_string();
+    set_target(f, country).await;
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(
+            sqlx::sqlite::SqliteConnectOptions::new()
+                .filename(f.config.data_dir.join("keyhunter.db")),
+        )
+        .await
+        .unwrap();
+    let t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    (id, pool, t)
+}
+
+async fn set_target(f: &Fixture, country: &str) {
+    let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
+    settings["target_country"] = json!(country);
+    assert_eq!(
+        f.call("PUT", "/api/v1/settings", settings).await.0,
+        StatusCode::OK
+    );
+}
+
+/// A product link of the wish with the given shop data, observed at `at`; returns its id.
+async fn add_product(
+    pool: &sqlx::SqlitePool,
+    id: &str,
+    slug: &str,
+    product: &Value,
+    at: i64,
+) -> i64 {
+    sqlx::query_scalar("INSERT INTO offer_link(wish_id,source,url,latest,observed_at,attempted_at) VALUES(?,'eneba',?,?,?,?) RETURNING id")
+        .bind(id)
+        .bind(format!("https://www.eneba.com/de/xbox-example-{slug}-key"))
+        .bind(product.to_string())
+        .bind(at)
+        .bind(at)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+/// FUNC-02: with Austria as target country, price, 14-day trend and target-country history follow the same EU
+/// market rule; up to 0.9.2 the trend stayed empty and the history had no points, because the shops are read in DE.
+#[tokio::test]
+async fn an_eu_target_country_gets_price_trend_and_history_alike_func02() {
+    let f = Fixture::new().await;
+    let (id, pool, t) = wish_with_target(&f, "AT").await;
+    let product = json!({"id":"eu","name":"Example","title":"Example","platform_ids":[169],"key_game":true,"region":"Europe","allowed":["DE","AT"],"blocked":[],"purchase_country":"DE","offers":[{"id":"q","cents":2399,"seller":null}],"availability":"in_stock"});
+    let link = add_product(&pool, &id, "europe", &product, t - 60).await;
+    let offers = format!("/api/v1/wishlist/{id}/offers");
+    assert_eq!(
+        f.call(
+            "PUT",
+            &format!("{offers}/{link}"),
+            json!({"decision":"confirmed"})
+        )
+        .await
+        .0,
+        StatusCode::NO_CONTENT
+    );
+    let fingerprint: String = sqlx::query_scalar("SELECT fingerprint FROM offer_link WHERE id=?")
+        .bind(link)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    // Observations store the activation of their market (DE); one with DE unclear still counts for AT.
+    for (at, cents, activation) in [
+        (t - 3 * 86400, 2599, "confirmed"),
+        (t - 2 * 86400, 2499, "unknown"),
+        (t - 60, 2399, "confirmed"),
+    ] {
+        sqlx::query("INSERT INTO price_observation(link_id,product_id,observed_at,market,fingerprint,offers,activation,availability) VALUES(?,'eu',?,'DE',?,?,?,'in_stock')")
+            .bind(link).bind(at).bind(&fingerprint).bind(json!([{"id":"q","cents":cents,"seller":null}]).to_string()).bind(activation)
+            .execute(&pool).await.unwrap();
+    }
+    let (_, badges) = f
+        .call("GET", "/api/v1/wishlist/price-badges", Value::Null)
+        .await;
+    assert_eq!(badges[&id]["cents"], 2399, "the price counts in AT");
+    let trend = badges[&id]["trend"].as_array().unwrap().clone();
+    assert_eq!(
+        trend.last().unwrap(),
+        &json!(2399),
+        "today's trend is the price"
+    );
+    assert!(trend.contains(&json!(2499)) && trend.contains(&json!(2599)));
+    let (_, view) = f.call("GET", &offers, Value::Null).await;
+    assert_eq!(view["best_base"], 2399);
+    let preferred: Vec<i64> = view["histories"]["preferred"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|p| p["base_cents"].as_i64())
+        .collect();
+    assert_eq!(
+        preferred,
+        [2599, 2499, 2399],
+        "the AT history has every point"
+    );
+    assert_eq!(view["history"].as_array().unwrap().len(), 3);
+    // Not activatable in FR: no price, no trend, no history; outside the EU market (CH) neither.
+    for country in ["FR", "CH"] {
+        set_target(&f, country).await;
+        let (_, badges) = f
+            .call("GET", "/api/v1/wishlist/price-badges", Value::Null)
+            .await;
+        assert_eq!(badges[&id]["cents"], Value::Null, "{country}");
+        assert_eq!(
+            badges[&id]["trend"],
+            json!(vec![Value::Null; 14]),
+            "{country}"
+        );
+        let (_, view) = f.call("GET", &offers, Value::Null).await;
+        assert!(
+            view["histories"]["preferred"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|p| p["base_cents"].is_null()),
+            "{country}"
+        );
+    }
+    // DE keeps the activation each observation stored for DE.
+    set_target(&f, "DE").await;
+    let (_, badges) = f
+        .call("GET", "/api/v1/wishlist/price-badges", Value::Null)
+        .await;
+    assert_eq!(badges[&id]["cents"], 2399);
+    assert!(
+        !badges[&id]["trend"]
+            .as_array()
+            .unwrap()
+            .contains(&json!(2499))
+    );
+}
+
+/// FUNC-04: an account (or a PC-only product) cannot be confirmed by hand, the review says why, and one a 0.9.2
+/// owner already confirmed stays confirmed but never counts as a key price.
+#[tokio::test]
+async fn accounts_never_count_as_key_prices_even_confirmed_by_hand_func04() {
+    let f = Fixture::new().await;
+    let (id, pool, t) = wish_with_target(&f, "DE").await;
+    let account = json!({"id":"acc","name":"Example Xbox Live Account","title":"Example","platform_ids":[169],"key_game":false,"region":"Global","allowed":["DE"],"blocked":[],"purchase_country":"DE","offers":[{"id":"q","cents":300,"seller":null}],"availability":"in_stock"});
+    let pc = json!({"id":"pc","name":"Example PC Key","title":"Example","platform_ids":[],"key_game":true,"region":"Global","allowed":["DE"],"blocked":[],"purchase_country":"DE","offers":[{"id":"q","cents":400,"seller":null}],"availability":"in_stock"});
+    let offers = format!("/api/v1/wishlist/{id}/offers");
+    for (slug, product, reason) in [("account", &account, "key_type"), ("pc", &pc, "platform")] {
+        let link = add_product(&pool, &id, slug, product, t - 60).await;
+        let (_, view) = f.call("GET", &offers, Value::Null).await;
+        let row = view["links"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|l| l["id"] == link)
+            .unwrap()
+            .clone();
+        assert_eq!(row["can_confirm"], false);
+        assert_eq!(row["manual_allowed"], false, "{slug}");
+        assert_eq!(row["mismatch"], json!([reason]), "{slug}");
+        let (status, body) = f
+            .call(
+                "PUT",
+                &format!("{offers}/{link}"),
+                json!({"decision":"confirmed","manual":true}),
+            )
+            .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{slug}");
+        assert!(body["error"].as_str().unwrap().contains("kein Xbox-Key"));
+        // Confirmed by hand before 1.0: the mapping stays, its price does not count anywhere.
+        sqlx::query(
+            "UPDATE offer_link SET review='confirmed',fingerprint=?,manual_match=1 WHERE id=?",
+        )
+        .bind(fingerprint(product))
+        .bind(link)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    let (_, view) = f.call("GET", &offers, Value::Null).await;
+    for row in view["links"].as_array().unwrap() {
+        assert_eq!(row["review"], "confirmed");
+        assert_eq!(row["eligible"], false);
+        assert_eq!(row["current"], false);
+        assert!(
+            row["reasons"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("not_a_key"))
+        );
+    }
+    assert_eq!(view["best_base"], Value::Null);
+    assert_eq!(view["last_known"], Value::Null);
+    let (_, badges) = f
+        .call("GET", "/api/v1/wishlist/price-badges", Value::Null)
+        .await;
+    assert_eq!(badges[&id]["cents"], Value::Null);
+    assert_eq!(badges[&id]["world"], Value::Null);
+    assert_eq!(badges[&id]["trend"], json!(vec![Value::Null; 14]));
+}
+
+/// The fingerprint a confirmation of `product` stores (`Product::fingerprint`: id, key type, platforms).
+fn fingerprint(product: &Value) -> String {
+    use sha2::Digest;
+    let identity = json!([
+        2,
+        product["id"],
+        product["key_game"],
+        product["platform_ids"]
+    ])
+    .to_string();
+    hex::encode(sha2::Sha256::digest(identity.as_bytes()))
+}
+
+/// FUNC-11: the wishlist and the tab Angebote count offers with one rule (valid seller prices of confirmed products
+/// of active shops); up to 0.9.2 the list also counted invalid prices and products the shop had replaced.
+#[tokio::test]
+async fn the_list_and_the_offers_tab_count_the_same_offers_func11() {
+    let f = Fixture::new().await;
+    let (id, pool, t) = wish_with_target(&f, "DE").await;
+    let product = |key: &str, offers: Value| json!({"id":key,"name":"Example","title":"Example","platform_ids":[169],"key_game":true,"region":"Global","allowed":["DE"],"blocked":[],"purchase_country":"DE","offers":offers,"availability":"in_stock"});
+    let offers = format!("/api/v1/wishlist/{id}/offers");
+    let confirmed = product(
+        "a",
+        json!([{"id":"1","cents":1500,"seller":null},{"id":"2","cents":0,"seller":null},{"id":"3","cents":1700,"seller":"x"}]),
+    );
+    let link = add_product(&pool, &id, "a", &confirmed, t - 60).await;
+    f.call(
+        "PUT",
+        &format!("{offers}/{link}"),
+        json!({"decision":"confirmed"}),
+    )
+    .await;
+    // Confirmed once, but the shop now puts another product behind the link: to be checked again.
+    let replaced = add_product(
+        &pool,
+        &id,
+        "b",
+        &product("b", json!([{"id":"1","cents":900,"seller":null}])),
+        t - 60,
+    )
+    .await;
+    f.call(
+        "PUT",
+        &format!("{offers}/{replaced}"),
+        json!({"decision":"confirmed"}),
+    )
+    .await;
+    sqlx::query("UPDATE offer_link SET latest=json_set(latest,'$.id','other') WHERE id=?")
+        .bind(replaced)
+        .execute(&pool)
+        .await
+        .unwrap();
+    add_product(
+        &pool,
+        &id,
+        "c",
+        &product("c", json!([{"id":"1","cents":800,"seller":null}])),
+        t - 60,
+    )
+    .await;
+    let (_, view) = f.call("GET", &offers, Value::Null).await;
+    let shown: usize = view["links"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|l| l["review"] == "confirmed" && l["enabled"] == true)
+        .map(|l| l["quotes"].as_array().unwrap().len())
+        .sum();
+    assert_eq!(shown, 2);
+    assert_eq!(view["offer_count"], 2);
+    let (_, items) = f.call("GET", "/api/v1/wishlist", Value::Null).await;
+    assert_eq!(items[0]["offer_count"], 2, "was 4 up to 0.9.2");
+}
+
+/// FUNC-05 and the data the offers, badges and cart give the pages for their actions (FUNC-03, RESP-11, RESP-14):
+/// the state of each offer's data, whether it is a current price of any region and whether it fits the target
+/// country, and how long it stays current.
+#[tokio::test]
+async fn offers_say_how_current_they_are_and_whether_they_fit_the_target_country() {
+    let f = Fixture::new().await;
+    let (id, pool, t) = wish_with_target(&f, "DE").await;
+    let product = |key: &str, allowed: Value, cents: i64| json!({"id":key,"name":"Example","title":"Example","platform_ids":[169],"key_game":true,"region":if key=="in"{"India"}else{"Global"},"allowed":allowed,"blocked":[],"purchase_country":"DE","offers":[{"id":"q","cents":cents,"seller":null}],"availability":"in_stock"});
+    let offers = format!("/api/v1/wishlist/{id}/offers");
+    // Checked every three days: 30 hours after the check the price still counts (up to 0.9.2: stale after 24 h).
+    sqlx::query("UPDATE source_settings SET poll_interval_seconds=259200 WHERE id='eneba'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let home = add_product(
+        &pool,
+        &id,
+        "de",
+        &product("de", json!(["DE"]), 2890),
+        t - 30 * 3600,
+    )
+    .await;
+    let india = add_product(&pool, &id, "in", &product("in", json!([]), 1290), t - 60).await;
+    let failed = add_product(
+        &pool,
+        &id,
+        "eu",
+        &product("eu", json!(["DE"]), 2990),
+        t - 60,
+    )
+    .await;
+    for link in [home, india, failed] {
+        sqlx::query("INSERT INTO shop_job(source,link_id,due) VALUES('eneba',?,?)")
+            .bind(link)
+            .bind(t + 86400)
+            .execute(&pool)
+            .await
+            .unwrap();
+        f.call(
+            "PUT",
+            &format!("{offers}/{link}"),
+            json!({"decision":"confirmed"}),
+        )
+        .await;
+    }
+    sqlx::query("UPDATE offer_link SET last_error='network' WHERE id=?")
+        .bind(failed)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let (_, view) = f.call("GET", &offers, Value::Null).await;
+    let row = |link: i64| {
+        view["links"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|l| l["id"] == link)
+            .unwrap()
+            .clone()
+    };
+    let home_row = row(home);
+    assert_eq!(home_row["data_state"], "current");
+    assert_eq!(home_row["stale"], false);
+    assert_eq!(home_row["eligible"], true);
+    assert_eq!(home_row["fresh_until"], t - 30 * 3600 + 6 * 86400);
+    assert_eq!(home_row["current"], true);
+    assert_eq!(home_row["fits_target"], true);
+    let india_row = row(india);
+    assert_eq!(india_row["current"], true, "a current price of its region");
+    assert_eq!(india_row["fits_target"], false, "not safe to buy for DE");
+    let failed_row = row(failed);
+    assert_eq!(failed_row["data_state"], "failed");
+    assert_eq!(failed_row["current"], false);
+    assert_eq!(failed_row["fits_target"], true);
+    assert_eq!(view["best_base"], 2890);
+    let (_, badges) = f
+        .call("GET", "/api/v1/wishlist/price-badges", Value::Null)
+        .await;
+    assert_eq!(badges[&id]["cents"], 2890);
+    assert_eq!(badges[&id]["stale"], false);
+    assert_eq!(badges[&id]["world"]["cents"], 1290);
+    assert_eq!(badges[&id]["world"]["fits_target"], false);
+    assert_eq!(badges[&id]["world"]["activation"], "unknown");
+    f.call("POST", "/api/v1/cart", json!({"wish_id":id})).await;
+    let (_, cart) = f.call("GET", "/api/v1/cart", Value::Null).await;
+    let shop = &cart[0]["offers"]["eneba"];
+    assert_eq!(shop["home"]["cents"], 2890);
+    assert_eq!(shop["home"]["fits_target"], true);
+    assert_eq!(shop["home"]["activation"], "confirmed");
+    assert_eq!(shop["world"]["cents"], 1290);
+    assert_eq!(shop["world"]["fits_target"], false);
+    assert_eq!(shop["world"]["activation"], "unknown");
+    // Twice the interval later the price is stale, like every other view says.
+    sqlx::query("UPDATE offer_link SET observed_at=? WHERE id=?")
+        .bind(t - 7 * 86400)
+        .bind(home)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let (_, view) = f.call("GET", &offers, Value::Null).await;
+    let home_row = view["links"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|l| l["id"] == home)
+        .unwrap()
+        .clone();
+    assert_eq!(home_row["data_state"], "stale");
+    assert_eq!(home_row["stale"], true);
+    assert_eq!(view["best_base"], Value::Null);
+    let (_, badges) = f
+        .call("GET", "/api/v1/wishlist/price-badges", Value::Null)
+        .await;
+    assert_eq!(badges[&id]["stale"], true);
+}

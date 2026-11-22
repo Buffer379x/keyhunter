@@ -269,6 +269,8 @@ struct Best {
     shop: String,
     region: Option<String>,
     url: String,
+    /// Freshness limit of the offer's link ([`crate::pricing::fresh_for`]).
+    fresh_for: i64,
 }
 struct Check {
     scope: String,
@@ -320,6 +322,7 @@ async fn check(
                         .map_or_else(|| link.source.clone(), |shop| shop.name().into()),
                     region: product.region.clone(),
                     url: link.url().to_owned(),
+                    fresh_for: link.fresh_for(),
                 });
             }
         }
@@ -481,11 +484,9 @@ async fn deliver_one(pool: &SqlitePool, notifier: &Notifier) -> anyhow::Result<(
         if let Some(rule) = rule(&mut conn, id).await?.filter(|r| r.enabled) {
             let current = check(&mut conn, id, &rule, None, t).await?;
             row.scope.as_deref() == Some(&current.scope)
-                && current
-                    .best
-                    .zip(row.cents)
-                    .is_some_and(|(best, recorded)| best.cents <= recorded)
-                && t - row.observed_at <= crate::pricing::FRESH
+                && current.best.zip(row.cents).is_some_and(|(best, recorded)| {
+                    best.cents <= recorded && t - row.observed_at <= best.fresh_for
+                })
         } else {
             false
         }

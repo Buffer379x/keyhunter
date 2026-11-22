@@ -1,8 +1,9 @@
 //! One rule set for every price KeyHunter shows or alerts on.
 //!
 //! An offer counts as a *current* price only when the product matches the wish,
-//! the mapping is confirmed, the last fetch succeeded within [`FRESH`], the shop
-//! reports stock and the purchase works in the requested scope. Every failed
+//! the mapping is confirmed, the product is an Xbox key, the last fetch succeeded
+//! within [`fresh_for`] its check interval, the shop reports stock and the purchase
+//! works in the requested scope. Every failed
 //! check is reported as a [`Reason`], so views can explain why a price does not
 //! count instead of silently hiding or showing it.
 //!
@@ -14,8 +15,16 @@ use crate::offers::{Link, Wish};
 use crate::shops::{Availability, Product};
 use serde::Serialize;
 
-/// An observation older than this no longer counts as a current price.
+/// Shortest freshness limit: an observation counts as current for at least this long.
 pub(crate) const FRESH: i64 = 24 * 3600;
+
+/// How long an observation of a link counts as current (FUNC-05, 1.0): twice the effective check interval of the
+/// link (`offer_link` joined with its job, see `jobs::effective_interval`), at least [`FRESH`]. A planned check that
+/// comes on time therefore never lets a price go stale, whatever interval the owner chose. Without an interval (no
+/// job yet) the floor applies. The one rule for every current/stale decision: prices, badges, KPIs, history, alerts.
+pub(crate) fn fresh_for(check_every: Option<i64>) -> i64 {
+    check_every.map_or(FRESH, |every| FRESH.max(every.saturating_mul(2)))
+}
 pub(crate) const MAX_CENTS: i64 = 10_000_000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -28,6 +37,9 @@ pub(crate) enum Reason {
     NotConfirmed,
     SourceError,
     Stale,
+    /// Not an Xbox activation code for the wish's system (an account, a gift, a PC-only product), even when the
+    /// owner confirmed the mapping by hand (FUNC-04). Never counts, not even as a last known price.
+    NotAKey,
     SoldOut,
     AvailabilityUnknown,
     NoPrice,
@@ -55,6 +67,27 @@ pub(crate) const EU: [&str; 27] = [
 /// since the shops are read from a server in Germany). Activation stays a check of `country` itself.
 pub(crate) fn same_market(context: &str, country: &str) -> bool {
     context == country || (EU.contains(&context) && EU.contains(&country))
+}
+
+/// Every purchase context whose observations can count for `country`: [`same_market`] as a list, for SQL filters.
+pub(crate) fn markets(country: &str) -> Vec<&str> {
+    if EU.contains(&country) {
+        EU.to_vec()
+    } else {
+        vec![country]
+    }
+}
+
+/// Whether a stored observation was a price for `country` (FUNC-02): read in the same market, and activatable there.
+/// An observation stores the activation of its own purchase context; for another country of the same market the
+/// current country list of the product counts, which belongs to the same product identity (fingerprint).
+pub(crate) fn counts_in(market: &str, activation: &str, product: &Product, country: &str) -> bool {
+    same_market(market, country)
+        && if market == country {
+            activation == "confirmed"
+        } else {
+            product.activation(country) == "confirmed"
+        }
 }
 
 /// Where a price has to be usable.
@@ -96,6 +129,19 @@ impl Verdict {
 
     pub(crate) fn has(&self, reason: Reason) -> bool {
         self.0.contains(&reason)
+    }
+
+    /// The offer works in the target country of a [`Scope::Target`] verdict: activation confirmed there and bought in
+    /// the same market, regardless of age, stock and price (RESP-14: a cheaper region that is safe to buy for it).
+    pub(crate) fn fits_target(&self) -> bool {
+        ![
+            Reason::NoTargetCountry,
+            Reason::ActivationBlocked,
+            Reason::ActivationUnknown,
+            Reason::PurchaseContextMismatch,
+        ]
+        .into_iter()
+        .any(|reason| self.has(reason))
     }
 }
 
@@ -139,13 +185,13 @@ pub(crate) fn evaluate(
             Reason::Mismatch
         });
     }
+    if !wish.takes_key(product) {
+        reasons.push(Reason::NotAKey);
+    }
     if link.last_error.is_some() {
         reasons.push(Reason::SourceError);
     }
-    if !link
-        .observed_at
-        .is_some_and(|at| at <= now && now - at <= FRESH)
-    {
+    if !link.fresh(now) {
         reasons.push(Reason::Stale);
     }
     match product.availability {
@@ -173,6 +219,19 @@ pub(crate) fn evaluate(
         }
     }
     Verdict(reasons)
+}
+
+/// What the data of a link is worth right now, for the actions of an offer row (FUNC-03, RESP-11): `unknown` (not
+/// observed yet, or the shop did not say whether it is in stock), `failed` (the latest fetch failed), `stale` (older
+/// than the link's freshness limit) or `current`. Only a `current` price may be offered as a saving or a cart action.
+pub(crate) fn data_state(link: &Link, product: Option<&Product>, now: i64) -> &'static str {
+    match product {
+        None => "unknown",
+        Some(_) if link.last_error.is_some() => "failed",
+        Some(_) if !link.fresh(now) => "stale",
+        Some(product) if product.availability == Availability::Unknown => "unknown",
+        Some(_) => "current",
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -349,6 +408,100 @@ mod tests {
             evaluate(&unobserved, &wish(), None, &de, NOW).0,
             [Reason::NotObserved]
         );
+    }
+
+    /// FUNC-05 / SCORE-04: an observation stays current for twice its link's check interval, at least 24 h, so a
+    /// long interval chosen by the owner does not let prices go stale between two planned checks.
+    #[test]
+    fn freshness_follows_the_check_interval_func05() {
+        assert_eq!(fresh_for(None), FRESH);
+        assert_eq!(fresh_for(Some(8 * 3600)), FRESH, "the 24 h floor");
+        assert_eq!(fresh_for(Some(72 * 3600)), 144 * 3600);
+        let de = Scope::target("DE");
+        let p = product();
+        let mut weekly = link(&p);
+        weekly.check_every = Some(7 * 86400);
+        weekly.observed_at = Some(NOW - 3 * 86400);
+        assert!(
+            reasons(&weekly, &p, &de).is_empty(),
+            "checked weekly, three days old: current"
+        );
+        assert_eq!(data_state(&weekly, Some(&p), NOW), "current");
+        weekly.observed_at = Some(NOW - 14 * 86400 - 1);
+        assert_eq!(reasons(&weekly, &p, &de), [Reason::Stale]);
+        assert_eq!(data_state(&weekly, Some(&p), NOW), "stale");
+        let mut hourly = link(&p);
+        hourly.check_every = Some(3600);
+        hourly.observed_at = Some(NOW - FRESH - 1);
+        assert_eq!(reasons(&hourly, &p, &de), [Reason::Stale]);
+    }
+
+    #[test]
+    fn data_state_and_target_fit_of_an_offer() {
+        let de = Scope::target("DE");
+        let p = product();
+        let l = link(&p);
+        assert_eq!(data_state(&l, None, NOW), "unknown");
+        let mut failed = link(&p);
+        failed.last_error = Some("network".into());
+        assert_eq!(data_state(&failed, Some(&p), NOW), "failed");
+        let mut unsure = product();
+        unsure.availability = Availability::Unknown;
+        assert_eq!(data_state(&link(&unsure), Some(&unsure), NOW), "unknown");
+        assert!(evaluate(&l, &wish(), Some(&p), &de, NOW).fits_target());
+        let mut india = product();
+        india.allowed.clear();
+        india.region = Some("India".into());
+        let verdict = evaluate(&link(&india), &wish(), Some(&india), &de, NOW);
+        assert!(!verdict.fits_target(), "activation in DE unclear");
+        let mut old = link(&p);
+        old.observed_at = Some(NOW - FRESH - 1);
+        assert!(
+            evaluate(&old, &wish(), Some(&p), &de, NOW).fits_target(),
+            "age does not decide the region"
+        );
+    }
+
+    /// FUNC-04: a product confirmed by hand still has to be an Xbox key for the wish's system.
+    #[test]
+    fn accounts_and_pc_products_never_count_even_confirmed_by_hand_func04() {
+        let de = Scope::target("DE");
+        let mut account = product();
+        account.key_game = false;
+        let mut manual = link(&account);
+        manual.manual_match = true;
+        let verdict = evaluate(&manual, &wish(), Some(&account), &de, NOW);
+        assert!(verdict.has(Reason::NotAKey));
+        assert!(!verdict.eligible() && !verdict.last_known());
+        let mut pc = product();
+        pc.platform_ids = vec![6];
+        let mut manual = link(&pc);
+        manual.manual_match = true;
+        assert!(reasons(&manual, &pc, &Scope::AllRegions).contains(&Reason::NotAKey));
+        // An Xbox One key for a Series X|S wish runs backward compatible: confirmed by hand, it counts.
+        let mut one = product();
+        one.platform_ids = vec![49];
+        let mut manual = link(&one);
+        manual.manual_match = true;
+        assert!(reasons(&manual, &one, &de).is_empty());
+    }
+
+    /// FUNC-02: the EU market as one list, and which stored observations count for a target country.
+    #[test]
+    fn observations_count_in_the_same_market_func02() {
+        assert_eq!(markets("AT").len(), 27);
+        assert_eq!(markets("CH"), ["CH"]);
+        let mut p = product();
+        p.allowed = vec!["DE".into(), "AT".into()];
+        assert!(counts_in("DE", "confirmed", &p, "DE"));
+        assert!(!counts_in("DE", "unknown", &p, "DE"), "its own activation");
+        assert!(counts_in("DE", "unknown", &p, "AT"), "AT from the product");
+        assert!(
+            !counts_in("DE", "confirmed", &p, "FR"),
+            "not activatable in FR"
+        );
+        assert!(!counts_in("US", "confirmed", &p, "AT"), "another market");
+        assert!(!counts_in("DE", "confirmed", &p, ""));
     }
 
     #[test]

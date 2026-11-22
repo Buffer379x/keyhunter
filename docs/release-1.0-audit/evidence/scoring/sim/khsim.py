@@ -159,13 +159,14 @@ class ShopCfg:
 
 class Job:
     __slots__ = ("id", "shop", "kind", "offer", "game", "due", "failures", "relevance", "pace",
-                 "initial", "checked_at", "lease_until", "ver", "key", "rate")
+                 "initial", "checked_at", "lease_until", "ver", "key", "rate", "dead")
 
     def __init__(self, jid, shop, kind, offer=None, game=None, due=0, initial=False):
         self.id, self.shop, self.kind, self.offer, self.game = jid, shop, kind, offer, game
         self.due, self.failures, self.relevance, self.pace = due, 0, 1, 1.0
         self.initial, self.checked_at, self.lease_until, self.ver = initial, None, 0, 0
         self.key, self.rate = None, 0.0
+        self.dead = 0
 
 
 class ShopState:
@@ -458,12 +459,18 @@ class Sim:
             else:
                 due = a + max(DAY, interval)                     # jobs.rs:372,389 (Eneba)
             failures = 0
+            j.dead = 0
         else:
             code = val
+            # 1.0 (FUNC-13): 5 dead results of a product link in a row -> 4 intervals until a success.
+            backoff = 1
+            if j.kind == "product" and code in ("not_found", "invalid_response"):
+                j.dead = min(j.dead + 1, 20)
+                backoff = 4 if j.dead >= 5 else 1
             if code in TRANSIENT and j.failures < len(RETRY_LADDER):
                 retry = RETRY_LADDER[j.failures]                 # jobs.rs:392-396
             else:
-                retry = interval                                 # jobs.rs:396-397
+                retry = interval * backoff                       # jobs.rs:396-397
                 if self.policy.perm_backoff and code in ("not_found", "invalid_response"):
                     retry = min(interval * (2 ** min(j.failures, 3)), WEEK)
             pause = shop.cfg.retry_after if code == "rate_limited" else (DENIED_PAUSE if code == "access_denied" else 0)

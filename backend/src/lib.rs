@@ -635,6 +635,80 @@ mod migration_tests {
         assert_eq!(initial, [("new".into(), 1), ("old".into(), 0)]);
     }
 
+    /// 1.0 (FUNC-02, FUNC-13): stock prices for old and new observations, whatever their activation; the trend
+    /// index reads them; the dead-link count starts at zero.
+    #[tokio::test]
+    async fn release_100_migration_backfills_stock_prices_and_counts_dead_links() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        up_to(&pool, 27).await;
+        let observation = |at: i64, offers: &str, activation: &str, availability: &str| {
+            format!("INSERT INTO price_observation(link_id,product_id,observed_at,market,fingerprint,offers,activation,availability)
+                VALUES(1,'p',{at},'DE','f','{offers}','{activation}','{availability}');")
+        };
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "INSERT INTO game(id,manual_title,manual_key,created_at) VALUES('g','Game','game',0);
+            INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES('w','g',169,0);
+            INSERT INTO offer_link(id,wish_id,source,url) VALUES(1,'w','eneba','https://www.eneba.com/de/xbox-game-key');
+            INSERT INTO shop_job(source,link_id,due) VALUES('eneba',1,0);
+            {}{}",
+            observation(1, r#"[{"id":"a","cents":0},{"id":"b","cents":1500}]"#, "confirmed", "in_stock"),
+            observation(2, r#"[{"id":"a","cents":900}]"#, "unknown", "in_stock"),
+        )))
+        .execute(&pool)
+        .await
+        .unwrap();
+        up_to_only(&pool, 28).await;
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "{}{}",
+            observation(3, r#"[{"id":"a","cents":700}]"#, "blocked", "in_stock"),
+            observation(4, r#"[{"id":"a","cents":700}]"#, "confirmed", "sold_out"),
+        )))
+        .execute(&pool)
+        .await
+        .unwrap();
+        let cents: Vec<(Option<i64>, Option<i64>)> = sqlx::query_as(
+            "SELECT valid_cents,stock_cents FROM price_observation ORDER BY observed_at",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            cents,
+            [
+                (Some(1500), Some(1500)),
+                (None, Some(900)),
+                (None, Some(700)),
+                (None, None)
+            ]
+        );
+        let columns: Vec<String> = sqlx::query_scalar(
+            "SELECT name FROM pragma_index_info('price_history') ORDER BY seqno",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            columns,
+            [
+                "link_id",
+                "fingerprint",
+                "observed_at",
+                "market",
+                "valid_cents",
+                "stock_cents"
+            ]
+        );
+        let dead: i64 = sqlx::query_scalar("SELECT dead_failures FROM shop_job")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(dead, 0);
+    }
+
     /// Apply exactly one embedded migration as plain SQL.
     async fn up_to_only(pool: &sqlx::SqlitePool, version: i64) {
         let migrator = sqlx::migrate!("./migrations");
