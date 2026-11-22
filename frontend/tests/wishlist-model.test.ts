@@ -17,9 +17,9 @@ test('row facts: saving only when the cheapest region is really cheaper', () => 
   assert.equal(cheaper.saving, 1600);
   assert.ok(Math.abs(cheaper.share! - 1600 / 2890) < 1e-9);
   assert.equal(cheaper.reached, true);
-  assert.equal(rowFacts(badge(1875, 1875)).saving, null, 'same price is no saving');
-  assert.equal(rowFacts(badge(null, 990)).saving, null, 'no target price, no saving');
-  assert.deepEqual(rowFacts(badge(null, 990)).world, { cents: 990, other: null, region: 'IN', source: null });
+  assert.equal(rowFacts(badge(1875, 1875), undefined).saving, null, 'same price is no saving');
+  assert.equal(rowFacts(badge(null, 990), undefined).saving, null, 'no target price, no saving');
+  assert.deepEqual(rowFacts(badge(null, 990), undefined).world, { cents: 990, other: null, region: 'IN', source: null });
 });
 test('row facts: only enabled target rules on the base price count as reached, the target is shown anyway', () => {
   assert.equal(rowFacts(badge(2000), rule(2500, { enabled: false })).reached, false);
@@ -51,15 +51,15 @@ test('row facts: "Mit Gebühren" shows the estimated totals, compares estimate r
   assert.deepEqual([unknown.price, unknown.world, unknown.trend], [null, null, null]);
 });
 test('row facts: a trend without any value is no trend', () => {
-  assert.equal(rowFacts(badge(2000, null, { trend: Array(14).fill(null) })).trend, null);
-  assert.equal(rowFacts(badge(2000)).trend, null);
-  assert.equal(rowFacts(badge(2000, null, { trend: [] })).trend, null);
+  assert.equal(rowFacts(badge(2000, null, { trend: Array(14).fill(null) }), undefined).trend, null);
+  assert.equal(rowFacts(badge(2000), undefined).trend, null);
+  assert.equal(rowFacts(badge(2000, null, { trend: [] }), undefined).trend, null);
 });
 test('filter chips', () => {
   const reached = rowFacts(badge(2000), rule(2500));
-  const cheap = rowFacts(badge(1000, 800)); // exactly 20 %
-  const slightly = rowFacts(badge(1000, 850));
-  const open = rowFacts(badge(null));
+  const cheap = rowFacts(badge(1000, 800), undefined); // exactly 20 %
+  const slightly = rowFacts(badge(1000, 850), undefined);
+  const open = rowFacts(badge(null), undefined);
   assert.deepEqual([reached, cheap, slightly, open].map(f => matchesChip(f, 'ziel')), [true, false, false, false]);
   assert.deepEqual([reached, cheap, slightly, open].map(f => matchesChip(f, 'welt')), [false, true, false, false]);
   assert.deepEqual([reached, cheap, slightly, open].map(f => matchesChip(f, 'offen')), [false, false, false, true]);
