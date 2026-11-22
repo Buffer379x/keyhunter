@@ -56,6 +56,47 @@ Der Server speichert die IGDB-Werte in `igdb-credentials.json` mit Rechten 0600 
 
 Benachrichtigungskanäle (ntfy, Telegram, Discord, E-Mail, Gotify, Pushover, Webhook) richtest du unter **Einstellungen → Benachrichtigungen** ein; Anleitung und Nachrichtenformat stehen in [notifications.md](notifications.md). Tokens, Passwörter und geheime Adressen speichert der Server in `notification-secrets.json` mit Rechten 0600 im Datenvolume und gibt sie nie zurück. Die bisherige ntfy-Datei bleibt gültig, bis in der App eine Topic-URL gespeichert wird: [ntfy.env.example](../deploy/ntfy.env.example) als Vorlage, bei Unraid im Konfigurationsmount unter `/config/ntfy.env`, bei Compose auf dem Host unter `work/local/runtime/config/ntfy.env`, Rechte 0600 und passender Eigentümer. `NTFY_URL` ist die vollständige Topic-URL; ein separater Bearer-Token erfordert HTTPS. Starte nach Änderung der ntfy-Datei neu.
 
+## Konfiguration
+
+Alle Einstellungen des Dienstes außer den Zugangsdaten laufen über Umgebungsvariablen oder die App. Ohne Angabe gilt der Standard.
+
+| Variable | Standard | Wirkung |
+|---|---|---|
+| `KEYHUNTER_BIND` | `127.0.0.1:3000` (im Image `0.0.0.0:3000`) | Adresse und Port des Dienstes |
+| `KEYHUNTER_DATA_DIR` | `data` (im Image `/data`) | Datenverzeichnis mit Datenbank, `bootstrap-token` und Zugangsdateien |
+| `KEYHUNTER_FRONTEND_DIR` | `../frontend/dist` (im Image `/app/frontend`) | gebaute Weboberfläche |
+| `KEYHUNTER_ORIGIN` | leer | genau eine erlaubte Browser-Adresse, siehe „Webadresse und HTTPS“ |
+| `KEYHUNTER_ALLOW_INSECURE_HTTP` | `true` | HTTP-Anmeldung und Änderungen auf privaten Adressen; `false` verlangt HTTPS |
+| `KEYHUNTER_TRUSTED_PROXY` | leer | IP oder Bereich des Reverse Proxys (kommagetrennt); nur von dort zählt `X-Forwarded-For` für die Anmeldedrossel |
+| `KEYHUNTER_BOOTSTRAP_FILE` | `<Datenverzeichnis>/bootstrap-token` | Ablage des Einrichtungscodes |
+| `KEYHUNTER_SHOP_DAILY_JOBS` | 500 | Standard-Tagesbudget je Shop, ganze Zahl von 1 bis 2000; ungültige Werte gelten als nicht gesetzt |
+| `KEYHUNTER_NTFY_ENV_FILE` | leer | Pfad der älteren ntfy-Datei (`/config/ntfy.env`), siehe Zugangsdaten |
+
+Compose liest `KEYHUNTER_UID`, `KEYHUNTER_GID`, `KEYHUNTER_PORT` und `KEYHUNTER_IMAGE` aus `.env` (Vorlage: [.env.example](../.env.example)). Das Unraid-Template setzt die übrigen Variablen unter „Advanced“.
+
+## Grenzen und Zeiten
+
+| Was | Wert |
+|---|---|
+| Wunschliste | höchstens 100 aktive Wünsche |
+| Tagesbudget je Shop | 20 bis 2000 Jobs pro UTC-Tag in der App, Standard 500 |
+| Abstand zwischen zwei Abrufen eines Shops | Rest des UTC-Tages geteilt durch das verbleibende Budget, 20 s bis 1 h |
+| Produktintervall je Shop | 15 Minuten bis 7 Tage, Standard 8 Stunden |
+| Manuelle Prüfung | 15 Minuten Abstand zum letzten Abruf |
+| Wiederholung nach vorübergehenden Fehlern | nach 2, 10 und 60 Minuten, danach im Intervall |
+| Frische eines Preises | max(24 Stunden, 2 × effektives Intervall) |
+| Nicht erreichbare Produktseite | nach 5 Fehlschlägen in Folge nur noch mit 4-fachem Intervall |
+| Abrufhistorie / Log | 30 Tage / 7 Tage |
+| Anfragen | Body höchstens 16 KiB, Daten innerhalb von 15 s, Antwort innerhalb von 60 s |
+| Anmeldeversuche | 5 Fehlversuche je Adresse und 100 insgesamt in 15 Minuten |
+| Sitzung | 12 Stunden |
+
+Das Prüftempo (häufig, normal, selten) einer Preisbeobachtung und die Frischeregel sind in [data-sources.md](data-sources.md) beschrieben.
+
+## API
+
+Die Weboberfläche nutzt `/api/v1/*` mit Sitzungscookie und CSRF-Token. Jede Route außer Einrichtung und Anmeldung prüft zuerst die Sitzung und liest danach erst Pfad, Query und Body: Ohne Sitzung antwortet sie immer mit 401, auch bei ungültigem Body. Fehler haben immer die Form `{"error": "<deutsche Meldung>", "code": "<fester Code>"}`. Codes: `invalid_request` (400), `unauthenticated` (401), `forbidden` (403), `not_found` (404), `timeout` (408), `conflict` (409), `method_not_allowed` (405), `too_large` (413), `unsupported_media_type` (415), `unprocessable` (422), `rate_limited` (429, mit `Retry-After`), `unavailable` (502/503/504) und `internal`. `GET /api/v1/counts` liefert die Zahlen der Navigation: `{"wishlist", "cart", "library", "alerts"}` (aktive Alarme). `GET /api/v1/status/fetch` beschreibt den Abrufstatus, siehe „Jobs und Speicher“.
+
 ## Jobs und Speicher
 
 Bekannte Produktseiten werden standardmäßig alle acht Stunden eingeplant; pro Shop ist das Intervall einstellbar. Die Discovery läuft frühestens täglich (bei längeren Produktintervallen entsprechend später) mit begrenzter Abdeckung. Jeder Shop hat ein Tagesbudget von standardmäßig 500 Jobs pro UTC-Tag. Unter **Einstellungen → Key-Shops** lässt es sich je Shop zwischen 20 und 2000 festlegen; ohne eigenen Wert gilt `KEYHUNTER_SHOP_DAILY_JOBS` (1–2000) und sonst 500. Eine Änderung wirkt ohne Neustart. Die Abrufe werden gleichmäßig über den Tag verteilt: Nach einem Abruf wartet der Shop den Rest des UTC-Tages geteilt durch das verbleibende Budget, mindestens 20 Sekunden und höchstens eine Stunde; der nächste erlaubte Zeitpunkt übersteht einen Neustart. Direkte Aktionen warten nicht, zählen aber zum Budget: angeforderte Aktualisierungen, die erste Suche eines neuen Wunsches mit ihren Folgeseiten und der erste Preisabruf der dabei gefundenen oder von Hand hinzugefügten Produkte. Das Budget geht zuerst an angeforderte Aktualisierungen und erste Suchen, dann an Preise aktiver Wünsche, die im Zielland gelten können; jeder vierte Abruf eines Tages geht an den am längsten wartenden übrigen Job (Wiederholungssuchen, andere Regionen, Editionsvorschauen, Discovery). Vorübergehende Fehler werden nach 2, 10 und 60 Minuten wiederholt, danach im normalen Intervall. Ist eine Produktseite fünfmal in Folge nicht gefunden oder nicht lesbar, wird sie bis zum nächsten erfolgreichen Abruf nur noch mit vierfachem Intervall geprüft; das Log meldet das einmal (seit 0.9.3). Manuelle Prüfungen halten 15 Minuten Abstand zum letzten Abruf und schließen zuvor fehlgeschlagene Links ein.

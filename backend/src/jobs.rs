@@ -1433,6 +1433,112 @@ async fn upcoming(pool: &SqlitePool, t: i64, paused: bool) -> sqlx::Result<Vec<V
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// A file of the repository outside `backend/` (docs, deploy files). Not part of the Docker build context, so this only
+    /// runs in the check container where the whole repository is mounted.
+    fn repo_file(path: &str) -> String {
+        let full = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join(path);
+        std::fs::read_to_string(&full).unwrap_or_else(|e| panic!("{}: {e}", full.display()))
+    }
+    /// CODE-09 / FUNC-08 / SCORE-10 / PERF-14: the numbers the docs, `.env.example`, the compose file and the Unraid
+    /// template state are the constants the code runs with.
+    #[test]
+    fn documented_limits_match_the_constants() {
+        let (lo, hi) = (*DAILY_JOBS_SETTING.start(), *DAILY_JOBS_SETTING.end());
+        let ops = repo_file("docs/operations.md");
+        assert!(
+            ops.contains(&format!("zwischen {lo} und {hi} festlegen")),
+            "budget bounds in operations.md"
+        );
+        assert!(
+            ops.contains(&format!(
+                "{lo} bis {hi} Jobs pro UTC-Tag in der App, Standard {DEFAULT_DAILY_JOBS}"
+            )),
+            "budget row"
+        );
+        assert!(
+            ops.contains(&format!(
+                "| `KEYHUNTER_SHOP_DAILY_JOBS` | {DEFAULT_DAILY_JOBS} |"
+            )),
+            "env table default"
+        );
+        assert!(ops.contains(&format!("von 1 bis {hi}")), "env range");
+        assert!(
+            ops.contains(&format!("{PACE_MIN} s bis 1 h")) && PACE_MAX == 3600,
+            "pacing bounds"
+        );
+        let ladder = format!(
+            "nach {}, {} und {} Minuten",
+            RETRY_LADDER[0] / 60,
+            RETRY_LADDER[1] / 60,
+            RETRY_LADDER[2] / 60
+        );
+        assert!(ops.contains(&ladder), "retry ladder: {ladder}");
+        assert!(ops.contains(&format!("nach {DEAD_AFTER} Fehlschlägen in Folge nur noch mit {DEAD_BACKOFF}-fachem Intervall")), "dead-link backoff");
+        assert!(
+            ops.contains(&format!(
+                "{} Minuten Abstand zum letzten Abruf",
+                REQUEST_WINDOW / 60
+            )),
+            "refresh spacing"
+        );
+        assert!(
+            ops.contains(&format!(
+                "max({} Stunden, 2 × effektives Intervall)",
+                crate::pricing::FRESH / 3600
+            )),
+            "freshness rule"
+        );
+        assert!(
+            ops.contains(&format!(
+                "| Abrufhistorie / Log | {} Tage / 7 Tage |",
+                RUN_RETENTION / DAY
+            )),
+            "retention"
+        );
+        let sources = repo_file("docs/data-sources.md");
+        assert!(
+            sources.contains(&format!(
+                "max({} h, 2 × Intervall)",
+                crate::pricing::FRESH / 3600
+            )),
+            "freshness rule in data-sources.md"
+        );
+        assert!(
+            sources.contains(&format!(
+                "zwischen {} Minuten und 7 Tagen",
+                MIN_INTERVAL / 60
+            )),
+            "interval bounds"
+        );
+        let env = repo_file(".env.example");
+        assert!(
+            env.contains(&format!("KEYHUNTER_SHOP_DAILY_JOBS={DEFAULT_DAILY_JOBS}")),
+            ".env.example default"
+        );
+        assert!(
+            env.contains(&format!("from 1 to {hi} (default {DEFAULT_DAILY_JOBS})")),
+            ".env.example range"
+        );
+        assert!(
+            repo_file("compose.yaml").contains(&format!(
+                "KEYHUNTER_SHOP_DAILY_JOBS:-{DEFAULT_DAILY_JOBS}}}"
+            )),
+            "compose default"
+        );
+        let template = repo_file("deploy/unraid/keyhunter.xml");
+        let line = template
+            .lines()
+            .find(|l| l.contains("Target=\"KEYHUNTER_SHOP_DAILY_JOBS\""))
+            .expect("template entry");
+        assert!(
+            line.contains(&format!("Default=\"{DEFAULT_DAILY_JOBS}\""))
+                && line.contains(&format!("1-{hi}"))
+                && line.contains(&format!("({lo}-{hi})")),
+            "template entry: {line}"
+        );
+    }
     /// Lift the pacing of every shop, for tests about other scheduling rules.
     async fn unpace(pool: &SqlitePool) {
         sqlx::query("UPDATE shop_state SET paced_until=0")
