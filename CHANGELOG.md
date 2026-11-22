@@ -2,13 +2,21 @@
 
 ## 0.9.0 – 2026-11-22
 
-Die Wunschliste hat keine Obergrenze mehr, einzelne Spiele lassen sich pausieren, und jedes EU-Zielland zählt wie Deutschland. Beim Start ergänzt die Datenbank die Pause je Spiel (mit Sicherung vorher), sonst ist beim Update nichts zu tun.
+Preisalarme kommen jetzt auch über Telegram, Discord, E-Mail, Gotify, Pushover oder einen Webhook. Die Wunschliste hat keine Obergrenze mehr, einzelne Spiele lassen sich pausieren, und jedes EU-Zielland zählt wie Deutschland. Beim Start ergänzt die Datenbank die Pause je Spiel und die Benachrichtigungskanäle (mit Sicherung vorher). Eine vorhandene /config/ntfy.env funktioniert weiter, sonst ist beim Update nichts zu tun.
 
 ### Neu
 - **Unbegrenzte Wunschliste:** Die Grenze von 100 Spielen entfällt; der Kopf der Wunschliste zählt nur noch die Spiele.
 - **Spiel pausieren:** Auf der Seite eines Spiels pausiert „Pausieren“ seine automatischen Abfragen für 1, 2, 4 oder 8 Wochen oder bis du sie fortsetzt; danach laufen sie von selbst wieder an. Die globale Pause ist davon unabhängig: Pausierst du alle Abfragen und setzt sie fort, bleiben die einzeln pausierten Spiele pausiert. „Jetzt prüfen“ läuft trotzdem. In der Wunschliste steht hinter dem Titel ein gelbes Pause-Symbol (wie der Einkaufskorb), der Filter „Pausiert“ zeigt nur diese Spiele, und auf der Seite des Spiels nennt ein gelber Hinweis das Ende. Pausierte Spiele zählen nicht zum Tagesbedarf und stehen nicht unter „Nächste Abfragen“; das Log hält Pause und Fortsetzen fest.
 - **Jedes EU-Zielland wie Deutschland:** Bisher zählte nur für Deutschland ein Angebot als gültiger Bestpreis, weil die Shops aus Deutschland abgefragt werden. Jetzt gilt der Euro-Preis der Shops für jedes EU-Land, die Aktivierung prüft KeyHunter weiter für das Zielland selbst. Mit Österreich als Zielland gelten also dieselben Regeln wie mit Deutschland, und alle Beschriftungen nennen AT statt DE. Außerhalb der EU werden Angebote weiter nur angezeigt.
 - **Bibliothek filtern:** Ein Suchfeld oben filtert Kacheln und Liste, während du tippst, nach Titel und System, ohne auf Akzente zu achten („pokemon“ findet „Pokémon“).
+
+### Benachrichtigungen
+- **Neue Kanäle neben ntfy:** Telegram, Discord, E-Mail (SMTP mit STARTTLS oder TLS), Gotify, Pushover und ein allgemeiner Webhook (JSON). Die Auswahl folgt den Diensten, die Radarr, Sonarr und Seerr anbieten; welche Dienste es gibt, wie die Nachricht jeweils ankommt und warum andere fehlen, steht in docs/notifications.md. Mehrere Kanäle können gleichzeitig aktiv sein; ein Preisalarm geht an jeden.
+- **Einrichtung in der App:** Einstellungen › Benachrichtigungen hat einen Tab je Kanal mit Schalter, „Speichern“, „Test senden“ (sofort, mit Erfolg oder Fehlergrund wie „HTTP 401“) und „Entfernen“; die Einrichtung steht hinter dem Fragezeichen. Tokens, Passwörter und geheime Adressen liegen geschützt im Datenverzeichnis und werden nie wieder angezeigt.
+- **Verständliche Nachrichten:** zum Beispiel „Forza Horizon 5“ ist bei deinem Wunschpreis angekommen: 24,90 € bei Eneba (Global, gültig in Deutschland). Ziel: 25,00 €. Der Preis steht im Titel, ein Link führt zum Angebot; „Neuer Tiefstpreis“ hat einen eigenen Text.
+- **Zustellung je Kanal:** Jeder Kanal wiederholt für sich; ein gestörter Kanal hält die anderen nicht auf und verdoppelt keine Nachricht. „Letzte Zustellungen“ unter Preisalarme und das Log zeigen den Stand je Kanal.
+- Preisalarme und der Alarm eines Spiels nennen die aktiven Kanäle („Kanal: Telegram, E-Mail“) statt fest „ntfy“.
+- Eine vorhandene /config/ntfy.env funktioniert weiter, bis in der App eine ntfy-Adresse gespeichert wird.
 
 ### Oberfläche
 - **Bibliothek:** Unter jedem Titel steht auch in der Kachelansicht das System.

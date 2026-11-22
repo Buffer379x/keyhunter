@@ -7,7 +7,7 @@ import Index from './settings/Index';
 import Notifications from './settings/Notifications';
 import FetchPanel from './settings/FetchPanel';
 import System from './settings/System';
-import { useAlertOverview, useFetchStatus } from './settings/data';
+import { useFetchStatus } from './settings/data';
 import type { SettingsDraft } from './settings/draft';
 import Log from './settings/Log';
 import { sections } from './settings/sections';
@@ -53,7 +53,6 @@ export default function SettingsPage({ section, settings, auto, csrf, countries,
   const fetched = useFetchStatus(section === 'shops' || section === 'status');
   const [httpsSeen, setHttpsSeen] = useState(readSeen);
   const dismissHttps = () => { setHttpsSeen(true); try { localStorage.setItem(HTTPS_SEEN, '1'); } catch { /* closed for this visit */ } };
-  const alerts = useAlertOverview();
   const igdbState = sourceStatus?.igdb?.state;
 
   // Sections whose controls belong to the draft; the others (alarms, status, system) save their own way.
@@ -75,7 +74,7 @@ export default function SettingsPage({ section, settings, auto, csrf, countries,
         {id === 'general' && <General settings={settings} countries={countries} edit={auto.edit} onError={onError} />}
         {id === 'shops' && <Shops settings={settings} feeDraft={auto.feeDraft} edit={auto.edit} editFee={auto.editFee} status={fetched.data?.shops} />}
         {id === 'index' && <Index settings={settings} edit={auto.edit} igdbState={igdbState} igdbConfigured={sourceStatus?.igdb?.configured} csrf={csrf} onChanged={onSourcesChanged} onError={onError} />}
-        {id === 'notifications' && <Notifications overview={alerts.data} failed={alerts.failed} csrf={csrf} reload={alerts.reload} onError={onError} />}
+        {id === 'notifications' && <Notifications csrf={csrf} onError={onError} />}
         {id === 'status' && <FetchPanel data={fetched.data} failed={fetched.failed} loadedAt={fetched.loadedAt} intervals={Object.fromEntries(settings.sources.map(s => [s.id, s.poll_interval_seconds]))} onShops={() => onSection('shops')} />}
         {id === 'log' && <Log />}
         {id === 'system' && <System onLogout={onLogout} busy={busy} />}

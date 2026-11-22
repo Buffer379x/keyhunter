@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { budgetShare, budgetView, durationText, fetchPill, intervalLabel, intervalOptions, kindText, lastTest, outcomeText, outcomeTone, parseDailyJobs, shopState, untilText, workerState } from '../src/features/settings/format.ts';
+import { budgetShare, budgetView, durationText, fetchPill, intervalLabel, intervalOptions, kindText, outcomeText, outcomeTone, parseDailyJobs, shopState, untilText, workerState } from '../src/features/settings/format.ts';
 import type { FetchShopStatus } from '../src/api.ts';
 
 const shop = (patch: Partial<FetchShopStatus> = {}): FetchShopStatus => ({
@@ -67,7 +67,7 @@ test('fetch pill, next fetch and run kinds', () => {
   assert.equal(kindText('product'), 'Preis');
 });
 
-test('outcomes, durations, budget share and the last test message', () => {
+test('outcomes, durations and budget share', () => {
   assert.equal(outcomeText('rate_limited'), 'Abruflimit erreicht');
   assert.equal(outcomeText('weird'), 'weird');
   assert.deepEqual(['ok', 'rate_limited', 'not_found', 'network', 'access_denied'].map(outcomeTone), ['ok', 'warn', 'warn', 'error', 'error']);
@@ -76,8 +76,6 @@ test('outcomes, durations, budget share and the last test message', () => {
   assert.equal(budgetShare(64, 120).toFixed(2), '0.53');
   assert.equal(budgetShare(500, 120), 1);
   assert.equal(budgetShare(1, 0), 0);
-  assert.equal(lastTest([{ id: 3, wish_id: 'a' }, { id: 2, wish_id: null }, { id: 1, wish_id: null }])?.id, 2);
-  assert.equal(lastTest([{ id: 3, wish_id: 'a' }]), null);
 });
 
 test('interval labels name hours and minutes in German', () => {

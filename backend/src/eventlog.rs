@@ -1,7 +1,7 @@
 //! Event log (0.8.3, Settings › Log): short German entries about the owner's actions, sent notifications
 //! and fetch problems. Entries are kept seven days (trigger of migration 0025, so every insert prunes, the
-//! start entry included). They never contain secrets: no passphrase, session or CSRF token, cookie, ntfy
-//! address or token, and no IGDB access.
+//! start entry included). They never contain secrets: no passphrase, session or CSRF token, cookie, address,
+//! token or password of a notification channel, and no IGDB access.
 
 use crate::{ApiError, ApiResult, Shared, auth, now, shops::Shop};
 use axum::{

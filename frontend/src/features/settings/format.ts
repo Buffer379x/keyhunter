@@ -116,10 +116,4 @@ export function budgetView(budget: FetchBudget) {
   };
 }
 
-export const deliveryNames: Record<string, string> = { sent: 'zugestellt', pending: 'wird zugestellt', failed: 'fehlgeschlagen', cancelled: 'abgebrochen' };
-/** The newest test message in the ntfy delivery log (test messages have no wish). */
-export function lastTest<T extends { wish_id: string | null; id: number }>(events: T[]): T | null {
-  return events.filter(event => event.wish_id === null).sort((a, b) => b.id - a.id)[0] ?? null;
-}
-
 export type { FetchRun };

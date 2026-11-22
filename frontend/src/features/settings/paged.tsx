@@ -25,10 +25,16 @@ export function usePaged<T extends Paged>(path: string, filterName: string, filt
   const [perPage, setPerPage] = useState(() => readPerPage(perPageKey));
   const [data, setData] = useState<T | null>(null);
   const [failed, setFailed] = useState(false);
+  // A changed filter goes back to page 1 right away (state adjusted while rendering, before the read).
+  const [shownFilter, setShownFilter] = useState(filter);
+  if (filter !== shownFilter) { setShownFilter(filter); setPage(1); }
+  // Only a changed search goes back to page 1 (not the first render: that reset a page chosen in the first 250 ms).
   useEffect(() => {
-    const timer = window.setTimeout(() => { setQuery(text.trim()); setPage(1); }, 250);
+    const next = text.trim();
+    if (next === query) return;
+    const timer = window.setTimeout(() => { setQuery(next); setPage(1); }, 250);
     return () => window.clearTimeout(timer);
-  }, [text]);
+  }, [text, query]);
   useEffect(() => {
     const controller = new AbortController();
     let cancel = () => {};

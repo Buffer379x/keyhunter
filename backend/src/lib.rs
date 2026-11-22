@@ -7,6 +7,7 @@ mod edition_tracking;
 mod eventlog;
 mod history;
 mod jobs;
+mod notify;
 mod offers;
 mod price_badges;
 mod pricing;
@@ -45,7 +46,7 @@ pub(crate) struct AppState {
     bootstrap_hash: Option<[u8; 32]>,
     password_slots: Arc<tokio::sync::Semaphore>,
     catalog: Arc<dyn catalog::provider::CatalogProvider>,
-    ntfy: Option<Arc<alerts::Ntfy>>,
+    notifier: Arc<notify::Notifier>,
     heartbeat: Arc<jobs::Heartbeat>,
     background: bool,
     trend_cache: price_badges::TrendCache,
@@ -111,6 +112,30 @@ pub(crate) fn random_token() -> Result<String> {
 }
 pub(crate) fn digest(value: &str) -> [u8; 32] {
     Sha256::digest(value.as_bytes()).into()
+}
+/// Replace `path` atomically with an owner-only (0600) file holding `body` (IGDB access, channel secrets).
+pub(crate) fn write_private(path: &std::path::Path, body: &[u8]) -> Result<()> {
+    use std::io::Write;
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("secret");
+    let temporary = path.with_file_name(format!(".{name}-{}.tmp", random_token()?));
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&temporary)?;
+    let result = (|| -> Result<()> {
+        file.write_all(body)?;
+        file.sync_all()?;
+        fs::rename(&temporary, path)?;
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(temporary);
+    }
+    result
 }
 
 pub async fn create_app(config: config::Config) -> Result<Router> {
@@ -206,17 +231,24 @@ async fn create_app_inner(
     } else {
         None
     };
-    let ntfy = run_background
-        .then(alerts::Ntfy::from_env)
-        .flatten()
-        .map(Arc::new);
+    // The ntfy file of the operator counts for the service with background work, not for the browser fixture.
+    let ntfy_env = run_background
+        .then(|| std::env::var_os("KEYHUNTER_NTFY_ENV_FILE"))
+        .flatten();
+    let notifier = Arc::new(
+        notify::Notifier::new(
+            &config.data_dir,
+            ntfy_env.as_deref().map(std::path::Path::new),
+        )
+        .context("Cannot prepare notifications")?,
+    );
     let state = Arc::new(AppState {
         config: config.clone(),
         pool,
         bootstrap_hash,
         password_slots: Arc::new(tokio::sync::Semaphore::new(4)),
         catalog,
-        ntfy: ntfy.clone(),
+        notifier: Arc::clone(&notifier),
         heartbeat: Arc::default(),
         background: run_background,
         trend_cache: Default::default(),
@@ -224,9 +256,7 @@ async fn create_app_inner(
     if run_background {
         jobs::start(&state.pool, Arc::clone(&state.heartbeat));
         edition_tracking::start(&state);
-        if let Some(ntfy) = ntfy {
-            alerts::start(&state.pool, ntfy);
-        }
+        alerts::start(&state.pool, notifier);
     }
     let api = Router::new()
         .route("/setup", get(auth::setup_status).post(auth::setup))
@@ -272,6 +302,12 @@ async fn create_app_inner(
         )
         .route("/alerts", get(alerts::list))
         .route("/alerts/test", post(alerts::test_message))
+        .route("/alerts/channels", get(notify::list_channels))
+        .route(
+            "/alerts/channels/{kind}",
+            axum::routing::put(notify::put_channel).delete(notify::delete_channel),
+        )
+        .route("/alerts/channels/{kind}/test", post(notify::test_channel))
         .route("/wishlist/{id}", axum::routing::delete(wishlist::remove))
         .route("/cart", get(cart::list).post(cart::add))
         .route(
@@ -618,6 +654,55 @@ mod migration_tests {
                 .count(),
             3
         );
+    }
+
+    /// 0.9.0: an alert waiting at the update keeps what its message needs, and ntfy stays switched on for an
+    /// existing ntfy file. Applied after every earlier migration (0026 included).
+    #[tokio::test]
+    async fn channel_migration_keeps_waiting_alerts_and_the_ntfy_switch() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        up_to(&pool, 26).await;
+        sqlx::raw_sql(
+            "INSERT INTO game(id,manual_title,manual_key,created_at) VALUES('g','Halo','halo',0);
+            INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES('wish','g',169,1);
+            INSERT INTO alert_rule(wish_id,mode,basis,target_cents,enabled) VALUES('wish','target','estimate',1999,1);
+            INSERT INTO alert_outbox(wish_id,scope,observed_at,cents,message,due) VALUES('wish','s',5,1900,'KeyHunter: Halo',5);
+            INSERT INTO alert_outbox(observed_at,message,due) VALUES(6,'KeyHunter: Testnachricht',6);",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        up_to_only(&pool, 27).await;
+        let rows: Vec<String> = sqlx::query_scalar(
+            "SELECT json_array(game,mode,basis,reference_cents) FROM alert_outbox ORDER BY id",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            rows,
+            [
+                r#"["Halo","target","estimate",1999]"#,
+                "[null,null,null,null]"
+            ]
+        );
+        let message: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM pragma_table_info('alert_outbox') WHERE name='message'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(message, 0);
+        let switches: Vec<(String, bool)> =
+            sqlx::query_as("SELECT kind,enabled FROM notification_channel WHERE enabled")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        assert_eq!(switches, [("ntfy".into(), true)]);
     }
 
     #[tokio::test]
