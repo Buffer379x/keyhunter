@@ -139,6 +139,7 @@ pub(crate) struct Link {
     pub enabled: bool,
     pub fee_estimation_enabled: bool,
     pub fee_basis_points: i64,
+    /// The job of the link runs or waits ([`crate::jobs::pending`]); only [`links`] reads it.
     pub queued: bool,
     pub retry_at: i64,
     /// Price trend within the wish (migration 0016): 0 = mostly the cheapest, 1 = mostly the most expensive.
@@ -225,18 +226,17 @@ pub(crate) fn with_fee(cents: i64, basis_points: i64) -> i64 {
     cents + (cents * basis_points + 5000) / 10000
 }
 
-/// Columns of [`Link`] for `offer_link l` joined with its shop (`s`, `p`), item (`t`) and job (`j`, optional).
-/// `queued` is the scheduler's [`crate::jobs::pending`]; placeholders as there (`?1` the item or item ids).
-fn link_query(filter: &str) -> String {
+/// Columns of [`Link`] for `offer_link l` joined with its shop (`s`, `p`), item (`t`) and job (`j`, optional);
+/// `?1` is the item or the item ids. `queued` is the SQL of [`Link::queued`].
+fn link_query(filter: &str, queued: &str) -> String {
     format!(
         "SELECT l.*, (s.enabled AND s.configured) AS enabled, s.fee_estimation_enabled, s.fee_basis_points, p.retry_at,
-        COALESCE({},0) AS queued,
+        COALESCE({queued},0) AS queued,
         CAST(MIN(604800,MAX(MIN(900,s.poll_interval_seconds),ROUND(s.poll_interval_seconds
             *CASE WHEN t.state='preview' THEN 2 ELSE 1 END*j.pace))) AS INTEGER) AS check_every,
         j.pace AS pace, t.state='preview' AS preview
         FROM offer_link l JOIN source_settings s ON s.id=l.source JOIN shop_state p ON p.source=l.source
-        JOIN wishlist_item t ON t.id=l.wish_id LEFT JOIN shop_job j ON j.link_id=l.id WHERE {filter} ORDER BY l.id",
-        crate::jobs::pending()
+        JOIN wishlist_item t ON t.id=l.wish_id LEFT JOIN shop_job j ON j.link_id=l.id WHERE {filter} ORDER BY l.id"
     )
 }
 
@@ -260,26 +260,28 @@ pub(crate) async fn links<'e>(
     // check_every follows jobs::effective_interval: twice as long for an edition preview, times the price-trend pace,
     // between 15 minutes (or the shop interval) and a week.
     clock(
-        sqlx::query_as(AssertSqlSafe(link_query("l.wish_id=?1"))).bind(id),
+        sqlx::query_as(AssertSqlSafe(link_query(
+            "l.wish_id=?1",
+            &crate::jobs::pending(),
+        )))
+        .bind(id),
         ts,
     )
     .fetch_all(executor)
     .await
 }
 
-/// Links of many items in one query, keyed by item id.
+/// Links of many items in one query, keyed by item id; `queued` stays false.
 pub(crate) async fn links_of_items(
     pool: &SqlitePool,
     ids_json: &str,
-    ts: i64,
 ) -> sqlx::Result<BTreeMap<String, Vec<Link>>> {
-    let rows: Vec<ItemLink> = clock(
-        sqlx::query_as(AssertSqlSafe(link_query(
-            "l.wish_id IN (SELECT value FROM json_each(?1))",
-        )))
-        .bind(ids_json),
-        ts,
-    )
+    // Badges and the cart do not show whether a link is queued.
+    let rows: Vec<ItemLink> = sqlx::query_as(AssertSqlSafe(link_query(
+        "l.wish_id IN (SELECT value FROM json_each(?1))",
+        "0",
+    )))
+    .bind(ids_json)
     .fetch_all(pool)
     .await?;
     let mut map: BTreeMap<String, Vec<Link>> = BTreeMap::new();

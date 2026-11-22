@@ -24,7 +24,7 @@ pub(crate) struct PriceBadge {
     pub stale: bool,
     /// A job of the item runs or really waits for its shop ([`jobs::pending`]).
     pub pending: bool,
-    /// A pending job the owner triggered ([`jobs::refreshing`]); only then the pages poll every 3 s.
+    /// A pending job serves a fetch the owner triggered ([`jobs::direct_action`]); only then the pages poll every 3 s.
     pub refreshing: bool,
     /// Cheapest current offer of any region, always reported for the comparison with the
     /// target country (the core use case), independent of the badge setting.
@@ -259,15 +259,17 @@ pub(crate) async fn load_many(
     let t = now();
     let ids_json = serde_json::to_string(ids).map_err(|_| crate::internal())?;
     let wishes = offers::wishes(pool, &ids_json).await?;
-    let mut links = offers::links_of_items(pool, &ids_json, t).await?;
+    let mut links = offers::links_of_items(pool, &ids_json).await?;
     let jobs: Vec<JobSummary> = offers::clock(
         sqlx::query_as(AssertSqlSafe(format!(
-            "SELECT COALESCE(j.wish_id,l.wish_id) AS item,MAX(j.checked_at) AS checked,
-            COALESCE(MAX(j.last_error IS NOT NULL),0) AS failed,COALESCE(MAX({}),0) AS pending,
-            COALESCE(MAX({}),0) AS refreshing
-            FROM {} WHERE COALESCE(j.wish_id,l.wish_id) IN (SELECT value FROM json_each(?1)) GROUP BY 1",
+            "SELECT item,MAX(checked) AS checked,COALESCE(MAX(failed),0) AS failed,COALESCE(MAX(pending),0) AS pending,
+            COALESCE(MAX(pending AND direct),0) AS refreshing FROM (
+                SELECT COALESCE(j.wish_id,l.wish_id) AS item,j.checked_at AS checked,j.last_error IS NOT NULL AS failed,
+                {} AS pending,{} AS direct
+                FROM {} WHERE COALESCE(j.wish_id,l.wish_id) IN (SELECT value FROM json_each(?1))
+            ) GROUP BY item",
             jobs::pending(),
-            jobs::refreshing(),
+            jobs::direct_action(),
             jobs::JOBS
         )))
         .bind(&ids_json),
@@ -508,7 +510,7 @@ pub(crate) async fn shop_offers(
     let t = now();
     let ids_json = serde_json::to_string(ids).map_err(|_| crate::internal())?;
     let wishes = offers::wishes(pool, &ids_json).await?;
-    let mut links = offers::links_of_items(pool, &ids_json, t).await?;
+    let mut links = offers::links_of_items(pool, &ids_json).await?;
     let home_scope = pricing::Scope::for_wishlist(target, "preferred");
     let mut result = BTreeMap::new();
     for (id, wish) in wishes {

@@ -232,10 +232,10 @@ pub(crate) fn pending() -> String {
     format!("(j.lease_until>?2 OR ({} AND {SHOP_READY}))", waiting())
 }
 
-/// A [`pending`] job the owner triggered (a requested check, the first search of a new wish, the first price of a
-/// link from a user action; [`bypass`]). Only these make the pages poll quickly (PERF-02).
-pub(crate) fn refreshing() -> String {
-    format!("({} AND {})", pending(), bypass("?5"))
+/// The job serves a fetch the owner triggered (a requested check, the first search of a new wish, the first price
+/// of a link from a user action; [`bypass`]). Pending, only these make the pages poll quickly (PERF-02).
+pub(crate) fn direct_action() -> String {
+    bypass("?5")
 }
 
 /// Claim class (module table); `window` is the placeholder of `now - REQUEST_WINDOW`.
@@ -3108,7 +3108,7 @@ mod tests {
             format!(
                 "SELECT MAX({}),MAX({}) FROM {JOBS}",
                 pending(),
-                refreshing()
+                direct_action()
             ),
             format!(
                 "SELECT COUNT(*) FROM shop_job j LEFT JOIN offer_link l ON l.id=j.link_id {ITEM} WHERE {}",
