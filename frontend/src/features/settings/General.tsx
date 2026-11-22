@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { api } from '../../api';
 import type { Settings, WishlistItem } from '../../api';
-import { Button, Help, Icon, Notice, TabPanel, Tabs } from '../../components';
+import { Button, Help, Icon, TabPanel, Tabs } from '../../components';
 import { downloadJson, wishlistExport } from '../wishlist-export';
 import { SettingsPanel } from './parts';
 import type { SettingsDraft } from './draft';
@@ -51,7 +51,6 @@ export default function General({
   const nameOf = (code: string) => countries.find(c => c.code === code)?.name ?? code;
   const target = settings.target_country;
   const unconfirmed = target !== null && !confirmed.includes(target);
-  const targetName = target ? nameOf(target) : 'Zielland';
 
   async function exportList() {
     setExporting(true);

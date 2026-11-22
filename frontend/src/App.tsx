@@ -89,7 +89,8 @@ export default function App() {
   }
   useEffect(() => {
     void initialize();
-  }, []); // The initial request only reads local app state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount; initialize only reads local app state
+  }, []);
 
   async function signIn(password: string, token?: string, targetCountry?: string) {
     setBusy(true);

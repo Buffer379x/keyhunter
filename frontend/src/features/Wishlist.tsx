@@ -244,6 +244,7 @@ export default function Wishlist({
       controller.abort();
       cancel();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only when the selected game's identity changes, not on every field of `selected`
   }, [selected?.id, selected?.game?.igdb_id, selected?.platform_id, csrf, updateBadges]);
   function chooseEdition(game: CatalogGame) {
     if (!selected) return;
@@ -344,8 +345,9 @@ export default function Wishlist({
   }, [onCountChange, onError, updateBadges]);
   useEffect(() => {
     void load();
+    const generation = loadGeneration;
     return () => {
-      ++loadGeneration.current;
+      ++generation.current;
     };
   }, [load]);
   useEffect(() => {

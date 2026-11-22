@@ -8,6 +8,7 @@ export default tseslint.config(
   { ignores: ['dist', 'node_modules', 'test-results', 'playwright-report'] },
   js.configs.recommended,
   tseslint.configs.recommended,
+  { rules: { '@typescript-eslint/no-unused-vars': ['error', { ignoreRestSiblings: true, varsIgnorePattern: '^_', argsIgnorePattern: '^_' }] } },
   {
     files: ['src/**/*.{ts,tsx}'],
     languageOptions: { globals: globals.browser },
