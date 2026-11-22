@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { ReactNode } from 'react';
 import type { AlertEvent, CatalogGame, FetchStatusResponse, PriceBadgeData, WishlistItem } from '../api';
 import { api, CART_CHANGED, FETCH_STATUS_CHANGED } from '../api';
-import { Button, Chip, ConfirmDialog, EmptyState, Field, Icon, Inset, Kpi, Notice, Panel, PanelHead, Seg, formatPrice } from '../components';
+import { Button, Chip, ConfirmDialog, EmptyState, Field, Help, Icon, Inset, Kpi, Notice, Panel, PanelHead, Seg, formatPrice } from '../components';
 import CatalogSearch from './CatalogSearch';
 import GameDetail, { isTab } from './GameDetail';
 import type { TabId } from './GameDetail';
@@ -378,12 +378,14 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
   </>;
   if (loading && selectedId) return <p className="wl-loading" role="status">Wird geladen …</p>;
 
-  const sub = loading ? 'Wird geladen …' : `${count(items.length)} von ${SLOTS} Plätzen · ${targetCountry ? `Zielland ${targetLabel}` : 'Kein Zielland gewählt'} · Preise verglichen mit allen Regionen`;
+  const sub = loading ? 'Wird geladen …' : `${count(items.length)} von ${SLOTS} Plätzen · ${targetCountry ? `Zielland ${targetLabel}` : 'Kein Zielland gewählt'}`;
   const ready = !loading && !listError;
   const best = cheaper.best;
   return <div className="page wishlist-page">
     <header className="page-head">
-      <div><h1 id="wishlist-title" ref={listHeading} tabIndex={-1}>Wunschliste</h1><p>{sub}</p></div>
+      <div><div className="page-title"><h1 id="wishlist-title" ref={listHeading} tabIndex={-1}>Wunschliste</h1>
+        <Help label="Hilfe zur Wunschliste"><span>„Preis {targetCountry || 'DE'}“ ist der beste Preis eines im Zielland aktivierbaren Keys, „Preis INT“ die günstigste Region weltweit. Verglichen werden alle Regionen, abgefragt werden alle gleich.</span>
+          <span>Das Suchfeld filtert nach Titel; ein Shop-Name zeigt die Spiele, bei denen dieser Shop am günstigsten ist.</span></Help></div><p>{sub}</p></div>
     </header>
     {message && <Notice>{message}</Notice>}
     {!loading && selectedId && !selected && <Notice>Der verlinkte Eintrag ist nicht mehr in deiner Wunschliste.</Notice>}
@@ -407,7 +409,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
         <span className="spacer" />
         <Seg className="wl-basis" label="Preise" value={basis} onChange={chooseBasis}
           options={[{ value: 'base', label: 'Ohne Gebühren' }, { value: 'estimate', label: 'Mit Gebühren' }]} />
-        <Field icon="search" className="wl-q"><input type="search" placeholder="Spiel oder Shop filtern …" aria-label="Liste filtern" title="Filtert nach Titel; ein Shop-Name zeigt die Spiele, bei denen dieser Shop am günstigsten ist" value={filter} maxLength={200} onChange={event => filterList(event.target.value)} disabled={!ready || items.length === 0} /></Field>
+        <Field icon="search" className="wl-q"><input type="search" placeholder="Spiel oder Shop filtern …" aria-label="Liste filtern" value={filter} maxLength={200} onChange={event => filterList(event.target.value)} disabled={!ready || items.length === 0} /></Field>
       </PanelHead>
       <Inset className="table-wrap">
         {loading ? <p className="empty" role="status">Wunschliste wird geladen …</p>

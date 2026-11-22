@@ -1,5 +1,7 @@
 use crate::{
-    ApiError, ApiResult, Shared, auth, catalog, now,
+    ApiError, ApiResult, Shared, auth, catalog,
+    eventlog::{self, Area, Level},
+    now,
     wishlist::{self, WishlistItem},
 };
 use axum::{
@@ -114,6 +116,18 @@ async fn prepare_one(state: &Shared, id: &str) -> ApiResult<()> {
     }.await;
     if let Err(error) = result {
         tracing::warn!(status=%error.0,reason=error.1,"Edition preparation incomplete");
+        let game = eventlog::game(&state.pool, id).await;
+        eventlog::record_once(
+            &state.pool,
+            Level::Warn,
+            Area::Fetch,
+            format!(
+                "Editionen für {game} konnten nicht vorbereitet werden. {}",
+                error.1
+            ),
+            eventlog::REPEAT,
+        )
+        .await;
         sqlx::query("UPDATE edition_scan SET checked_at=?,lease_until=0,next_attempt=?,last_error='catalog_unavailable' WHERE wish_id=?").bind(now()).bind(now()+900).bind(id).execute(&state.pool).await?;
     }
     // A catalog outage leaves the saved selection and any prepared observations usable.
@@ -131,6 +145,14 @@ pub(crate) fn start(state: &Shared) {
                     && prepare_one(&state, &id).await.is_err()
                 {
                     tracing::warn!("Edition preparation could not access the saved selection");
+                    eventlog::record_once(
+                        &state.pool,
+                        Level::Warn,
+                        Area::Fetch,
+                        "Editionen konnten nicht vorbereitet werden: Der gemerkte Eintrag war nicht lesbar.",
+                        eventlog::REPEAT,
+                    )
+                    .await;
                 }
             }
             tokio::time::sleep(Duration::from_secs(10)).await;

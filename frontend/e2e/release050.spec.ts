@@ -11,7 +11,7 @@ test('tablet opens the labeled navigation as a drawer and gives the selected gam
   await expect(navigation).toBeHidden();
   await menu.click();
   await expect(menu).toHaveAttribute('aria-expanded', 'true');
-  await expect(navigation.getByRole('button')).toHaveCount(10); // 0.8.0: Warenkorb
+  await expect(navigation.getByRole('button')).toHaveCount(4); // 0.8.3: the settings are tabs behind the symbol button below
   await expect(navigation.getByRole('button', { name: 'Wunschliste', exact: true })).toHaveAttribute('aria-current', 'page');
   await page.keyboard.press('Escape');
   await expect(navigation).toBeHidden();

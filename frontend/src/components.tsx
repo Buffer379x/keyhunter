@@ -1,29 +1,16 @@
 import { useEffect, useId, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { Button } from './ui';
+import { Button, Help } from './ui';
 
 export * from './ui';
 export { KeyMark, Brand } from './brand';
-/** Page header (`.page-head`): the h1, an optional sub line and actions on the right (they wrap below on narrow screens). */
-export function PageHeading({ title, sub, actions, id }: { title: string; sub?: ReactNode; actions?: ReactNode; id?: string }) {
-  return <header className="page-head"><div><h1 id={id}>{title}</h1>{sub && <p>{sub}</p>}</div>{actions && <div className="head-actions">{actions}</div>}</header>;
+/** Page header (`.page-head`): the h1 with an optional help symbol, a sub line and actions on the right (they wrap below on narrow screens). */
+export function PageHeading({ title, sub, help, actions, id }: { title: string; sub?: ReactNode; help?: ReactNode; actions?: ReactNode; id?: string }) {
+  return <header className="page-head"><div><div className="page-title"><h1 id={id}>{title}</h1>{help && <Help label={`Hilfe zu ${title}`}>{help}</Help>}</div>{sub && <p>{sub}</p>}</div>{actions && <div className="head-actions">{actions}</div>}</header>;
 }
 export function Notice({ error = false, children }: { error?: boolean; children: ReactNode }) {
   return <div className={`notice ${error ? 'error' : ''}`} role={error ? 'alert' : 'status'}>{children}</div>;
 }
-export function InfoDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const titleId = useId();
-  useEffect(() => { if (open) ref.current?.showModal(); else ref.current?.close(); }, [open]);
-  return <dialog ref={ref} aria-labelledby={titleId} onCancel={onClose}>
-    <h2 id={titleId}>Grundpreis und Gebühren</h2>
-    <p>Ein niedriger Shoppreis enthält möglicherweise noch nicht alle Kosten. Ohne belegte Gebühren bleibt der Gesamtpreis unbekannt.</p>
-    <p>Du kannst pro Shop einen prozentualen Aufschlag einstellen. Daraus berechnete Preise werden als <strong>geschätzt</strong> gekennzeichnet. Der tatsächliche Kaufpreis kann abweichen.</p>
-    <p>Ein Schätzwert ersetzt weder die Aktivierungsprüfung noch die Angaben des Shops.</p>
-    <div className="dialog-actions"><Button variant="primary" onClick={onClose}>Verstanden</Button></div>
-  </dialog>;
-}
-
 export function ConfirmDialog({open,title,confirmLabel,cancelLabel='Abbrechen',busy=false,danger=false,onCancel,onConfirm,children}:{open:boolean;title:string;confirmLabel:string;cancelLabel?:string;busy?:boolean;/** Destructive action: the confirm button is styled as danger. */danger?:boolean;onCancel:()=>void;onConfirm:()=>void;children:ReactNode}) {
   const dialog=useRef<HTMLDialogElement>(null);
   const titleId=useId();

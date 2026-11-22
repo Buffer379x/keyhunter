@@ -1,4 +1,8 @@
-use crate::{ApiError, ApiResult, Shared, digest, internal, now, random_token};
+use crate::{
+    ApiError, ApiResult, Shared, digest,
+    eventlog::{self, Area, Level},
+    internal, now, random_token,
+};
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier, password_hash::SaltString};
 use axum::{
     Json,
@@ -110,6 +114,15 @@ async fn reserve_attempt(state: &Shared) -> ApiResult<()> {
     let result = sqlx::query("UPDATE auth_throttle SET attempts = CASE WHEN window_started_at <= ? THEN 1 ELSE attempts + 1 END, window_started_at = CASE WHEN window_started_at <= ? THEN ? ELSE window_started_at END WHERE id = 1 AND (attempts < 5 OR window_started_at <= ?)")
         .bind(now() - 900).bind(now() - 900).bind(now()).bind(now() - 900).execute(&state.pool).await?;
     if result.rows_affected() == 0 {
+        // Once per throttle window, so a flood of attempts cannot flood the log.
+        eventlog::record_once(
+            &state.pool,
+            Level::Warn,
+            Area::Login,
+            "Zu viele Anmeldeversuche",
+            900,
+        )
+        .await;
         return Err(ApiError(
             StatusCode::TOO_MANY_REQUESTS,
             "Zu viele Anmeldeversuche. Bitte nach 15 Minuten erneut versuchen.",
@@ -190,6 +203,13 @@ pub(crate) async fn setup(
         "Einrichtung bereits abgeschlossen.",
     ))?;
     if !bool::from(expected.ct_eq(&digest(input.token.trim()))) {
+        eventlog::record(
+            &state.pool,
+            Level::Warn,
+            Area::Login,
+            "Einrichtung fehlgeschlagen: Einrichtungscode ungültig",
+        )
+        .await;
         return Err(ApiError(
             StatusCode::UNAUTHORIZED,
             "Einrichtungscode ungültig.",
@@ -233,7 +253,15 @@ pub(crate) async fn setup(
             .execute(&state.pool)
             .await?;
     }
-    issue_session(&state, StatusCode::CREATED, secure).await
+    let response = issue_session(&state, StatusCode::CREATED, secure).await?;
+    eventlog::record(
+        &state.pool,
+        Level::Info,
+        Area::Login,
+        "Einrichtung abgeschlossen",
+    )
+    .await;
+    Ok(response)
 }
 
 #[derive(Deserialize)]
@@ -248,10 +276,7 @@ pub(crate) async fn login(
     let secure = require_origin(&state, &headers)?;
     reserve_attempt(&state).await?;
     if input.password.chars().count() > 128 {
-        return Err(ApiError(
-            StatusCode::UNAUTHORIZED,
-            "Anmeldung fehlgeschlagen.",
-        ));
+        return Err(login_failed(&state).await);
     }
     let hash: Option<String> = sqlx::query_scalar("SELECT password_hash FROM owner WHERE id = 1")
         .fetch_optional(&state.pool)
@@ -277,12 +302,23 @@ pub(crate) async fn login(
     .await
     .map_err(|_| internal())?;
     if !valid {
-        return Err(ApiError(
-            StatusCode::UNAUTHORIZED,
-            "Anmeldung fehlgeschlagen.",
-        ));
+        return Err(login_failed(&state).await);
     }
-    issue_session(&state, StatusCode::OK, secure).await
+    let response = issue_session(&state, StatusCode::OK, secure).await?;
+    eventlog::record(&state.pool, Level::Info, Area::Login, "Angemeldet").await;
+    Ok(response)
+}
+
+/// A wrong passphrase: logged (never the passphrase itself) and answered without detail.
+async fn login_failed(state: &Shared) -> ApiError {
+    eventlog::record(
+        &state.pool,
+        Level::Warn,
+        Area::Login,
+        "Anmeldung fehlgeschlagen",
+    )
+    .await;
+    ApiError(StatusCode::UNAUTHORIZED, "Anmeldung fehlgeschlagen.")
 }
 
 pub(crate) async fn me(State(state): State<Shared>, headers: HeaderMap) -> ApiResult<Json<Value>> {
@@ -297,6 +333,7 @@ pub(crate) async fn logout(State(state): State<Shared>, headers: HeaderMap) -> A
         .bind(session.token_hash)
         .execute(&state.pool)
         .await?;
+    eventlog::record(&state.pool, Level::Info, Area::Login, "Abgemeldet").await;
     let mut response = StatusCode::NO_CONTENT.into_response();
     response.headers_mut().insert(
         header::SET_COOKIE,

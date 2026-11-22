@@ -44,7 +44,14 @@ const fetchStatus = {
     { source: 'driffle', kind: 'search', wish_id: null, link_id: null, started_at: now - 300, duration_ms: 210, outcome: 'rate_limited', detail: null },
     { source: 'eneba', kind: 'discovery', wish_id: null, link_id: null, started_at: now - 900, duration_ms: 8300, outcome: 'ok', detail: null },
   ],
+  upcoming: [
+    { source: 'eneba', kind: 'product', wish_id: null, link_id: 2, game: 'Forza Horizon 5', region: 'India', search_page: null, due_at: now + 170, requested: true },
+    { source: 'eneba', kind: 'search', wish_id: 'a'.repeat(32), link_id: null, game: 'Starfield', region: null, search_page: 2, due_at: now + 340, requested: false },
+    { source: 'driffle', kind: 'product', wish_id: null, link_id: 3, game: 'Forza Horizon 5', region: 'Global', search_page: null, due_at: now + 2400, requested: false },
+  ],
 };
+/** GET /status/fetch/runs (0.8.3): the same runs with their game, one page. */
+const runPage = { runs: fetchStatus.recent_runs.map((run, id) => ({ ...run, id, game: run.kind === 'discovery' ? null : 'Forza Horizon 5', region: run.kind === 'product' ? 'Global' : null })), total: 3, page: 1, per_page: 50 };
 
 async function freeze(page: Page) {
   await page.clock.install({ time: NOW_MS });
@@ -64,6 +71,7 @@ async function mockPrices(page: Page) {
   await page.route('**/api/v1/wishlist/*/alert', r => r.request().method() === 'GET' ? r.fulfill({ json: { rule: { mode: 'target', basis: 'base', target_cents: 2900, enabled: true }, configured: true } }) : r.continue());
   await page.route('**/api/v1/alerts', r => r.request().method() === 'GET' ? r.fulfill({ json: { configured: true, rules: [], events: [] } }) : r.continue());
   await page.route('**/api/v1/status/fetch', r => r.fulfill({ json: fetchStatus }));
+  await page.route('**/api/v1/status/fetch/runs?*', r => r.fulfill({ json: runPage }));
 }
 
 /** Signs in, makes sure exactly Forza Horizon 5 is on the wishlist and returns its id. */
@@ -130,7 +138,8 @@ for (const vp of viewports) {
     const settings = (section: string, file: string, tabName: string, ready = '') => test(`settings ${file}`, async ({ page }) => {
       await prepare(page);
       await page.goto(`/?view=settings${section ? `&section=${section}` : ''}`);
-      await expect(page.getByRole('main').getByRole('heading', { name: tabName, level: 1 })).toBeVisible();
+      await expect(page.getByRole('main').getByRole('heading', { name: 'Einstellungen', level: 1 })).toBeVisible();
+      await expect(page.getByRole('tablist', { name: 'Einstellungen', exact: true }).getByRole('tab', { name: tabName, exact: true })).toHaveAttribute('aria-selected', 'true');
       if (ready) await expect(page.getByText(ready).first()).toBeVisible();
       await settle(page);
       await expect(page).toHaveScreenshot(`${file}-${vp.name}.png`, { mask: masks(page) });
@@ -151,6 +160,6 @@ for (const vp of viewports) {
       await expect(page).toHaveScreenshot(`library-${vp.name}.png`, { mask: masks(page) });
     });
     settings('', 'settings-allgemein', 'Allgemein');
-    settings('status', 'settings-abrufstatus', 'Abrufstatus', 'Letzte Abrufe');
+    settings('status', 'settings-abrufstatus', 'Abrufstatus', 'Nächste Abfragen');
   });
 }

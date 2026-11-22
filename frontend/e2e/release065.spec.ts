@@ -21,7 +21,7 @@ test('the order of the wishlist columns is chosen in the settings, and the detai
   await expect(list.getByRole('listitem')).toHaveCount(8);
   await expect(list.getByRole('listitem').first()).toContainText('Spiel (Cover und Titel)');
   await expect(list.getByRole('button', { name: 'Spiel (Cover und Titel) nach oben', exact: true })).toBeDisabled();
-  await expect(page.getByRole('region', { name: 'Wunschliste · Spalten', exact: true }).getByRole('button', { name: 'Standard wiederherstellen', exact: true })).toBeDisabled();
+  await expect(page.getByRole('tabpanel', { name: 'Wunschliste', exact: true }).getByRole('button', { name: 'Standard wiederherstellen', exact: true })).toBeDisabled();
   // Move "Details öffnen" from place 8 to the top with the keyboard: the focus stays on the moved column.
   await list.getByRole('button', { name: 'Details öffnen nach oben', exact: true }).click();
   for (let n = 0; n < 5; n++) await page.keyboard.press('Enter');
@@ -52,7 +52,7 @@ test('the order of the wishlist columns is chosen in the settings, and the detai
   expect(open.x + open.width).toBeLessThanOrEqual(cover.x);
 
   await navTo(page, 'Allgemein');
-  await page.getByRole('region', { name: 'Wunschliste · Spalten', exact: true }).getByRole('button', { name: 'Standard wiederherstellen', exact: true }).click();
+  await page.getByRole('tabpanel', { name: 'Wunschliste', exact: true }).getByRole('button', { name: 'Standard wiederherstellen', exact: true }).click();
   await saveSettings(page);
   await expect(columnList(page).getByRole('listitem').first()).toContainText('Spiel (Cover und Titel)');
   expect((await (await page.request.get('/api/v1/settings')).json()).wishlist_columns).toEqual(['game', 'price', 'world', 'save', 'target', 'status', 'trend', 'open']);

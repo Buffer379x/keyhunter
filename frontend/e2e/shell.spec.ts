@@ -20,7 +20,7 @@ test('sidebar fetch card sums the budget, shows the pace when the backend sends 
   await expect(card).toContainText('412 von 1000 Abrufen heute');
   await card.click();
   await expect(page).toHaveURL(/view=settings&section=status/);
-  await expect(navItem(page, 'Abrufstatus')).toHaveAttribute('aria-current', 'page');
+  await expect(navItem(page, 'Abrufstatus')).toHaveAttribute('aria-selected', 'true');
 });
 
 test('top bar: breadcrumbs follow the page, the bell opens the alarms, "Spiel hinzufügen" works from every page', async ({ page }) => {

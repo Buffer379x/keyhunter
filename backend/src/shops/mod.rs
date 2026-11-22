@@ -21,6 +21,14 @@ impl Shop {
         }
     }
 
+    /// Display name ("Eneba"), for log messages.
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::Eneba => "Eneba",
+            Self::Driffle => "Driffle",
+        }
+    }
+
     pub(crate) fn host(self) -> &'static str {
         match self {
             Self::Eneba => "www.eneba.com",

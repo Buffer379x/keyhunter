@@ -3,7 +3,12 @@
 //! every new shop check.
 
 use crate::price_badges::ShopOffers;
-use crate::{ApiError, ApiResult, Shared, auth, now, wishlist::WishlistItem};
+use crate::{
+    ApiError, ApiResult, Shared, auth,
+    eventlog::{self, Area, Level},
+    now,
+    wishlist::WishlistItem,
+};
 use axum::{
     Json,
     extract::{Path, State},
@@ -108,6 +113,14 @@ pub(crate) async fn add(
     .await?
     .rows_affected();
     if added == 1 {
+        let game = eventlog::game(&state.pool, &input.wish_id).await;
+        eventlog::record(
+            &state.pool,
+            Level::Info,
+            Area::Cart,
+            format!("{game} in den Warenkorb gelegt"),
+        )
+        .await;
         return Ok(StatusCode::CREATED);
     }
     let wished: bool = sqlx::query_scalar(
@@ -144,8 +157,8 @@ pub(crate) async fn change(
     auth::require_csrf(&state, &headers, &session)?;
     let (source, scope) = choice(input.source, Some(input.scope))?;
     let changed = sqlx::query("UPDATE cart_item SET source=?,scope=? WHERE wish_id=?")
-        .bind(source)
-        .bind(scope)
+        .bind(&source)
+        .bind(&scope)
         .bind(&id)
         .execute(&state.pool)
         .await?
@@ -153,6 +166,23 @@ pub(crate) async fn change(
     if changed == 0 {
         return Err(NOT_IN_CART);
     }
+    let shop = source
+        .as_deref()
+        .and_then(crate::shops::Shop::from_id)
+        .map_or("günstigster Shop", crate::shops::Shop::name);
+    let basis = if scope == "home" {
+        "gültig im Zielland"
+    } else {
+        "jede Region"
+    };
+    let game = eventlog::game(&state.pool, &id).await;
+    eventlog::record(
+        &state.pool,
+        Level::Info,
+        Area::Cart,
+        format!("{game} im Warenkorb umgestellt: {shop}, {basis}"),
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -176,5 +206,13 @@ pub(crate) async fn remove(
     if removed == 0 {
         return Err(NOT_IN_CART);
     }
+    let game = eventlog::game(&state.pool, &id).await;
+    eventlog::record(
+        &state.pool,
+        Level::Info,
+        Area::Cart,
+        format!("{game} aus dem Warenkorb entfernt"),
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }

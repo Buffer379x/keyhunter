@@ -1,4 +1,9 @@
-use crate::{ApiError, ApiResult, Shared, auth, now, offers, shops::Product};
+use crate::{
+    ApiError, ApiResult, Shared, auth,
+    eventlog::{self, Area, Level},
+    now, offers,
+    shops::Product,
+};
 use axum::{
     Json,
     extract::{Path, State},
@@ -83,6 +88,15 @@ pub(crate) async fn put_rule(
     if input.enabled && offers::target(&state.pool).await?.is_empty() {
         return Err(NEED_COUNTRY);
     }
+    let summary = match input.target_cents {
+        Some(cents) => format!("Zielpreis {},{:02} €", cents / 100, cents % 100),
+        None => "neuer Tiefstpreis".into(),
+    };
+    let summary = if input.enabled {
+        summary
+    } else {
+        format!("{summary}, ausgeschaltet")
+    };
     let mut tx = state.pool.begin().await?;
     let edited = sqlx::query("INSERT INTO alert_rule(wish_id,mode,basis,target_cents,enabled) VALUES(?,?,?,?,?)
         ON CONFLICT(wish_id) DO UPDATE SET mode=excluded.mode,basis=excluded.basis,target_cents=excluded.target_cents,
@@ -94,11 +108,19 @@ pub(crate) async fn put_rule(
         sqlx::query(
             "UPDATE alert_outbox SET state='cancelled' WHERE wish_id=? AND state='pending'",
         )
-        .bind(id)
+        .bind(&id)
         .execute(&mut *tx)
         .await?;
     }
     tx.commit().await?;
+    let game = eventlog::game(&state.pool, &id).await;
+    eventlog::record(
+        &state.pool,
+        Level::Info,
+        Area::Alerts,
+        format!("Preisalarm für {game} gespeichert ({summary})"),
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -109,10 +131,21 @@ pub(crate) async fn remove_rule(
 ) -> ApiResult<StatusCode> {
     let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
-    sqlx::query("DELETE FROM alert_rule WHERE wish_id=?")
-        .bind(id)
+    let removed = sqlx::query("DELETE FROM alert_rule WHERE wish_id=?")
+        .bind(&id)
         .execute(&state.pool)
-        .await?;
+        .await?
+        .rows_affected();
+    if removed > 0 {
+        let game = eventlog::game(&state.pool, &id).await;
+        eventlog::record(
+            &state.pool,
+            Level::Info,
+            Area::Alerts,
+            format!("Preisalarm für {game} entfernt"),
+        )
+        .await;
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -184,6 +217,13 @@ pub(crate) async fn test_message(
             "Eine Testnachricht ist einmal pro Minute möglich.",
         ));
     }
+    eventlog::record(
+        &state.pool,
+        Level::Info,
+        Area::Alerts,
+        "Testnachricht vorgemerkt",
+    )
+    .await;
     Ok(StatusCode::ACCEPTED)
 }
 
@@ -474,7 +514,7 @@ async fn deliver_one(pool: &SqlitePool, ntfy: &Ntfy) -> anyhow::Result<()> {
         .execute(&mut *tx).await?.rows_affected();
     if n > 0
         && status == "sent"
-        && let Some(id) = row.wish_id
+        && let Some(id) = &row.wish_id
     {
         sqlx::query("UPDATE alert_rule SET last_sent=? WHERE wish_id=?")
             .bind(t)
@@ -487,6 +527,18 @@ async fn deliver_one(pool: &SqlitePool, ntfy: &Ntfy) -> anyhow::Result<()> {
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;
+    if n > 0 && matches!(status, "sent" | "failed") {
+        let subject = match &row.wish_id {
+            Some(id) => format!("Benachrichtigung für {}", eventlog::game(pool, id).await),
+            None => "Testnachricht".into(),
+        };
+        let (level, outcome) = if status == "sent" {
+            (Level::Info, "gesendet")
+        } else {
+            (Level::Error, "konnte nicht zugestellt werden")
+        };
+        eventlog::record(pool, level, Area::Alerts, format!("{subject} {outcome}")).await;
+    }
     Ok(())
 }
 

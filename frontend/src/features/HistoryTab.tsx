@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { EmptyState, Inset, Kpi, Label, Panel, PanelHead, Seg } from '../components';
+import { EmptyState, Help, Inset, Kpi, Label, Panel, PanelHead, Seg } from '../components';
 import { columns, dailyStats, dayLabel, defaultRange, ranges } from './history-model';
 import type { Range } from './history-model';
 import type { OffersView, Summary } from './offers-model';
@@ -40,9 +40,9 @@ export default function HistoryTab({ view, summary, code, land, target }: { view
             {summary.world && <span className="num world">{money(summary.world.price!)} weltweit</span>}
             <span className="spacer" />
             <Legend code={land} target={target} targetLabel={target !== null ? `Ziel ${money(target)}` : undefined} />
+            {gaps && <Help label="Hilfe zu leeren Spalten">Leere Spalten: an diesen Tagen gab es keine gültige Messung. Ein Messwert gilt bis zur nächsten Abfrage, höchstens 24 Stunden.</Help>}
           </div>
           <PriceMatrix home={preferred} world={all} days={days} target={target} now={now} country={land} label={`Preisverlauf ${land} und weltweit, ${days} Tage`} />
-          {gaps && <p className="hint chart-hint">Leere Spalten: an diesen Tagen gab es keine gültige Messung. Ein Messwert gilt bis zur nächsten Abfrage, höchstens 24 Stunden.</p>}
         </>}
       </Inset>
     </Panel>

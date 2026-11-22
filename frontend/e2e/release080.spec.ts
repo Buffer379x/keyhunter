@@ -83,9 +83,8 @@ test('wishes go into the cart once, show a basket in the list, and the cart sums
   await expect(shops.filter({ hasText: 'Eneba' })).toContainText('14,19');
   const totals = sum.locator('.cart-totals');
   await expect(totals).toContainText(/Reine Key-Kosten\s*47,90/);
-  await expect(totals).toContainText(/Gebühren \(geschätzt\)\s*\+1,29/);
+  await expect(totals).toContainText(/Gebühren \(geschätzt\)[\s\S]*\+1,29/);
   await expect(totals).toContainText(/Gesamt mit Gebühren\s*49,19/);
-  await expect(totals).toContainText(/Gesamt ohne Gebühren\s*47,90/);
   await expect(sum).toContainText('Für Driffle ist keine Gebührenschätzung eingestellt');
   await expect(sum.getByRole('definition').filter({ hasText: 'mit Gebühren ·' })).toHaveCount(0);
 

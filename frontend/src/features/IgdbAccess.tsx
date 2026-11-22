@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, HttpError } from '../api';
-import { Button, ConfirmDialog, Notice, Pill, Switch } from '../components';
+import { Button, ConfirmDialog, Help, Notice, Pill, Switch } from '../components';
 import type { IconName, PillTone } from '../ui';
 import { SettingsPanel } from './settings/parts';
 
@@ -62,9 +62,10 @@ export default function IgdbAccess({ state, configured, enabled, onEnabledChange
   const chip = state === undefined ? null : chips[enabled ? state : 'disabled'] ?? { tone: 'default' as const, text: state, icon: 'minus' as const };
 
   return <SettingsPanel title="IGDB-Zugang" titleId="igdb-access-title"
-    aside={chip ? <Pill tone={chip.tone} icon={chip.icon}>{chip.text}</Pill> : <span className="hint">Status wird geladen …</span>}>
+    aside={<>{chip ? <Pill tone={chip.tone} icon={chip.icon}>{chip.text}</Pill> : <span className="hint">Status wird geladen …</span>}
+      <Help label="Hilfe zum IGDB-Zugang"><span>Spielesuche, Editionen, Cover und Artwork. IGDB ist unabhängig von den Key-Shops.</span>
+        <span>Hinterlege die Client-ID und das Client Secret deiner Twitch-Anwendung. Die Werte liegen geschützt im Datenverzeichnis und werden nie angezeigt. Backups des Datenverzeichnisses enthalten sie.</span></Help></>}>
     <form className="form-grid" method="post" onSubmit={save} autoComplete="off">
-      <p className="hint">Spielesuche, Editionen, Cover und Artwork. IGDB ist unabhängig von den Key-Shops.</p>
       {error && <Notice error>{error}</Notice>}
       {message && <Notice>{message}</Notice>}
       <div className="set-two">
@@ -80,7 +81,6 @@ export default function IgdbAccess({ state, configured, enabled, onEnabledChange
         {configured && !confirmRemoval && <Button type="button" variant="danger" disabled={busy} onClick={() => setConfirmRemoval(true)}>Zugang entfernen</Button>}
       </div>
       <Switch checked={enabled} onChange={onEnabledChange}>Spieleindex aktiv</Switch>
-      <p className="hint">Hinterlege die Client-ID und das Client Secret deiner Twitch-Anwendung. Die Werte liegen geschützt im Datenverzeichnis und werden nie angezeigt. Backups des Datenverzeichnisses enthalten sie.</p>
     </form>
     <ConfirmDialog
       open={confirmRemoval}

@@ -1,6 +1,7 @@
 use crate::{
     ApiError, ApiResult, Shared, auth,
     catalog::{self, provider::CatalogGame},
+    eventlog::{self, Area, Level},
     internal, now, random_token,
 };
 use axum::{
@@ -271,6 +272,16 @@ pub(crate) async fn add(
     }
     let created = inserted.rows_affected() == 1 || moved;
     tx.commit().await?;
+    if created {
+        let game = eventlog::game(&state.pool, &item.id).await;
+        eventlog::record(
+            &state.pool,
+            Level::Info,
+            Area::Wishlist,
+            format!("{game} hinzugefügt"),
+        )
+        .await;
+    }
     crate::jobs::schedule_wish(&state.pool, &item.id).await?;
     item = with_badge(&state, item).await?;
     Ok((
@@ -370,7 +381,13 @@ pub(crate) async fn remove(
             .bind(&id)
             .fetch_optional(&mut *tx)
             .await?;
-    if matches!(item_state.as_deref(), Some("wished" | "owned")) {
+    let removed = match item_state.as_deref() {
+        Some("wished") => Some((Area::Wishlist, "von der Wunschliste entfernt")),
+        Some("owned") => Some((Area::Library, "aus der Bibliothek entfernt")),
+        _ => None,
+    };
+    let game = eventlog::game(&mut *tx, &id).await;
+    if removed.is_some() {
         let needed:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM edition_watch e JOIN wishlist_item w ON w.id=e.wish_id WHERE e.track_id=? AND e.wish_id!=? AND w.state='wished')").bind(&id).bind(&id).fetch_one(&mut *tx).await?;
         if needed {
             // Preserve observations shared with another game's edition selector.
@@ -404,6 +421,9 @@ pub(crate) async fn remove(
         }
     }
     tx.commit().await?;
+    if let Some((area, what)) = removed {
+        eventlog::record(&state.pool, Level::Info, area, format!("{game} {what}")).await;
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -450,7 +470,19 @@ pub(crate) async fn purchase(
         ));
     }
     tx.commit().await?;
+    log_bought(&state, &id).await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+async fn log_bought(state: &Shared, id: &str) {
+    let game = eventlog::game(&state.pool, id).await;
+    eventlog::record(
+        &state.pool,
+        Level::Info,
+        Area::Wishlist,
+        format!("{game} als gekauft in die Bibliothek verschoben"),
+    )
+    .await;
 }
 
 /// Moves a wish into the library: alerts stop, pending messages and tracked editions are cancelled and
@@ -512,6 +544,7 @@ pub(crate) async fn add_owned(
             .bind(input.platform_id)
             .fetch_optional(&mut *tx)
             .await?;
+    let mut bought = None;
     let created = match existing {
         Some((_, item_state)) if item_state == "owned" => false,
         Some((id, item_state)) if item_state == "wished" => {
@@ -520,7 +553,9 @@ pub(crate) async fn add_owned(
                     .bind(&game_id).fetch_one(&mut *tx).await?;
                 return Ok((StatusCode::CONFLICT, Json(serde_json::json!({"error":format!("„{title}“ steht auf deiner Wunschliste. Als gekauft in die Bibliothek verschieben?"),"code":"wished_game"}))).into_response());
             }
-            mark_owned(&mut tx, &id).await?
+            let moved = mark_owned(&mut tx, &id).await?;
+            bought = moved.then_some(id);
+            moved
         }
         Some((id, _)) => {
             // An edition preview: no alerts, nothing watched any more once it is owned.
@@ -553,6 +588,18 @@ pub(crate) async fn add_owned(
         item: decode(row)?,
         acquired_at,
     };
+    if let Some(id) = bought {
+        log_bought(&state, &id).await;
+    } else if created {
+        let game = eventlog::game(&state.pool, &item.item.id).await;
+        eventlog::record(
+            &state.pool,
+            Level::Info,
+            Area::Library,
+            format!("{game} zur Bibliothek hinzugefügt"),
+        )
+        .await;
+    }
     Ok((
         if created {
             StatusCode::CREATED
@@ -593,6 +640,14 @@ pub(crate) async fn restore(
         ));
     }
     tx.commit().await?;
+    let game = eventlog::game(&state.pool, &id).await;
+    eventlog::record(
+        &state.pool,
+        Level::Info,
+        Area::Wishlist,
+        format!("{game} aus der Bibliothek in die Wunschliste zurückgesetzt"),
+    )
+    .await;
     crate::jobs::schedule_wish(&state.pool, &id).await?;
     Ok(StatusCode::NO_CONTENT)
 }

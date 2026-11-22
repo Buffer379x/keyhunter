@@ -38,13 +38,28 @@ export async function openDrawer(page: Page) {
   const menu = page.getByRole('button', { name: 'Menü öffnen', exact: true });
   if (await menu.isVisible()) await menu.click();
 }
-/** Click an entry of the sidebar navigation ("Wunschliste", "Preisalarme", "Allgemein", "Key-Shops", …), opening the drawer on narrow screens. */
+/** Tabs of the settings page (0.8.3; before, entries of the sidebar). */
+const SETTINGS_TABS = ['Allgemein', 'Key-Shops', 'Spieleindex', 'Benachrichtigungen', 'Abrufstatus', 'Log', 'System'];
+/** The symbol button "Einstellungen" below the fetch status in the sidebar. */
+export const settingsButton = (page: Page) => page.getByRole('complementary', { name: 'Seitenleiste' }).getByRole('button', { name: 'Einstellungen', exact: true });
+/**
+ * Go to a page of the sidebar navigation ("Wunschliste", "Preisalarme", …), opening the drawer on narrow screens; a settings
+ * tab ("Allgemein", "Key-Shops", …) opens the settings with the sidebar button first and then picks the tab.
+ */
 export async function navTo(page: Page, name: string) {
+  if (SETTINGS_TABS.includes(name)) {
+    const tablist = page.getByRole('tablist', { name: 'Einstellungen', exact: true });
+    if (!await tablist.isVisible()) { await openDrawer(page); await settingsButton(page).click(); }
+    await tablist.getByRole('tab', { name, exact: true }).click();
+    return;
+  }
   await openDrawer(page);
   await page.getByRole('navigation', { name: 'Hauptnavigation' }).getByRole('button', { name, exact: true }).click();
 }
-/** The sidebar entry of a page or settings section (aria-current="page" when open). */
-export const navItem = (page: Page, name: string) => page.getByRole('navigation', { name: 'Hauptnavigation' }).getByRole('button', { name, exact: true });
+/** The sidebar entry of a page (aria-current="page" when open), or the tab of a settings section (aria-selected). */
+export const navItem = (page: Page, name: string) => SETTINGS_TABS.includes(name)
+  ? page.getByRole('tablist', { name: 'Einstellungen', exact: true }).getByRole('tab', { name, exact: true })
+  : page.getByRole('navigation', { name: 'Hauptnavigation' }).getByRole('button', { name, exact: true });
 /** "Abmelden" in the sidebar footer. */
 export async function signOut(page: Page) {
   await openDrawer(page);
