@@ -693,7 +693,16 @@ async fn setup_stores_optional_target_country_and_rejects_invalid_codes() {
         .await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(settings["target_country"].as_str(), expected);
-        assert_eq!(settings["confirmed_activation_countries"], json!(["DE"]));
+        // 0.9.0: every EU country counts like Germany (same market as the German shop pages).
+        let confirmed = settings["confirmed_activation_countries"]
+            .as_array()
+            .unwrap();
+        assert_eq!(confirmed.len(), 27);
+        assert!(
+            confirmed.contains(&json!("DE"))
+                && confirmed.contains(&json!("AT"))
+                && !confirmed.contains(&json!("CH"))
+        );
     }
 }
 

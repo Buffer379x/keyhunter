@@ -96,6 +96,9 @@ export interface WishlistItem {
   manual_title: string | null;
   /** In the shopping cart (0.8.0); absent from older servers. */
   in_cart?: boolean;
+  /** Paused on its own (0.9.0): no automatic checks until `paused_until` (null: until resumed by hand). */
+  paused?: boolean;
+  paused_until?: number | null;
 }
 export interface LibraryItem extends WishlistItem { acquired_at:number; }
 export type SourceStatuses = Record<string, { state: string; enabled: boolean; configured?: boolean; last_success_at: number | null; retry_at: number | null }>;

@@ -24,11 +24,14 @@ pub(crate) struct WishlistItem {
     manual_title: Option<String>,
     /// In the shopping cart (0.8.0).
     in_cart: bool,
+    /// Paused on its own (0.9.0): no automatic checks until `paused_until` (null: until resumed).
+    paused: bool,
+    paused_until: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) price_badge: Option<crate::price_badges::PriceBadge>,
 }
 macro_rules! items_sql {
-    ($suffix:literal) => { concat!("SELECT w.id, w.game_id, w.platform_id, w.created_at, g.manual_title, c.payload, EXISTS(SELECT 1 FROM cart_item k WHERE k.wish_id = w.id) AS in_cart FROM wishlist_item w JOIN game g ON g.id = w.game_id LEFT JOIN catalog_game c ON c.igdb_id = g.igdb_id", $suffix) };
+    ($suffix:literal) => { concat!("SELECT w.id, w.game_id, w.platform_id, w.created_at, g.manual_title, c.payload, EXISTS(SELECT 1 FROM cart_item k WHERE k.wish_id = w.id) AS in_cart, w.paused_at IS NOT NULL AND (w.paused_until IS NULL OR w.paused_until > CAST(strftime('%s','now') AS INTEGER)) AS paused, w.paused_until FROM wishlist_item w JOIN game g ON g.id = w.game_id LEFT JOIN catalog_game c ON c.igdb_id = g.igdb_id", $suffix) };
 }
 
 fn decode(row: SqliteRow) -> ApiResult<WishlistItem> {
@@ -54,6 +57,13 @@ fn decode(row: SqliteRow) -> ApiResult<WishlistItem> {
         game,
         manual_title: row.get("manual_title"),
         in_cart: row.get("in_cart"),
+        // Library rows have no pause.
+        paused: row.try_get("paused").unwrap_or(false),
+        paused_until: row
+            .try_get("paused")
+            .unwrap_or(false)
+            .then(|| row.try_get("paused_until").ok().flatten())
+            .flatten(),
         price_badge: None,
     })
 }
@@ -233,18 +243,16 @@ pub(crate) async fn add(
         }
     }
     let item_id = random_token().map_err(|_| internal())?[..32].to_string();
-    let inserted = sqlx::query("INSERT INTO wishlist_item (id, game_id, platform_id, created_at) SELECT ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM wishlist_item w WHERE w.state='wished') < 100 ON CONFLICT(game_id, platform_id) DO NOTHING")
+    let inserted = sqlx::query("INSERT INTO wishlist_item (id, game_id, platform_id, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(game_id, platform_id) DO NOTHING")
         .bind(item_id).bind(&game_id).bind(input.platform_id).bind(now()).execute(&mut *tx).await?;
     let row = sqlx::query(items_sql!(" WHERE w.game_id = ? AND w.platform_id = ?"))
         .bind(&game_id)
         .bind(input.platform_id)
         .fetch_optional(&mut *tx)
         .await?;
+    // The wishlist has no size limit (0.9.0); the row exists after the insert or the conflict.
     let Some(row) = row else {
-        return Err(ApiError(
-            StatusCode::CONFLICT,
-            "Die Wunschliste enthält bereits 100 Einträge.",
-        ));
+        return Err(internal());
     };
     let mut item = decode(row)?;
     let item_state: String = sqlx::query_scalar("SELECT state FROM wishlist_item WHERE id=?")
@@ -253,16 +261,6 @@ pub(crate) async fn add(
         .await?;
     let moved = item_state != "wished";
     if moved {
-        let count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM wishlist_item w WHERE w.state='wished'")
-                .fetch_one(&mut *tx)
-                .await?;
-        if count >= 100 {
-            return Err(ApiError(
-                StatusCode::CONFLICT,
-                "Die Wunschliste enthält bereits 100 Einträge.",
-            ));
-        }
         item.created_at = now();
         sqlx::query("UPDATE wishlist_item SET state='wished',viewed_at=NULL,acquired_at=NULL,created_at=? WHERE id=?")
             .bind(item.created_at)
@@ -455,6 +453,86 @@ pub(crate) async fn library(
     ))
 }
 
+#[derive(Deserialize)]
+pub(crate) struct PauseInput {
+    paused: bool,
+    /// End of the pause (unix seconds); absent or null: until resumed by hand.
+    until: Option<i64>,
+}
+
+/// Longest pause with an end date: one year.
+const PAUSE_MAX: i64 = 366 * 86400;
+
+/// `PUT /wishlist/{id}/pause` (0.9.0): pause or resume the automatic checks of one wish. The global
+/// pause does not touch it: a wish paused here stays paused when the checks are resumed.
+pub(crate) async fn pause(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(input): Json<PauseInput>,
+) -> ApiResult<Json<WishlistItem>> {
+    let session = auth::authenticate(&state, &headers).await?;
+    auth::require_csrf(&state, &headers, &session)?;
+    let t = now();
+    if input.paused
+        && input
+            .until
+            .is_some_and(|until| until <= t || until > t + PAUSE_MAX)
+    {
+        return Err(ApiError(
+            StatusCode::BAD_REQUEST,
+            "Das Ende der Pause muss in der Zukunft liegen, höchstens ein Jahr.",
+        ));
+    }
+    let (at, until) = if input.paused {
+        (Some(t), input.until)
+    } else {
+        (None, None)
+    };
+    let changed = sqlx::query(
+        "UPDATE wishlist_item SET paused_at=?,paused_until=? WHERE id=? AND state='wished'",
+    )
+    .bind(at)
+    .bind(until)
+    .bind(&id)
+    .execute(&state.pool)
+    .await?;
+    if changed.rows_affected() == 0 {
+        return Err(ApiError(
+            StatusCode::NOT_FOUND,
+            "Wunschlisteneintrag nicht gefunden.",
+        ));
+    }
+    let row = sqlx::query(items_sql!(" WHERE w.id = ?"))
+        .bind(&id)
+        .fetch_one(&state.pool)
+        .await?;
+    let game = eventlog::game(&state.pool, &id).await;
+    let message = match (input.paused, until) {
+        (false, _) => format!("{game}: Abfragen fortgesetzt"),
+        (true, None) => format!("{game}: Abfragen pausiert, bis sie fortgesetzt werden"),
+        (true, Some(end)) => format!("{game}: Abfragen pausiert bis {}", date_text(end)),
+    };
+    eventlog::record(&state.pool, Level::Info, Area::Wishlist, message).await;
+    Ok(Json(decode(row)?))
+}
+
+/// "24.12.2026" (UTC date) for the log.
+fn date_text(seconds: i64) -> String {
+    let days = seconds.div_euclid(86400);
+    // Civil date from days since 1970-01-01 (Howard Hinnant's algorithm).
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!("{day:02}.{month:02}.{year}")
+}
+
 pub(crate) async fn purchase(
     State(state): State<Shared>,
     headers: HeaderMap,
@@ -489,7 +567,7 @@ async fn log_bought(state: &Shared, id: &str) {
 /// in-flight fetches lose their lease. False when the item is not a wish.
 async fn mark_owned(tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>, id: &str) -> ApiResult<bool> {
     let result = sqlx::query(
-        "UPDATE wishlist_item SET state='owned',acquired_at=? WHERE id=? AND state='wished'",
+        "UPDATE wishlist_item SET state='owned',acquired_at=?,paused_at=NULL,paused_until=NULL WHERE id=? AND state='wished'",
     )
     .bind(now())
     .bind(id)
@@ -631,12 +709,12 @@ pub(crate) async fn restore(
         ));
     }
     let mut tx = state.pool.begin().await?;
-    let deleted=sqlx::query("UPDATE wishlist_item SET state='wished',acquired_at=NULL,created_at=? WHERE id=? AND state='owned' AND (SELECT COUNT(*) FROM wishlist_item w WHERE w.state='wished')<100")
+    let deleted=sqlx::query("UPDATE wishlist_item SET state='wished',acquired_at=NULL,created_at=? WHERE id=? AND state='owned'")
         .bind(now()).bind(&id).execute(&mut *tx).await?;
     if deleted.rows_affected() == 0 {
         return Err(ApiError(
             StatusCode::CONFLICT,
-            "Bibliothekseintrag nicht gefunden oder Wunschliste bereits voll.",
+            "Bibliothekseintrag nicht gefunden.",
         ));
     }
     tx.commit().await?;

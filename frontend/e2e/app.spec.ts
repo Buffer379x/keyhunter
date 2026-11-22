@@ -9,10 +9,13 @@ test('owner can set up, save service fees, use keyboard dialog, and log in again
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'test-results/wishlist-desktop.png', fullPage: true });
   await navTo(page, 'Allgemein');
+  // 0.9.0: Austria counts like Germany (same EU market); outside the EU the offers are only shown.
   await settingsCountry(page).selectOption('AT');
-  await expect(page.getByRole('note').filter({ hasText: 'Die Shops bestätigen die Aktivierung derzeit nur für Deutschland. Für Österreich werden Angebote angezeigt' })).toBeVisible();
+  await expect(page.getByTestId('activation-note')).toHaveCount(0);
+  await settingsCountry(page).selectOption('CH');
+  await expect(page.getByRole('note').filter({ hasText: 'Die Shop-Preise gelten für Käufe aus der EU. Für Schweiz werden Angebote angezeigt' })).toBeVisible();
   await settingsCountry(page).selectOption('DE');
-  await expect(page.getByRole('note').filter({ hasText: 'Die Shops bestätigen' })).toHaveCount(0);
+  await expect(page.getByTestId('activation-note')).toHaveCount(0);
   // Changes stay a draft: leaving the page asks first, and after "Speichern" the wishlist uses the new country.
   await settingsCountry(page).selectOption('FR');
   await navTo(page, 'Wunschliste');

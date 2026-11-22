@@ -1,8 +1,8 @@
-/* Warenkorb (0.8.0): the games on the left, the totals by shop on the right; one column on narrow screens. Tokens only. */
-.cart-page .cart-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr); gap: 16px; align-items: start; }
-.cart-page .cart-add { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.cart-page .cart-add select { width: auto; max-width: 260px; }
-.cart-page .cart-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+/* Warenkorb (0.8.0): the games, then the totals by shop. Tokens only. */
+/* (0.9.0) The totals always stand below the games: next to them the table lost its last columns (the remove button needed
+ * scrolling) at the page's maximum width of 1320 px. */
+.cart-page .cart-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.cart-page .cart-sum { max-width: 640px; }
 .cart-page .cart-table .game-cell { min-width: 180px; }
 .cart-page .cart-table .gcover { width: 30px; height: 40px; border-radius: 5px; border: 1px solid var(--cover-line); box-shadow: none; flex: none; }
 .cart-page .cart-table .gcover .gcover-title { font: 600 10px/1 var(--f-sans); letter-spacing: .02em; color: var(--cover-text); }
@@ -39,8 +39,6 @@
 .cart-page .cart-totals dd.cart-grand { font-size: var(--t-lg, 18px); color: var(--text); }
 .cart-page .cart-sum .hint { margin: 10px 0 0; }
 
-/* Shop and DE/INT per game need the width (0.8.1): below 1500 px the totals go under the games. */
-@media (max-width: 1499px) { .cart-page .cart-grid { grid-template-columns: minmax(0, 1fr); } .cart-page .cart-sum { max-width: 640px; } }
 /* Phones: each game as a card (title, then shop and the three amounts). */
 @media (max-width: 720px) {
   .cart-page .cart-table thead { display: none; }
@@ -57,5 +55,4 @@
   .cart-page .cart-table td.c-key::before { content: "Key "; color: var(--muted); font-size: var(--t-xs); }
   .cart-page .cart-table td.c-fee { grid-area: f; }
   .cart-page .cart-table td.c-fee::before { content: "Gebühren "; color: var(--muted); font-size: var(--t-xs); }
-  .cart-page .cart-add select { max-width: 100%; flex: 1 1 160px; }
 }

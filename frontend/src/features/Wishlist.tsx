@@ -13,6 +13,7 @@ import { nextSort, parseSort, serializeSort, sortWishlist } from './wishlist-sor
 import type { SortKey, WishlistSort } from './wishlist-sort';
 import { addedTicks, alarmSentToday, cheaperKpi, fetchKpi, filterShops, matchesChip, matchesText, reachedTrend, rowFacts, shortTitle } from './wishlist-model';
 import { shopNames } from './shop-names';
+import { pauseText } from './wish-pause';
 import type { ChipFilter, PriceBasis, Row, RowFacts } from './wishlist-model';
 import { itemName } from './catalog-ui';
 import { whenVisible } from '../poll';
@@ -31,7 +32,6 @@ interface Props {
   onTitle: (title: string | null) => void;
   onSettings: () => void; onCountChange: (count: number) => void; onError: (error: unknown) => void }
 
-const SLOTS = 100;
 
 /**
  * Sortable column header: the first click sorts in the column's natural direction, the second reverses it, the third returns to
@@ -73,7 +73,7 @@ const routeSelection = () => new URL(window.location.href).searchParams.get('ite
 const routeFilter = () => new URL(window.location.href).searchParams.get('filter') ?? '';
 const scroller = () => document.getElementById('main-content');
 type AlertRules = Record<string, Rule>;
-const chipLabels: [ChipFilter, string][] = [['alle', 'Alle'], ['ziel', 'Ziel erreicht'], ['welt', 'Weltweit günstiger'], ['offen', 'Ohne Preis']];
+const chipLabels: [ChipFilter, string][] = [['alle', 'Alle'], ['ziel', 'Ziel erreicht'], ['welt', 'Weltweit günstiger'], ['offen', 'Ohne Preis'], ['pause', 'Pausiert']];
 const count = (value: number) => value.toLocaleString('de-DE');
 /** A tile without a footer value keeps an empty footer row, so all four tiles stay the same height. */
 const emptyFoot = <span aria-hidden="true">{'\u00a0'}</span>;
@@ -294,6 +294,17 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
       setMessage(inCart ? `${itemName(selected)} ist nicht mehr im Warenkorb.` : `${itemName(selected)} liegt jetzt im Warenkorb.`);
     } catch (error) { onError(error); } finally { setCarting(false); }
   }
+  const [pausing, setPausing] = useState(false);
+  /** Pause the selected wish's checks until a date or until resumed, or resume them (0.9.0). */
+  async function pauseWish(until: number | null | false) {
+    if (!selected || preview || pausing) return;
+    setPausing(true); setMessage('');
+    try {
+      const next = await api<WishlistItem>(`/wishlist/${encodeURIComponent(selected.id)}/pause`, 'PUT', until === false ? { paused: false } : { paused: true, until }, csrf);
+      setItems(current => current.map(item => item.id === selected.id ? { ...item, paused: next.paused, paused_until: next.paused_until } : item));
+      setMessage(until === false ? `Die Abfragen für ${itemName(selected)} laufen wieder.` : `${itemName(selected)}: ${pauseText(next)}.`);
+    } catch (error) { onError(error); } finally { setPausing(false); }
+  }
   /** An offer from the Angebote tab: into the cart with its shop and scope, or the entry switched to it when already there. */
   async function cartOffer(source: string, scope: 'home' | 'world') {
     if (!selected || preview || carting) return;
@@ -327,11 +338,11 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
   const all: Row[] = useMemo(() => items.map(item => ({ item, facts: facts[item.id] })), [items, facts]);
   // The filter matches titles, and shop names: "Eneba" keeps the games where Eneba has the cheapest price (0.7.4).
   const shops = filterShops(filter, SHOP_NAMES);
-  const matching = items.filter(item => matchesChip(facts[item.id], chip) && matchesText([itemName(item), ...(item.game?.aliases ?? [])], facts[item.id], filter, shops));
+  const matching = items.filter(item => (chip === 'pause' ? !!item.paused : matchesChip(facts[item.id], chip)) && matchesText([itemName(item), ...(item.game?.aliases ?? [])], facts[item.id], filter, shops));
   const visible = sortWishlist(matching, facts, sort);
   const priced = all.filter(row => row.facts.price !== null).length;
   const reachedCount = all.filter(row => row.facts.reached).length;
-  const chipCounts: Record<ChipFilter, number> = { alle: items.length, ziel: reachedCount, welt: all.filter(row => matchesChip(row.facts, 'welt')).length, offen: items.length - priced };
+  const chipCounts: Record<ChipFilter, number> = { alle: items.length, ziel: reachedCount, welt: all.filter(row => matchesChip(row.facts, 'welt')).length, offen: items.length - priced, pause: items.filter(item => item.paused).length };
   const reached = useMemo(() => reachedTrend(all, alerts), [all, alerts]);
   const cheaper = useMemo(() => cheaperKpi(all), [all]);
   const budget = useMemo(() => fetchKpi(fetchStatus), [fetchStatus]);
@@ -372,19 +383,19 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
   if (selected && viewed) return <>
     {message && <Notice>{message}</Notice>}
     <GameDetail key={selected.id} item={selected} viewed={viewed} preview={!!preview} variants={variants} editionItems={editionItems} editionError={editionError} badges={badges}
-      csrf={csrf} targetCountry={targetCountry} targetLabel={targetLabel} tab={tab} purchasing={purchasing} carting={carting} onCart={() => void toggleCart()} onCartOffer={(source, scope) => void cartOffer(source, scope)} offersColumns={offersColumns} offersHidden={offersHidden} onTab={changeTab} onBack={closeDetail} onPurchase={() => void purchase()}
+      csrf={csrf} targetCountry={targetCountry} targetLabel={targetLabel} tab={tab} purchasing={purchasing} carting={carting} onCart={() => void toggleCart()} pausing={pausing} onPause={until => void pauseWish(until)} onCartOffer={(source, scope) => void cartOffer(source, scope)} offersColumns={offersColumns} offersHidden={offersHidden} onTab={changeTab} onBack={closeDetail} onPurchase={() => void purchase()}
       onRemove={() => { setRemoveError(''); setRemoveItem(selected); }} onView={chooseEdition} onClearPreview={() => setPreview(null)} onBadge={updateBadge} onSettings={onSettings} onError={onError} onRule={updateRule} />
     {dialogs}
   </>;
   if (loading && selectedId) return <p className="wl-loading" role="status">Wird geladen …</p>;
 
-  const sub = loading ? 'Wird geladen …' : `${count(items.length)} von ${SLOTS} Plätzen · ${targetCountry ? `Zielland ${targetLabel}` : 'Kein Zielland gewählt'}`;
+  const sub = loading ? 'Wird geladen …' : `${count(items.length)} ${items.length === 1 ? 'Spiel' : 'Spiele'} · ${targetCountry ? `Zielland ${targetLabel}` : 'Kein Zielland gewählt'}`;
   const ready = !loading && !listError;
   const best = cheaper.best;
   return <div className="page wishlist-page">
     <header className="page-head">
       <div><div className="page-title"><h1 id="wishlist-title" ref={listHeading} tabIndex={-1}>Wunschliste</h1>
-        <Help label="Hilfe zur Wunschliste"><span>„Preis {targetCountry || 'DE'}“ ist der beste Preis eines im Zielland aktivierbaren Keys, „Preis INT“ die günstigste Region weltweit. Verglichen werden alle Regionen, abgefragt werden alle gleich.</span>
+        <Help label="Hilfe zur Wunschliste"><span>„Preis {targetCountry || 'Zielland'}“ ist der beste Preis eines im Zielland aktivierbaren Keys, „Preis INT“ die günstigste Region weltweit. Verglichen werden alle Regionen, abgefragt werden alle gleich.</span>
           <span>Das Suchfeld filtert nach Titel; ein Shop-Name zeigt die Spiele, bei denen dieser Shop am günstigsten ist.</span></Help></div><p>{sub}</p></div>
     </header>
     {message && <Notice>{message}</Notice>}
@@ -404,7 +415,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
     <Panel aria-label="Spiele">
       <PanelHead>
         <div className="chips" role="group" aria-label="Filter">
-          {chipLabels.map(([id, label]) => <Chip key={id} pressed={chip === id} count={ready ? chipCounts[id] : null} disabled={!ready} onClick={() => setChip(id)}>{label}</Chip>)}
+          {chipLabels.filter(([id]) => id !== 'pause' || chipCounts.pause > 0 || chip === 'pause').map(([id, label]) => <Chip key={id} pressed={chip === id} count={ready ? chipCounts[id] : null} disabled={!ready} onClick={() => setChip(id)}>{label}</Chip>)}
         </div>
         <span className="spacer" />
         <Seg className="wl-basis" label="Preise" value={basis} onChange={chooseBasis}

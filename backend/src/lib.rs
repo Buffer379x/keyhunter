@@ -254,6 +254,7 @@ async fn create_app_inner(
             get(edition_tracking::get).post(edition_tracking::prepare),
         )
         .route("/wishlist/{id}/preview", post(wishlist::preview))
+        .route("/wishlist/{id}/pause", axum::routing::put(wishlist::pause))
         .route(
             "/wishlist/{id}/offers",
             get(offers::list).post(offers::add_link),

@@ -512,7 +512,8 @@ async fn edition_preview_never_changes_the_saved_wishlist_and_can_be_added_expli
 }
 
 #[tokio::test]
-async fn a_full_wishlist_can_preview_editions_but_cannot_promote_one_until_a_slot_is_free() {
+/// 0.9.0: the wishlist has no limit any more; the former 100-slot scenario now promotes the edition at once.
+async fn a_wishlist_with_100_items_can_preview_and_promote_editions_without_a_limit() {
     let f = Fixture::new().await;
     let (_, saved) = f
         .call(
@@ -522,9 +523,8 @@ async fn a_full_wishlist_can_preview_editions_but_cannot_promote_one_until_a_slo
         )
         .await;
     let id = saved["item"]["id"].as_str().unwrap();
-    let mut remove = String::new();
     for i in 0..99 {
-        let (status, result) = f
+        let (status, _) = f
             .call(
                 "POST",
                 "/api/v1/wishlist",
@@ -532,7 +532,6 @@ async fn a_full_wishlist_can_preview_editions_but_cannot_promote_one_until_a_slo
             )
             .await;
         assert_eq!(status, StatusCode::CREATED);
-        remove = result["item"]["id"].as_str().unwrap().to_string();
     }
     assert_eq!(
         f.call(
@@ -546,18 +545,6 @@ async fn a_full_wishlist_can_preview_editions_but_cannot_promote_one_until_a_slo
     );
     let (_, list) = f.call("GET", "/api/v1/wishlist", Value::Null).await;
     assert_eq!(list.as_array().unwrap().len(), 100);
-    assert_eq!(
-        f.call(
-            "POST",
-            "/api/v1/wishlist",
-            json!({"igdb_id":2,"platform_id":169})
-        )
-        .await
-        .0,
-        StatusCode::CONFLICT
-    );
-    f.call("DELETE", &format!("/api/v1/wishlist/{remove}"), Value::Null)
-        .await;
     assert_eq!(
         f.call(
             "POST",
@@ -866,7 +853,8 @@ async fn manual_titles_remain_unverified_and_duplicate_normalized_titles_do_not_
 }
 
 #[tokio::test]
-async fn hundred_item_limit_is_atomic_and_existing_items_still_return_at_capacity() {
+/// 0.9.0: past 100 items both concurrent additions are saved, and an existing item still returns OK.
+async fn more_than_hundred_items_are_saved_concurrently_and_existing_items_still_return() {
     let f = Fixture::new().await;
     for i in 0..99 {
         assert_eq!(
@@ -894,7 +882,7 @@ async fn hundred_item_limit_is_atomic_and_existing_items_still_return_at_capacit
     );
     let mut statuses = [a.0.as_u16(), b.0.as_u16()];
     statuses.sort();
-    assert_eq!(statuses, [201, 409]);
+    assert_eq!(statuses, [201, 201]);
     assert_eq!(
         f.call(
             "POST",
@@ -912,7 +900,7 @@ async fn hundred_item_limit_is_atomic_and_existing_items_still_return_at_capacit
             .as_array()
             .unwrap()
             .len(),
-        100
+        101
     );
 }
 
@@ -1210,6 +1198,83 @@ async fn automatic_checks_can_be_paused_and_resumed() {
 }
 
 #[tokio::test]
+async fn a_wish_can_be_paused_on_its_own_and_stays_paused_through_the_global_pause() {
+    let f = Fixture::new().await;
+    let (_, saved) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"manual_title":"Pausenspiel","platform_id":169}),
+        )
+        .await;
+    let id = saved["item"]["id"].as_str().unwrap().to_string();
+    assert_eq!(saved["item"]["paused"], false);
+    let path = format!("/api/v1/wishlist/{id}/pause");
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    // An end in the past or more than a year ahead is refused.
+    for until in [now - 10, now + 400 * 86400] {
+        assert_eq!(
+            f.call("PUT", &path, json!({"paused":true,"until":until}))
+                .await
+                .0,
+            StatusCode::BAD_REQUEST
+        );
+    }
+    let until = now + 14 * 86400;
+    let (code, item) = f
+        .call("PUT", &path, json!({"paused":true,"until":until}))
+        .await;
+    assert_eq!(code, StatusCode::OK);
+    assert_eq!(
+        (item["paused"].as_bool(), item["paused_until"].as_i64()),
+        (Some(true), Some(until))
+    );
+    // The global pause and its end leave the wish paused.
+    f.call(
+        "POST",
+        "/api/v1/status/fetch/pause",
+        json!({"paused": true}),
+    )
+    .await;
+    f.call(
+        "POST",
+        "/api/v1/status/fetch/pause",
+        json!({"paused": false}),
+    )
+    .await;
+    let (_, list) = f.call("GET", "/api/v1/wishlist", Value::Null).await;
+    assert_eq!(list[0]["paused"], true);
+    // Until resumed by hand, then resumed.
+    let (_, item) = f.call("PUT", &path, json!({"paused":true})).await;
+    assert_eq!(
+        (item["paused"].as_bool(), item["paused_until"].is_null()),
+        (Some(true), true)
+    );
+    let (_, item) = f.call("PUT", &path, json!({"paused":false})).await;
+    assert_eq!(item["paused"], false);
+    let (_, log) = f
+        .call("GET", "/api/v1/log?q=Pausenspiel", Value::Null)
+        .await;
+    assert_eq!(
+        log["entries"][0]["message"],
+        "„Pausenspiel“: Abfragen fortgesetzt"
+    );
+    assert_eq!(
+        f.call(
+            "PUT",
+            "/api/v1/wishlist/unknown/pause",
+            json!({"paused":true})
+        )
+        .await
+        .0,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
 async fn wishlist_columns_can_be_hidden_and_the_opener_chosen() {
     let f = Fixture::new().await;
     let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
@@ -1343,7 +1408,8 @@ async fn saving_unchanged_interval_preserves_schedule_and_edited_interval_resche
 }
 
 #[tokio::test]
-async fn library_restore_at_capacity_keeps_ownership_until_space_is_available() {
+/// 0.9.0: with 100 wishes a library entry is restored at once; there is no capacity left to wait for.
+async fn library_restore_with_100_wishes_works_without_a_limit() {
     let f = Fixture::new().await;
     let (_, saved) = f
         .call(
@@ -1416,17 +1482,9 @@ async fn library_restore_at_capacity_keeps_ownership_until_space_is_available() 
     }
     let path = format!("/api/v1/library/{id}/restore");
     assert_eq!(
-        f.call("POST", &path, json!({"confirm":true})).await.0,
-        StatusCode::CONFLICT
-    );
-    assert_eq!(
         f.call("GET", "/api/v1/library", Value::Null).await.1[0]["id"],
         id
     );
-    sqlx::query("DELETE FROM wishlist_item WHERE id='capacity-0'")
-        .execute(&pool)
-        .await
-        .unwrap();
     assert_eq!(
         f.call("POST", &path, json!({"confirm":true})).await.0,
         StatusCode::NO_CONTENT
@@ -1438,7 +1496,7 @@ async fn library_restore_at_capacity_keeps_ownership_until_space_is_available() 
             .as_array()
             .unwrap()
             .len(),
-        100
+        101
     );
 }
 

@@ -1,5 +1,20 @@
 # Änderungen
 
+## 0.9.0 – 2026-11-22
+
+Die Wunschliste hat keine Obergrenze mehr, einzelne Spiele lassen sich pausieren, und jedes EU-Zielland zählt wie Deutschland. Beim Start ergänzt die Datenbank die Pause je Spiel (mit Sicherung vorher), sonst ist beim Update nichts zu tun.
+
+### Neu
+- **Unbegrenzte Wunschliste:** Die Grenze von 100 Spielen entfällt; der Kopf der Wunschliste zählt nur noch die Spiele.
+- **Spiel pausieren:** Auf der Seite eines Spiels pausiert „Pausieren“ seine automatischen Abfragen für 1, 2, 4 oder 8 Wochen oder bis du sie fortsetzt; danach laufen sie von selbst wieder an. Die globale Pause ist davon unabhängig: Pausierst du alle Abfragen und setzt sie fort, bleiben die einzeln pausierten Spiele pausiert. „Jetzt prüfen“ läuft trotzdem. In der Wunschliste steht hinter dem Titel ein gelbes Pause-Symbol (wie der Einkaufskorb), der Filter „Pausiert“ zeigt nur diese Spiele, und auf der Seite des Spiels nennt ein gelber Hinweis das Ende. Pausierte Spiele zählen nicht zum Tagesbedarf und stehen nicht unter „Nächste Abfragen“; das Log hält Pause und Fortsetzen fest.
+- **Jedes EU-Zielland wie Deutschland:** Bisher zählte nur für Deutschland ein Angebot als gültiger Bestpreis, weil die Shops aus Deutschland abgefragt werden. Jetzt gilt der Euro-Preis der Shops für jedes EU-Land, die Aktivierung prüft KeyHunter weiter für das Zielland selbst. Mit Österreich als Zielland gelten also dieselben Regeln wie mit Deutschland, und alle Beschriftungen nennen AT statt DE. Außerhalb der EU werden Angebote weiter nur angezeigt.
+- **Bibliothek filtern:** Ein Suchfeld oben filtert Kacheln und Liste, während du tippst, nach Titel und System, ohne auf Akzente zu achten („pokemon“ findet „Pokémon“).
+
+### Oberfläche
+- **Bibliothek:** Unter jedem Titel steht auch in der Kachelansicht das System.
+- **Warenkorb:** Spiele kommen nur noch über die Wunschliste hinein; Auswahlfeld und Knopf „In den Warenkorb“ auf der Warenkorbseite entfallen. Die Summe steht immer unter der Tabelle, so ist der Papierkorb jeder Zeile auch auf großen Bildschirmen ohne Scrollen sichtbar.
+- **HTTPS-Hinweis:** Der Hinweis „Verbindung ohne HTTPS“ lässt sich wegklicken und bleibt dann in diesem Browser ausgeblendet.
+
 ## 0.8.3 – 2026-11-22
 
 Die Einstellungen sind eine Seite mit Tabs, hinter einem Symbol unter dem Abrufstatus. Neu sind ein Log der letzten 7 Tage, ein durchsuchbarer Abrufstatus mit Spiel und den nächsten Abfragen, und alle Erklärungen stehen hinter einem einheitlichen Fragezeichen. Beim Start legt die Datenbank die Tabelle für das Log an (mit Sicherung vorher), sonst ist beim Update nichts zu tun.

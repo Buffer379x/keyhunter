@@ -214,3 +214,8 @@ dialog.link-review[open] { display: grid; gap: 14px; }
 .matches .match-delete svg { width: 14px; height: 14px; }
 /* Cart button on the game page (0.8.0): pressed while the wish is in the cart. */
 .game-actions .in-cart-btn { border-color: var(--accent); color: var(--accent); }
+/* (0.9.0) Pause of one wish: the menu with the durations, the resume button and the pill in yellow like the global pause. */
+.game-actions .paused-btn { border-color: var(--warn); color: var(--warn); }
+.pause-menu { min-width: 200px; }
+.pause-menu .pause-menu-head { display: block; padding: 4px 8px 6px; }
+.pill.pause-pill { color: var(--warn); }

@@ -90,3 +90,5 @@ table.wl .row-open:hover:not(:disabled) { color: var(--accent); border-color: va
 /* In the cart (0.8.0): a small basket right after the title. */
 .game-cell .game-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .game-cell .in-cart { display: inline-flex; flex: none; color: var(--accent); }
+/* (0.9.0) A wish paused on its own: the yellow pause symbol after the title, like the basket of the cart. */
+.game-cell .wish-paused { display: inline-flex; flex: none; color: var(--warn); }

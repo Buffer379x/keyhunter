@@ -124,3 +124,6 @@
 /* Key-Shops (0.8.3): one tab per shop. */
 .settings-page .shop-tabs { margin-bottom: -4px; }
 .settings-page .shop-tabs .dot { margin-right: 2px; }
+/* (0.9.0) The HTTPS notice can be closed; it then stays closed in this browser. */
+.note .note-close { margin-left: auto; flex: none; width: 28px; height: 28px; align-self: flex-start; }
+.note.warn .note-close svg { color: var(--text-2); }

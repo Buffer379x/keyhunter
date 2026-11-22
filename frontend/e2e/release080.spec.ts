@@ -58,15 +58,13 @@ test('wishes go into the cart once, show a basket in the list, and the cart sums
   await expect(page.getByRole('heading', { name: 'Warenkorb', level: 1 })).toBeVisible();
   const table = page.getByRole('table', { name: 'Spiele im Warenkorb', exact: true });
   await expect(table.locator('tbody tr')).toHaveCount(1);
-  // The second one from the picker; a wish already in the cart is not offered.
-  const picker = page.getByLabel('Spiel aus der Wunschliste wählen');
-  await expect(picker.locator('option')).toHaveCount(2);
-  await picker.selectOption({ label: 'Forza Horizon 5: Premium Edition' });
-  await page.getByRole('button', { name: 'In den Warenkorb', exact: true }).click();
+  // 0.9.0: games come into the cart only from the wishlist; the cart has no picker of its own.
+  await expect(page.getByLabel('Spiel aus der Wunschliste wählen')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'In den Warenkorb', exact: true })).toHaveCount(0);
+  expect((await write(page, 'POST', '/api/v1/cart', { wish_id: premium })).status()).toBe(201);
+  await page.reload();
   await expect(table.locator('tbody tr')).toHaveCount(2);
   await expect(navItem(page, 'Warenkorb')).toContainText('2');
-  // Nothing left to add: no picker.
-  await expect(picker).toHaveCount(0);
 
   // Added with the button: the cheapest variant, shop and region independent.
   const line = table.locator('tbody tr').first();

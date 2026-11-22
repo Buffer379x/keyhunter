@@ -55,10 +55,11 @@ test('Bibliothek shows covers with the title only, and keeps the restore action'
   await expect(page.getByRole('heading', { name: 'Bibliothek', level: 1, exact: true })).toBeVisible();
   await expect(page.getByText('2 Spiele gekauft', { exact: true })).toBeVisible();
   const items = page.getByRole('list', { name: 'Meine Spiele' }).getByRole('listitem');
-  // The edition is part of the title already, the purchase date is not needed: the tile shows the title alone.
-  await expect(items.first().locator('.lib-info')).toHaveText('Halo Infinite');
+  // The edition is part of the title already, the purchase date is not needed: the tile shows the title and (0.9.0) the system.
+  await expect(items.first().locator('.lib-info b')).toHaveText('Halo Infinite');
   await expect(items.first().locator('img')).toHaveAttribute('src', /halo\.svg$/);
-  await expect(items.nth(1).locator('.lib-info')).toHaveText('Lies of P');
+  await expect(items.nth(1).locator('.lib-info b')).toHaveText('Lies of P');
+  await expect(items.first().locator('.lib-sub')).toHaveText('Xbox Series X|S');
   await expect(items.nth(1).locator('.cover-initials')).toHaveText('LO');
   // Restore and delete sit on the cover and only show after the lock in the page head is opened.
   const restore = items.first().getByRole('button', { name: 'Halo Infinite zurück in die Wunschliste', exact: true });

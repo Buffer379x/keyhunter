@@ -191,14 +191,17 @@ const ITEM: &str = "LEFT JOIN wishlist_item t ON t.id=COALESCE(j.wish_id,l.wish_
 /// Time the owner paused the automatic checks (0.7.0), NULL while they run.
 pub(crate) const PAUSED_AT: &str = "(SELECT fetch_paused_at FROM app_settings WHERE id=1)";
 const NOT_OWNED: &str = "COALESCE(t.state,'wished')!='owned'";
-/// A preview is fetched while an active wish watches it and it was viewed in the last 14 days.
-const WATCHED_IF_PREVIEW: &str = "(COALESCE(t.state,'wished')!='preview' OR (COALESCE(t.viewed_at,0)>?2-1209600 AND EXISTS(SELECT 1 FROM edition_watch ew JOIN wishlist_item aw ON aw.id=ew.wish_id WHERE ew.track_id=t.id AND aw.state='wished')))";
+/// A preview is fetched while an active wish that is not paused (0.9.0) watches it and it was viewed in the last 14 days.
+const WATCHED_IF_PREVIEW: &str = "(COALESCE(t.state,'wished')!='preview' OR (COALESCE(t.viewed_at,0)>?2-1209600 AND EXISTS(SELECT 1 FROM edition_watch ew JOIN wishlist_item aw ON aw.id=ew.wish_id WHERE ew.track_id=t.id AND aw.state='wished' AND (aw.paused_at IS NULL OR (aw.paused_until IS NOT NULL AND aw.paused_until<=?2)))))";
 const ANY_ACTIVE_WISH: &str = "EXISTS(SELECT 1 FROM wishlist_item w WHERE w.state='wished')";
+/// A wish paused on its own (0.9.0) waits until its pause ends; a check the owner requested still runs.
+/// Independent of the global pause: resuming that leaves these wishes paused. 900 is REQUEST_WINDOW.
+const NOT_HELD: &str = "(t.paused_at IS NULL OR (t.paused_until IS NOT NULL AND t.paused_until<=?2) OR j.requested_at>?2-900)";
 
 /// Jobs the scheduler runs at all (whenever they are due); idle jobs stay out.
 fn queued() -> String {
     format!(
-        "(j.link_id IS NULL OR l.review!='rejected') AND {NOT_OWNED} AND {WATCHED_IF_PREVIEW} AND {ANY_ACTIVE_WISH}"
+        "(j.link_id IS NULL OR l.review!='rejected') AND {NOT_OWNED} AND {WATCHED_IF_PREVIEW} AND {ANY_ACTIVE_WISH} AND {NOT_HELD}"
     )
 }
 
@@ -1055,7 +1058,7 @@ pub(crate) async fn status(
             "SELECT COUNT(*),MIN(j.due),SUM(j.requested_at>?3),SUM(j.link_id IS NOT NULL),SUM(j.wish_id IS NOT NULL)
             FROM shop_job j LEFT JOIN offer_link l ON l.id=j.link_id {ITEM}
             WHERE j.source=?1 AND j.due<=?2 AND j.lease_until<=?2 AND (j.link_id IS NULL OR l.review!='rejected')
-            AND {NOT_OWNED} AND {WATCHED_IF_PREVIEW}"
+            AND {NOT_OWNED} AND {WATCHED_IF_PREVIEW} AND {NOT_HELD}"
         )))
         .bind(&source)
         .bind(t)
@@ -2640,6 +2643,72 @@ mod tests {
                 .unwrap()
                 .is_some()
         );
+    }
+
+    #[tokio::test]
+    async fn a_paused_wish_waits_through_a_global_pause_and_resume_until_its_end() {
+        let pool = memory().await;
+        const T0: i64 = 1_800_000_000 - 1_800_000_000 % DAY;
+        add_item(&pool, "w", "wished").await;
+        let link = add_link(&pool, "w", 0, T0).await;
+        for sql in [
+            "UPDATE shop_job SET initial=0",
+            "DELETE FROM shop_job WHERE link_id IS NULL AND wish_id IS NULL",
+            "UPDATE wishlist_item SET paused_at=1 WHERE id='w'",
+        ] {
+            sqlx::query(sql).execute(&pool).await.unwrap();
+        }
+        unpace(&pool).await;
+        let next = |t| {
+            let pool = pool.clone();
+            async move { claim(&pool, Shop::Eneba, "aa", t, 1000).await.unwrap() }
+        };
+        // Paused until resumed by hand: nothing runs, none of it is upcoming or counted as demand.
+        assert!(next(T0).await.is_none());
+        assert!(upcoming(&pool, T0, false).await.unwrap().is_empty());
+        assert_eq!(demand(&pool, Shop::Eneba, T0).await.unwrap(), 0.0);
+        // The global pause and its end leave the wish paused.
+        sqlx::query("UPDATE app_settings SET fetch_paused_at=?")
+            .bind(T0)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE app_settings SET fetch_paused_at=NULL")
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert!(next(T0 + DAY).await.is_none());
+        // A check the owner asks for still runs.
+        sqlx::query("UPDATE shop_job SET requested_at=? WHERE link_id=?")
+            .bind(T0 + DAY)
+            .bind(link)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let job = next(T0 + DAY).await.unwrap();
+        assert_eq!(job.link_id, Some(link));
+        complete(
+            &pool,
+            Shop::Eneba,
+            &job,
+            "aa",
+            Err(ShopError::Network),
+            T0 + DAY,
+            T0 + DAY,
+            1,
+        )
+        .await
+        .unwrap();
+        // A pause with an end: the checks start again by themselves afterwards.
+        sqlx::query("UPDATE wishlist_item SET paused_until=? WHERE id='w'")
+            .bind(T0 + 3 * DAY)
+            .execute(&pool)
+            .await
+            .unwrap();
+        unpace(&pool).await;
+        assert!(next(T0 + 2 * DAY).await.is_none());
+        unpace(&pool).await;
+        assert_eq!(next(T0 + 4 * DAY).await.unwrap().link_id, Some(link));
     }
 
     #[tokio::test]

@@ -33,7 +33,7 @@ test('purchase and restore move the saved edition; owned family additions requir
   const results=page.getByRole('region',{name:'Suchergebnisse'});
   await search.fill('forza');await results.getByRole('button',{name:'Forza Horizon 5 (Xbox Series X|S) vormerken',exact:true}).click();
   await page.getByRole('button',{name:'Gekauft',exact:true}).click();
-  await expect(page.getByText(/^0 von 100 Plätzen/)).toBeVisible();
+  await expect(page.getByText(/^0 Spiele ·/)).toBeVisible();
   await navTo(page, 'Bibliothek');
   const library=page.getByRole('list',{name:'Meine Spiele'});
   await expect(library.getByRole('listitem')).toHaveCount(1);

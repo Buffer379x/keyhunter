@@ -64,7 +64,8 @@ test('the library switches between tiles and a list, and keeps the choice', asyn
   await navTo(page, 'Bibliothek');
   const view = page.getByRole('group', { name: 'Ansicht', exact: true });
   await expect(view.getByRole('button', { name: 'Kacheln', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(libraryList(page).locator('.lib-sub')).toHaveCount(0);
+  // 0.9.0: the tiles name the system under the title too, like the list.
+  await expect(libraryList(page).locator('.lib-sub')).toHaveText(['Xbox One', 'Xbox Series X|S']);
 
   await view.getByRole('button', { name: 'Liste', exact: true }).click();
   await expect(view.getByRole('button', { name: 'Liste', exact: true })).toHaveAttribute('aria-pressed', 'true');

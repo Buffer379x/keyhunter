@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, CART_CHANGED } from '../api';
 import type { LibraryItem, WishlistItem } from '../api';
-import { Button, ConfirmDialog, EmptyState, Icon, IconButton, Notice, PageHeading, Panel, Seg } from '../components';
+import { Button, ConfirmDialog, EmptyState, Field, Icon, IconButton, Notice, PageHeading, Panel, Seg } from '../components';
 import { Cover, itemName, platformName } from './catalog-ui';
 import CatalogSearch from './CatalogSearch';
 import { libraryItems } from './library-sort';
@@ -15,6 +15,8 @@ const store = (key: string, value: string) => { try { localStorage.setItem(key, 
 const SORT_KEY = 'keyhunter.library.order';
 const VIEW_KEY = 'keyhunter.library.view';
 const games = (n: number) => `${n} ${n === 1 ? 'Spiel' : 'Spiele'}`;
+/** Lower case without accents, so "pokemon" finds "Pokémon" (0.9.0 filter). */
+const fold = (text: string) => text.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('de');
 
 interface Props {
   csrf: string;
@@ -42,9 +44,13 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
   const [sort, setSort] = useState<Order>(() => stored(SORT_KEY, 'name') === 'added' ? 'added' : 'name');
   const [view, setView] = useState<View>(() => stored(VIEW_KEY, 'tiles') === 'rows' ? 'rows' : 'tiles');
   const [message, setMessage] = useState('');
+  /** Full-text filter of the tiles and the list (0.9.0): title, edition and system; empty shows everything. */
+  const [query, setQuery] = useState('');
   const systems = [...new Set(items.map(item => item.platform_id))].sort((a, b) => platformName(a).localeCompare(platformName(b), 'de'));
   const activeSystem = system === 'all' || systems.some(id => String(id) === system) ? system : 'all';
-  const visible = libraryItems(items, activeSystem, sort);
+  const words = fold(query).split(/\s+/).filter(Boolean);
+  const visible = libraryItems(items, activeSystem, sort)
+    .filter(item => { const text = fold(`${itemName(item)} ${platformName(item.platform_id)}`); return words.every(word => text.includes(word)); });
   const filter = (value: string) => { setSystem(value); store('keyhunter.library.system', value); };
   const order = (value: Order) => { setSort(value); store(SORT_KEY, value); };
   const show = (value: View) => { setView(value); store(VIEW_KEY, value); };
@@ -97,6 +103,7 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
     <PageHeading id="library-title" title="Bibliothek" sub={sub} help="Gekaufte Spiele. KeyHunter fragt für sie keine Preise mehr ab; der gespeicherte Preisverlauf bleibt erhalten."  actions={<>
       <IconButton className="lib-add" label="Spiel zur Bibliothek hinzufügen" onClick={() => onAddOpen(true)}><Icon name="plus" /></IconButton>
       {items.length > 0 && <>
+      <Field icon="search" className="lib-q"><input type="search" placeholder="Bibliothek filtern …" aria-label="Bibliothek filtern" value={query} maxLength={200} onChange={event => setQuery(event.target.value)} /></Field>
       <select className="lib-system" aria-label="Bibliothek nach System filtern" value={activeSystem} onChange={event => filter(event.target.value)}>
         <option value="all">Alle Systeme</option>
         {systems.map(id => <option key={id} value={id}>{platformName(id)}</option>)}
@@ -120,7 +127,8 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
     {empty && <Panel><EmptyState icon="library" title="Noch keine Spiele in der Bibliothek"
       action={<div className="lib-empty-actions"><Button variant="primary" onClick={() => onAddOpen(true)}><Icon name="plus" />Spiel hinzufügen</Button><Button onClick={onOpenWishlist}>Zur Wunschliste</Button></div>}>
       Füge gekaufte Spiele direkt hinzu, oder markiere sie auf der Wunschliste als gekauft; dann bleibt ihr Preisverlauf erhalten.</EmptyState></Panel>}
-    {!loading && items.length > 0 && <ul className={`lib${view === 'rows' ? ' rows' : ''}`} aria-label="Meine Spiele">
+    {!loading && items.length > 0 && visible.length === 0 && <Panel><p className="empty">Kein Spiel passt zu diesem Filter.</p></Panel>}
+    {!loading && visible.length > 0 && <ul className={`lib${view === 'rows' ? ' rows' : ''}`} aria-label="Meine Spiele">
       {visible.map(item => {
         const name = itemName(item);
         return <li key={item.id} className="lib-item">
@@ -133,7 +141,7 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
           </div>
           <div className="lib-info">
             <b title={name}>{name}</b>
-            {view === 'rows' && <span className="lib-sub">{platformName(item.platform_id)}</span>}
+            <span className="lib-sub">{platformName(item.platform_id)}</span>
           </div>
         </li>;
       })}

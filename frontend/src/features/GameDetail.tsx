@@ -17,6 +17,7 @@ import { money } from './price-format';
 import { itemName, platformName } from './catalog-ui';
 import { countryData } from './regions';
 import { useOffersView } from './useOffersView';
+import { PAUSE_WEEKS, pauseEnd, pauseText, weeksText } from './wish-pause';
 
 export const tabIds = ['preis', 'angebote', 'verlauf', 'editionen', 'alarm', 'infos'] as const;
 export type TabId = typeof tabIds[number];
@@ -30,6 +31,8 @@ type Props = {
   purchasing: boolean; onTab: (tab: TabId) => void; onPurchase: () => void; onRemove: () => void;
   /** Put the wish into the shopping cart or take it out (0.8.0). */
   carting: boolean; onCart: () => void;
+  /** Pause the wish's checks until `until` (unix seconds; null: until resumed), or resume them with false (0.9.0). */
+  pausing: boolean; onPause: (until: number | null | false) => void;
   /** An offer from the Angebote tab into the cart: its shop and price scope (0.8.1). */
   onCartOffer: (source: string, scope: 'home' | 'world') => void;
   offersColumns?: string[]; offersHidden?: string[];
@@ -62,7 +65,7 @@ function StatusPill({ view, summary, rule, searching, code }: { view: OffersView
 }
 
 function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
-  const { item, viewed, preview, variants, editionItems, editionError, badges, csrf, targetCountry, targetLabel, tab, purchasing, carting, onCart, onCartOffer, offersColumns, offersHidden, onTab, onPurchase, onRemove, onView, onClearPreview, onBadge, onSettings, onError, alert, rule } = props;
+  const { item, viewed, preview, variants, editionItems, editionError, badges, csrf, targetCountry, targetLabel, tab, purchasing, carting, onCart, pausing, onPause, onCartOffer, offersColumns, offersHidden, onTab, onPurchase, onRemove, onView, onClearPreview, onBadge, onSettings, onError, alert, rule } = props;
   const state = useOffersView(viewed.id, csrf, onError, onBadge);
   const { view } = state;
   const [basis, setBasis] = useState<Basis>('base');
@@ -101,6 +104,7 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
             {variants.map(g => <option key={g.igdb_id} value={g.igdb_id} disabled={!canView(g)}>{editionName(g)}{g.igdb_id === item.game?.igdb_id ? ' · gemerkt' : g.igdb_id === game?.igdb_id ? ' · Vorschau' : ''}</option>)}
           </select> : <Pill tone="warn" icon="alert">Manuell · ungeprüft</Pill>}
           <StatusPill view={view} summary={summary} rule={rule} searching={searching} code={code || 'Zielland'} />
+          {item.paused && <Pill tone="warn" icon="pause" className="pause-pill">{pauseText(item)}</Pill>}
         </div>
         {editionError && <span className="hint">{editionError}</span>}
       </div>
@@ -108,6 +112,16 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
         <Button onClick={() => go('alarm')}><Icon name="target" />{target !== null ? `Ziel ${money(target)}` : rule?.mode === 'low' ? 'Tiefstpreis-Alarm' : 'Ziel setzen'}</Button>
         <Button className={item.in_cart ? 'in-cart-btn' : undefined} aria-pressed={!!item.in_cart} loading={carting} onClick={onCart}
           title={item.in_cart ? 'Liegt im Warenkorb; klicken nimmt es wieder heraus' : undefined}>{!carting && <Icon name={item.in_cart ? 'check' : 'cart'} />}{item.in_cart ? 'Im Warenkorb' : 'In den Warenkorb'}</Button>
+        {item.paused
+          ? <Button className="paused-btn" loading={pausing} onClick={() => onPause(false)} title={`${pauseText(item)}; klicken setzt sie fort`}>{!pausing && <Icon name="play" />}Fortsetzen</Button>
+          : <Popover align="end" triggerLabel="Abfragen pausieren" triggerClassName="btn" panelClassName="pause-menu" menu
+            trigger={<><Icon name="pause" />Pausieren</>}>
+            {close => <>
+              <span className="label pause-menu-head">Abfragen pausieren für</span>
+              {PAUSE_WEEKS.map(weeks => <button key={weeks} type="button" role="menuitem" disabled={pausing} onClick={() => { close(); onPause(pauseEnd(weeks)); }}>{weeksText(weeks)}</button>)}
+              <button type="button" role="menuitem" disabled={pausing} onClick={() => { close(); onPause(null); }}>Bis ich fortsetze</button>
+            </>}
+          </Popover>}
         <Button loading={purchasing} onClick={onPurchase}>{!purchasing && <Icon name="bag" />}Gekauft</Button>
         <Popover menu align="end" triggerLabel="Weitere Aktionen" triggerClassName="icon-btn" trigger={<Icon name="more" />}>
           {close => <>

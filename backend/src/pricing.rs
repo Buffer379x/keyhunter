@@ -44,6 +44,19 @@ impl Reason {
     }
 }
 
+/// Member states of the EU: one market in which the shops sell a key at the same euro price (0.9.0).
+pub(crate) const EU: [&str; 27] = [
+    "AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GR", "HR", "HU", "IE", "IT",
+    "LT", "LU", "LV", "MT", "NL", "PL", "PT", "RO", "SE", "SI", "SK",
+];
+
+/// The shop page was read for a buyer in `context`; the price holds for `country` too when it is the
+/// same country or both are in the EU (0.9.0: before, only the exact country, so only DE ever matched,
+/// since the shops are read from a server in Germany). Activation stays a check of `country` itself.
+pub(crate) fn same_market(context: &str, country: &str) -> bool {
+    context == country || (EU.contains(&context) && EU.contains(&country))
+}
+
 /// Where a price has to be usable.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Scope {
@@ -150,7 +163,11 @@ pub(crate) fn evaluate(
                 "blocked" => reasons.push(Reason::ActivationBlocked),
                 _ => reasons.push(Reason::ActivationUnknown),
             }
-            if product.purchase_country.as_deref() != Some(country.as_str()) {
+            if !product
+                .purchase_country
+                .as_deref()
+                .is_some_and(|context| same_market(context, country))
+            {
                 reasons.push(Reason::PurchaseContextMismatch);
             }
         }
@@ -291,8 +308,12 @@ mod tests {
         assert!(reasons(&link(&unknown), &unknown, &de).contains(&Reason::ActivationUnknown));
         assert!(reasons(&link(&unknown), &unknown, &Scope::AllRegions).is_empty());
 
+        // 0.9.0: a purchase context elsewhere in the EU counts as the same market, one outside does not.
+        let mut neighbour = product();
+        neighbour.purchase_country = Some("AT".into());
+        assert!(reasons(&link(&neighbour), &neighbour, &de).is_empty());
         let mut elsewhere = product();
-        elsewhere.purchase_country = Some("AT".into());
+        elsewhere.purchase_country = Some("CH".into());
         assert_eq!(
             reasons(&link(&elsewhere), &elsewhere, &de),
             [Reason::PurchaseContextMismatch]

@@ -25,7 +25,7 @@ async function removeAll(page: Page) {
     await openWishlistRow(page, name);
     await removeCurrent(page);
   }
-  await expect(page.getByText(/^0 von 100 Plätzen/)).toBeVisible();
+  await expect(page.getByText(/^0 Spiele ·/)).toBeVisible();
 }
 const kpi = (page: Page, label: string) => page.locator('.kpi').filter({ has: page.locator('.label', { hasText: new RegExp(`^${label}$`) }) });
 const chip = (page: Page, name: string) => page.getByRole('group', { name: 'Filter', exact: true }).getByRole('button', { name: new RegExp(`^${name}`) });
@@ -77,7 +77,7 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
   await navTo(page, 'Wunschliste');
   await page.reload(); // alarm rules and the fetch status are read when the page loads
   await expect(page).not.toHaveURL(/item=/);
-  await expect(page.locator('.page-head p')).toHaveText(/^3 von 100 Plätzen · Zielland .+$/);
+  await expect(page.locator('.page-head p')).toHaveText(/^3 Spiele · Zielland .+$/);
 
   // KPI tiles
   await expect(kpi(page, 'Wünsche').locator('.kpi-val')).toHaveText('3Spiele');

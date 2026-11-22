@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Settings, SourceStatuses } from '../api';
-import { Button, Icon, TabPanel, Tabs } from '../components';
+import { Button, Icon, IconButton, TabPanel, Tabs } from '../components';
 import General from './settings/General';
 import Shops from './settings/Shops';
 import Index from './settings/Index';
@@ -15,6 +15,9 @@ import type { Section } from './settings/sections';
 import '../styles/settings.css';
 
 const OPERATIONS_GUIDE = 'https://github.com/Buffer379x/keyhunter/blob/main/docs/operations.md';
+/** The HTTPS notice, once closed, stays closed in this browser (0.9.0). */
+const HTTPS_SEEN = 'keyhunter.httpsNotice.dismissed';
+const readSeen = () => { try { return localStorage.getItem(HTTPS_SEEN) === '1'; } catch { return false; } };
 
 interface Props {
   /** The open tab; kept in the URL. */
@@ -48,6 +51,8 @@ function SaveBar({ auto }: { auto: SettingsDraft }) {
 
 export default function SettingsPage({ section, settings, auto, csrf, countries, sourceStatus, busy, onSection, onSourcesChanged, onError, onLogout }: Props) {
   const fetched = useFetchStatus(section === 'shops' || section === 'status');
+  const [httpsSeen, setHttpsSeen] = useState(readSeen);
+  const dismissHttps = () => { setHttpsSeen(true); try { localStorage.setItem(HTTPS_SEEN, '1'); } catch { /* closed for this visit */ } };
   const alerts = useAlertOverview();
   const igdbState = sourceStatus?.igdb?.state;
 
@@ -59,10 +64,11 @@ export default function SettingsPage({ section, settings, auto, csrf, countries,
       {(drafted || auto.dirty) && <SaveBar auto={auto} />}
     </header>
     <Tabs id="settings" label="Einstellungen" className="set-tabs" value={section} onChange={id => onSection(id as Section)} items={sections.map(({ id, label, icon }) => ({ id, label, icon }))} />
-    {location.protocol === 'http:' && <div className="note warn" role="note">
+    {location.protocol === 'http:' && !httpsSeen && <div className="note warn" role="note">
       <Icon name="alert" />
       <span><b>Verbindung ohne HTTPS.</b> Passphrase und Sitzung sind im Heimnetz mitlesbar. Für den Dauerbetrieb einen Reverse Proxy mit HTTPS einrichten.{' '}
         <a href={OPERATIONS_GUIDE} target="_blank" rel="noopener noreferrer">Anleitung<span className="sr-only"> (öffnet in neuem Tab)</span></a></span>
+      <IconButton className="note-close" variant="ghost" label="Hinweis ausblenden" onClick={dismissHttps}><Icon name="x" /></IconButton>
     </div>}
     {sections.map(({ id }) => <TabPanel key={id} id="settings" tab={id} value={section}>
       <div id="settings-panel" className="set-panel" data-section={id}>

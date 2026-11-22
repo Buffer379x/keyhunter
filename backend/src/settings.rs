@@ -14,9 +14,6 @@ pub(crate) fn valid_country(code: &str) -> bool {
     COUNTRY_CODES.split_whitespace().any(|v| v == code)
 }
 
-// Countries whose activation the shop readers can currently confirm.
-const CONFIRMED_ACTIVATION_COUNTRIES: [&str; 1] = ["DE"];
-
 #[derive(Serialize, Deserialize)]
 pub(crate) struct SourceSettings {
     id: String,
@@ -181,10 +178,8 @@ async fn load(state: &Shared) -> ApiResult<Settings> {
             .split_whitespace()
             .map(str::to_string)
             .collect(),
-        confirmed_activation_countries: CONFIRMED_ACTIVATION_COUNTRIES
-            .iter()
-            .map(|c| c.to_string())
-            .collect(),
+        // Countries whose offers can count in the target country: the EU market the shops are read in (0.9.0).
+        confirmed_activation_countries: crate::pricing::EU.iter().map(|c| c.to_string()).collect(),
     })
 }
 
