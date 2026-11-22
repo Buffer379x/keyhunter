@@ -111,11 +111,14 @@
   box-shadow: var(--shadow-pop);
 }
 .search-pop .label { padding: 6px 8px 4px; }
-.search-pop-head { display: flex; align-items: center; gap: 4px 8px; padding-right: 2px; flex-wrap: wrap; }
-.search-pop-head .label { white-space: nowrap; }
+/* (0.9.1) One line with a platform choice of fixed width: the systems arrive after the first open and used to widen it,
+ * so the head re-laid itself out and the close button jumped to a line of its own. */
+.search-pop-head { display: flex; align-items: center; gap: 4px 8px; padding-right: 2px; flex-wrap: nowrap; min-width: 0; }
+.search-pop-head .label { white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .search-pop-head .icon-btn { width: 28px; height: 28px; }
 .search-platform { height: 28px; padding: 0 8px; font-size: var(--t-xs); background: var(--panel-3); }
-.search-platform select { flex: none; width: auto; padding-right: 2px; }
+.search-platform { flex: none; }
+.search-platform select { flex: none; width: 132px; padding-right: 2px; text-overflow: ellipsis; }
 .search-pop .search-hint { margin: 0; padding: 6px 8px; color: var(--muted); font-size: var(--t-xs); }
 .search-pop .notice { margin: 4px; }
 

@@ -27,11 +27,15 @@ pub(crate) struct WishlistItem {
     /// Paused on its own (0.9.0): no automatic checks until `paused_until` (null: until resumed).
     paused: bool,
     paused_until: Option<i64>,
+    /// Offers of the confirmed products of active shops, one per seller price (0.9.1, the count of the tab Angebote).
+    offer_count: i64,
+    /// Mappings waiting for the owner (0.9.1): products not yet confirmed or rejected, and confirmed ones the shop renamed.
+    review_count: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) price_badge: Option<crate::price_badges::PriceBadge>,
 }
 macro_rules! items_sql {
-    ($suffix:literal) => { concat!("SELECT w.id, w.game_id, w.platform_id, w.created_at, g.manual_title, c.payload, EXISTS(SELECT 1 FROM cart_item k WHERE k.wish_id = w.id) AS in_cart, w.paused_at IS NOT NULL AND (w.paused_until IS NULL OR w.paused_until > CAST(strftime('%s','now') AS INTEGER)) AS paused, w.paused_until FROM wishlist_item w JOIN game g ON g.id = w.game_id LEFT JOIN catalog_game c ON c.igdb_id = g.igdb_id", $suffix) };
+    ($suffix:literal) => { concat!("SELECT w.id, w.game_id, w.platform_id, w.created_at, g.manual_title, c.payload, EXISTS(SELECT 1 FROM cart_item k WHERE k.wish_id = w.id) AS in_cart, w.paused_at IS NOT NULL AND (w.paused_until IS NULL OR w.paused_until > CAST(strftime('%s','now') AS INTEGER)) AS paused, w.paused_until, (SELECT COALESCE(SUM(json_array_length(l.latest, '$.offers')), 0) FROM offer_link l JOIN source_settings s ON s.id = l.source WHERE l.wish_id = w.id AND l.review = 'confirmed' AND s.enabled AND s.configured AND l.latest IS NOT NULL) AS offer_count, (SELECT COUNT(*) FROM offer_link l JOIN source_settings s ON s.id = l.source WHERE l.wish_id = w.id AND s.enabled AND s.configured AND (l.review = 'pending' OR (l.review = 'confirmed' AND l.confirmed_name IS NOT NULL AND l.confirmed_name != json_extract(l.latest, '$.name')))) AS review_count FROM wishlist_item w JOIN game g ON g.id = w.game_id LEFT JOIN catalog_game c ON c.igdb_id = g.igdb_id", $suffix) };
 }
 
 fn decode(row: SqliteRow) -> ApiResult<WishlistItem> {
@@ -64,6 +68,8 @@ fn decode(row: SqliteRow) -> ApiResult<WishlistItem> {
             .unwrap_or(false)
             .then(|| row.try_get("paused_until").ok().flatten())
             .flatten(),
+        offer_count: row.try_get("offer_count").unwrap_or(0),
+        review_count: row.try_get("review_count").unwrap_or(0),
         price_badge: None,
     })
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, HttpError } from '../api';
+import { notify } from '../notify';
 import { Button, ConfirmDialog, Help, Notice, Pill, Switch } from '../components';
 import type { IconName, PillTone } from '../ui';
 import { SettingsPanel } from './settings/parts';
@@ -29,13 +30,11 @@ const chips: Record<string, { tone: PillTone; text: string; icon: IconName }> = 
 export default function IgdbAccess({ state, configured, enabled, onEnabledChange, csrf, onChanged, onError }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
   const [confirmRemoval, setConfirmRemoval] = useState(false);
 
   async function change(method: 'PUT' | 'DELETE', form?: HTMLFormElement) {
     setBusy(true);
     setError('');
-    setMessage('');
     const fields = form ? new FormData(form) : null;
     const body = fields ? {
       client_id: String(fields.get('client_id') ?? '').trim(),
@@ -43,12 +42,13 @@ export default function IgdbAccess({ state, configured, enabled, onEnabledChange
     } : undefined;
     try {
       await api('/settings/igdb', method, body, csrf);
-      setMessage(method === 'PUT' ? 'IGDB-Zugang gespeichert und geprüft.' : 'IGDB-Zugang entfernt.');
+      notify(method === 'PUT' ? 'IGDB-Zugang gespeichert und geprüft.' : 'IGDB-Zugang entfernt.');
       setConfirmRemoval(false);
       onChanged();
     } catch (exception) {
       if (exception instanceof HttpError && exception.status === 401) onError(exception);
-      else setError(exception instanceof Error ? exception.message : 'IGDB-Zugang konnte nicht geändert werden.');
+      else if (method === 'DELETE') setError(exception instanceof Error ? exception.message : 'IGDB-Zugang konnte nicht geändert werden.');
+      else notify(exception instanceof Error ? exception.message : 'IGDB-Zugang konnte nicht geändert werden.', 'error');
     } finally {
       form?.reset();
       setBusy(false);
@@ -66,8 +66,6 @@ export default function IgdbAccess({ state, configured, enabled, onEnabledChange
       <Help label="Hilfe zum IGDB-Zugang"><span>Spielesuche, Editionen, Cover und Artwork. IGDB ist unabhängig von den Key-Shops.</span>
         <span>Hinterlege die Client-ID und das Client Secret deiner Twitch-Anwendung. Die Werte liegen geschützt im Datenverzeichnis und werden nie angezeigt. Backups des Datenverzeichnisses enthalten sie.</span></Help></>}>
     <form className="form-grid" method="post" onSubmit={save} autoComplete="off">
-      {error && <Notice error>{error}</Notice>}
-      {message && <Notice>{message}</Notice>}
       <div className="set-two">
         <div className="form-row"><label htmlFor="igdb-client-id">Client-ID</label>
           <input id="igdb-client-id" name="client_id" required maxLength={512} spellCheck={false} autoCapitalize="none" disabled={busy}

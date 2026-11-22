@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, HttpError } from '../api';
+import { notify } from '../notify';
 import type { PriceBadgeData } from '../api';
 import { whenVisible } from '../poll';
 import type { OffersView } from './offers-model';
@@ -9,7 +10,6 @@ export function useOffersView(id: string, csrf: string, onError: (error: unknown
   const path = `/wishlist/${encodeURIComponent(id)}/offers`;
   const [view, setView] = useState<OffersView | null>(null);
   const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [reload, setReload] = useState(0);
   const latest = useRef(0);
@@ -37,12 +37,13 @@ export function useOffersView(id: string, csrf: string, onError: (error: unknown
     return () => { controller.abort(); cancel(); };
   }, [path, reload, onError, onBadge, id]);
   const write = useCallback(async (endpoint: string, method: string, body: unknown, success = '') => {
-    setBusy(true); setError(''); setMessage('');
-    try { await api(path + endpoint, method, body, csrf); setMessage(success); setReload(n => n + 1); return true; }
-    catch (e) { setError(e instanceof Error ? e.message : 'Angebotsänderung fehlgeschlagen.'); if (e instanceof HttpError && e.status === 401) onError(e); return false; }
+    setBusy(true);
+    // The result of a change is a popup (0.9.1); `error` stays the read error with its "Erneut laden".
+    try { await api(path + endpoint, method, body, csrf); notify(success); setReload(n => n + 1); return true; }
+    catch (e) { if (e instanceof HttpError && e.status === 401) onError(e); else notify(e instanceof Error ? e.message : 'Angebotsänderung fehlgeschlagen.', 'error'); return false; }
     finally { setBusy(false); }
   }, [path, csrf, onError]);
   const refetch = useCallback(() => setReload(n => n + 1), []);
-  return { view, error, message, busy, write, refetch };
+  return { view, error, busy, write, refetch };
 }
 export type OffersState = ReturnType<typeof useOffersView>;

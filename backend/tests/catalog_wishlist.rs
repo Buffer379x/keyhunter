@@ -1901,12 +1901,26 @@ async fn a_renamed_confirmed_product_keeps_its_price_and_shows_a_hint() {
     let link: i64 = sqlx::query_scalar("INSERT INTO offer_link(wish_id,source,url,latest,observed_at) VALUES(?,'eneba','https://www.eneba.com/de/xbox-example-key-global',?,?) RETURNING id")
         .bind(&id).bind(product("Example Xbox Key").to_string()).bind(t).fetch_one(&pool).await.unwrap();
     let offers = format!("/api/v1/wishlist/{id}/offers");
+    // 0.9.1: the wishlist counts the offers and the mappings waiting for the owner.
+    async fn counts(f: &Fixture) -> (Option<i64>, Option<i64>) {
+        let (_, list) = f.call("GET", "/api/v1/wishlist", Value::Null).await;
+        (
+            list[0]["offer_count"].as_i64(),
+            list[0]["review_count"].as_i64(),
+        )
+    }
+    assert_eq!(
+        counts(&f).await,
+        (Some(0), Some(1)),
+        "unconfirmed: no offer yet, one to review"
+    );
     f.call(
         "PUT",
         &format!("{offers}/{link}"),
         json!({"decision":"confirmed"}),
     )
     .await;
+    assert_eq!(counts(&f).await, (Some(1), Some(0)));
     assert_eq!(
         f.call("GET", &offers, Value::Null).await.1["links"][0]["renamed"],
         Value::Null
@@ -1924,6 +1938,11 @@ async fn a_renamed_confirmed_product_keeps_its_price_and_shows_a_hint() {
     );
     assert_eq!(view["links"][0]["eligible"], true, "the price still counts");
     assert_eq!(view["best_base"], 1250);
+    assert_eq!(
+        counts(&f).await,
+        (Some(1), Some(1)),
+        "renamed: still an offer, worth a look"
+    );
     // Confirming again accepts the new title.
     f.call(
         "PUT",

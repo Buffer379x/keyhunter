@@ -1,8 +1,15 @@
 /* Warenkorb (0.8.0): the games, then the totals by shop. Tokens only. */
-/* (0.9.0) The totals always stand below the games: next to them the table lost its last columns (the remove button needed
- * scrolling) at the page's maximum width of 1320 px. */
+/* (0.9.1) The games on the left, the totals on the right again, once the page is wide enough for the whole table next to
+ * them (DE/INT sits under the shop since 0.9.1, so the remove button never needs scrolling); below that one column. */
+.cart-page { container-type: inline-size; }
 .cart-page .cart-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
 .cart-page .cart-sum { max-width: 640px; }
+@container (min-width: 1120px) {
+  .cart-page .cart-grid { grid-template-columns: minmax(0, 1fr) 320px; }
+  .cart-page .cart-sum { max-width: none; position: sticky; top: 72px; }
+}
+.cart-page .cart-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 6px; }
+.cart-page .cart-scope .cart-region { margin-top: 0; }
 .cart-page .cart-table .game-cell { min-width: 180px; }
 .cart-page .cart-table .gcover { width: 30px; height: 40px; border-radius: 5px; border: 1px solid var(--cover-line); box-shadow: none; flex: none; }
 .cart-page .cart-table .gcover .gcover-title { font: 600 10px/1 var(--f-sans); letter-spacing: .02em; color: var(--cover-text); }
@@ -12,7 +19,7 @@
 /* Per entry (0.8.1): the shop ("Günstigster" or a fixed one) with the region of the counted offer, and DE/INT. */
 .cart-page .cart-table td.c-shop select { width: auto; min-width: 150px; max-width: 220px; height: 30px; font-size: var(--t-xs); }
 .cart-page .cart-region { display: flex; align-items: center; gap: 6px; margin-top: 4px; color: var(--muted); font-size: var(--t-xs); }
-.cart-page .cart-table td.c-scope .seg button { height: 24px; padding: 0 10px; }
+.cart-page .cart-table .cart-scope .seg button { height: 24px; padding: 0 10px; }
 .cart-page .cart-table tr.chosen td.c-shop select { border-color: var(--accent); }
 .cart-page .cart-extra { display: grid; gap: 4px; margin: 12px 0 0; padding: 10px 12px; border: 1px solid var(--accent); border-radius: var(--r-sm); }
 .cart-page .cart-extra dt { color: var(--text-2); font-size: var(--t-xs); }
@@ -43,13 +50,12 @@
 @media (max-width: 720px) {
   .cart-page .cart-table thead { display: none; }
   .cart-page .cart-table, .cart-page .cart-table tbody { display: block; }
-  .cart-page .cart-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "g x" "s c" "k t" "f f"; gap: 8px 10px; padding: 12px; border-bottom: 1px solid var(--line); }
+  .cart-page .cart-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "g x" "s s" "k t" "f f"; gap: 8px 10px; padding: 12px; border-bottom: 1px solid var(--line); }
   .cart-page .cart-table td { border: 0; padding: 0; }
   .cart-page .cart-table td.c-game { grid-area: g; }
   .cart-page .cart-table td.c-remove { grid-area: x; justify-self: end; }
   .cart-page .cart-table td.c-shop { grid-area: s; }
   .cart-page .cart-table td.c-shop select { min-width: 0; max-width: 100%; width: 100%; }
-  .cart-page .cart-table td.c-scope { grid-area: c; align-self: start; }
   .cart-page .cart-table td.c-total { grid-area: t; }
   .cart-page .cart-table td.c-key { grid-area: k; text-align: left; }
   .cart-page .cart-table td.c-key::before { content: "Key "; color: var(--muted); font-size: var(--t-xs); }

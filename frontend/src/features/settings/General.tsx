@@ -26,7 +26,6 @@ export default function General({ settings, countries, edit, onError }: {
   settings: Settings; countries: { code: string; name: string }[]; edit: SettingsDraft['edit']; onError: (error: unknown) => void;
 }) {
   const [exporting, setExporting] = useState(false);
-  const [exportError, setExportError] = useState('');
   const confirmed = settings.confirmed_activation_countries ?? [];
   const nameOf = (code: string) => countries.find(c => c.code === code)?.name ?? code;
   const target = settings.target_country;
@@ -34,11 +33,11 @@ export default function General({ settings, countries, edit, onError }: {
   const targetName = target ? nameOf(target) : 'Zielland';
 
   async function exportList() {
-    setExporting(true); setExportError('');
+    setExporting(true);
     try {
       const rows = await api<WishlistItem[]>('/wishlist');
       downloadJson('keyhunter-wunschliste.json', wishlistExport(rows));
-    } catch (e) { setExportError(e instanceof Error ? e.message : 'Die Wunschliste konnte nicht exportiert werden.'); onError(e); }
+    } catch (e) { onError(e); } // a popup (0.9.1)
     finally { setExporting(false); }
   }
   return <>
@@ -66,7 +65,6 @@ export default function General({ settings, countries, edit, onError }: {
           <div className="with-help"><h3 className="set-row-title">Wunschliste exportieren</h3><Help label="Hilfe zum Export">Titel, Plattform, IGDB-ID, Art und Prüfstatus als JSON-Datei.</Help></div>
           <Button loading={exporting} onClick={() => void exportList()}><Icon name="download" />Exportieren</Button>
         </div>
-        {exportError && <Notice error>{exportError}</Notice>}
       </div>
     </SettingsPanel>
   </>;

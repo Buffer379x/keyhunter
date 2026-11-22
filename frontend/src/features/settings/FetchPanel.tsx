@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { EmptyState, Help, Icon, Inset, Label, Panel, PanelHead, Pill } from '../../components';
 import type { FetchShopStatus, FetchStatusResponse, RunPage, UpcomingFetch } from '../../api';
 import { relativeTime } from '../../time';
@@ -72,16 +71,16 @@ const gameText = (game: string | null, region: string | null) => game ? <><b>{ga
 
 /** Abrufe (0.8.3): every recorded fetch with the game it was for, by result and full text, page by page. */
 function Runs() {
-  const [tone, setTone] = useState<ToneFilter>('');
-  const list = usePaged<RunPage>('/status/fetch/runs', 'tone', tone, 'keyhunter.runs.perPage');
+  const list = usePaged<RunPage, ToneFilter>('/status/fetch/runs', 'tone', 'keyhunter.list.runs', tones.map(t => t.value), '');
+  const tone = list.filter;
   const { data } = list;
   return <Panel aria-labelledby="runs-title" className="paged">
     <PanelHead className="paged-title"><Label as="h2" tone="soft" id="runs-title">Abrufe</Label>
       <Help label="Hilfe zu den Abrufen"><span>Jede Abfrage der Shops mit Spiel, Art und Ergebnis, die neueste zuerst. Die Suche findet Spiel, Shop, Ziel und Ergebnis.</span>
         <span>„Nicht gefunden“ und „Abruflimit erreicht“ sind Warnungen: KeyHunter versucht es später von selbst wieder. Aufgezeichnet werden die letzten 30 Tage.</span></Help>
     </PanelHead>
-    <PagedTools label="Abrufe" filter={tone} filters={tones} onFilter={setTone} text={list.text} onText={list.setText} placeholder="Spiel, Shop, Ergebnis …"
-      perPage={list.perPage} onPerPage={list.choosePerPage} />
+    <PagedTools label="Abrufe" filter={tone} filters={tones} onFilter={list.setFilter} text={list.text} onText={list.setText} placeholder="Spiel, Shop, Ergebnis …"
+      perPage={list.perPage} onPerPage={list.setPerPage} />
     <Inset className="table-wrap set-runs">
       {!data ? <p className="hint set-pad" role="status">{list.failed ? 'Die Abrufe konnten nicht gelesen werden.' : 'Abrufe werden geladen …'}</p>
         : data.runs.length === 0 ? <p className="hint set-pad">{tone || list.text.trim() ? 'Kein Abruf passt zu diesem Filter.' : 'Noch keine Abrufe aufgezeichnet.'}</p>

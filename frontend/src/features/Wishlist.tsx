@@ -14,11 +14,13 @@ import type { SortKey, WishlistSort } from './wishlist-sort';
 import { addedTicks, alarmSentToday, cheaperKpi, fetchKpi, filterShops, matchesChip, matchesText, reachedTrend, rowFacts, shortTitle } from './wishlist-model';
 import { shopNames } from './shop-names';
 import { pauseText } from './wish-pause';
+import { PageSize, Pager, pageCount, useListView } from './list-view';
 import type { ChipFilter, PriceBasis, Row, RowFacts } from './wishlist-model';
 import { itemName } from './catalog-ui';
 import { whenVisible } from '../poll';
 import { columnOrder, openMode, visibleColumns } from './wishlist-columns';
 import type { WishlistColumn } from './wishlist-columns';
+import { notify } from '../notify';
 
 interface Props {
   csrf: string; targetCountry: string | null; targetLabel: string;
@@ -73,6 +75,7 @@ const routeSelection = () => new URL(window.location.href).searchParams.get('ite
 const routeFilter = () => new URL(window.location.href).searchParams.get('filter') ?? '';
 const scroller = () => document.getElementById('main-content');
 type AlertRules = Record<string, Rule>;
+const CHIPS: ChipFilter[] = ['alle', 'ziel', 'welt', 'offen', 'pause'];
 const chipLabels: [ChipFilter, string][] = [['alle', 'Alle'], ['ziel', 'Ziel erreicht'], ['welt', 'Weltweit günstiger'], ['offen', 'Ohne Preis'], ['pause', 'Pausiert']];
 const count = (value: number) => value.toLocaleString('de-DE');
 /** A tile without a footer value keeps an empty footer row, so all four tiles stay the same height. */
@@ -86,9 +89,13 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState('');
-  const [message, setMessage] = useState('');
-  const [filter, setFilter] = useState(routeFilter);
-  const [chip, setChip] = useState<ChipFilter>('alle');
+  /** Messages after an action are popups at the bottom right (0.9.1). */
+  const setMessage = notify;
+  // The view (chip, search, page size, page) is kept when the owner leaves the list and comes back (0.9.1).
+  const view = useListView<ChipFilter>('keyhunter.list.wishlist', CHIPS, 'alle');
+  const chip = view.filter;
+  const setChip = view.setFilter;
+  const [filter, setFilter] = useState(() => routeFilter() || view.text);
   const [selectedId, setSelectedId] = useState<string | null>(routeSelection);
   const [preview, setPreview] = useState<WishlistItem | null>(null);
   // Prices without or with the estimated shop fees (0.7.3); a view choice of this browser, like the sort.
@@ -249,7 +256,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
     if (url.href !== window.location.href) window.history.pushState(depth ? { [FROM_LIST]: depth + 1 } : null, '', url);
   }
   function filterList(value: string) {
-    setFilter(value);
+    setFilter(value); view.setText(value); view.setPage(1);
     const url = new URL(window.location.href);
     if (value) url.searchParams.set('filter', value); else url.searchParams.delete('filter');
     window.history.replaceState(window.history.state, '', url);
@@ -340,6 +347,9 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
   const shops = filterShops(filter, SHOP_NAMES);
   const matching = items.filter(item => (chip === 'pause' ? !!item.paused : matchesChip(facts[item.id], chip)) && matchesText([itemName(item), ...(item.game?.aliases ?? [])], facts[item.id], filter, shops));
   const visible = sortWishlist(matching, facts, sort);
+  // Page by page (0.9.1), like the log; a list that shrank shows its last page.
+  const page = Math.min(view.page, pageCount(visible.length, view.perPage));
+  const shown = visible.slice((page - 1) * view.perPage, page * view.perPage);
   const priced = all.filter(row => row.facts.price !== null).length;
   const reachedCount = all.filter(row => row.facts.reached).length;
   const chipCounts: Record<ChipFilter, number> = { alle: items.length, ziel: reachedCount, welt: all.filter(row => matchesChip(row.facts, 'welt')).length, offen: items.length - priced, pause: items.filter(item => item.paused).length };
@@ -381,7 +391,6 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
 
   // The game as its own page (breadcrumb "Wunschliste › Titel" through onTitle).
   if (selected && viewed) return <>
-    {message && <Notice>{message}</Notice>}
     <GameDetail key={selected.id} item={selected} viewed={viewed} preview={!!preview} variants={variants} editionItems={editionItems} editionError={editionError} badges={badges}
       csrf={csrf} targetCountry={targetCountry} targetLabel={targetLabel} tab={tab} purchasing={purchasing} carting={carting} onCart={() => void toggleCart()} pausing={pausing} onPause={until => void pauseWish(until)} onCartOffer={(source, scope) => void cartOffer(source, scope)} offersColumns={offersColumns} offersHidden={offersHidden} onTab={changeTab} onBack={closeDetail} onPurchase={() => void purchase()}
       onRemove={() => { setRemoveError(''); setRemoveItem(selected); }} onView={chooseEdition} onClearPreview={() => setPreview(null)} onBadge={updateBadge} onSettings={onSettings} onError={onError} onRule={updateRule} />
@@ -398,7 +407,6 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
         <Help label="Hilfe zur Wunschliste"><span>„Preis {targetCountry || 'Zielland'}“ ist der beste Preis eines im Zielland aktivierbaren Keys, „Preis INT“ die günstigste Region weltweit. Verglichen werden alle Regionen, abgefragt werden alle gleich.</span>
           <span>Das Suchfeld filtert nach Titel; ein Shop-Name zeigt die Spiele, bei denen dieser Shop am günstigsten ist.</span></Help></div><p>{sub}</p></div>
     </header>
-    {message && <Notice>{message}</Notice>}
     {!loading && selectedId && !selected && <Notice>Der verlinkte Eintrag ist nicht mehr in deiner Wunschliste.</Notice>}
     {listError && <Notice error>{listError}<Button onClick={() => void load()}>Liste erneut laden</Button></Notice>}
     {ready && items.length > 0 && <div className="kpis">
@@ -421,6 +429,7 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
         <Seg className="wl-basis" label="Preise" value={basis} onChange={chooseBasis}
           options={[{ value: 'base', label: 'Ohne Gebühren' }, { value: 'estimate', label: 'Mit Gebühren' }]} />
         <Field icon="search" className="wl-q"><input type="search" placeholder="Spiel oder Shop filtern …" aria-label="Liste filtern" value={filter} maxLength={200} onChange={event => filterList(event.target.value)} disabled={!ready || items.length === 0} /></Field>
+        <PageSize value={view.perPage} onChange={view.setPerPage} />
       </PanelHead>
       <Inset className="table-wrap">
         {loading ? <p className="empty" role="status">Wunschliste wird geladen …</p>
@@ -430,11 +439,12 @@ export default function Wishlist({ csrf, targetCountry, targetLabel, columns, hi
               : <>{shops.length > 0 && <p className="wl-shop-note" role="status">{shops.map(id => SHOP_NAMES[id]).join(', ')}: Spiele, bei denen {shops.length === 1 ? 'dieser Shop' : 'einer dieser Shops'} den günstigsten Preis {code || 'im Zielland'} oder INT hat.</p>}
               <table className="wl" aria-label="Vorgemerkte Spiele">
                 <thead><tr>{order.map(column => headers[column])}</tr></thead>
-                <tbody>{visible.map(item => <WishlistRow key={item.id} item={item} badge={badges[item.id] ?? item.price_badge} facts={facts[item.id]} columns={order} mode={mode} code={code} compare
+                <tbody>{shown.map(item => <WishlistRow key={item.id} item={item} badge={badges[item.id] ?? item.price_badge} facts={facts[item.id]} columns={order} mode={mode} code={code} compare
                   scopeLabel={scopeLabel} targetDisabled={!!alerts[item.id] && !alerts[item.id].enabled} onOpen={() => open(item.id)}
                   openRef={element => { if (element) rows.current.set(item.id, element); else rows.current.delete(item.id); }} />)}</tbody>
               </table></>}
       </Inset>
+      {ready && visible.length > 0 && <Pager label="Wunschliste" total={visible.length} page={page} perPage={view.perPage} onPage={view.setPage} />}
     </Panel>
     {dialogs}
   </div>;

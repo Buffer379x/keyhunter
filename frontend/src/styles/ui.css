@@ -201,3 +201,31 @@ tbody tr.click:hover td { background: var(--panel-3); }
 .form-row > .with-help { display: flex; align-items: center; gap: 2px; font-size: var(--t-xs); color: var(--text-2); }
 .form-row > .with-help .help-btn { width: 20px; height: 20px; }
 .with-help { display: flex; align-items: center; gap: 2px; min-width: 0; }
+
+/* Popups at the bottom right (0.9.1): messages after an action, so the page layout never shifts. */
+.toaster { position: fixed; z-index: var(--z-toast); right: 16px; bottom: 16px; display: grid; gap: 8px; width: min(380px, calc(100vw - 32px)); pointer-events: none; }
+.toaster-list { display: grid; gap: 8px; }
+.toaster-list:empty { display: none; }
+.toast-pop {
+  display: flex; align-items: flex-start; gap: 10px; padding: 10px 6px 10px 12px; pointer-events: auto;
+  background: var(--panel-3); border: 1px solid var(--line-2); border-left: 3px solid var(--ok); border-radius: var(--r-md); box-shadow: var(--shadow-pop);
+  color: var(--text); font-size: var(--t-sm); line-height: 1.45; animation: toast-in .18s ease-out;
+}
+.toast-pop > svg { width: 16px; height: 16px; flex: none; margin-top: 2px; color: var(--ok); }
+.toast-pop.info { border-left-color: var(--accent); }
+.toast-pop.info > svg { color: var(--accent); }
+.toast-pop.error { border-left-color: var(--danger); }
+.toast-pop.error > svg { color: var(--danger); }
+.toast-pop .toast-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.toast-pop .icon-btn { width: 26px; height: 26px; margin-top: -3px; flex: none; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) { .toast-pop { animation: none; } }
+
+/* Paged lists (0.9.1: Log, Abrufe, Wunschliste): page size in the head, the pager below the list. */
+.page-size { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: var(--t-xs); white-space: nowrap; }
+.page-size select { width: auto; height: var(--h-btn); }
+.pager { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: var(--t-xs); }
+.pager .icon-btn { width: 30px; height: 30px; }
+.pager-at { padding: 0 6px; white-space: nowrap; }
+.pager-at b { color: var(--text); font-weight: 500; }
+@media (max-width: 720px) { .pager-at { display: none; } }

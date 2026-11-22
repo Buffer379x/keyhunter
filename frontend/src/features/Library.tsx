@@ -6,6 +6,7 @@ import { Cover, itemName, platformName } from './catalog-ui';
 import CatalogSearch from './CatalogSearch';
 import { libraryItems } from './library-sort';
 import '../styles/library.css';
+import { notify } from '../notify';
 
 type Order = 'added' | 'name';
 type View = 'tiles' | 'rows';
@@ -43,7 +44,7 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
   // A–Z is the default (0.6.5); a new key, so the earlier default "Zuletzt gekauft" does not stick.
   const [sort, setSort] = useState<Order>(() => stored(SORT_KEY, 'name') === 'added' ? 'added' : 'name');
   const [view, setView] = useState<View>(() => stored(VIEW_KEY, 'tiles') === 'rows' ? 'rows' : 'tiles');
-  const [message, setMessage] = useState('');
+  const setMessage = notify;
   /** Full-text filter of the tiles and the list (0.9.0): title, edition and system; empty shows everything. */
   const [query, setQuery] = useState('');
   const systems = [...new Set(items.map(item => item.platform_id))].sort((a, b) => platformName(a).localeCompare(platformName(b), 'de'));
@@ -118,7 +119,6 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
         label={unlocked ? 'Bearbeiten sperren' : 'Bearbeiten entsperren'}><Icon name={unlocked ? 'unlock' : 'lock'} /></IconButton>
       </>}
     </>} />
-    {message && <Notice>{message}</Notice>}
     {loadError && <Notice error>{loadError}<Button size="sm" onClick={() => setReload(n => n + 1)}>Erneut laden</Button></Notice>}
     {loading && <>
       <p className="sr-only" role="status">Bibliothek wird geladen …</p>

@@ -58,7 +58,8 @@ test('a webhook channel is saved, tested against a local receiver and never show
     const answer = await (await saved).text();
     expect(answer).not.toContain(TOKEN);
     expect(answer).not.toContain(hook.url);
-    await expect(panel.getByText('Webhook ist gespeichert und aktiv.', { exact: true })).toBeVisible();
+    // 0.9.1: results are popups at the bottom right.
+    await expect(page.locator('.toast-pop').filter({ hasText: 'Webhook ist gespeichert und aktiv.' })).toBeVisible();
     // The secret fields stay empty and only say that something is stored.
     for (const field of [url, token]) {
       await expect(field).toHaveValue('');
@@ -69,12 +70,12 @@ test('a webhook channel is saved, tested against a local receiver and never show
     await expect(panel.getByRole('switch', { name: 'Webhook Aktiv' })).toBeChecked();
 
     await panel.getByRole('button', { name: 'Test senden' }).click();
-    await expect(panel.getByText('Testnachricht über Webhook gesendet.', { exact: true })).toBeVisible();
+    await expect(page.locator('.toast-pop').filter({ hasText: 'Testnachricht über Webhook gesendet.' })).toBeVisible();
     expect(hook.hits).toHaveLength(1);
     expect(hook.hits[0]).toMatchObject({ path: '/keyhunter', auth: `Bearer ${TOKEN}`, body: { event: 'test', title: 'KeyHunter: Testnachricht' } });
     status = 500;
     await panel.getByRole('button', { name: 'Test senden' }).click();
-    await expect(panel.getByRole('alert')).toHaveText('Testnachricht über Webhook fehlgeschlagen: HTTP 500 · Internal Server Error');
+    await expect(page.locator('.toast-pop.error')).toHaveText('Testnachricht über Webhook fehlgeschlagen: HTTP 500 · Internal Server Error');
 
     // After a reload the page knows the channel but not its secrets.
     const listed = await (await page.request.get('/api/v1/alerts/channels')).text();
@@ -95,12 +96,12 @@ test('a webhook channel is saved, tested against a local receiver and never show
     await channelTabs(page).getByRole('tab', { name: 'Webhook', exact: true }).click();
     // The switch saves at once and follows the confirmed state.
     await channels(page).getByRole('switch', { name: 'Webhook Aktiv' }).click();
-    await expect(channels(page).getByText('Webhook ist ausgeschaltet.', { exact: true })).toBeVisible();
+    await expect(page.locator('.toast-pop').filter({ hasText: 'Webhook ist ausgeschaltet.' })).toBeVisible();
     await expect(channels(page).getByRole('switch', { name: 'Webhook Aktiv' })).not.toBeChecked();
     await expect(channelTabs(page).getByRole('tab', { name: 'Webhook · aus', exact: true })).toBeVisible();
     await channels(page).getByRole('button', { name: 'Entfernen', exact: true }).click();
     await page.getByRole('dialog', { name: 'Webhook entfernen?' }).getByRole('button', { name: 'Entfernen bestätigen' }).click();
-    await expect(channels(page).getByText('Webhook ist entfernt.', { exact: true })).toBeVisible();
+    await expect(page.locator('.toast-pop').filter({ hasText: 'Webhook ist entfernt.' })).toBeVisible();
     await expect(channels(page).getByLabel('Webhook-URL', { exact: true })).toHaveAttribute('placeholder', 'https://example.org/keyhunter');
   } finally {
     await hook.close();
@@ -115,7 +116,7 @@ test('invalid addresses are refused with a reason and nothing is stored', async 
   await panel.getByLabel('Webhook-URL', { exact: true }).fill('http://hooks.example.org/kh');
   await panel.getByLabel('Bearer-Token (optional)', { exact: true }).fill(TOKEN);
   await panel.getByRole('button', { name: 'Speichern', exact: true }).click();
-  await expect(panel.getByRole('alert')).toHaveText('Über http gehen Zugangsdaten nur an Server im lokalen Netz. Verwende eine https-Adresse.');
+  await expect(page.locator('.toast-pop.error')).toHaveText('Über http gehen Zugangsdaten nur an Server im lokalen Netz. Verwende eine https-Adresse.');
   expect(await (await page.request.get('/api/v1/alerts/channels')).text()).not.toContain(TOKEN);
 });
 

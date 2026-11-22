@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, HttpError } from '../../api';
+import { notify } from '../../notify';
 import type { ChannelView } from '../../api';
 import { Button, ConfirmDialog, Help, Icon, Notice, Pill, Switch, TabPanel, Tabs } from '../../components';
 import { SettingsPanel } from './parts';
@@ -16,7 +17,6 @@ function status(view: ChannelView) {
 function ChannelForm({ view, csrf, onChange, onError }: { view: ChannelView; csrf: string; onChange: (next: ChannelView) => void; onError: (error: unknown) => void }) {
   const [values, setValues] = useState(() => channelValues(view));
   const [busy, setBusy] = useState<'' | 'save' | 'test' | 'remove'>('');
-  const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [confirm, setConfirm] = useState(false);
   const fields = channelFields[view.kind];
@@ -24,11 +24,14 @@ function ChannelForm({ view, csrf, onChange, onError }: { view: ChannelView; csr
   const path = `/alerts/channels/${view.kind}`;
 
   async function run(kind: 'save' | 'test' | 'remove', action: () => Promise<string>) {
-    setBusy(kind); setMessage(''); setError('');
-    try { setMessage(await action()); }
+    setBusy(kind); setError('');
+    // Results are popups (0.9.1); only the remove dialog keeps its error inside, above the popups' layer.
+    try { notify(await action()); }
     catch (exception) {
+      const text = exception instanceof Error ? exception.message : 'Die Anfrage konnte nicht abgeschlossen werden.';
       if (exception instanceof HttpError && exception.status === 401) onError(exception);
-      else setError(exception instanceof Error ? exception.message : 'Die Anfrage konnte nicht abgeschlossen werden.');
+      else if (kind === 'remove') setError(text);
+      else notify(text, 'error');
     } finally { setBusy(''); }
   }
   function show(next: ChannelView) {
@@ -78,8 +81,6 @@ function ChannelForm({ view, csrf, onChange, onError }: { view: ChannelView; csr
               placeholder={saved ? SECRET_SAVED : fromFile ? 'kommt aus /config/ntfy.env' : field.placeholder} />}
         </div>;
       })}
-      {error && <Notice error>{error}</Notice>}
-      {message && <Notice>{message}</Notice>}
       <div className="set-actions">
         <Button type="submit" variant="primary" disabled={busy !== ''} loading={busy === 'save'}>Speichern</Button>
         <Button type="button" disabled={busy !== '' || (!view.configured && !dirty)} loading={busy === 'test'} onClick={test}><Icon name="send" />Test senden</Button>
