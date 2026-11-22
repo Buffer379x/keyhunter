@@ -34,3 +34,5 @@
   .alerts-page .delivery-table .c-time { grid-area: t; color: var(--muted); font-size: var(--t-xs); }
   .alerts-page .delivery-table .c-price { grid-area: p; }
 }
+.alerts-page .delivery-channels { display: block; margin-top: 4px; }
+.alerts-page .head-actions > .text-button { display: inline-flex; align-items: center; } /* (0.9.0) "Kanal einrichten" centred on the pill */

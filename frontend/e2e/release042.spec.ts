@@ -53,15 +53,15 @@ test('library exposes system filters and alphabet (default) or acquisition sorti
   // 0.6.5: A–Z is the default and the first option.
   await expect(sort.getByRole('radio')).toHaveText(['A–Z','Zuletzt gekauft']);
   await expect(sort.getByRole('radio',{name:'A–Z',exact:true})).toBeChecked();
-  await expect(list.locator('.lib-info')).toHaveText(['Älterer Titel','Forza','Zelda']);
+  await expect(list.locator('.lib-info b')).toHaveText(['Älterer Titel','Forza','Zelda']);
   await sort.getByRole('radio',{name:'Zuletzt gekauft',exact:true}).click();
-  await expect(list.locator('.lib-info')).toHaveText(['Zelda','Älterer Titel','Forza']);
+  await expect(list.locator('.lib-info b')).toHaveText(['Zelda','Älterer Titel','Forza']);
   await page.getByLabel('Bibliothek nach System filtern',{exact:true}).selectOption('169');
-  await expect(list.locator('.lib-info')).toHaveText(['Zelda','Forza']);
+  await expect(list.locator('.lib-info b')).toHaveText(['Zelda','Forza']);
   await page.reload();await expect(page.getByLabel('Bibliothek nach System filtern',{exact:true})).toHaveValue('169');
   await expect(sort.getByRole('radio',{name:'Zuletzt gekauft',exact:true})).toBeChecked();
   await sort.getByRole('radio',{name:'A–Z',exact:true}).click();
-  await expect(list.locator('.lib-info')).toHaveText(['Forza','Zelda']);
+  await expect(list.locator('.lib-info b')).toHaveText(['Forza','Zelda']);
   await page.setViewportSize({width:320,height:844});
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });

@@ -1,23 +1,26 @@
 use crate::{
     ApiError, ApiResult, Shared, auth,
     eventlog::{self, Area, Level},
+    notify::{self, Alert, Event, Kind, Notifier},
     now, offers,
-    shops::Product,
+    shops::{Product, Shop},
 };
 use axum::{
     Json,
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
 };
-use reqwest::{Client, header::HeaderValue, redirect::Policy};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::{FromRow, SqliteConnection, SqlitePool};
-use std::{os::unix::fs::PermissionsExt, path::Path as FsPath, sync::Arc, time::Duration};
-use url::Url;
+use std::{sync::Arc, time::Duration};
 
 const DAY: i64 = 86400;
 const COOLDOWN: i64 = DAY;
+/// Deliveries of one alert per channel before it counts as failed.
+const ATTEMPTS: i64 = 3;
+/// How long the worker holds an alert while it sends through every channel (each send times out after 10–15 s).
+const LEASE: i64 = 300;
 const BAD_RULE: ApiError = ApiError(StatusCode::BAD_REQUEST, "Prüfe Alarmart und Zielpreis.");
 const NEED_COUNTRY: ApiError = ApiError(StatusCode::CONFLICT, "Wähle zuerst ein Zielland.");
 
@@ -61,8 +64,9 @@ pub(crate) async fn get_rule(
         target_cents: r.target_cents,
         enabled: r.enabled,
     });
+    let channels = state.notifier.active_names(&state.pool).await?;
     Ok(Json(
-        json!({"rule":current,"configured":state.ntfy.is_some()}),
+        json!({"rule":current,"configured":!channels.is_empty(),"channels":channels}),
     ))
 }
 
@@ -89,7 +93,7 @@ pub(crate) async fn put_rule(
         return Err(NEED_COUNTRY);
     }
     let summary = match input.target_cents {
-        Some(cents) => format!("Zielpreis {},{:02} €", cents / 100, cents % 100),
+        Some(cents) => format!("Zielpreis {}", notify::euro(cents)),
         None => "neuer Tiefstpreis".into(),
     };
     let summary = if input.enabled {
@@ -168,6 +172,20 @@ struct EventView {
     sent_at: Option<i64>,
     cents: Option<i64>,
     attempts: i64,
+    #[sqlx(skip)]
+    deliveries: Vec<DeliveryView>,
+}
+/// Delivery of one alert through one channel; `error` is the short reason of the last failure.
+#[derive(Serialize, FromRow)]
+struct DeliveryView {
+    #[serde(skip)]
+    outbox_id: i64,
+    channel: String,
+    #[sqlx(skip)]
+    name: &'static str,
+    state: String,
+    attempts: i64,
+    error: Option<String>,
 }
 pub(crate) async fn list(
     State(state): State<Shared>,
@@ -178,31 +196,49 @@ pub(crate) async fn list(
         (SELECT state FROM alert_outbox o WHERE o.wish_id=r.wish_id ORDER BY o.id DESC LIMIT 1) AS delivery
         FROM alert_rule r JOIN wishlist_item w ON w.id=r.wish_id JOIN game g ON g.id=w.game_id
         LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id WHERE w.state='wished' ORDER BY title").fetch_all(&state.pool).await?;
-    let events: Vec<EventView> = sqlx::query_as(
+    let mut events: Vec<EventView> = sqlx::query_as(
         "SELECT id,wish_id,state,observed_at,sent_at,cents,attempts FROM alert_outbox
         ORDER BY id DESC LIMIT 30",
     )
     .fetch_all(&state.pool)
     .await?;
+    let deliveries: Vec<DeliveryView> = sqlx::query_as(
+        "SELECT outbox_id,channel,state,attempts,error FROM channel_delivery
+        WHERE outbox_id IN (SELECT id FROM alert_outbox ORDER BY id DESC LIMIT 30) ORDER BY rowid",
+    )
+    .fetch_all(&state.pool)
+    .await?;
+    for mut delivery in deliveries {
+        let Some(kind) = Kind::from_id(&delivery.channel) else {
+            continue;
+        };
+        delivery.name = kind.name();
+        if let Some(event) = events.iter_mut().find(|e| e.id == delivery.outbox_id) {
+            event.deliveries.push(delivery);
+        }
+    }
+    let channels = state.notifier.active_names(&state.pool).await?;
     Ok(Json(
-        json!({"configured":state.ntfy.is_some(),"rules":rules,"events":events}),
+        json!({"configured":!channels.is_empty(),"channels":channels,"rules":rules,"events":events}),
     ))
 }
+/// POST /alerts/test: queue a test message for every active channel, at most once a minute. It takes the way of an
+/// alert (outbox, one delivery per channel) and shows up in "Letzte Zustellungen".
 pub(crate) async fn test_message(
     State(state): State<Shared>,
     headers: HeaderMap,
 ) -> ApiResult<StatusCode> {
     let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
-    if state.ntfy.is_none() {
+    if state.notifier.active(&state.pool).await?.is_empty() {
         return Err(ApiError(
             StatusCode::CONFLICT,
-            "Der ntfy-Kanal ist nicht eingerichtet.",
+            "Es ist kein Benachrichtigungskanal eingerichtet.",
         ));
     }
     let t = now();
     let n = sqlx::query(
-        "INSERT INTO alert_outbox(observed_at,message,due) SELECT ?,'KeyHunter: Testnachricht',?
+        "INSERT INTO alert_outbox(observed_at,due) SELECT ?,?
         WHERE NOT EXISTS(SELECT 1 FROM alert_outbox WHERE wish_id IS NULL AND observed_at>?)",
     )
     .bind(t)
@@ -227,9 +263,17 @@ pub(crate) async fn test_message(
     Ok(StatusCode::ACCEPTED)
 }
 
+/// The cheapest eligible offer of a check.
+struct Best {
+    cents: i64,
+    shop: String,
+    region: Option<String>,
+    url: String,
+}
 struct Check {
     scope: String,
-    best: Option<i64>,
+    country: String,
+    best: Option<Best>,
     sampled: bool,
 }
 async fn check(
@@ -258,7 +302,7 @@ async fn check(
     // The series depends only on the wish, the rule and the fee settings. Newly found
     // or re-mapped offers join it instead of resetting its baseline.
     let price_scope = crate::pricing::Scope::target(&target);
-    let mut best = None;
+    let mut best: Option<Best> = None;
     let mut sampled = false;
     for link in offers::links(&mut *conn, id, t).await? {
         let Some(product) = link.product() else {
@@ -269,7 +313,15 @@ async fn check(
         }
         if let Some(price) = price(&link, &product, rule) {
             sampled |= link_id == Some(link.id) && link.observed_at == Some(t);
-            best = Some(best.map_or(price, |old: i64| old.min(price)));
+            if best.as_ref().is_none_or(|old| price < old.cents) {
+                best = Some(Best {
+                    cents: price,
+                    shop: Shop::from_id(&link.source)
+                        .map_or_else(|| link.source.clone(), |shop| shop.name().into()),
+                    region: product.region.clone(),
+                    url: link.url().to_owned(),
+                });
+            }
         }
     }
     let scope = json!([
@@ -285,6 +337,7 @@ async fn check(
     .to_string();
     Ok(Check {
         scope: hex::encode(crate::digest(&scope)),
+        country: target,
         best,
         sampled,
     })
@@ -308,9 +361,10 @@ pub(crate) async fn observe(
         return Ok(());
     };
     let current = check(&mut *conn, id, &rule, Some(link_id), t).await?;
-    let Some(best) = current.best.filter(|_| current.sampled) else {
+    let Some(best) = current.best.as_ref().filter(|_| current.sampled) else {
         return Ok(());
     };
+    let cents = best.cents;
     let same_scope = rule.scope.as_deref() == Some(&current.scope);
     let previous = rule.previous_cents.filter(|_| same_scope);
     let lowest = rule.lowest_cents.filter(|_| same_scope);
@@ -323,8 +377,8 @@ pub(crate) async fn observe(
         .await?;
     }
     let triggered = match rule.target_cents {
-        Some(target) => best <= target && previous.is_none_or(|price| price > target),
-        None => lowest.is_some_and(|price| best < price),
+        Some(target) => cents <= target && previous.is_none_or(|price| price > target),
+        None => lowest.is_some_and(|price| cents < price),
     };
     if triggered {
         sqlx::query(
@@ -336,117 +390,30 @@ pub(crate) async fn observe(
         let title: String = sqlx::query_scalar("SELECT COALESCE(g.manual_title,json_extract(c.payload,'$.name'))
             FROM wishlist_item w JOIN game g ON g.id=w.game_id LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id WHERE w.id=?")
             .bind(id).fetch_one(&mut *conn).await?;
-        let basis = if rule.basis == "base" {
-            "Grundpreis"
-        } else {
-            "geschätzter Gesamtpreis"
-        };
-        let message = format!(
-            "KeyHunter: {title}\n{}.{:02} EUR ({basis})",
-            best / 100,
-            best % 100
-        );
         let due = t.max(rule.last_sent.unwrap_or(0) + COOLDOWN);
-        sqlx::query("INSERT INTO alert_outbox(wish_id,scope,observed_at,cents,message,due) VALUES(?,?,?,?,?,?) ON CONFLICT DO NOTHING")
-            .bind(id).bind(&current.scope).bind(t).bind(best).bind(message).bind(due).execute(&mut *conn).await?;
+        // reference_cents: the target, or for a new low the lowest price before.
+        sqlx::query("INSERT INTO alert_outbox(wish_id,scope,observed_at,cents,due,game,mode,basis,reference_cents,shop,region,country,url)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING")
+            .bind(id).bind(&current.scope).bind(t).bind(cents).bind(due).bind(title).bind(&rule.mode).bind(&rule.basis)
+            .bind(rule.target_cents.or(lowest)).bind(&best.shop).bind(&best.region)
+            .bind(Some(&current.country).filter(|c| !c.is_empty())).bind(&best.url)
+            .execute(&mut *conn).await?;
     }
     sqlx::query("UPDATE alert_rule SET scope=?,previous_cents=?,lowest_cents=? WHERE wish_id=?")
-        .bind(current.scope)
-        .bind(best)
-        .bind(lowest.map_or(best, |v| v.min(best)))
+        .bind(&current.scope)
+        .bind(cents)
+        .bind(lowest.map_or(cents, |v| v.min(cents)))
         .bind(id)
         .execute(&mut *conn)
         .await?;
     Ok(())
 }
 
-pub(crate) struct Ntfy {
-    client: Client,
-    url: Url,
-    authorization: Option<HeaderValue>,
-}
-impl Ntfy {
-    pub(crate) fn from_env() -> Option<Self> {
-        let path = std::env::var_os("KEYHUNTER_NTFY_ENV_FILE")?;
-        let result = Self::load(FsPath::new(&path));
-        if result.is_none() {
-            tracing::info!("ntfy configuration absent or invalid");
-        }
-        result
-    }
-
-    fn load(path: &FsPath) -> Option<Self> {
-        let metadata = std::fs::metadata(path).ok()?;
-        if !metadata.is_file()
-            || metadata.permissions().mode() & 0o077 != 0
-            || metadata.len() > 8192
-        {
-            return None;
-        }
-        let body = std::fs::read_to_string(path).ok()?;
-        let fields: std::collections::BTreeMap<_, _> = body
-            .lines()
-            .map(str::trim)
-            .filter(|line| !line.starts_with('#'))
-            .filter_map(|line| line.split_once('='))
-            .map(|(k, v)| (k.trim(), v.trim()))
-            .collect();
-        let url = Url::parse(fields.get("NTFY_URL")?).ok()?;
-        if !matches!(url.scheme(), "https" | "http")
-            || url.host_str().is_none()
-            || !url.username().is_empty()
-            || url.password().is_some()
-            || url.query().is_some()
-            || url.fragment().is_some()
-            || url.path().trim_matches('/').is_empty()
-        {
-            return None;
-        }
-        let authorization = match fields.get("NTFY_TOKEN").filter(|v| !v.is_empty()) {
-            Some(token) if url.scheme() == "https" => {
-                let mut value = HeaderValue::from_str(&format!("Bearer {token}")).ok()?;
-                value.set_sensitive(true);
-                Some(value)
-            }
-            Some(_) => return None,
-            None => None,
-        };
-        let client = Client::builder()
-            .no_proxy()
-            .redirect(Policy::none())
-            .timeout(Duration::from_secs(10))
-            .connect_timeout(Duration::from_secs(5))
-            .build()
-            .ok()?;
-        Some(Self {
-            client,
-            url,
-            authorization,
-        })
-    }
-
-    async fn send(&self, message: String) -> bool {
-        let mut request = self
-            .client
-            .post(self.url.clone())
-            .header("Content-Type", "text/plain; charset=utf-8")
-            .header("Title", "KeyHunter")
-            .body(message);
-        if let Some(value) = &self.authorization {
-            request = request.header(reqwest::header::AUTHORIZATION, value.clone());
-        }
-        request
-            .send()
-            .await
-            .is_ok_and(|response| response.status().is_success())
-    }
-}
-
-pub(crate) fn start(pool: &SqlitePool, ntfy: Arc<Ntfy>) {
+pub(crate) fn start(pool: &SqlitePool, notifier: Arc<Notifier>) {
     let pool = pool.clone();
     tokio::spawn(async move {
         loop {
-            if let Err(error) = deliver_one(&pool, &ntfy).await {
+            if let Err(error) = deliver_one(&pool, &notifier).await {
                 tracing::warn!(%error,"Notification queue operation failed");
             }
             tokio::time::sleep(Duration::from_secs(3)).await;
@@ -455,22 +422,57 @@ pub(crate) fn start(pool: &SqlitePool, ntfy: Arc<Ntfy>) {
 }
 
 #[derive(FromRow)]
-struct Delivery {
+struct Outbox {
     id: i64,
     wish_id: Option<String>,
     scope: Option<String>,
     observed_at: i64,
     cents: Option<i64>,
-    message: String,
-    attempts: i64,
+    game: Option<String>,
+    mode: Option<String>,
+    basis: Option<String>,
+    reference_cents: Option<i64>,
+    shop: Option<String>,
+    region: Option<String>,
+    country: Option<String>,
+    url: Option<String>,
 }
-async fn deliver_one(pool: &SqlitePool, ntfy: &Ntfy) -> anyhow::Result<()> {
+impl Outbox {
+    fn alert(&self) -> Alert {
+        if self.wish_id.is_none() {
+            return Alert::test();
+        }
+        Alert {
+            event: if self.mode.as_deref() == Some("low") {
+                Event::Low(self.reference_cents)
+            } else {
+                Event::Target(self.reference_cents)
+            },
+            game: self.game.clone().unwrap_or_default(),
+            cents: self.cents.unwrap_or_default(),
+            estimate: self.basis.as_deref() == Some("estimate"),
+            shop: self.shop.clone(),
+            region: self.region.clone(),
+            country: self.country.clone(),
+            url: self.url.clone(),
+        }
+    }
+}
+
+/// Process the next due alert: check that it is still true, create one delivery per active channel in the first
+/// round, send every due delivery (each with its own attempts and backoff), then let the outbox row follow them.
+async fn deliver_one(pool: &SqlitePool, notifier: &Notifier) -> anyhow::Result<()> {
     let t = now();
-    let row: Option<Delivery> = sqlx::query_as("UPDATE alert_outbox SET lease_until=?,attempts=attempts+1
+    let channels = notifier.active(pool).await?;
+    if channels.is_empty() {
+        return Ok(());
+    }
+    let lease = t + LEASE;
+    let row: Option<Outbox> = sqlx::query_as("UPDATE alert_outbox SET lease_until=?
         WHERE id=(SELECT id FROM alert_outbox WHERE state='pending' AND due<=? AND lease_until<=?
         AND NOT EXISTS(SELECT 1 FROM alert_outbox WHERE state='pending' AND lease_until>?) ORDER BY due,id LIMIT 1)
-        RETURNING id,wish_id,scope,observed_at,cents,message,attempts")
-        .bind(t+60).bind(t).bind(t).bind(t).fetch_optional(pool).await?;
+        RETURNING id,wish_id,scope,observed_at,cents,game,mode,basis,reference_cents,shop,region,country,url")
+        .bind(lease).bind(t).bind(t).bind(t).fetch_optional(pool).await?;
     let Some(row) = row else {
         return Ok(());
     };
@@ -482,7 +484,7 @@ async fn deliver_one(pool: &SqlitePool, ntfy: &Ntfy) -> anyhow::Result<()> {
                 && current
                     .best
                     .zip(row.cents)
-                    .is_some_and(|(best, recorded)| best <= recorded)
+                    .is_some_and(|(best, recorded)| best.cents <= recorded)
                 && t - row.observed_at <= crate::pricing::FRESH
         } else {
             false
@@ -499,21 +501,78 @@ async fn deliver_one(pool: &SqlitePool, ntfy: &Ntfy) -> anyhow::Result<()> {
     if !still_pending {
         return Ok(());
     }
-    let status = if !valid {
-        "cancelled"
-    } else if ntfy.send(row.message).await {
-        "sent"
-    } else if row.attempts >= 3 {
-        "failed"
+    let mut outcomes = vec![];
+    if valid {
+        let fresh: bool = sqlx::query_scalar(
+            "SELECT NOT EXISTS(SELECT 1 FROM channel_delivery WHERE outbox_id=?)",
+        )
+        .bind(row.id)
+        .fetch_one(pool)
+        .await?;
+        if fresh {
+            for (kind, _) in &channels {
+                sqlx::query("INSERT INTO channel_delivery(outbox_id,channel,due) VALUES(?,?,?)")
+                    .bind(row.id)
+                    .bind(kind.id())
+                    .bind(t)
+                    .execute(pool)
+                    .await?;
+            }
+        }
+        let due: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT channel,attempts FROM channel_delivery WHERE outbox_id=? AND state='pending' AND due<=? ORDER BY rowid",
+        )
+        .bind(row.id)
+        .bind(t)
+        .fetch_all(pool)
+        .await?;
+        let alert = row.alert();
+        for (channel, attempts) in due {
+            let attempts = attempts + 1;
+            let target = channels.iter().find(|(kind, _)| kind.id() == channel);
+            // A channel switched off since the first round is skipped.
+            let (state, error) = match target {
+                None => ("cancelled", None),
+                Some((_, target)) => match notifier.send(target, &alert).await {
+                    Ok(()) => ("sent", None),
+                    Err(reason) if attempts >= ATTEMPTS => ("failed", Some(reason)),
+                    Err(reason) => ("pending", Some(reason)),
+                },
+            };
+            sqlx::query("UPDATE channel_delivery SET state=?,attempts=?,due=?,sent_at=?,error=? WHERE outbox_id=? AND channel=? AND state='pending'")
+                .bind(state).bind(attempts).bind(t + 60 * (1 << attempts.min(3))).bind((state == "sent").then_some(t))
+                .bind(&error).bind(row.id).bind(&channel).execute(pool).await?;
+            if let Some((kind, _)) = target {
+                outcomes.push((*kind, state, error));
+            }
+        }
     } else {
-        "pending"
-    };
+        sqlx::query(
+            "UPDATE channel_delivery SET state='cancelled' WHERE outbox_id=? AND state='pending'",
+        )
+        .bind(row.id)
+        .execute(pool)
+        .await?;
+    }
     let mut tx = pool.begin().await?;
-    let n=sqlx::query("UPDATE alert_outbox SET state=?,lease_until=0,due=?,sent_at=? WHERE id=? AND state='pending' AND lease_until=?")
-        .bind(status).bind(t+60*(1<<row.attempts.min(3))).bind((status=="sent").then_some(t)).bind(row.id).bind(t+60)
-        .execute(&mut *tx).await?.rows_affected();
+    let n = sqlx::query(
+        "UPDATE alert_outbox SET lease_until=0,
+        attempts=COALESCE((SELECT MAX(attempts) FROM channel_delivery WHERE outbox_id=?1),0),
+        due=COALESCE((SELECT MIN(due) FROM channel_delivery WHERE outbox_id=?1 AND state='pending'),due),
+        sent_at=(SELECT MAX(sent_at) FROM channel_delivery WHERE outbox_id=?1),
+        state=CASE WHEN EXISTS(SELECT 1 FROM channel_delivery WHERE outbox_id=?1 AND state='pending') THEN 'pending'
+            WHEN EXISTS(SELECT 1 FROM channel_delivery WHERE outbox_id=?1 AND state='sent') THEN 'sent'
+            WHEN EXISTS(SELECT 1 FROM channel_delivery WHERE outbox_id=?1 AND state='failed') THEN 'failed'
+            ELSE 'cancelled' END
+        WHERE id=?1 AND state='pending' AND lease_until=?2",
+    )
+    .bind(row.id)
+    .bind(lease)
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
     if n > 0
-        && status == "sent"
+        && outcomes.iter().any(|(_, state, _)| *state == "sent")
         && let Some(id) = &row.wish_id
     {
         sqlx::query("UPDATE alert_rule SET last_sent=? WHERE wish_id=?")
@@ -527,17 +586,28 @@ async fn deliver_one(pool: &SqlitePool, ntfy: &Ntfy) -> anyhow::Result<()> {
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;
-    if n > 0 && matches!(status, "sent" | "failed") {
-        let subject = match &row.wish_id {
-            Some(id) => format!("Benachrichtigung für {}", eventlog::game(pool, id).await),
-            None => "Testnachricht".into(),
+    if outcomes.is_empty() {
+        return Ok(());
+    }
+    let subject = match &row.wish_id {
+        Some(id) => format!("Benachrichtigung für {}", eventlog::game(pool, id).await),
+        None => "Testnachricht".into(),
+    };
+    for (kind, state, error) in outcomes {
+        let name = kind.name();
+        let reason = error.unwrap_or_default();
+        let (level, message) = match state {
+            "sent" => (Level::Info, format!("{subject} über {name} gesendet")),
+            "failed" => (
+                Level::Error,
+                format!("{subject} über {name} konnte nicht zugestellt werden ({reason})"),
+            ),
+            _ => (
+                Level::Warn,
+                format!("{subject} über {name} fehlgeschlagen ({reason}), neuer Versuch folgt"),
+            ),
         };
-        let (level, outcome) = if status == "sent" {
-            (Level::Info, "gesendet")
-        } else {
-            (Level::Error, "konnte nicht zugestellt werden")
-        };
-        eventlog::record(pool, level, Area::Alerts, format!("{subject} {outcome}")).await;
+        eventlog::record(pool, level, Area::Alerts, message).await;
     }
     Ok(())
 }
@@ -545,16 +615,13 @@ async fn deliver_one(pool: &SqlitePool, ntfy: &Ntfy) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use crate::notify::testing::{configure, mock, notifier, pool};
 
+    /// One alert goes to every active channel; a failing channel retries on its own (three attempts, then failed)
+    /// while the others are sent exactly once, and every outcome is logged per channel.
     #[tokio::test]
-    async fn alarms_follow_fresh_prices_and_retry_locally() {
-        let pool = sqlx::sqlite::SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect("sqlite::memory:")
-            .await
-            .unwrap();
-        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+    async fn alarms_follow_fresh_prices_and_retry_per_channel() {
+        let pool = pool().await;
         sqlx::query("UPDATE app_settings SET target_country='DE'")
             .execute(&pool)
             .await
@@ -571,7 +638,7 @@ mod tests {
         .execute(&pool)
         .await
         .unwrap();
-        sqlx::query("INSERT INTO offer_link(id,wish_id,source,url,review) VALUES(1,'wish','eneba','fixture','confirmed')").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO offer_link(id,wish_id,source,url,review) VALUES(1,'wish','eneba','https://www.eneba.com/de/xbox-game-key-global','confirmed')").execute(&pool).await.unwrap();
         sqlx::query("INSERT INTO alert_rule(wish_id,mode,basis,target_cents,enabled) VALUES('wish','target','base',2400,1)").execute(&pool).await.unwrap();
         let mut product = Product {
             id: "fixture".into(),
@@ -605,6 +672,30 @@ mod tests {
                 .await
                 .unwrap()
         }
+        async fn states(pool: &SqlitePool) -> (String, Vec<(String, String, i64)>) {
+            let outbox =
+                sqlx::query_scalar("SELECT state FROM alert_outbox ORDER BY id DESC LIMIT 1")
+                    .fetch_one(pool)
+                    .await
+                    .unwrap();
+            let deliveries = sqlx::query_as(
+                "SELECT channel,state,attempts FROM channel_delivery ORDER BY rowid",
+            )
+            .fetch_all(pool)
+            .await
+            .unwrap();
+            (outbox, deliveries)
+        }
+        async fn retry_now(pool: &SqlitePool) {
+            sqlx::query("UPDATE alert_outbox SET due=0")
+                .execute(pool)
+                .await
+                .unwrap();
+            sqlx::query("UPDATE channel_delivery SET due=0")
+                .execute(pool)
+                .await
+                .unwrap();
+        }
         sample(&pool, &product, t, None).await;
         product.offers[0].cents = 2400;
         sample(&pool, &product, t + 1, Some("network")).await;
@@ -613,63 +704,166 @@ mod tests {
         sample(&pool, &product, t + 3, None).await;
         assert_eq!(total(&pool).await, 1);
 
-        let requests = Arc::new(AtomicUsize::new(0));
-        let handler = Arc::clone(&requests);
-        let router = axum::Router::new().route(
-            "/keyhunter-test",
-            axum::routing::post(move |body: String| {
-                let num = handler.fetch_add(1, Ordering::Relaxed);
-                async move {
-                    assert!(body.contains("24.00 EUR"));
-                    if num == 0 {
-                        StatusCode::SERVICE_UNAVAILABLE
-                    } else {
-                        StatusCode::OK
-                    }
-                }
-            }),
-        );
-        let socket = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address = socket.local_addr().unwrap();
-        let server = tokio::spawn(async move { axum::serve(socket, router).await.unwrap() });
-        let ntfy = Ntfy {
-            client: Client::builder().no_proxy().build().unwrap(),
-            url: Url::parse(&format!("http://{address}/keyhunter-test")).unwrap(),
-            authorization: None,
-        };
-        deliver_one(&pool, &ntfy).await.unwrap();
-        assert_eq!(requests.load(Ordering::Relaxed), 1);
+        let ntfy = mock(&[503, 503, 503]).await;
+        let hook = mock(&[]).await;
+        let dir = tempfile::tempdir().unwrap();
+        let notifier = notifier(dir.path(), "http://127.0.0.1:9");
+        // Nothing is sent and nothing is lost while no channel is active.
+        deliver_one(&pool, &notifier).await.unwrap();
+        assert_eq!(states(&pool).await, ("pending".into(), vec![]));
+        configure(
+            &notifier,
+            &pool,
+            Kind::Ntfy,
+            json!({"enabled": true, "secrets": {"url": format!("{}/kh", ntfy.url)}}),
+        )
+        .await;
+        configure(
+            &notifier,
+            &pool,
+            Kind::Webhook,
+            json!({"enabled": true, "secrets": {"url": format!("{}/hook", hook.url)}}),
+        )
+        .await;
+        deliver_one(&pool, &notifier).await.unwrap();
         assert_eq!(
-            sqlx::query_scalar::<_, String>("SELECT state FROM alert_outbox")
-                .fetch_one(&pool)
-                .await
-                .unwrap(),
-            "pending"
+            states(&pool).await,
+            (
+                "pending".into(),
+                vec![
+                    ("ntfy".into(), "pending".into(), 1),
+                    ("webhook".into(), "sent".into(), 1)
+                ]
+            )
         );
-        sqlx::query("UPDATE alert_outbox SET due=0")
-            .execute(&pool)
+        let [first] = ntfy.take().try_into().ok().unwrap();
+        assert_eq!(
+            first.text(),
+            "„Game“ ist bei deinem Wunschpreis angekommen: 24,00 € bei Eneba (Global, gültig in Deutschland). Ziel: 24,00 €."
+        );
+        assert_eq!(
+            first.header("click"),
+            "https://www.eneba.com/de/xbox-game-key-global"
+        );
+        let [sent] = hook.take().try_into().ok().unwrap();
+        assert_eq!(sent.json()["game"], "Game");
+        assert_eq!(sent.json()["shop"], "Eneba");
+        assert_eq!(sent.json()["target_cents"], 2400);
+        // The cooldown starts with the first channel that delivered.
+        let last_sent: Option<i64> = sqlx::query_scalar("SELECT last_sent FROM alert_rule")
+            .fetch_one(&pool)
             .await
             .unwrap();
-        deliver_one(&pool, &ntfy).await.unwrap();
-        assert_eq!(requests.load(Ordering::Relaxed), 2);
+        assert!(last_sent.is_some());
+        // Not due yet: no request at all.
+        deliver_one(&pool, &notifier).await.unwrap();
+        assert_eq!(ntfy.count() + hook.count(), 0);
+        retry_now(&pool).await;
+        deliver_one(&pool, &notifier).await.unwrap();
+        retry_now(&pool).await;
+        deliver_one(&pool, &notifier).await.unwrap();
+        assert_eq!(ntfy.take().len(), 2);
+        assert_eq!(hook.count(), 0, "the webhook got its message once");
         assert_eq!(
-            sqlx::query_scalar::<_, String>("SELECT state FROM alert_outbox")
+            states(&pool).await,
+            (
+                "sent".into(),
+                vec![
+                    ("ntfy".into(), "failed".into(), 3),
+                    ("webhook".into(), "sent".into(), 1)
+                ]
+            )
+        );
+        let (attempts, error): (i64, Option<String>) =
+            sqlx::query_as("SELECT o.attempts,d.error FROM alert_outbox o JOIN channel_delivery d ON d.outbox_id=o.id WHERE d.channel='ntfy'")
                 .fetch_one(&pool)
                 .await
-                .unwrap(),
-            "sent"
+                .unwrap();
+        assert_eq!(
+            (attempts, error.as_deref()),
+            (3, Some("HTTP 503 · mock answer"))
         );
+        retry_now(&pool).await;
+        deliver_one(&pool, &notifier).await.unwrap();
+        assert_eq!(ntfy.count(), 0, "a failed delivery stays failed");
+        let log: Vec<(String, String)> = sqlx::query_as(
+            "SELECT level,message FROM event_log WHERE area='Preisalarme' ORDER BY id",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        let log: Vec<(&str, &str)> = log.iter().map(|(l, m)| (l.as_str(), m.as_str())).collect();
+        assert!(
+            log.contains(&("info", "Benachrichtigung für „Game“ über Webhook gesendet")),
+            "{log:?}"
+        );
+        assert!(log.contains(&("warn", "Benachrichtigung für „Game“ über ntfy fehlgeschlagen (HTTP 503 · mock answer), neuer Versuch folgt")));
+        assert!(log.contains(&("error", "Benachrichtigung für „Game“ über ntfy konnte nicht zugestellt werden (HTTP 503 · mock answer)")));
+        assert!(
+            !format!("{log:?}").contains(&ntfy.url),
+            "no channel address in the log"
+        );
+
         sqlx::query("UPDATE alert_rule SET mode='low',target_cents=NULL,scope=NULL,previous_cents=NULL,lowest_cents=NULL").execute(&pool).await.unwrap();
         sample(&pool, &product, t + 4, None).await;
         assert_eq!(total(&pool).await, 1);
         product.offers[0].cents = 2300;
         sample(&pool, &product, t + 5, None).await;
         assert_eq!(total(&pool).await, 2);
-        let due: i64 = sqlx::query_scalar("SELECT due FROM alert_outbox WHERE state='pending'")
+        let (due, reference): (i64, Option<i64>) =
+            sqlx::query_as("SELECT due,reference_cents FROM alert_outbox WHERE state='pending'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert!(due >= t + COOLDOWN);
+        assert_eq!(
+            reference,
+            Some(2400),
+            "a new low names the lowest price before"
+        );
+        // A changed rule cancels the open alert and its deliveries.
+        sqlx::query("INSERT INTO channel_delivery(outbox_id,channel,due) SELECT id,'webhook',0 FROM alert_outbox WHERE state='pending'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE alert_outbox SET state='cancelled' WHERE state='pending'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let open: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM channel_delivery WHERE state='pending'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(open, 0);
+    }
+
+    /// The test message of the alert page takes the outbox to every active channel.
+    #[tokio::test]
+    async fn the_queued_test_message_reaches_every_active_channel() {
+        let pool = pool().await;
+        let hook = mock(&[]).await;
+        let dir = tempfile::tempdir().unwrap();
+        let notifier = notifier(dir.path(), "http://127.0.0.1:9");
+        configure(
+            &notifier,
+            &pool,
+            Kind::Webhook,
+            json!({"enabled": true, "secrets": {"url": format!("{}/hook", hook.url)}}),
+        )
+        .await;
+        sqlx::query("INSERT INTO alert_outbox(observed_at,due) VALUES(?,0)")
+            .bind(now())
+            .execute(&pool)
+            .await
+            .unwrap();
+        deliver_one(&pool, &notifier).await.unwrap();
+        let [request] = hook.take().try_into().ok().unwrap();
+        assert_eq!(request.json()["event"], "test");
+        let state: String = sqlx::query_scalar("SELECT state FROM alert_outbox")
             .fetch_one(&pool)
             .await
             .unwrap();
-        assert!(due >= t + COOLDOWN);
-        server.abort();
+        assert_eq!(state, "sent");
     }
 }

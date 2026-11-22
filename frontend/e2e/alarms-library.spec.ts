@@ -11,7 +11,7 @@ test('Preisalarme lists every target sorted by distance and a row opens the alar
   await signInToFixture(page);
   const wishes = [[1, 'Starfield', 'Premium Edition', 4000, 4749], [2, 'Forza Horizon 5', 'Standard Edition', 2900, 2890], [3, 'Ori', null, 800, null], [4, 'Halo', null, null, 1500]] as const;
   await page.route('**/api/v1/alerts', route => route.request().method() !== 'GET' ? route.continue() : route.fulfill({ json: {
-    configured: true,
+    configured: true, channels: ['ntfy'],
     rules: wishes.map(([n, title, , target]) => ({ wish_id: id(n), title, mode: target === null ? 'low' : 'target', basis: 'base', target_cents: target, enabled: true, delivery: null })),
     events: [{ id: 1, wish_id: id(2), state: 'sent', observed_at: 1795107000, sent_at: 1795107060, cents: 2890, attempts: 1 }],
   } }));
@@ -20,7 +20,7 @@ test('Preisalarme lists every target sorted by distance and a row opens the alar
     : route.fulfill({ json: wishes.map(([n, title, edition]) => ({ id: id(n), game_id: String(n), platform_id: 169, created_at: n, verification: 'catalog', game: game(n, title, edition, null), manual_title: null })) }));
   await navTo(page, 'Preisalarme');
   await expect(page.getByRole('heading', { name: 'Preisalarme', level: 1 })).toBeVisible();
-  await expect(page.getByText('ntfy eingerichtet', { exact: true })).toBeVisible();
+  await expect(page.getByText('Kanal: ntfy', { exact: true })).toBeVisible();
   const table = page.getByRole('table', { name: 'Preisalarme nach Abstand' });
   await expect(table.getByRole('columnheader')).toHaveText(['Spiel', 'Ziel', /^Jetzt [A-Z]{2}$/, 'Abstand', 'Status']);
   const rows = table.locator('tbody tr');
@@ -55,10 +55,11 @@ test('Bibliothek shows covers with the title only, and keeps the restore action'
   await expect(page.getByRole('heading', { name: 'Bibliothek', level: 1, exact: true })).toBeVisible();
   await expect(page.getByText('2 Spiele gekauft', { exact: true })).toBeVisible();
   const items = page.getByRole('list', { name: 'Meine Spiele' }).getByRole('listitem');
-  // The edition is part of the title already, the purchase date is not needed: the tile shows the title alone.
-  await expect(items.first().locator('.lib-info')).toHaveText('Halo Infinite');
+  // The edition is part of the title already, the purchase date is not needed: the tile shows the title and (0.9.0) the system.
+  await expect(items.first().locator('.lib-info b')).toHaveText('Halo Infinite');
   await expect(items.first().locator('img')).toHaveAttribute('src', /halo\.svg$/);
-  await expect(items.nth(1).locator('.lib-info')).toHaveText('Lies of P');
+  await expect(items.nth(1).locator('.lib-info b')).toHaveText('Lies of P');
+  await expect(items.first().locator('.lib-sub')).toHaveText('Xbox Series X|S');
   await expect(items.nth(1).locator('.cover-initials')).toHaveText('LO');
   // Restore and delete sit on the cover and only show after the lock in the page head is opened.
   const restore = items.first().getByRole('button', { name: 'Halo Infinite zurück in die Wunschliste', exact: true });

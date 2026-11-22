@@ -45,7 +45,7 @@ test('catalog choice persists, editions stay distinct, filters and removal work 
   await expect(wishlistRows(page)).toHaveCount(1);
   await openWishlistRow(page, /Forza Horizon 5/);
   await removeCurrent(page);
-  await expect(page.getByText(/^0 von 100 Plätzen/)).toBeVisible();
+  await expect(page.getByText(/^0 Spiele ·/)).toBeVisible();
   await expect(wishlistHeading(page)).toBeFocused();
   expect(errors).toEqual([]);
 });
@@ -72,7 +72,7 @@ test('old search cannot replace newer results, outage differs from empty and man
   await expect(page.getByRole('heading', { name: 'ausfall', exact: true })).toBeVisible();
   await expect(page.getByText('Manueller Titel · Zuordnungen werden vor dem Preisvergleich geprüft.', { exact: true })).toBeVisible();
   await removeCurrent(page);
-  await expect(page.getByText(/^0 von 100 Plätzen/)).toBeVisible();
+  await expect(page.getByText(/^0 Spiele ·/)).toBeVisible();
   await expect(wishlistHeading(page)).toBeFocused();
 });
 

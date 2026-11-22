@@ -86,7 +86,8 @@ export function matchesText(titles: string[], facts: RowFacts, text: string, sho
   return shops.some(shop => facts.source === shop || facts.world?.source === shop);
 }
 
-export type ChipFilter = 'alle' | 'ziel' | 'welt' | 'offen';
+/** 'pause': wishes paused on their own (0.9.0); a fact of the item, checked by the list itself. */
+export type ChipFilter = 'alle' | 'ziel' | 'welt' | 'offen' | 'pause';
 export const isWorldCheaper = (facts: RowFacts) => facts.share !== null && facts.share >= WORLD_SHARE - 1e-9;
 export function matchesChip(facts: RowFacts, chip: ChipFilter): boolean {
   if (chip === 'ziel') return facts.reached;

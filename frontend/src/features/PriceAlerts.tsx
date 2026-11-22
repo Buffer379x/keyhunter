@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, HttpError } from '../api';
-import type { PriceBadgeData, WishlistItem } from '../api';
+import type { AlertDelivery, PriceBadgeData, WishlistItem } from '../api';
 import { Button, EmptyState, Icon, Inset, Label, Notice, PageHeading, Panel, PanelHead, Pill, Price } from '../components';
 import { alarmRows } from './alerts-model';
 import type { AlarmRow } from './alerts-model';
@@ -8,13 +8,21 @@ import { Cover } from './catalog-ui';
 import { whenVisible } from '../poll';
 import { relativeTime } from '../time';
 import { money } from './price-format';
+import { channelLine } from './settings/channels';
+import { openSection } from './settings/sections';
 
 export type Rule = { mode: 'target' | 'low'; basis: 'base' | 'estimate'; target_cents: number | null; enabled: boolean };
 type RuleView = Rule & { wish_id: string; title: string; delivery: string | null };
-export type AlertEvent = { id: number; wish_id: string | null; state: string; observed_at: number; sent_at: number | null; cents: number | null; attempts: number };
-type Overview = { configured: boolean; rules: RuleView[]; events: AlertEvent[] };
+export type AlertEvent = { id: number; wish_id: string | null; state: string; observed_at: number; sent_at: number | null; cents: number | null; attempts: number; deliveries?: AlertDelivery[] };
+type Overview = { configured: boolean; channels?: string[]; rules: RuleView[]; events: AlertEvent[] };
 const deliveryNames: Record<string, string> = { pending: 'Wartet auf Zustellung', sent: 'Zugestellt', failed: 'Zustellung fehlgeschlagen', cancelled: 'Verworfen' };
 const deliveryChip = (state: string) => <Pill tone={state === 'sent' ? 'ok' : state === 'failed' ? 'danger' : state === 'pending' ? 'warn' : 'default'} icon={state === 'sent' ? 'check' : state === 'pending' ? 'clock' : state === 'failed' ? 'alert' : 'minus'}>{deliveryNames[state] ?? state}</Pill>;
+const channelStates: Record<string, string> = { pending: 'wartet', sent: 'zugestellt', failed: 'fehlgeschlagen', cancelled: 'verworfen' };
+/** "Telegram zugestellt · E-Mail fehlgeschlagen (HTTP 401 · Unauthorized)". */
+const deliveryLine = (deliveries: AlertDelivery[]) => <small className="faint delivery-channels">{deliveries.map((d, i) => <span key={d.channel}>{i > 0 && ' · '}{d.name} {channelStates[d.state] ?? d.state}{d.state === 'failed' && d.error && ` (${d.error})`}</span>)}</small>;
+/** Way to Einstellungen › Benachrichtigungen when no channel is set up. */
+export const SetupLink = () => <a className="text-button" href="?view=settings&section=notifications"
+  onClick={event => { event.preventDefault(); openSection('notifications'); }}>Kanal einrichten</a>;
 const basisName = (basis: Rule['basis']) => basis === 'base' ? 'Grundpreis' : 'Gesamtpreis geschätzt';
 
 /** Cents of a rule's target, when it is a price alert. */
@@ -28,22 +36,22 @@ export const targetReached = (rule: Rule | null | undefined, cents: number | nul
 /** The alert rule of one wishlist item (GET/PUT/DELETE /wishlist/{id}/alert). */
 export function useAlertRule(id: string, csrf: string, onError: (error: unknown) => void) {
   const [rule, setRule] = useState<Rule | null>(null);
-  const [configured, setConfigured] = useState(false);
+  const [channels, setChannels] = useState<string[]>([]);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const path = `/wishlist/${encodeURIComponent(id)}/alert`;
   useEffect(() => {
     const controller = new AbortController();
     setReady(false); setRule(null);
-    void api<{ rule: Rule | null; configured: boolean }>(path, 'GET', undefined, undefined, controller.signal).then(data => {
+    void api<{ rule: Rule | null; channels?: string[] }>(path, 'GET', undefined, undefined, controller.signal).then(data => {
       if (controller.signal.aborted) return;
-      setConfigured(data.configured); setRule(data.rule); setReady(true);
+      setChannels(data.channels ?? []); setRule(data.rule); setReady(true);
     }).catch(err => { if (!controller.signal.aborted) { setError(err instanceof Error ? err.message : 'Alarmregel konnte nicht geladen werden.'); onError(err); } });
     return () => controller.abort();
   }, [path, onError]);
   const save = useCallback(async (next: Rule) => { await api(path, 'PUT', next, csrf); setRule(next); }, [path, csrf]);
   const remove = useCallback(async () => { await api(path, 'DELETE', undefined, csrf); setRule(null); }, [path, csrf]);
-  return { rule, configured, ready, error, save, remove };
+  return { rule, channels, ready, error, save, remove };
 }
 export type AlertState = ReturnType<typeof useAlertRule>;
 
@@ -105,9 +113,10 @@ export default function PriceAlerts({ csrf, targetCountry, targetLabel, onError 
   const rows = alarmRows(rules, badges);
   const ruleOf = (id: string) => rules.find(rule => rule.wish_id === id);
   const country = targetCountry ?? 'Zielland';
-  const channel = data ? <Pill tone={data.configured ? 'ok' : 'dim'} icon={data.configured ? 'check' : 'minus'}>{data.configured ? 'ntfy eingerichtet' : 'ntfy nicht eingerichtet'}</Pill> : null;
+  const names = data?.channels ?? [];
+  const channel = data ? <><Pill tone={names.length ? 'ok' : 'dim'} icon={names.length ? 'check' : 'minus'}>{channelLine(names)}</Pill>{!names.length && <SetupLink />}</> : null;
   return <section className="page alerts-page" aria-labelledby="alerts-title">
-    <PageHeading id="alerts-title" title="Preisalarme" help={`Benachrichtigung über ntfy, sobald ein in ${targetLabel} aktivierbarer Key das Ziel erreicht. Höchstens eine Nachricht je Spiel und 24 Stunden.`}
+    <PageHeading id="alerts-title" title="Preisalarme" help={`Benachrichtigung über jeden aktiven Kanal (Einstellungen › Benachrichtigungen), sobald ein in ${targetLabel} aktivierbarer Key das Ziel erreicht. Höchstens eine Nachricht je Spiel und 24 Stunden.`}
       actions={<>{channel}<Button disabled={!data?.configured || busy} loading={busy} onClick={() => void testChannel()}><Icon name="send" />Testnachricht senden</Button></>} />
     {loadError && <Notice error>{loadError} <Button size="sm" onClick={() => setReload(n => n + 1)}>Erneut laden</Button></Notice>}
     {message && <Notice>{message}</Notice>}
@@ -146,7 +155,7 @@ export default function PriceAlerts({ csrf, targetCountry, targetLabel, onError 
                 <td className="mono c-time" title={new Date(at * 1000).toLocaleString('de-DE')}>{relativeTime(at)}{event.attempts > 1 && <span className="faint"> · {event.attempts} Versuche</span>}</td>
                 <td className="c-game">{event.wish_id ? ruleOf(event.wish_id)?.title ?? 'Ehemaliger Wunschlisteneintrag' : 'Testnachricht'}</td>
                 <td className="r mono c-price">{event.cents !== null ? money(event.cents) : '–'}</td>
-                <td className="c-status">{deliveryChip(event.state)}</td>
+                <td className="c-status">{deliveryChip(event.state)}{event.deliveries && event.deliveries.length > 0 && deliveryLine(event.deliveries)}</td>
               </tr>;
             })}</tbody>
           </table>}

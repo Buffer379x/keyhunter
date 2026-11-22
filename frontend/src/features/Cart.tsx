@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
 import { api, CART_CHANGED, HttpError } from '../api';
 import type { WishlistItem } from '../api';
 import { Button, EmptyState, Icon, Help, IconButton, Inset, Label, Notice, PageHeading, Panel, PanelHead, Price, Reg, Seg, formatPrice } from '../components';
@@ -33,12 +32,10 @@ interface Props {
  */
 export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onError }: Props) {
   const [entries, setEntries] = useState<CartEntry[] | null>(null);
-  const [wishes, setWishes] = useState<WishlistItem[]>([]);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
   const [loadError, setLoadError] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [pick, setPick] = useState('');
   const [reload, setReload] = useState(0);
   const code = targetCountry.toUpperCase();
 
@@ -47,12 +44,10 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
     let cancel = () => {};
     async function load() {
       try {
-        const [cart, list] = await Promise.all([
-          api<CartEntry[]>('/cart', 'GET', undefined, undefined, controller.signal),
-          api<WishlistItem[]>('/wishlist', 'GET', undefined, undefined, controller.signal),
-        ]);
+        // Games come into the cart only from the wishlist (0.9.0: no picker here any more).
+        const cart = await api<CartEntry[]>('/cart', 'GET', undefined, undefined, controller.signal);
         if (controller.signal.aborted) return;
-        setEntries(cart); setWishes(list); setLoadedAt(Date.now()); setLoadError('');
+        setEntries(cart); setLoadedAt(Date.now()); setLoadError('');
       } catch (e) {
         if (controller.signal.aborted) return;
         if (e instanceof HttpError && e.status === 401) { onError(e); return; }
@@ -77,10 +72,6 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
       return false;
     } finally { setBusy(false); }
   }, [csrf, onError]);
-  async function add(event: FormEvent) {
-    event.preventDefault();
-    if (pick && await change('POST', '/cart', { wish_id: pick })) setPick('');
-  }
 
   const sums = entries ? cartSums(entries) : null;
   const homeLabel = `Preis ${code || 'Zielland'}`;
@@ -91,29 +82,20 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
     const scope = next.source === null ? 'world' : next.scope ?? line.item.scope;
     void change('PUT', `/cart/${encodeURIComponent(line.item.id)}`, { source, scope });
   };
-  const addable = wishes.filter(wish => !wish.in_cart && !entries?.some(entry => entry.id === wish.id)).sort((a, b) => itemName(a).localeCompare(itemName(b), 'de'));
   const sub = !entries ? 'Wird geladen …' : entries.length === 0 ? 'Leer · lege Spiele aus der Wunschliste hinein'
     : `${games(entries.length)}${loadedAt ? ` · Stand ${time(loadedAt)}` : ''}`;
-  // Only while a wish is left to add; with none on the wishlist the empty state links to it.
-  const picker = addable.length > 0 && <form className="cart-add" onSubmit={add}>
-    <select aria-label="Spiel aus der Wunschliste wählen" value={pick} onChange={event => setPick(event.target.value)} disabled={busy}>
-      <option value="">Spiel aus der Wunschliste …</option>
-      {addable.map(wish => <option key={wish.id} value={wish.id}>{itemName(wish)}</option>)}
-    </select>
-    <Button type="submit" disabled={busy || !pick}><Icon name="cart" />In den Warenkorb</Button>
-  </form>;
 
   return <section className="page cart-page" aria-labelledby="cart-title">
     <PageHeading id="cart-title" title="Warenkorb" sub={sub} help={<><span>Die Preise kommen aus den letzten Shop-Abfragen und aktualisieren sich von selbst.</span>
-      <span>„Günstigster“ nimmt je Spiel das günstigste Angebot nach Key-Preis, egal welcher Shop und welche Region. {code || 'DE'} zählt nur im Zielland aktivierbare Keys des gewählten Shops, INT die günstigste Region dieses Shops.</span></>} />
+      <span>„Günstigster“ nimmt je Spiel das günstigste Angebot nach Key-Preis, egal welcher Shop und welche Region. {code || 'Zielland'} zählt nur im Zielland aktivierbare Keys des gewählten Shops, INT die günstigste Region dieses Shops.</span></>} />
     {loadError && <Notice error>{loadError}<Button size="sm" onClick={() => setReload(n => n + 1)}>Erneut laden</Button></Notice>}
     {error && <Notice error>{error}</Notice>}
     {entries?.length === 0 && <Panel><EmptyState icon="cart" title="Der Warenkorb ist leer"
-      action={<div className="cart-empty-actions">{picker}<Button variant="ghost" onClick={onOpenWishlist}>Zur Wunschliste</Button></div>}>
-      Lege Spiele aus der Wunschliste hinein, dann siehst du den Gesamtpreis mit und ohne Gebühren, nach Shops aufgeteilt.</EmptyState></Panel>}
+      action={<Button variant="ghost" onClick={onOpenWishlist}>Zur Wunschliste</Button>}>
+      Lege Spiele über „In den Warenkorb“ auf der Seite eines Spiels hinein, dann siehst du den Gesamtpreis mit und ohne Gebühren, nach Shops aufgeteilt.</EmptyState></Panel>}
     {sums && entries && entries.length > 0 && <div className="cart-grid">
       <Panel aria-labelledby="cart-items-title">
-        <PanelHead><Label id="cart-items-title">Im Warenkorb</Label><span className="spacer" />{picker}</PanelHead>
+        <PanelHead><Label id="cart-items-title">Im Warenkorb</Label></PanelHead>
         <Inset className="table-wrap">
           <table className="cart-table" aria-label="Spiele im Warenkorb">
             <thead><tr><th>Spiel</th><th>Shop</th><th>Preis</th><th className="r">Key-Preis</th><th className="r">Gebühren</th><th className="r">Gesamt</th><th><span className="sr-only">Entfernen</span></th></tr></thead>
@@ -132,7 +114,7 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
                   </select>
                   {line.base !== null && reg && <span className="cart-region"><Reg code={reg.code} title={reg.name} />{reg.name}</span>}</td>
                 <td className="c-scope"><Seg label={`Preisgrundlage für ${name}`} value={line.item.scope} onChange={scope => choose(line, { scope })}
-                  options={[{ value: 'home', label: code || 'DE', disabled: busy }, { value: 'world', label: 'INT', disabled: busy }]} /></td>
+                  options={[{ value: 'home', label: code || 'Ziel', disabled: busy }, { value: 'world', label: 'INT', disabled: busy }]} /></td>
                 <td className="c-key r">{line.base !== null ? <><Price cents={line.base} tone={line.stale ? 'stale' : 'default'} />{line.stale && <div className="wl-sub">zuletzt bekannt</div>}</>
                   : <span className="wl-note faint">{line.item.scope === 'home' ? `Kein ${homeLabel}` : 'Kein Angebot'}{line.item.source ? ` bei ${shopName(line.item.source)}` : ''}</span>}</td>
                 <td className="c-fee r">{line.base === null ? <span className="faint">–</span> : line.fee !== null ? <span className="mono">+{formatPrice(line.fee)}</span>

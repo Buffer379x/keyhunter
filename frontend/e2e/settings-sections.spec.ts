@@ -143,7 +143,7 @@ test('a library entry can be removed after confirmation', async ({ page }) => {
   await navTo(page, 'Bibliothek');
   const list = page.getByRole('list', { name: 'Meine Spiele' });
   await expect(list.getByRole('listitem')).toHaveCount(2);
-  await expect(list.getByRole('listitem').first().locator('.lib-info')).toHaveText('Forza'); // newest purchase first, title only
+  await expect(list.getByRole('listitem').first().locator('.lib-info b')).toHaveText('Forza'); // newest purchase first, title only
   await page.getByRole('button', { name: 'Bearbeiten entsperren', exact: true }).click();
   await list.getByRole('button', { name: 'Zelda aus der Bibliothek entfernen', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Aus der Bibliothek entfernen?' });

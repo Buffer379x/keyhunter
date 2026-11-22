@@ -7,7 +7,7 @@
   <Privileged>false</Privileged>
   <Support/>
   <Project>https://github.com/Buffer379x/keyhunter</Project>
-  <Overview>Private Xbox wishlist that compares the best key valid in your country with the cheapest region worldwide. IGDB search, Eneba and Driffle offers, price history and ntfy alerts. Pull the linux/amd64 image from GitHub Container Registry. See the repository installation guide.</Overview>
+  <Overview>Private Xbox wishlist that compares the best key valid in your country with the cheapest region worldwide. IGDB search, Eneba and Driffle offers, price history and price alerts via ntfy, Telegram, Discord, e-mail, Gotify, Pushover or webhook. Pull the linux/amd64 image from GitHub Container Registry. See the repository installation guide.</Overview>
   <Category>GameServers: Other:</Category>
   <WebUI>http://[IP]:[PORT:3000]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/Buffer379x/keyhunter/main/deploy/unraid/keyhunter.xml</TemplateURL>
@@ -16,7 +16,7 @@
   <PostArgs>--init-unraid-data</PostArgs>
   <Config Name="Web port" Target="3000" Default="3000" Mode="tcp" Description="HTTP for a private LAN IP. For HTTPS use a reverse proxy." Type="Port" Display="always" Required="true" Mask="false">3000</Config>
   <Config Name="App data" Target="/data" Default="" Mode="rw" Description="Dedicated local appdata directory. The template prepares the data directory at startup. SQLite must not use SMB/NFS." Type="Path" Display="always" Required="true" Mask="false"/>
-  <Config Name="Configuration" Target="/config" Default="" Mode="ro" Description="Optional protected config directory containing ntfy.env. Restrict file access to the container UID. Never paste secrets into template variables." Type="Path" Display="always" Required="false" Mask="false"/>
+  <Config Name="Configuration" Target="/config" Default="" Mode="ro" Description="Optional protected config directory containing a legacy ntfy.env (channels are set up in the app since 0.9.0). Restrict file access to the container UID. Never paste secrets into template variables." Type="Path" Display="always" Required="false" Mask="false"/>
   <Config Name="ntfy configuration file" Target="KEYHUNTER_NTFY_ENV_FILE" Default="/config/ntfy.env" Description="Optional owner-readable file containing NTFY_URL and NTFY_TOKEN." Type="Variable" Display="advanced" Required="false" Mask="false">/config/ntfy.env</Config>
   <Config Name="Daily jobs per shop" Target="KEYHUNTER_SHOP_DAILY_JOBS" Default="500" Description="Default daily cap per shop (1-2000), spread evenly over the UTC day. Every catalog search page and regional product is a separate persistent job. A value set in the app under Settings / Key-Shops overrides this default for that shop; service intervals are set there too." Type="Variable" Display="advanced" Required="false" Mask="false">500</Config>
   <Config Name="Web origin (optional)" Target="KEYHUNTER_ORIGIN" Default="" Description="Leave blank to use the browser host. Set a complete HTTP(S) URL to pin one origin." Type="Variable" Display="advanced" Required="false" Mask="false"/>

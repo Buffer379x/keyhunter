@@ -27,7 +27,7 @@ export default function General({ settings, countries, edit, onError }: {
 }) {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
-  const confirmed = settings.confirmed_activation_countries ?? ['DE'];
+  const confirmed = settings.confirmed_activation_countries ?? [];
   const nameOf = (code: string) => countries.find(c => c.code === code)?.name ?? code;
   const target = settings.target_country;
   const unconfirmed = target !== null && !confirmed.includes(target);
@@ -47,13 +47,14 @@ export default function General({ settings, countries, edit, onError }: {
         <div className="form-row">
           <span className="with-help"><label htmlFor="target-country">Zielland</label>
             <Help label="Hilfe zum Zielland"><span>Der beste Preis gilt für dieses Land. Die Wunschliste zeigt immer diesen Preis und daneben die günstigste Region weltweit.</span>
-              <span>Abgefragt werden alle Regionen gleich, das Zielland wird nicht bevorzugt. Die Shops bestätigen die Aktivierung derzeit für {confirmed.map(nameOf).join(', ')}; Preise werden in Euro verglichen.</span></Help></span>
+              <span>Abgefragt werden alle Regionen gleich, das Zielland wird nicht bevorzugt. Ob ein Key im Zielland aktivierbar ist, prüft KeyHunter für jedes Land einzeln anhand der Länderliste des Shops.</span>
+              <span>Die Shops werden aus der EU abgefragt; ihr Euro-Preis gilt in allen EU-Ländern gleich. Für Länder außerhalb der EU zählt kein Angebot als gültiger Bestpreis.</span></Help></span>
           <select id="target-country" className="set-w-260" value={target ?? ''} onChange={event => edit(current => ({ ...current, target_country: event.target.value || null }))}>
             <option value="">Bitte wählen</option>
             {countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
           </select>
         </div>
-        {unconfirmed && <div className="note warn" role="note" data-testid="activation-note"><Icon name="alert" /><span>Die Shops bestätigen die Aktivierung derzeit nur für Deutschland. Für {nameOf(target)} werden Angebote angezeigt, zählen aber nicht als gültiger Bestpreis.</span></div>}
+        {unconfirmed && <div className="note warn" role="note" data-testid="activation-note"><Icon name="alert" /><span>Die Shop-Preise gelten für Käufe aus der EU. Für {nameOf(target)} werden Angebote angezeigt, zählen aber nicht als gültiger Bestpreis.</span></div>}
       </div>
     </SettingsPanel>
 
