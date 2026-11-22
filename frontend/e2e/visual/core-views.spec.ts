@@ -6,13 +6,42 @@ import { signInToFixture } from '../helpers';
 // Determinism: fixed clock, all price data mocked (the fixture has no shop prices), animations and caret off.
 
 const NOW_MS = Date.UTC(2026, 10, 20, 12, 0, 0); // fixed "now" for page.clock and for every mocked timestamp
-const now = NOW_MS / 1000, H = 3600, D = 86400;
+const now = NOW_MS / 1000,
+  H = 3600,
+  D = 86400;
 
 const link = (id: number, source: string, region: string, cents: number, reasons: string[], extra = {}) => ({
-  id, source, url: 'https://www.eneba.com/de/xbox-fixture-key-global', review: 'confirmed', can_confirm: true, eligible: reasons.length === 0,
-  queued: false, enabled: true, stale: false, observed_at: now - 2 * H, attempted_at: now - 2 * H, last_error: null, retry_at: 0, reasons,
-  product: { name: `Forza Horizon 5 ${region} Key`, region, market: 'DE', activation: reasons.includes('activation_blocked') ? 'blocked' : reasons.length ? 'unknown' : 'confirmed', availability: reasons.includes('sold_out') ? 'sold_out' : 'in_stock' },
-  quotes: reasons.includes('sold_out') ? [] : [{ id: String(id), seller: id === 2 ? 'Zero Zero' : null, base_cents: cents, estimated_total_cents: region === 'Argentina' ? null : Math.round(cents * 1.02) }],
+  id,
+  source,
+  url: 'https://www.eneba.com/de/xbox-fixture-key-global',
+  review: 'confirmed',
+  can_confirm: true,
+  eligible: reasons.length === 0,
+  queued: false,
+  enabled: true,
+  stale: false,
+  observed_at: now - 2 * H,
+  attempted_at: now - 2 * H,
+  last_error: null,
+  retry_at: 0,
+  reasons,
+  product: {
+    name: `Forza Horizon 5 ${region} Key`,
+    region,
+    market: 'DE',
+    activation: reasons.includes('activation_blocked') ? 'blocked' : reasons.length ? 'unknown' : 'confirmed',
+    availability: reasons.includes('sold_out') ? 'sold_out' : 'in_stock',
+  },
+  quotes: reasons.includes('sold_out')
+    ? []
+    : [
+        {
+          id: String(id),
+          seller: id === 2 ? 'Zero Zero' : null,
+          base_cents: cents,
+          estimated_total_cents: region === 'Argentina' ? null : Math.round(cents * 1.02),
+        },
+      ],
   ...extra,
 });
 const pt = (days: number, cents: number, region: string, source = 'eneba') => ({ observed_at: now - days * D, base_cents: cents, link_id: 1, region, source });
@@ -28,15 +57,69 @@ const offers = {
     preferred: [pt(21, 3499, 'DE'), pt(14, 3299, 'DE', 'driffle'), pt(8, 3099, 'Global'), pt(1, 2890, 'Global')],
     all: [pt(21, 1590, 'India'), pt(14, 1490, 'Argentina', 'driffle'), pt(8, 1390, 'India'), pt(1, 1290, 'India')],
   },
-  history: [], best_base: 2890, best_estimate: 2948, last_known: null, target_country: 'DE',
-  searches: [{ source: 'eneba', status: 'complete', checked_at: now - 2 * H, result_count: 3, last_error: null }], sources: [], discovery_running: false,
+  history: [],
+  best_base: 2890,
+  best_estimate: 2948,
+  last_known: null,
+  target_country: 'DE',
+  searches: [{ source: 'eneba', status: 'complete', checked_at: now - 2 * H, result_count: 3, last_error: null }],
+  sources: [],
+  discovery_running: false,
 };
-const badge = { state: 'price', cents: 2890, observed_at: now - 2 * H, checked_at: now - 2 * H, stale: false, pending: false, source: 'eneba', region: 'Global', world: { cents: 1290, source: 'eneba', region: 'India', observed_at: now - 2 * H },
-  trend: [3499, 3499, 3299, 3299, 3299, 3299, 3299, 3099, 3099, 3099, 3099, 3099, 3099, 2890] };
+const badge = {
+  state: 'price',
+  cents: 2890,
+  observed_at: now - 2 * H,
+  checked_at: now - 2 * H,
+  stale: false,
+  pending: false,
+  source: 'eneba',
+  region: 'Global',
+  world: { cents: 1290, source: 'eneba', region: 'India', observed_at: now - 2 * H },
+  trend: [3499, 3499, 3299, 3299, 3299, 3299, 3299, 3099, 3099, 3099, 3099, 3099, 3099, 2890],
+};
 const fetchStatus = {
   shops: [
-    { source: 'eneba', enabled: true, last_success_at: now - 60, last_error: null, paused_until: null, budget: { used: 64, limit: 500, limit_source: 'setting', demand_per_day: 430, pace_seconds: 170, next_at: now + 170, by_hour: [3, 4, 3, 2, 3, 4, 5, 4, 5, 6, 6, 5, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, backlog: { due: 14, requested: 3, products: 9, searches: 5 }, oldest_due_at: now - 1500, next_due_at: now + 900, worker_seen_at: now - 2 },
-    { source: 'driffle', enabled: true, last_success_at: now - 7200, last_error: 'rate_limited', paused_until: now + 2400, budget: { used: 41, limit: 120, limit_source: 'env', demand_per_day: 160, pace_seconds: 540, next_at: now + 2400, by_hour: [2, 2, 3, 3, 3, 4, 3, 4, 4, 5, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, backlog: { due: 6, requested: 0, products: 4, searches: 2 }, oldest_due_at: now - 5400, next_due_at: now + 3200, worker_seen_at: now - 1 },
+    {
+      source: 'eneba',
+      enabled: true,
+      last_success_at: now - 60,
+      last_error: null,
+      paused_until: null,
+      budget: {
+        used: 64,
+        limit: 500,
+        limit_source: 'setting',
+        demand_per_day: 430,
+        pace_seconds: 170,
+        next_at: now + 170,
+        by_hour: [3, 4, 3, 2, 3, 4, 5, 4, 5, 6, 6, 5, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      },
+      backlog: { due: 14, requested: 3, products: 9, searches: 5 },
+      oldest_due_at: now - 1500,
+      next_due_at: now + 900,
+      worker_seen_at: now - 2,
+    },
+    {
+      source: 'driffle',
+      enabled: true,
+      last_success_at: now - 7200,
+      last_error: 'rate_limited',
+      paused_until: now + 2400,
+      budget: {
+        used: 41,
+        limit: 120,
+        limit_source: 'env',
+        demand_per_day: 160,
+        pace_seconds: 540,
+        next_at: now + 2400,
+        by_hour: [2, 2, 3, 3, 3, 4, 3, 4, 4, 5, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      },
+      backlog: { due: 6, requested: 0, products: 4, searches: 2 },
+      oldest_due_at: now - 5400,
+      next_due_at: now + 3200,
+      worker_seen_at: now - 1,
+    },
   ],
   errors_24h: 5,
   recent_runs: [
@@ -45,13 +128,53 @@ const fetchStatus = {
     { source: 'eneba', kind: 'discovery', wish_id: null, link_id: null, started_at: now - 900, duration_ms: 8300, outcome: 'ok', detail: null },
   ],
   upcoming: [
-    { source: 'eneba', kind: 'product', wish_id: null, link_id: 2, game: 'Forza Horizon 5', region: 'India', search_page: null, due_at: now + 170, requested: true },
-    { source: 'eneba', kind: 'search', wish_id: 'a'.repeat(32), link_id: null, game: 'Starfield', region: null, search_page: 2, due_at: now + 340, requested: false },
-    { source: 'driffle', kind: 'product', wish_id: null, link_id: 3, game: 'Forza Horizon 5', region: 'Global', search_page: null, due_at: now + 2400, requested: false },
+    {
+      source: 'eneba',
+      kind: 'product',
+      wish_id: null,
+      link_id: 2,
+      game: 'Forza Horizon 5',
+      region: 'India',
+      search_page: null,
+      due_at: now + 170,
+      requested: true,
+    },
+    {
+      source: 'eneba',
+      kind: 'search',
+      wish_id: 'a'.repeat(32),
+      link_id: null,
+      game: 'Starfield',
+      region: null,
+      search_page: 2,
+      due_at: now + 340,
+      requested: false,
+    },
+    {
+      source: 'driffle',
+      kind: 'product',
+      wish_id: null,
+      link_id: 3,
+      game: 'Forza Horizon 5',
+      region: 'Global',
+      search_page: null,
+      due_at: now + 2400,
+      requested: false,
+    },
   ],
 };
 /** GET /status/fetch/runs (0.8.3): the same runs with their game, one page. */
-const runPage = { runs: fetchStatus.recent_runs.map((run, id) => ({ ...run, id, game: run.kind === 'discovery' ? null : 'Forza Horizon 5', region: run.kind === 'product' ? 'Global' : null })), total: 3, page: 1, per_page: 50 };
+const runPage = {
+  runs: fetchStatus.recent_runs.map((run, id) => ({
+    ...run,
+    id,
+    game: run.kind === 'discovery' ? null : 'Forza Horizon 5',
+    region: run.kind === 'product' ? 'Global' : null,
+  })),
+  total: 3,
+  page: 1,
+  per_page: 50,
+};
 
 async function freeze(page: Page) {
   await page.clock.install({ time: NOW_MS });
@@ -60,7 +183,7 @@ async function freeze(page: Page) {
 
 async function mockPrices(page: Page) {
   const ids: string[] = [];
-  await page.route('**/api/v1/wishlist/*/offers', r => r.request().method() === 'GET' ? r.fulfill({ json: offers }) : r.continue());
+  await page.route('**/api/v1/wishlist/*/offers', r => (r.request().method() === 'GET' ? r.fulfill({ json: offers }) : r.continue()));
   await page.route(/\/api\/v1\/wishlist\/price-badges(\?.*)?$/, r => r.fulfill({ json: Object.fromEntries(ids.map(id => [id, badge])) }));
   await page.route('**/api/v1/wishlist', async r => {
     if (r.request().method() !== 'GET') return r.continue();
@@ -68,8 +191,12 @@ async function mockPrices(page: Page) {
     ids.splice(0, ids.length, ...rows.map((x: { id: string }) => x.id));
     await r.fulfill({ json: rows.map((x: object) => ({ ...x, price_badge: badge })) });
   });
-  await page.route('**/api/v1/wishlist/*/alert', r => r.request().method() === 'GET' ? r.fulfill({ json: { rule: { mode: 'target', basis: 'base', target_cents: 2900, enabled: true }, configured: true } }) : r.continue());
-  await page.route('**/api/v1/alerts', r => r.request().method() === 'GET' ? r.fulfill({ json: { configured: true, rules: [], events: [] } }) : r.continue());
+  await page.route('**/api/v1/wishlist/*/alert', r =>
+    r.request().method() === 'GET'
+      ? r.fulfill({ json: { rule: { mode: 'target', basis: 'base', target_cents: 2900, enabled: true }, configured: true } })
+      : r.continue(),
+  );
+  await page.route('**/api/v1/alerts', r => (r.request().method() === 'GET' ? r.fulfill({ json: { configured: true, rules: [], events: [] } }) : r.continue()));
   await page.route('**/api/v1/status/fetch', r => r.fulfill({ json: fetchStatus }));
   await page.route('**/api/v1/status/fetch/runs?*', r => r.fulfill({ json: runPage }));
 }
@@ -82,7 +209,10 @@ async function prepare(page: Page): Promise<string> {
   let rows = await (await page.request.get('/api/v1/wishlist')).json();
   if (!rows.length) {
     await page.getByRole('searchbox', { name: 'Nach Spielen suchen', exact: true }).fill('forza');
-    await page.getByRole('region', { name: 'Suchergebnisse' }).getByRole('button', { name: 'Forza Horizon 5 (Xbox Series X|S) vormerken', exact: true }).click();
+    await page
+      .getByRole('region', { name: 'Suchergebnisse' })
+      .getByRole('button', { name: 'Forza Horizon 5 (Xbox Series X|S) vormerken', exact: true })
+      .click();
     await expect(page).toHaveURL(/[?&]item=/);
     rows = await (await page.request.get('/api/v1/wishlist')).json();
   }
@@ -97,7 +227,11 @@ async function settle(page: Page) {
   await page.waitForTimeout(300); // charts and lazy rows finish painting
 }
 
-const viewports = [{ name: '1440', width: 1440, height: 900 }, { name: '1024', width: 1024, height: 768 }, { name: '390', width: 390, height: 844 }];
+const viewports = [
+  { name: '1440', width: 1440, height: 900 },
+  { name: '1024', width: 1024, height: 768 },
+  { name: '390', width: 390, height: 844 },
+];
 
 // The setup screen only exists on a never-initialised server, so it is captured first, at all viewports in one test
 // (tests run in file order with one worker; every later test signs in and thereby creates the account).
@@ -116,13 +250,14 @@ for (const vp of viewports) {
   test.describe(`viewport ${vp.name}`, () => {
     test.use({ viewport: { width: vp.width, height: vp.height } });
 
-    const detail = (tab: string, file: string) => test(`wishlist ${tab || 'preis'}`, async ({ page }) => {
-      const id = await prepare(page);
-      await page.goto(`/?item=${id}${tab ? `&tab=${tab}` : ''}`);
-      await page.getByRole('tablist', { name: 'Spieldetails' }).waitFor();
-      await settle(page);
-      await expect(page).toHaveScreenshot(`${file}-${vp.name}.png`, { mask: masks(page) });
-    });
+    const detail = (tab: string, file: string) =>
+      test(`wishlist ${tab || 'preis'}`, async ({ page }) => {
+        const id = await prepare(page);
+        await page.goto(`/?item=${id}${tab ? `&tab=${tab}` : ''}`);
+        await page.getByRole('tablist', { name: 'Spieldetails' }).waitFor();
+        await settle(page);
+        await expect(page).toHaveScreenshot(`${file}-${vp.name}.png`, { mask: masks(page) });
+      });
     test('wishlist list', async ({ page }) => {
       await prepare(page);
       await page.goto('/');
@@ -135,23 +270,40 @@ for (const vp of viewports) {
     detail('angebote', 'angebote');
     detail('verlauf', 'verlauf');
 
-    const settings = (section: string, file: string, tabName: string, ready = '') => test(`settings ${file}`, async ({ page }) => {
-      await prepare(page);
-      await page.goto(`/?view=settings${section ? `&section=${section}` : ''}`);
-      await expect(page.getByRole('main').getByRole('heading', { name: 'Einstellungen', level: 1 })).toBeVisible();
-      await expect(page.getByRole('tablist', { name: 'Einstellungen', exact: true }).getByRole('tab', { name: tabName, exact: true })).toHaveAttribute('aria-selected', 'true');
-      if (ready) await expect(page.getByText(ready).first()).toBeVisible();
-      await settle(page);
-      await expect(page).toHaveScreenshot(`${file}-${vp.name}.png`, { mask: masks(page) });
-    });
+    const settings = (section: string, file: string, tabName: string, ready = '') =>
+      test(`settings ${file}`, async ({ page }) => {
+        await prepare(page);
+        await page.goto(`/?view=settings${section ? `&section=${section}` : ''}`);
+        await expect(page.getByRole('main').getByRole('heading', { name: 'Einstellungen', level: 1 })).toBeVisible();
+        await expect(page.getByRole('tablist', { name: 'Einstellungen', exact: true }).getByRole('tab', { name: tabName, exact: true })).toHaveAttribute(
+          'aria-selected',
+          'true',
+        );
+        if (ready) await expect(page.getByText(ready).first()).toBeVisible();
+        await settle(page);
+        await expect(page).toHaveScreenshot(`${file}-${vp.name}.png`, { mask: masks(page) });
+      });
     test('library unlocked', async ({ page }) => {
       await prepare(page);
-      const entry = (n: number, title: string, platform: number, acquired: number) => ({ id: String(n).repeat(32), game_id: String(n), platform_id: platform, created_at: n, acquired_at: acquired, verification: 'manual_unverified', game: null, manual_title: title });
-      await page.route('**/api/v1/library', r => r.fulfill({ json: [
-        entry(1, 'Halo Infinite', 169, 1795107000),
-        entry(2, 'Microsoft Flight Simulator 2024: Premium Deluxe Edition mit allen Flugzeugen', 169, 1790000000),
-        entry(3, 'Lies of P', 49, 1780000000),
-      ] }));
+      const entry = (n: number, title: string, platform: number, acquired: number) => ({
+        id: String(n).repeat(32),
+        game_id: String(n),
+        platform_id: platform,
+        created_at: n,
+        acquired_at: acquired,
+        verification: 'manual_unverified',
+        game: null,
+        manual_title: title,
+      });
+      await page.route('**/api/v1/library', r =>
+        r.fulfill({
+          json: [
+            entry(1, 'Halo Infinite', 169, 1795107000),
+            entry(2, 'Microsoft Flight Simulator 2024: Premium Deluxe Edition mit allen Flugzeugen', 169, 1790000000),
+            entry(3, 'Lies of P', 49, 1780000000),
+          ],
+        }),
+      );
       await page.goto('/?view=library');
       await expect(page.getByRole('main').getByRole('heading', { name: 'Bibliothek', level: 1 })).toBeVisible();
       await page.getByRole('button', { name: 'Bearbeiten entsperren', exact: true }).click();

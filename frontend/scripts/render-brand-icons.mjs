@@ -31,13 +31,17 @@ const ico = [];
 // ICO container: 6-byte header, one 16-byte directory entry per image, then the PNG data (PNG entries are valid since Vista).
 const buildIco = images => {
   const head = Buffer.alloc(6 + 16 * images.length);
-  head.writeUInt16LE(1, 2); head.writeUInt16LE(images.length, 4);
+  head.writeUInt16LE(1, 2);
+  head.writeUInt16LE(images.length, 4);
   let offset = head.length;
   images.forEach(({ size, png }, i) => {
     const at = 6 + 16 * i;
-    head.writeUInt8(size, at); head.writeUInt8(size, at + 1); // width, height (0 would mean 256)
-    head.writeUInt16LE(1, at + 4); head.writeUInt16LE(32, at + 6); // planes, bits per pixel
-    head.writeUInt32LE(png.length, at + 8); head.writeUInt32LE(offset, at + 12);
+    head.writeUInt8(size, at);
+    head.writeUInt8(size, at + 1); // width, height (0 would mean 256)
+    head.writeUInt16LE(1, at + 4);
+    head.writeUInt16LE(32, at + 6); // planes, bits per pixel
+    head.writeUInt32LE(png.length, at + 8);
+    head.writeUInt32LE(offset, at + 12);
     offset += png.length;
   });
   return Buffer.concat([head, ...images.map(image => image.png)]);

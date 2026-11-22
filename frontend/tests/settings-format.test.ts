@@ -1,11 +1,34 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { budgetShare, budgetView, durationText, fetchPill, intervalLabel, intervalOptions, kindText, outcomeText, outcomeTone, parseDailyJobs, shopState, untilText, workerState } from '../src/features/settings/format.ts';
+import {
+  budgetShare,
+  budgetView,
+  durationText,
+  fetchPill,
+  intervalLabel,
+  intervalOptions,
+  kindText,
+  outcomeText,
+  outcomeTone,
+  parseDailyJobs,
+  shopState,
+  untilText,
+  workerState,
+} from '../src/features/settings/format.ts';
 import type { FetchShopStatus } from '../src/api.ts';
 
 const shop = (patch: Partial<FetchShopStatus> = {}): FetchShopStatus => ({
-  source: 'eneba', enabled: true, last_success_at: 1000, last_error: null, paused_until: null, budget: { used: 41, limit: 120 },
-  backlog: { due: 5, requested: 2, products: 3, searches: 2 }, oldest_due_at: 500, next_due_at: 2000, worker_seen_at: 1990, ...patch,
+  source: 'eneba',
+  enabled: true,
+  last_success_at: 1000,
+  last_error: null,
+  paused_until: null,
+  budget: { used: 41, limit: 120 },
+  backlog: { due: 5, requested: 2, products: 3, searches: 2 },
+  oldest_due_at: 500,
+  next_due_at: 2000,
+  worker_seen_at: 1990,
+  ...patch,
 });
 const ago = (seconds: number) => `t${seconds}`;
 
@@ -15,7 +38,10 @@ test('interval options keep the current value, also when it is not a preset', ()
   assert.equal(options.find(o => o.value === 3600)?.label, '1 Stunde');
   assert.equal(options.find(o => o.value === 900)?.label, '15 Minuten');
   const odd = intervalOptions(5 * 3600);
-  assert.deepEqual(odd.map(o => o.value), [...odd.map(o => o.value)].sort((a, b) => a - b));
+  assert.deepEqual(
+    odd.map(o => o.value),
+    [...odd.map(o => o.value)].sort((a, b) => a - b),
+  );
   assert.equal(odd.find(o => o.value === 5 * 3600)?.label, '5 Stunden');
   assert.equal(new Set(odd.map(o => o.value)).size, odd.length);
 });
@@ -47,11 +73,20 @@ test('daily jobs accept whole numbers from 20 to 2000 only', () => {
 
 test('budget view places the demand marker and says when the limit is too low', () => {
   const plain = budgetView({ used: 41, limit: 120 });
-  assert.deepEqual({ demand: plain.demand, marker: plain.demandShare, pace: plain.pace, over: plain.over }, { demand: null, marker: null, pace: null, over: false });
+  assert.deepEqual(
+    { demand: plain.demand, marker: plain.demandShare, pace: plain.pace, over: plain.over },
+    { demand: null, marker: null, pace: null, over: false },
+  );
   const enough = budgetView({ used: 412, limit: 500, demand_per_day: 469.2, pace_seconds: 172, limit_source: 'setting' });
-  assert.deepEqual({ demand: enough.demand, marker: enough.demandShare, pace: enough.pace, over: enough.over, env: enough.fromEnv }, { demand: 470, marker: 0.94, pace: 172, over: false, env: false });
+  assert.deepEqual(
+    { demand: enough.demand, marker: enough.demandShare, pace: enough.pace, over: enough.over, env: enough.fromEnv },
+    { demand: 470, marker: 0.94, pace: 172, over: false, env: false },
+  );
   const short = budgetView({ used: 120, limit: 120, demand_per_day: 610, limit_source: 'env' });
-  assert.deepEqual({ over: short.over, needed: short.needed, marker: short.demandShare, env: short.fromEnv }, { over: true, needed: 610, marker: 1, env: true });
+  assert.deepEqual(
+    { over: short.over, needed: short.needed, marker: short.demandShare, env: short.fromEnv },
+    { over: true, needed: 610, marker: 1, env: true },
+  );
   assert.equal(budgetView({ used: 0, limit: 0, demand_per_day: 50 }).over, false);
 });
 
@@ -87,7 +122,8 @@ test('interval labels name hours and minutes in German', () => {
 
 test('a pause beyond today names its date', () => {
   const now = Date.UTC(2026, 10, 20, 12) / 1000;
-  const paused = (until: number) => shopState({ enabled: true, paused_until: until, last_error: null, last_success_at: now - 60 }, now, () => 'vor 1 Min.').text;
+  const paused = (until: number) =>
+    shopState({ enabled: true, paused_until: until, last_error: null, last_success_at: now - 60 }, now, () => 'vor 1 Min.').text;
   assert.match(paused(now + 3600), /^Pausiert bis \d\d:\d\d Uhr$/);
   assert.match(paused(now + 3 * 86400), /^Pausiert bis \d\d\.\d\d\., \d\d:\d\d Uhr$/);
 });

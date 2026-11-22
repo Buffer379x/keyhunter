@@ -3,9 +3,26 @@ import assert from 'node:assert/strict';
 import { cartLine, cartSums, entryShop } from '../src/features/cart-model.ts';
 import type { CartEntry, CartOffer, CartScope, ShopOffers } from '../src/features/cart-model.ts';
 
-const offer = (cents: number, estimate: number | null, region: string, stale = false): CartOffer => ({ cents, estimate_cents: estimate, region, observed_at: 1, stale });
+const offer = (cents: number, estimate: number | null, region: string, stale = false): CartOffer => ({
+  cents,
+  estimate_cents: estimate,
+  region,
+  observed_at: 1,
+  stale,
+});
 const entry = (id: string, offers: Record<string, ShopOffers>, source: string | null = null, scope: CartScope = 'world'): CartEntry => ({
-  id, created_at: 1, added_at: 1, game_id: id, platform_id: 169, verification: 'catalog', game: null, manual_title: id, in_cart: true, source, scope, offers,
+  id,
+  created_at: 1,
+  added_at: 1,
+  game_id: id,
+  platform_id: 169,
+  verification: 'catalog',
+  game: null,
+  manual_title: id,
+  in_cart: true,
+  source,
+  scope,
+  offers,
 });
 // Eneba with 10 % fees, Driffle without a fee estimate.
 const offers = (): Record<string, ShopOffers> => ({
@@ -21,7 +38,7 @@ test('cart: the button on the game page counts the cheapest variant, shop and re
   assert.deepEqual([stale.source, stale.base, stale.fee, stale.stale], ['eneba', 1900, 190, true]);
 });
 
-test('cart: DE/INT changes the price of the entry\'s own shop only', () => {
+test("cart: DE/INT changes the price of the entry's own shop only", () => {
   const home = cartLine(entry('a', offers(), 'eneba', 'home'));
   assert.deepEqual([home.source, home.region, home.base, home.fee], ['eneba', 'Global', 2000, 200]);
   const world = cartLine(entry('a', offers(), 'eneba', 'world'));
@@ -41,9 +58,18 @@ test('cart: sums by shop, unknown fees, and the extra cost against the cheapest 
   assert.equal(chosen.keys, 3100);
   assert.equal(chosen.fees, 200);
   assert.equal(chosen.total, 3300);
-  assert.deepEqual(chosen.shops.map(shop => [shop.source, shop.count, shop.keys, shop.fees, shop.total]), [['eneba', 1, 2000, 200, 2200], ['driffle', 1, 1100, null, 1100]]);
+  assert.deepEqual(
+    chosen.shops.map(shop => [shop.source, shop.count, shop.keys, shop.fees, shop.total]),
+    [
+      ['eneba', 1, 2000, 200, 2200],
+      ['driffle', 1, 1100, null, 1100],
+    ],
+  );
   assert.deepEqual(chosen.extra, { keys: 900, total: 1100 }, 'Eneba DE instead of Driffle INT: 9 € more on keys, 11 € with fees');
-  assert.deepEqual(chosen.missing.map(item => item.id), ['c']);
+  assert.deepEqual(
+    chosen.missing.map(item => item.id),
+    ['c'],
+  );
   // Eneba INT instead of the cheaper Driffle INT.
   assert.deepEqual(cartSums([entry('a', offers(), 'eneba', 'world')]).extra, { keys: 100, total: 220 });
 });

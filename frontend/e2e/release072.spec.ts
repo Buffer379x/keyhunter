@@ -41,7 +41,9 @@ test('in the library a game is added straight to the library, a wished one only 
   // The same game is shown as already there.
   await page.getByRole('banner').getByRole('button', { name: 'Spiel hinzufügen', exact: true }).click();
   await dialog.getByLabel('Spiel im Katalog suchen').fill('forza');
-  await expect(dialog.getByRole('button', { name: 'Forza Horizon 5 (Xbox Series X|S) zur Bibliothek hinzufügen', exact: true })).toHaveText('In der Bibliothek');
+  await expect(dialog.getByRole('button', { name: 'Forza Horizon 5 (Xbox Series X|S) zur Bibliothek hinzufügen', exact: true })).toHaveText(
+    'In der Bibliothek',
+  );
   await expect(dialog.getByRole('button', { name: 'Forza Horizon 5 (Xbox Series X|S) zur Bibliothek hinzufügen', exact: true })).toBeDisabled();
 
   // A game on the wishlist moves over only when confirmed, as if bought.
@@ -84,7 +86,10 @@ test('the library switches between tiles and a list, and keeps the choice', asyn
   expect(remove!.x + remove!.width).toBeGreaterThan(row!.x + row!.width - 24);
 
   await page.reload();
-  await expect(page.getByRole('group', { name: 'Ansicht', exact: true }).getByRole('button', { name: 'Liste', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('group', { name: 'Ansicht', exact: true }).getByRole('button', { name: 'Liste', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   await page.getByRole('group', { name: 'Ansicht', exact: true }).getByRole('button', { name: 'Kacheln', exact: true }).click();
 });
 

@@ -16,7 +16,17 @@ import './styles/shell.css';
 
 const root = createRoot(document.getElementById('root')!);
 if (import.meta.env.DEV && window.location.pathname === '/_ui') {
-  void import('./ui/Gallery').then(({ default: Gallery }) => root.render(<StrictMode><Gallery /></StrictMode>));
+  void import('./ui/Gallery').then(({ default: Gallery }) =>
+    root.render(
+      <StrictMode>
+        <Gallery />
+      </StrictMode>,
+    ),
+  );
 } else {
-  root.render(<StrictMode><App /></StrictMode>);
+  root.render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
 }

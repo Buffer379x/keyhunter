@@ -1,38 +1,128 @@
 /* The alarm tab of the game detail is styled in detail.css. Tokens only. */
 
 /* Preisalarme page (prototype viewAlarms): one table of all targets, sorted by distance */
-.alerts-page .alarm-pad { padding: 14px 16px; }
-.alerts-page .head-actions { align-items: center; }
-.alerts-page .game-cell { display: flex; align-items: center; gap: 12px; min-width: 220px; }
-.alerts-page .game-cell > div { display: grid; min-width: 0; }
-.alerts-page .game-cell .game-cover { width: 34px; height: 44px; border-radius: 5px; }
-.alerts-page .game-cell .cover-fallback .key-mark { width: 16px; height: 16px; }
-.alerts-page .game-cell small { color: var(--muted); font-size: var(--t-xs); }
-.alerts-page .alarm-title { color: var(--text); font-weight: 500; text-decoration: none; }
-.alerts-page .alarm-title:hover { text-decoration: underline; }
-.alerts-page .save { font: 500 var(--t-xs)/1.2 var(--f-mono); white-space: nowrap; color: var(--text-2); }
-.alerts-page .save.reached { color: var(--ok); }
-.alerts-page .save.none { color: var(--faint); }
-.alerts-page td.mono { white-space: nowrap; }
+.alerts-page .alarm-pad {
+  padding: 14px 16px;
+}
+.alerts-page .head-actions {
+  align-items: center;
+}
+.alerts-page .game-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 220px;
+}
+.alerts-page .game-cell > div {
+  display: grid;
+  min-width: 0;
+}
+.alerts-page .game-cell .game-cover {
+  width: 34px;
+  height: 44px;
+  border-radius: 5px;
+}
+.alerts-page .game-cell .cover-fallback .key-mark {
+  width: 16px;
+  height: 16px;
+}
+.alerts-page .game-cell small {
+  color: var(--muted);
+  font-size: var(--t-xs);
+}
+.alerts-page .alarm-title {
+  color: var(--text);
+  font-weight: 500;
+  text-decoration: none;
+}
+.alerts-page .alarm-title:hover {
+  text-decoration: underline;
+}
+.alerts-page .save {
+  font: 500 var(--t-xs)/1.2 var(--f-mono);
+  white-space: nowrap;
+  color: var(--text-2);
+}
+.alerts-page .save.reached {
+  color: var(--ok);
+}
+.alerts-page .save.none {
+  color: var(--faint);
+}
+.alerts-page td.mono {
+  white-space: nowrap;
+}
 /* Up to 720 px the rows become cards (like the wishlist): game and current price, then status and distance */
 @media (max-width: 720px) {
-  .alerts-page table.alarm-table thead, .alerts-page table.delivery-table thead { display: none; }
-  .alerts-page :is(.alarm-table, .delivery-table), .alerts-page :is(.alarm-table, .delivery-table) tbody { display: block; }
-  .alerts-page :is(.alarm-table, .delivery-table) tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 10px; padding: 12px; border-bottom: 1px solid var(--line); }
-  .alerts-page :is(.alarm-table, .delivery-table) tr:last-child { border-bottom: 0; }
-  .alerts-page :is(.alarm-table, .delivery-table) td { border: 0; padding: 0; background: none; }
-  .alerts-page .alarm-table tr { grid-template-areas: "g p" "s d"; align-items: center; }
-  .alerts-page .alarm-table .c-game { grid-area: g; }
-  .alerts-page .alarm-table .c-now { grid-area: p; }
-  .alerts-page .alarm-table .c-status { grid-area: s; }
-  .alerts-page .alarm-table .c-dist { grid-area: d; }
-  .alerts-page .alarm-table .c-target { display: none; }
-  .alerts-page .alarm-table .game-cell { min-width: 0; }
-  .alerts-page .delivery-table tr { grid-template-areas: "g s" "t p"; }
-  .alerts-page .delivery-table .c-game { grid-area: g; }
-  .alerts-page .delivery-table .c-status { grid-area: s; justify-self: end; }
-  .alerts-page .delivery-table .c-time { grid-area: t; color: var(--muted); font-size: var(--t-xs); }
-  .alerts-page .delivery-table .c-price { grid-area: p; }
+  .alerts-page table.alarm-table thead,
+  .alerts-page table.delivery-table thead {
+    display: none;
+  }
+  .alerts-page :is(.alarm-table, .delivery-table),
+  .alerts-page :is(.alarm-table, .delivery-table) tbody {
+    display: block;
+  }
+  .alerts-page :is(.alarm-table, .delivery-table) tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 10px;
+    padding: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .alerts-page :is(.alarm-table, .delivery-table) tr:last-child {
+    border-bottom: 0;
+  }
+  .alerts-page :is(.alarm-table, .delivery-table) td {
+    border: 0;
+    padding: 0;
+    background: none;
+  }
+  .alerts-page .alarm-table tr {
+    grid-template-areas: 'g p' 's d';
+    align-items: center;
+  }
+  .alerts-page .alarm-table .c-game {
+    grid-area: g;
+  }
+  .alerts-page .alarm-table .c-now {
+    grid-area: p;
+  }
+  .alerts-page .alarm-table .c-status {
+    grid-area: s;
+  }
+  .alerts-page .alarm-table .c-dist {
+    grid-area: d;
+  }
+  .alerts-page .alarm-table .c-target {
+    display: none;
+  }
+  .alerts-page .alarm-table .game-cell {
+    min-width: 0;
+  }
+  .alerts-page .delivery-table tr {
+    grid-template-areas: 'g s' 't p';
+  }
+  .alerts-page .delivery-table .c-game {
+    grid-area: g;
+  }
+  .alerts-page .delivery-table .c-status {
+    grid-area: s;
+    justify-self: end;
+  }
+  .alerts-page .delivery-table .c-time {
+    grid-area: t;
+    color: var(--muted);
+    font-size: var(--t-xs);
+  }
+  .alerts-page .delivery-table .c-price {
+    grid-area: p;
+  }
 }
-.alerts-page .delivery-channels { display: block; margin-top: 4px; }
-.alerts-page .head-actions > .text-button { display: inline-flex; align-items: center; } /* (0.9.0) "Kanal einrichten" centred on the pill */
+.alerts-page .delivery-channels {
+  display: block;
+  margin-top: 4px;
+}
+.alerts-page .head-actions > .text-button {
+  display: inline-flex;
+  align-items: center;
+} /* (0.9.0) "Kanal einrichten" centred on the pill */

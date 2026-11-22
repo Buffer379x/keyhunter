@@ -24,25 +24,46 @@ export function useOffersView(id: string, csrf: string, onError: (error: unknown
         setView(data);
         if (data.price_badge) onBadge?.(id, data.price_badge as PriceBadgeData);
         setError('');
-        const pending = data.searches?.some(search => ['queued', 'searching'].includes(search.status)) || data.discovery_running || data.links.some(link => link.queued && link.review !== 'rejected');
+        const pending =
+          data.searches?.some(search => ['queued', 'searching'].includes(search.status)) ||
+          data.discovery_running ||
+          data.links.some(link => link.queued && link.review !== 'rejected');
         cancel = whenVisible(() => void load(), pending ? 3000 : 60000);
       } catch (e) {
         if (controller.signal.aborted) return;
-        if (e instanceof HttpError && e.status === 401) { onError(e); return; }
+        if (e instanceof HttpError && e.status === 401) {
+          onError(e);
+          return;
+        }
         setError(e instanceof Error ? e.message : 'Angebote konnten nicht geladen werden.');
         cancel = whenVisible(() => void load(), 10000);
       }
     }
     void load();
-    return () => { controller.abort(); cancel(); };
+    return () => {
+      controller.abort();
+      cancel();
+    };
   }, [path, reload, onError, onBadge, id]);
-  const write = useCallback(async (endpoint: string, method: string, body: unknown, success = '') => {
-    setBusy(true);
-    // The result of a change is a popup (0.9.1); `error` stays the read error with its "Erneut laden".
-    try { await api(path + endpoint, method, body, csrf); notify(success); setReload(n => n + 1); return true; }
-    catch (e) { if (e instanceof HttpError && e.status === 401) onError(e); else notify(e instanceof Error ? e.message : 'Angebotsänderung fehlgeschlagen.', 'error'); return false; }
-    finally { setBusy(false); }
-  }, [path, csrf, onError]);
+  const write = useCallback(
+    async (endpoint: string, method: string, body: unknown, success = '') => {
+      setBusy(true);
+      // The result of a change is a popup (0.9.1); `error` stays the read error with its "Erneut laden".
+      try {
+        await api(path + endpoint, method, body, csrf);
+        notify(success);
+        setReload(n => n + 1);
+        return true;
+      } catch (e) {
+        if (e instanceof HttpError && e.status === 401) onError(e);
+        else notify(e instanceof Error ? e.message : 'Angebotsänderung fehlgeschlagen.', 'error');
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [path, csrf, onError],
+  );
   const refetch = useCallback(() => setReload(n => n + 1), []);
   return { view, error, busy, write, refetch };
 }

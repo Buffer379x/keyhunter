@@ -11,5 +11,9 @@ export function Toast({ message, onDone, duration = 2600 }: { message: string; o
     const timer = window.setTimeout(onDone, duration);
     return () => window.clearTimeout(timer);
   }, [message, onDone, duration]);
-  return <div className="toast" role="status" hidden={!message}>{message}</div>;
+  return (
+    <div className="toast" role="status" hidden={!message}>
+      {message}
+    </div>
+  );
 }

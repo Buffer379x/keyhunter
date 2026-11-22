@@ -11,11 +11,14 @@ const point = (time: number, cents: number | null, region = 'DE') => ({ observed
 
 test('a measurement holds until the next one, at most 24 hours and never beyond now', () => {
   const parts = intervals([point(at(5, 10), 3000), point(at(5, 20), 2800), point(at(1, 8), null), point(at(0, 11), 2900)], now);
-  assert.deepEqual(parts.map(p => [p.start, p.end, p.cents]), [
-    [at(5, 10), at(5, 20), 3000],
-    [at(5, 20), at(5, 20) + DAY, 2800],
-    [at(0, 11), now, 2900],
-  ]);
+  assert.deepEqual(
+    parts.map(p => [p.start, p.end, p.cents]),
+    [
+      [at(5, 10), at(5, 20), 3000],
+      [at(5, 20), at(5, 20) + DAY, 2800],
+      [at(0, 11), now, 2900],
+    ],
+  );
 });
 
 test('columns: minimum per bucket, the last bucket ends with today, days without data stay empty', () => {
@@ -58,5 +61,14 @@ test('default range, axis labels and region codes', () => {
   assert.equal(defaultRange([point(at(60, 9), 1)], now), 90);
   assert.equal(defaultRange([], now), 30);
   assert.match(dayLabel(now, 0), /^\d{2} \S+/);
-  assert.deepEqual(['Deutschland', 'India', 'Turkey', 'Global', 'Europe', 'North America', 'Rest of World', null].map(regionCode), ['DE', 'IN', 'TR', 'GL', 'EU', 'NA', 'ROW', '–']);
+  assert.deepEqual(['Deutschland', 'India', 'Turkey', 'Global', 'Europe', 'North America', 'Rest of World', null].map(regionCode), [
+    'DE',
+    'IN',
+    'TR',
+    'GL',
+    'EU',
+    'NA',
+    'ROW',
+    '–',
+  ]);
 });

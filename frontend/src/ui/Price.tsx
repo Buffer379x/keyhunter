@@ -16,8 +16,16 @@ const MissingPrice = ({ missing = 'noch nicht abgefragt', className = '' }: Miss
  * Inline price for lists and tables (`.price`: JetBrains Mono 14 px, tabular numerals).
  * tone: world (the cheapest region, warm white), hot (orange: best offer, your target), stale (muted). `struck` crosses it out.
  */
-export function Price({ cents, tone = 'default', struck = false, missing, className = '' }: Missing & {
-  cents: number | null | undefined; tone?: 'default' | 'world' | 'hot' | 'stale'; struck?: boolean;
+export function Price({
+  cents,
+  tone = 'default',
+  struck = false,
+  missing,
+  className = '',
+}: Missing & {
+  cents: number | null | undefined;
+  tone?: 'default' | 'world' | 'hot' | 'stale';
+  struck?: boolean;
 }) {
   if (!valid(cents)) return <MissingPrice missing={missing} className={className} />;
   return <span className={`price${tone === 'default' ? '' : ` ${tone}`}${struck ? ' struck' : ''} ${className}`.trim()}>{formatPrice(cents)}</span>;
@@ -27,7 +35,15 @@ export function Price({ cents, tone = 'default', struck = false, missing, classN
 export function BigPrice({ cents, world = false, missing, className = '' }: Missing & { cents: number | null | undefined; world?: boolean }) {
   if (!valid(cents)) return <MissingPrice missing={missing} className={className} />;
   const [int, frac] = parts(cents);
-  return <span className={`big-price${world ? ' world' : ''} ${className}`.trim()}>
-    <span aria-hidden="true">{int}<small>,{frac} €</small></span><span className="sr-only">{int},{frac} €</span>
-  </span>;
+  return (
+    <span className={`big-price${world ? ' world' : ''} ${className}`.trim()}>
+      <span aria-hidden="true">
+        {int}
+        <small>,{frac} €</small>
+      </span>
+      <span className="sr-only">
+        {int},{frac} €
+      </span>
+    </span>
+  );
 }

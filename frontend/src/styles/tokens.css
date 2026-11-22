@@ -25,23 +25,23 @@
   /* Accent: orange means you (brand, your action, your target country and target price) */
   --accent: #ff7a1a;
   --accent-2: #ff9a4d;
-  --accent-bg: rgb(255 122 26 / .12);
-  --accent-line: rgb(255 122 26 / .35);
+  --accent-bg: rgb(255 122 26 / 0.12);
+  --accent-line: rgb(255 122 26 / 0.35);
   --on-accent: #1b1004;
   --world: #d8d1c6; /* the cheapest region worldwide */
 
   /* Status */
   --ok: #4fd18b;
-  --ok-bg: rgb(79 209 139 / .12);
+  --ok-bg: rgb(79 209 139 / 0.12);
   --warn: #f2c14e;
-  --warn-bg: rgb(242 193 78 / .12);
+  --warn-bg: rgb(242 193 78 / 0.12);
   --danger: #ff7b7b;
-  --danger-bg: rgb(255 123 123 / .12);
-  --scrim: rgb(10 9 8 / .6);
+  --danger-bg: rgb(255 123 123 / 0.12);
+  --scrim: rgb(10 9 8 / 0.6);
 
   /* Type */
-  --f-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --f-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
   --t-label: 11px;
   --t-xs: 12px;
   --t-sm: 13px;
@@ -58,12 +58,12 @@
   --h-btn: 32px;
 
   /* Shadows of floating layers (search popover, dialogs, tooltips, toast) */
-  --shadow-pop: 0 16px 40px rgb(0 0 0 / .45);
-  --shadow-tip: 0 12px 30px rgb(0 0 0 / .4);
+  --shadow-pop: 0 16px 40px rgb(0 0 0 / 0.45);
+  --shadow-tip: 0 12px 30px rgb(0 0 0 / 0.4);
 
   /* Game covers (prototype `.cover`): hairline over the image and the initials when there is none */
-  --cover-line: rgb(255 255 255 / .06);
-  --cover-text: rgb(255 255 255 / .85);
+  --cover-line: rgb(255 255 255 / 0.06);
+  --cover-text: rgb(255 255 255 / 0.85);
 
   /* Layers */
   --z-sticky: 10;
@@ -104,8 +104,8 @@
   --color-best: var(--ok);
   --color-best-text: var(--ok);
   --color-best-bg: var(--ok-bg);
-  --color-best-ring: rgb(79 209 139 / .35);
-  --color-glass: rgb(33 31 30 / .86);
+  --color-best-ring: rgb(79 209 139 / 0.35);
+  --color-glass: rgb(33 31 30 / 0.86);
   --color-backdrop: var(--scrim);
   --color-warn: var(--warn);
   --color-warn-bg: var(--warn-bg);
@@ -122,8 +122,8 @@
   --text-lg: var(--t-lg);
   --text-xl: 18px;
   --text-2xl: var(--t-title);
-  --tracking-title: -.01em;
-  --tracking-mono: .08em;
+  --tracking-title: -0.01em;
+  --tracking-mono: 0.08em;
   --weight-regular: 400;
   --weight-medium: 500;
   --weight-semibold: 500;
@@ -145,7 +145,7 @@
   --radius-pill: 999px;
   --shadow-overlay: var(--shadow-pop);
   --motion-fast: 120ms;
-  --ease: cubic-bezier(.2, .8, .2, 1);
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --control-h: var(--h-btn);
   --control-h-sm: 28px;
   --control-h-touch: var(--h-btn);

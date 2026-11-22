@@ -4,13 +4,44 @@ import { saveButton, saveSettings, signInToFixture, navTo, navItem } from './hel
 const now = () => Math.floor(Date.now() / 1000);
 const fetchStatus = () => ({
   shops: [
-    { source: 'eneba', enabled: true, last_success_at: now() - 60, last_error: null, paused_until: null, budget: { used: 64, limit: 120 }, backlog: { due: 14, requested: 3, products: 9, searches: 5 }, oldest_due_at: now() - 1500, next_due_at: now() + 900, worker_seen_at: now() - 2 },
-    { source: 'driffle', enabled: true, last_success_at: now() - 7200, last_error: 'rate_limited', paused_until: now() + 2400, budget: { used: 41, limit: 120 }, backlog: { due: 6, requested: 0, products: 4, searches: 2 }, oldest_due_at: now() - 5400, next_due_at: now() + 3200, worker_seen_at: now() - 1 },
+    {
+      source: 'eneba',
+      enabled: true,
+      last_success_at: now() - 60,
+      last_error: null,
+      paused_until: null,
+      budget: { used: 64, limit: 120 },
+      backlog: { due: 14, requested: 3, products: 9, searches: 5 },
+      oldest_due_at: now() - 1500,
+      next_due_at: now() + 900,
+      worker_seen_at: now() - 2,
+    },
+    {
+      source: 'driffle',
+      enabled: true,
+      last_success_at: now() - 7200,
+      last_error: 'rate_limited',
+      paused_until: now() + 2400,
+      budget: { used: 41, limit: 120 },
+      backlog: { due: 6, requested: 0, products: 4, searches: 2 },
+      oldest_due_at: now() - 5400,
+      next_due_at: now() + 3200,
+      worker_seen_at: now() - 1,
+    },
   ],
   errors_24h: 5,
   recent_runs: [
     { source: 'eneba', kind: 'product', wish_id: null, link_id: 1, started_at: now() - 40, duration_ms: 1180, outcome: 'ok', detail: 'Forza Horizon 5' },
-    { source: 'driffle', kind: 'search', wish_id: 'a'.repeat(32), link_id: null, started_at: now() - 300, duration_ms: 210, outcome: 'rate_limited', detail: null },
+    {
+      source: 'driffle',
+      kind: 'search',
+      wish_id: 'a'.repeat(32),
+      link_id: null,
+      started_at: now() - 300,
+      duration_ms: 210,
+      outcome: 'rate_limited',
+      detail: null,
+    },
     { source: 'eneba', kind: 'discovery', wish_id: null, link_id: null, started_at: now() - 900, duration_ms: 8300, outcome: 'ok', detail: null },
   ],
 });
@@ -18,8 +49,16 @@ const fetchStatus = () => ({
 test('settings sections are bound to the URL, and Abrufstatus shows queue, budget, pauses and recent runs', async ({ page }) => {
   await page.route('**/api/v1/status/fetch', route => route.fulfill({ json: fetchStatus() }));
   // 0.8.3: the runs come page by page with their game.
-  await page.route('**/api/v1/status/fetch/runs?*', route => route.fulfill({ json: {
-    runs: fetchStatus().recent_runs.map((run, id) => ({ ...run, id, game: id === 1 ? 'Starfield' : null, region: null })), total: 3, page: 1, per_page: 50 } }));
+  await page.route('**/api/v1/status/fetch/runs?*', route =>
+    route.fulfill({
+      json: {
+        runs: fetchStatus().recent_runs.map((run, id) => ({ ...run, id, game: id === 1 ? 'Starfield' : null, region: null })),
+        total: 3,
+        page: 1,
+        per_page: 50,
+      },
+    }),
+  );
   await signInToFixture(page);
   await navTo(page, 'Allgemein');
   // The sidebar group "Einstellungen" lists the sections; the open one is the current page and named in the breadcrumbs.
@@ -71,10 +110,13 @@ test('settings stay a draft until Speichern; an invalid fee is not sent, says so
   const eneba = page.getByRole('article', { name: 'Eneba', exact: true });
   const fee = eneba.getByLabel('Geschätzte Gebühren (%)', { exact: true });
   const feeSwitch = eneba.getByRole('switch', { name: /Geschätzte Gebühren berücksichtigen/ });
-  if (!await feeSwitch.isChecked()) await feeSwitch.click();
+  if (!(await feeSwitch.isChecked())) await feeSwitch.click();
   await saveSettings(page);
   let puts = 0;
-  await page.route('**/api/v1/settings', route => { if (route.request().method() === 'PUT') puts += 1; return route.continue(); });
+  await page.route('**/api/v1/settings', route => {
+    if (route.request().method() === 'PUT') puts += 1;
+    return route.continue();
+  });
   await fee.fill('abc');
   await expect(page.getByRole('status').filter({ hasText: 'Nicht gespeichert' })).toBeVisible();
   await page.waitForTimeout(900);
@@ -103,7 +145,9 @@ test('leaving the settings with unsaved changes asks to save, discard or go back
   const eneba = page.getByRole('article', { name: 'Eneba', exact: true });
   const interval = eneba.getByLabel('Produktseiten abfragen alle', { exact: true });
   const before = await interval.inputValue();
-  const other = await interval.locator('option').evaluateAll((options, value) => options.map(o => (o as HTMLOptionElement).value).find(v => v !== value)!, before);
+  const other = await interval
+    .locator('option')
+    .evaluateAll((options, value) => options.map(o => (o as HTMLOptionElement).value).find(v => v !== value)!, before);
   await interval.selectOption(other);
   // 0.7.4: shops are switched, not removed.
   await expect(eneba.getByRole('button', { name: 'Entfernen', exact: true })).toHaveCount(0);
@@ -135,11 +179,35 @@ test('leaving the settings with unsaved changes asks to save, discard or go back
 test('a library entry can be removed after confirmation', async ({ page }) => {
   await signInToFixture(page);
   let rows = [
-    { id: 'a'.repeat(32), game_id: 'a', platform_id: 169, created_at: 1, acquired_at: 1795107000, game: null, manual_title: 'Zelda', verification: 'manual_unverified' },
-    { id: 'b'.repeat(32), game_id: 'b', platform_id: 49, created_at: 2, acquired_at: 1795108000, game: null, manual_title: 'Forza', verification: 'manual_unverified' },
+    {
+      id: 'a'.repeat(32),
+      game_id: 'a',
+      platform_id: 169,
+      created_at: 1,
+      acquired_at: 1795107000,
+      game: null,
+      manual_title: 'Zelda',
+      verification: 'manual_unverified',
+    },
+    {
+      id: 'b'.repeat(32),
+      game_id: 'b',
+      platform_id: 49,
+      created_at: 2,
+      acquired_at: 1795108000,
+      game: null,
+      manual_title: 'Forza',
+      verification: 'manual_unverified',
+    },
   ];
   await page.route('**/api/v1/library', route => route.fulfill({ json: rows }));
-  await page.route('**/api/v1/wishlist/*', route => { if (route.request().method() === 'DELETE') { rows = rows.filter(r => !route.request().url().endsWith(r.id)); return route.fulfill({ status: 204 }); } return route.continue(); });
+  await page.route('**/api/v1/wishlist/*', route => {
+    if (route.request().method() === 'DELETE') {
+      rows = rows.filter(r => !route.request().url().endsWith(r.id));
+      return route.fulfill({ status: 204 });
+    }
+    return route.continue();
+  });
   await navTo(page, 'Bibliothek');
   const list = page.getByRole('list', { name: 'Meine Spiele' });
   await expect(list.getByRole('listitem')).toHaveCount(2);
@@ -191,7 +259,10 @@ test('Abrufstatus shows pace, demand marker and, when the demand is above the li
 
 test('Abrufe pro Tag saves a valid number with the settings, keeps an invalid one as a local draft and empty restores the default', async ({ page }) => {
   const puts: { sources: { id: string; daily_jobs?: number | null }[] }[] = [];
-  await page.route('**/api/v1/settings', route => { if (route.request().method() === 'PUT') puts.push(route.request().postDataJSON()); return route.continue(); });
+  await page.route('**/api/v1/settings', route => {
+    if (route.request().method() === 'PUT') puts.push(route.request().postDataJSON());
+    return route.continue();
+  });
   await signInToFixture(page);
   await navTo(page, 'Key-Shops');
   const eneba = page.getByRole('article', { name: 'Eneba', exact: true });

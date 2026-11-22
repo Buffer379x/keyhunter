@@ -25,7 +25,10 @@ export function usePaged<T extends Paged, F extends string>(path: string, filter
   useEffect(() => {
     const next = text.trim();
     if (next === query) return;
-    const timer = window.setTimeout(() => { setQuery(next); setPage(1); }, 250);
+    const timer = window.setTimeout(() => {
+      setQuery(next);
+      setPage(1);
+    }, 250);
     return () => window.clearTimeout(timer);
   }, [text, query, setPage]);
   useEffect(() => {
@@ -38,16 +41,24 @@ export function usePaged<T extends Paged, F extends string>(path: string, filter
       api<T>(`${path}?${params}`, 'GET', undefined, undefined, controller.signal)
         .then(next => {
           if (controller.signal.aborted) return;
-          setData(next); setFailed(false);
+          setData(next);
+          setFailed(false);
           // The list shrank below the open page (7 days passed, a filter): show the last page instead.
           const last = pageCount(next.total, next.per_page);
           if (page > last) setPage(last);
         })
-        .catch(() => { if (!controller.signal.aborted) setFailed(true); })
-        .finally(() => { if (!controller.signal.aborted) cancel = whenVisible(load, REFRESH_MS); });
+        .catch(() => {
+          if (!controller.signal.aborted) setFailed(true);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) cancel = whenVisible(load, REFRESH_MS);
+        });
     };
     load();
-    return () => { controller.abort(); cancel(); };
+    return () => {
+      controller.abort();
+      cancel();
+    };
   }, [path, filterName, filter, query, page, perPage, setPage]);
   return { ...view, data, failed };
 }
@@ -56,15 +67,45 @@ export function usePaged<T extends Paged, F extends string>(path: string, filter
  * Head of a paged list: the filter (a segmented control), the search field and the page size. `label` names the list
  * ("Log", "Abrufe") for the accessible names.
  */
-export function PagedTools<F extends string>({ label, filter, filters, onFilter, text, onText, placeholder, perPage, onPerPage, children }: {
-  label: string; filter: F; filters: { value: F; label: string }[]; onFilter: (value: F) => void;
-  text: string; onText: (text: string) => void; placeholder: string; perPage: number; onPerPage: (value: number) => void; children?: ReactNode;
+export function PagedTools<F extends string>({
+  label,
+  filter,
+  filters,
+  onFilter,
+  text,
+  onText,
+  placeholder,
+  perPage,
+  onPerPage,
+  children,
+}: {
+  label: string;
+  filter: F;
+  filters: { value: F; label: string }[];
+  onFilter: (value: F) => void;
+  text: string;
+  onText: (text: string) => void;
+  placeholder: string;
+  perPage: number;
+  onPerPage: (value: number) => void;
+  children?: ReactNode;
 }) {
-  return <PanelHead className="paged-tools">
-    {children}
-    <Seg label={`${label} nach Stufe filtern`} value={filter} onChange={onFilter} options={filters} />
-    <span className="spacer" />
-    <Field icon="search" className="paged-q"><input type="search" placeholder={placeholder} aria-label={`${label} durchsuchen`} value={text} maxLength={200} onChange={event => onText(event.target.value)} /></Field>
-    <PageSize value={perPage} onChange={onPerPage} />
-  </PanelHead>;
+  return (
+    <PanelHead className="paged-tools">
+      {children}
+      <Seg label={`${label} nach Stufe filtern`} value={filter} onChange={onFilter} options={filters} />
+      <span className="spacer" />
+      <Field icon="search" className="paged-q">
+        <input
+          type="search"
+          placeholder={placeholder}
+          aria-label={`${label} durchsuchen`}
+          value={text}
+          maxLength={200}
+          onChange={event => onText(event.target.value)}
+        />
+      </Field>
+      <PageSize value={perPage} onChange={onPerPage} />
+    </PanelHead>
+  );
 }

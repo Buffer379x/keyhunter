@@ -57,7 +57,8 @@ test('old search cannot replace newer results, outage differs from empty and man
   const input = dialog.getByLabel('Spiel im Katalog suchen');
   const oldQuery = `alt-${Date.now()}`;
   const started = page.waitForRequest(r => r.url().includes(`/catalog/search?q=${oldQuery}&`));
-  await input.fill(oldQuery); await started;
+  await input.fill(oldQuery);
+  await started;
   await input.fill('neu');
   await expect(dialog.getByRole('heading', { name: 'Neuer Treffer', exact: true })).toBeVisible();
   await page.waitForTimeout(1000);
@@ -89,17 +90,40 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
 
   // Synthetic response verifies rendering and filtering independently of shop availability.
   const link = (id: number, eligible: boolean, region = eligible ? 'Global' : 'United States') => ({
-    id, source: 'eneba', url: 'https://www.eneba.com/de/xbox-fixture-xbox-live-key-global',
-    review: 'confirmed', can_confirm: true, eligible, queued: false, enabled: true,
-    stale: false, observed_at: Math.floor(Date.now() / 1000) - 7200, attempted_at: 1794950000, last_error: null, retry_at: 0, reasons: eligible ? [] : ['activation_blocked'],
+    id,
+    source: 'eneba',
+    url: 'https://www.eneba.com/de/xbox-fixture-xbox-live-key-global',
+    review: 'confirmed',
+    can_confirm: true,
+    eligible,
+    queued: false,
+    enabled: true,
+    stale: false,
+    observed_at: Math.floor(Date.now() / 1000) - 7200,
+    attempted_at: 1794950000,
+    last_error: null,
+    retry_at: 0,
+    reasons: eligible ? [] : ['activation_blocked'],
     product: { name: 'Synthetic UI offer', region, market: 'DE', activation: eligible ? 'confirmed' : 'blocked', availability: 'in_stock' },
     quotes: [{ id: String(id), seller: null, base_cents: eligible ? 2499 : 1299, estimated_total_cents: null }],
   });
   let target = 'DE';
-  await page.route('**/api/v1/wishlist/*/offers', route => route.request().method() === 'GET' ? route.fulfill({
-    json: { links: [link(1, true), link(2, false), link(3, true, 'Deutschland'), link(4, false, 'Argentina')], history: [], best_base: 2499, best_estimate: null,
-      target_country: target, discovery_running: false, searches: [{ source: 'eneba', status: 'complete', checked_at: 1794950000, result_count: 4, last_error: null }], sources: [] },
-  }) : route.continue());
+  await page.route('**/api/v1/wishlist/*/offers', route =>
+    route.request().method() === 'GET'
+      ? route.fulfill({
+          json: {
+            links: [link(1, true), link(2, false), link(3, true, 'Deutschland'), link(4, false, 'Argentina')],
+            history: [],
+            best_base: 2499,
+            best_estimate: null,
+            target_country: target,
+            discovery_running: false,
+            searches: [{ source: 'eneba', status: 'complete', checked_at: 1794950000, result_count: 4, last_error: null }],
+            sources: [],
+          },
+        })
+      : route.continue(),
+  );
   await page.reload();
   await expect(page.getByRole('group', { name: 'Preisvergleich' })).toContainText('Bester Preis · DE');
   await openTab(page, 'Angebote');

@@ -1,18 +1,24 @@
 /** Columns of the wishlist table; the settings choose their order (stored on the server, `wishlist_columns`). */
 export const WISHLIST_COLUMNS = ['game', 'price', 'world', 'save', 'target', 'status', 'trend', 'open'] as const;
-export type WishlistColumn = typeof WISHLIST_COLUMNS[number];
+export type WishlistColumn = (typeof WISHLIST_COLUMNS)[number];
 
 /** Names in the settings list (the price column is named after the target country there, like its header). */
 export const columnNames: Record<WishlistColumn, string> = {
-  game: 'Spiel (Cover und Titel)', price: 'Preis im Zielland', world: 'Preis INT', save: 'Ersparnis',
-  target: 'Ziel', status: 'Status', trend: '14 Tage', open: 'Details öffnen',
+  game: 'Spiel (Cover und Titel)',
+  price: 'Preis im Zielland',
+  world: 'Preis INT',
+  save: 'Ersparnis',
+  target: 'Ziel',
+  status: 'Status',
+  trend: '14 Tage',
+  open: 'Details öffnen',
 };
 
 /** A valid order (every column exactly once), or the default order. */
 export function columnOrder(stored: readonly string[] | null | undefined): WishlistColumn[] {
   const known = new Set<string>(WISHLIST_COLUMNS);
   const valid = !!stored && stored.length === WISHLIST_COLUMNS.length && new Set(stored).size === stored.length && stored.every(key => known.has(key));
-  return valid ? [...stored as WishlistColumn[]] : [...WISHLIST_COLUMNS];
+  return valid ? [...(stored as WishlistColumn[])] : [...WISHLIST_COLUMNS];
 }
 
 /** The order with the column at `index` moved one place up (-1) or down (+1). */
@@ -37,10 +43,14 @@ export function moveColumnTo<T>(order: T[], from: number, to: number): T[] {
 
 /** What opens the game page from the list (0.7.1): the details button, the title or the cover; only one of them. */
 export type OpenMode = 'button' | 'title' | 'cover';
-export const openModes: { value: OpenMode; label: string }[] = [{ value: 'button', label: 'Button' }, { value: 'title', label: 'Titel' }, { value: 'cover', label: 'Cover' }];
-export const openMode = (stored: string | null | undefined): OpenMode => stored === 'title' || stored === 'cover' ? stored : 'button';
+export const openModes: { value: OpenMode; label: string }[] = [
+  { value: 'button', label: 'Button' },
+  { value: 'title', label: 'Titel' },
+  { value: 'cover', label: 'Cover' },
+];
+export const openMode = (stored: string | null | undefined): OpenMode => (stored === 'title' || stored === 'cover' ? stored : 'button');
 /** The column that opens the game page and therefore cannot be hidden. */
-export const openerColumn = (mode: OpenMode): WishlistColumn => mode === 'button' ? 'open' : 'game';
+export const openerColumn = (mode: OpenMode): WishlistColumn => (mode === 'button' ? 'open' : 'game');
 /** Columns the table shows, in order: not hidden, and the button column only when the button opens the game. */
 export function visibleColumns(order: WishlistColumn[], hidden: readonly string[] | null | undefined, mode: OpenMode): WishlistColumn[] {
   const opener = openerColumn(mode);

@@ -7,8 +7,24 @@ import type { RowFacts } from '../src/features/wishlist-model.ts';
 import type { PriceBadgeData, WishlistItem } from '../src/api.ts';
 
 const titles: Record<string, string> = { a: 'Halo Infinite', b: 'ark', c: 'Forza Horizon 10', d: 'Forza Horizon 5' };
-const item = (id: string, created_at: number): WishlistItem => ({ id, created_at, game_id: id, platform_id: 169, verification: 'catalog', game: null, manual_title: titles[id] });
-const badge = (cents: number | null, world?: number): PriceBadgeData => ({ state: cents === null ? 'unknown' : 'price', cents, observed_at: 1, checked_at: 1, stale: false, pending: false, world: world === undefined ? null : { cents: world, region: 'IN', observed_at: 1 } });
+const item = (id: string, created_at: number): WishlistItem => ({
+  id,
+  created_at,
+  game_id: id,
+  platform_id: 169,
+  verification: 'catalog',
+  game: null,
+  manual_title: titles[id],
+});
+const badge = (cents: number | null, world?: number): PriceBadgeData => ({
+  state: cents === null ? 'unknown' : 'price',
+  cents,
+  observed_at: 1,
+  checked_at: 1,
+  stale: false,
+  pending: false,
+  world: world === undefined ? null : { cents: world, region: 'IN', observed_at: 1 },
+});
 const rule = (target: number) => ({ mode: 'target' as const, basis: 'base' as const, target_cents: target, enabled: true });
 
 const rows = [item('a', 10), item('b', 20), item('c', 30), item('d', 40)];
@@ -22,7 +38,11 @@ const ids = (key: SortKey, dir: SortDir = 'asc') => sortWishlist(rows, facts, { 
 
 test('newest first without a sorted column, independent of prices', () => {
   assert.deepEqual(ids('added', 'desc'), ['d', 'c', 'b', 'a']);
-  assert.deepEqual(rows.map(row => row.id), ['a', 'b', 'c', 'd'], 'the input stays untouched');
+  assert.deepEqual(
+    rows.map(row => row.id),
+    ['a', 'b', 'c', 'd'],
+    'the input stays untouched',
+  );
 });
 test('game name in German order, numbers by value, case ignored', () => {
   assert.deepEqual(ids('title'), ['b', 'd', 'c', 'a']);

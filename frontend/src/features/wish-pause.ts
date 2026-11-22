@@ -5,7 +5,7 @@ import type { WishlistItem } from '../api';
  * pause of the fetch status: resuming that leaves a paused wish paused. A check asked for with "Jetzt prüfen" still runs.
  */
 export const PAUSE_WEEKS = [1, 2, 4, 8] as const;
-export const weeksText = (weeks: number) => weeks === 1 ? '1 Woche' : `${weeks} Wochen`;
+export const weeksText = (weeks: number) => (weeks === 1 ? '1 Woche' : `${weeks} Wochen`);
 /** End of a pause of `weeks` weeks from now, in unix seconds. */
 export const pauseEnd = (weeks: number, nowMs = Date.now()) => Math.floor(nowMs / 1000) + weeks * 7 * 86400;
 const date = (seconds: number) => new Date(seconds * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });

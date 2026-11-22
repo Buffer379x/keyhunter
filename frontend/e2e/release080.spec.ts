@@ -43,7 +43,10 @@ test('wishes go into the cart once, show a basket in the list, and the cart sums
   // Real offers per shop (0.8.1): Eneba with 10 % fees, Driffle without a fee estimate.
   const offer = (cents: number, estimate: number | null, region: string) => ({ cents, estimate_cents: estimate, region, observed_at: t(), stale: false });
   const offers: Record<string, object> = {
-    [base]: { eneba: { home: offer(2890, 3179, 'Global'), world: offer(1290, 1419, 'India') }, driffle: { home: offer(3100, null, 'Europe'), world: offer(1500, null, 'Turkey') } },
+    [base]: {
+      eneba: { home: offer(2890, 3179, 'Global'), world: offer(1290, 1419, 'India') },
+      driffle: { home: offer(3100, null, 'Europe'), world: offer(1500, null, 'Turkey') },
+    },
     [premium]: { driffle: { home: offer(4000, null, 'Europe'), world: offer(3500, null, 'Turkey') } },
   };
   await page.route('**/api/v1/cart', async route => {
@@ -53,7 +56,9 @@ test('wishes go into the cart once, show a basket in the list, and the cart sums
     await route.fulfill({ response, json: entries.map((entry: { id: string }) => ({ ...entry, offers: offers[entry.id] ?? {} })) });
   });
   const changes: unknown[] = [];
-  page.on('request', request => { if (request.method() === 'PUT' && request.url().includes('/api/v1/cart/')) changes.push(request.postDataJSON()); });
+  page.on('request', request => {
+    if (request.method() === 'PUT' && request.url().includes('/api/v1/cart/')) changes.push(request.postDataJSON());
+  });
   await navTo(page, 'Warenkorb');
   await expect(page.getByRole('heading', { name: 'Warenkorb', level: 1 })).toBeVisible();
   const table = page.getByRole('table', { name: 'Spiele im Warenkorb', exact: true });

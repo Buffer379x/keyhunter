@@ -3,12 +3,23 @@ import { Icon } from './Icon';
 import type { IconName } from './Icon';
 
 /** Filter chip (`.chip`): a toggle button with aria-pressed and an optional mono count ("Alle 12"). */
-export function Chip({ pressed, count, className = '', children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & {
-  pressed: boolean; count?: number | null; children: ReactNode;
+export function Chip({
+  pressed,
+  count,
+  className = '',
+  children,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  pressed: boolean;
+  count?: number | null;
+  children: ReactNode;
 }) {
-  return <button type="button" className={`chip ${className}`.trim()} aria-pressed={pressed} {...props}>
-    {children}{count !== undefined && count !== null && <span className="mono">{count}</span>}
-  </button>;
+  return (
+    <button type="button" className={`chip ${className}`.trim()} aria-pressed={pressed} {...props}>
+      {children}
+      {count !== undefined && count !== null && <span className="mono">{count}</span>}
+    </button>
+  );
 }
 
 export type PillTone = 'default' | 'ok' | 'warn' | 'hot' | 'dim' | 'danger';
@@ -18,7 +29,12 @@ export type PillTone = 'default' | 'ok' | 'warn' | 'hot' | 'dim' | 'danger';
  * dim (grey, inactive or waiting), danger (red, failed), default (neutral outline).
  */
 export function Pill({ tone = 'default', icon, className = '', children }: { tone?: PillTone; icon?: IconName; className?: string; children: ReactNode }) {
-  return <span className={`pill${tone === 'default' ? '' : ` ${tone}`} ${className}`.trim()}>{icon && <Icon name={icon} size={12} />}{children}</span>;
+  return (
+    <span className={`pill${tone === 'default' ? '' : ` ${tone}`} ${className}`.trim()}>
+      {icon && <Icon name={icon} size={12} />}
+      {children}
+    </span>
+  );
 }
 
 // Flag images (flag-icons, 4:3), emitted as separate files so the bundle stays small and the CSP needs no data: URLs.
@@ -32,7 +48,12 @@ export function regName(code: string): string {
   if (upper === 'EU') return 'Europa';
   if (areas[upper]) return areas[upper];
   if (/^[A-Z]{2}$/.test(upper)) {
-    try { regionNames ??= new Intl.DisplayNames(['de'], { type: 'region' }); return regionNames.of(upper) ?? upper; } catch { return upper; }
+    try {
+      regionNames ??= new Intl.DisplayNames(['de'], { type: 'region' });
+      return regionNames.of(upper) ?? upper;
+    } catch {
+      return upper;
+    }
   }
   return code;
 }
@@ -49,7 +70,9 @@ export function Reg({ code, home = false, title, decorative = false }: { code: s
   const url = !areas[upper] && /^[A-Z]{2}$/.test(upper) ? flagUrl(upper) : undefined;
   const label = decorative ? { 'aria-hidden': true as const } : { role: 'img', 'aria-label': name };
   const className = `reg${url ? ' flag' : areas[upper] ? ' area' : ''}${home ? ' home' : ''}`;
-  return <span className={className} title={title ?? name} data-code={upper} {...label}>
-    {url ? <img src={url} alt="" /> : areas[upper] ? <Icon name="globe" size={12} /> : upper}
-  </span>;
+  return (
+    <span className={className} title={title ?? name} data-code={upper} {...label}>
+      {url ? <img src={url} alt="" /> : areas[upper] ? <Icon name="globe" size={12} /> : upper}
+    </span>
+  );
 }

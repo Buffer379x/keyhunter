@@ -7,10 +7,14 @@ import { itemName, platformName } from './catalog-ui';
  */
 export function wishlistExport(items: WishlistItem[]) {
   return {
-    version: 1, exported_at: new Date().toISOString(),
+    version: 1,
+    exported_at: new Date().toISOString(),
     items: items.map(item => ({
-      title: itemName(item), platform: platformName(item.platform_id), igdb_id: item.game?.igdb_id ?? null,
-      kind: item.game?.kind ?? null, verification: item.verification,
+      title: itemName(item),
+      platform: platformName(item.platform_id),
+      igdb_id: item.game?.igdb_id ?? null,
+      kind: item.game?.kind ?? null,
+      verification: item.verification,
     })),
   };
 }

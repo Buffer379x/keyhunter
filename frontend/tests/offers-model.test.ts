@@ -4,19 +4,60 @@ import { offerRows, summarize, reasonList, validity, verdict, verdictText } from
 import type { Link, OffersView } from '../src/features/offers-model.ts';
 
 const link = (id: number, region: string, cents: number, reasons: string[] = [], extra: Partial<Link> = {}): Link => ({
-  id, source: 'eneba', url: 'https://example.test', review: 'confirmed', can_confirm: true, eligible: reasons.length === 0, queued: false, enabled: true,
-  stale: false, observed_at: 1, attempted_at: 1, last_error: null, retry_at: 0, reasons,
-  product: { name: 'p', region, market: 'DE', activation: reasons.length ? 'unknown' : 'confirmed', availability: reasons.includes('sold_out') ? 'sold_out' : 'in_stock' },
-  quotes: reasons.includes('sold_out') ? [] : [{ id: String(id), seller: null, base_cents: cents, estimated_total_cents: region === 'India' ? null : cents + 100 }], ...extra,
+  id,
+  source: 'eneba',
+  url: 'https://example.test',
+  review: 'confirmed',
+  can_confirm: true,
+  eligible: reasons.length === 0,
+  queued: false,
+  enabled: true,
+  stale: false,
+  observed_at: 1,
+  attempted_at: 1,
+  last_error: null,
+  retry_at: 0,
+  reasons,
+  product: {
+    name: 'p',
+    region,
+    market: 'DE',
+    activation: reasons.length ? 'unknown' : 'confirmed',
+    availability: reasons.includes('sold_out') ? 'sold_out' : 'in_stock',
+  },
+  quotes: reasons.includes('sold_out')
+    ? []
+    : [{ id: String(id), seller: null, base_cents: cents, estimated_total_cents: region === 'India' ? null : cents + 100 }],
+  ...extra,
 });
-const view = (links: Link[], best: number | null, estimate: number | null = null): OffersView => ({ links, history: [], best_base: best, best_estimate: estimate, target_country: 'DE', discovery_running: false, sources: [], searches: [] });
+const view = (links: Link[], best: number | null, estimate: number | null = null): OffersView => ({
+  links,
+  history: [],
+  best_base: best,
+  best_estimate: estimate,
+  target_country: 'DE',
+  discovery_running: false,
+  sources: [],
+  searches: [],
+});
 
 test('rows are ordered by price only; cheaper foreign offers stay on top and sold-out rows come last', () => {
-  const v = view([link(1, 'DE', 3000), link(2, 'USA', 1000, ['activation_unknown']), link(3, 'India', 500, ['activation_blocked']), link(4, 'Europe', 0, ['sold_out'])], 3000);
-  assert.deepEqual(offerRows(v, 'base').map(r => r.link.id), [3, 2, 1, 4]);
+  const v = view(
+    [link(1, 'DE', 3000), link(2, 'USA', 1000, ['activation_unknown']), link(3, 'India', 500, ['activation_blocked']), link(4, 'Europe', 0, ['sold_out'])],
+    3000,
+  );
+  assert.deepEqual(
+    offerRows(v, 'base').map(r => r.link.id),
+    [3, 2, 1, 4],
+  );
   assert.equal(offerRows(v, 'base')[3].status, 'sold_out');
   // Estimated totals: India has no estimate and moves behind the offers that have one.
-  assert.deepEqual(offerRows(v, 'estimate').map(r => r.link.id).slice(0, 3), [2, 1, 3]);
+  assert.deepEqual(
+    offerRows(v, 'estimate')
+      .map(r => r.link.id)
+      .slice(0, 3),
+    [2, 1, 3],
+  );
 });
 
 test('summary compares the best target-country price with the cheapest region and explains what does not count', () => {
@@ -49,7 +90,10 @@ test('without a valid offer the world price is still reported and the target pri
 });
 
 test('reasons come in a fixed order with the country filled in', () => {
-  assert.deepEqual(reasonList(link(1, 'X', 1, ['purchase_context_mismatch', 'activation_unknown']), 'DE'), ['Aktivierung in DE ungeklärt', 'Anderer Kaufkontext']);
+  assert.deepEqual(reasonList(link(1, 'X', 1, ['purchase_context_mismatch', 'activation_unknown']), 'DE'), [
+    'Aktivierung in DE ungeklärt',
+    'Anderer Kaufkontext',
+  ]);
 });
 
 test('reason labels keep nouns capitalised inside a sentence', async () => {
@@ -61,14 +105,19 @@ test('reason labels keep nouns capitalised inside a sentence', async () => {
 });
 
 const money = (cents: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(cents / 100);
-const region = (row: { link: Link }) => row.link.product?.region === 'India' ? 'Indien' : row.link.product?.region ?? '';
+const region = (row: { link: Link }) => (row.link.product?.region === 'India' ? 'Indien' : (row.link.product?.region ?? ''));
 
 test('validity: valid, unclear activation, blocked and review rows each name their state', () => {
   const v = view([link(1, 'DE', 3000), link(2, 'USA', 1000, ['activation_unknown']), link(3, 'India', 500, ['activation_blocked'])], 3000);
   const rows = offerRows(v, 'base');
-  assert.deepEqual(rows.map(r => [r.link.id, validity(r, 'DE').tone, validity(r, 'DE').text]), [
-    [3, 'dim', 'in DE nicht aktivierbar'], [2, 'warn', 'Aktivierung in DE ungeklärt'], [1, 'ok', 'in DE aktivierbar'],
-  ]);
+  assert.deepEqual(
+    rows.map(r => [r.link.id, validity(r, 'DE').tone, validity(r, 'DE').text]),
+    [
+      [3, 'dim', 'in DE nicht aktivierbar'],
+      [2, 'warn', 'Aktivierung in DE ungeklärt'],
+      [1, 'ok', 'in DE aktivierbar'],
+    ],
+  );
   const review = offerRows(view([{ ...link(4, 'DE', 100), review: 'pending' }], null), 'base')[0];
   assert.equal(validity(review, 'DE').text, 'Zuordnung prüfen');
 });
@@ -79,11 +128,17 @@ test('verdict: same price, cheaper region with the effort thresholds 15 % and 30
     return verdict(summarize(v, offerRows(v, 'base'), 'base', 'DE'), region, 'DE');
   };
   const same = verdict(summarize(view([link(1, 'DE', 3000)], 3000), offerRows(view([link(1, 'DE', 3000)], 3000), 'base'), 'base', 'DE'), region, 'DE')!;
-  assert.deepEqual(verdictText(same, 'Deutschland', money), { lead: 'Deutschland ist gerade weltweit am günstigsten.', rest: 'Kein Umweg nötig: Der beste Preis gilt direkt in Deutschland.' });
+  assert.deepEqual(verdictText(same, 'Deutschland', money), {
+    lead: 'Deutschland ist gerade weltweit am günstigsten.',
+    rest: 'Kein Umweg nötig: Der beste Preis gilt direkt in Deutschland.',
+  });
   const small = at(10000, 9000)!;
   assert.equal(small.kind === 'cheaper' && small.effort, 'small');
   assert.equal(verdictText(small, 'Deutschland', money).lead, 'Indien spart 10,00\u00a0€ (10 %).');
-  assert.match(verdictText(small, 'Deutschland', money).rest, /ungeklärt; meist braucht es eine Regionsumstellung im Konto\. Bei so wenig Unterschied lohnt sich der Aufwand kaum\.$/);
+  assert.match(
+    verdictText(small, 'Deutschland', money).rest,
+    /ungeklärt; meist braucht es eine Regionsumstellung im Konto\. Bei so wenig Unterschied lohnt sich der Aufwand kaum\.$/,
+  );
   const noticeable = at(10000, 8000, ['activation_blocked'])!;
   assert.equal(noticeable.kind === 'cheaper' && noticeable.effort, 'noticeable');
   assert.match(verdictText(noticeable, 'Deutschland', money).rest, /^Laut Shop lässt sich der Key in Deutschland nicht aktivieren\. Der Umweg spart spürbar/);

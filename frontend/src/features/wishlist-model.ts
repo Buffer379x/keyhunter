@@ -10,7 +10,12 @@ import type { AlertEvent, FetchStatusResponse, PriceBadgeData, WishlistItem } fr
 export const WORLD_SHARE = 0.2;
 
 /** The part of an alarm rule the list needs (see PriceAlerts.Rule). */
-export interface TargetRule { mode: 'target' | 'low'; basis: 'base' | 'estimate'; target_cents: number | null; enabled: boolean }
+export interface TargetRule {
+  mode: 'target' | 'low';
+  basis: 'base' | 'estimate';
+  target_cents: number | null;
+  enabled: boolean;
+}
 
 /** Prices of the list: base prices ("Ohne Gebühren") or estimated totals with the shop fee ("Mit Gebühren", 0.7.3). */
 export type PriceBasis = 'base' | 'estimate';
@@ -41,9 +46,10 @@ export interface RowFacts {
   basis: PriceBasis;
 }
 
-const positive = (cents: number | null | undefined) => typeof cents === 'number' && Number.isFinite(cents) && cents > 0 ? cents : null;
+const positive = (cents: number | null | undefined) => (typeof cents === 'number' && Number.isFinite(cents) && cents > 0 ? cents : null);
 /** Only enabled target rules on the shown basis can be compared with the price ("Ziel erreicht", "über Ziel"). */
-const comparable = (rule: TargetRule | null | undefined, basis: PriceBasis) => !!rule && rule.enabled && rule.mode === 'target' && rule.basis === basis && rule.target_cents !== null;
+const comparable = (rule: TargetRule | null | undefined, basis: PriceBasis) =>
+  !!rule && rule.enabled && rule.mode === 'target' && rule.basis === basis && rule.target_cents !== null;
 
 export function rowFacts(badge: PriceBadgeData | undefined, rule: TargetRule | null | undefined, basis: PriceBasis = 'base'): RowFacts {
   const fees = basis === 'estimate' ? badge?.with_fees : undefined;
@@ -51,20 +57,33 @@ export function rowFacts(badge: PriceBadgeData | undefined, rule: TargetRule | n
   const price = !priced ? null : basis === 'estimate' ? positive(fees?.cents) : positive(badge!.cents);
   const other = price === null ? null : basis === 'estimate' ? positive(fees?.base_cents) : positive(badge!.estimate_cents);
   const best = basis === 'estimate' ? fees?.world : badge?.world;
-  const world = best && Number.isFinite(best.cents) ? {
-    cents: best.cents, other: positive(basis === 'estimate' ? best.base_cents : best.estimate_cents), region: best.region, source: best.source ?? null,
-  } : null;
+  const world =
+    best && Number.isFinite(best.cents)
+      ? {
+          cents: best.cents,
+          other: positive(basis === 'estimate' ? best.base_cents : best.estimate_cents),
+          region: best.region,
+          source: best.source ?? null,
+        }
+      : null;
   const saving = price !== null && world !== null && world.cents < price ? price - world.cents : null;
   const target = rule && rule.mode === 'target' ? rule.target_cents : null;
   const days = basis === 'estimate' ? fees?.trend : badge?.trend;
   const trend = days && days.some(value => value !== null) ? days : null;
   const reachable = price !== null && comparable(rule, basis);
   return {
-    price, other, source: price === null ? null : (basis === 'estimate' ? fees?.source : badge?.source) ?? null,
+    price,
+    other,
+    source: price === null ? null : ((basis === 'estimate' ? fees?.source : badge?.source) ?? null),
     stale: price !== null && !!(basis === 'estimate' ? fees?.stale : badge?.stale),
-    world, saving, share: saving !== null ? saving / price! : null, target,
+    world,
+    saving,
+    share: saving !== null ? saving / price! : null,
+    target,
     reached: reachable && price <= rule!.target_cents!,
-    over: reachable && price > rule!.target_cents! ? price - rule!.target_cents! : null, trend, basis,
+    over: reachable && price > rule!.target_cents! ? price - rule!.target_cents! : null,
+    trend,
+    basis,
   };
 }
 
@@ -75,7 +94,9 @@ export function rowFacts(badge: PriceBadgeData | undefined, rule: TargetRule | n
 export function filterShops(text: string, names: Record<string, string>): string[] {
   const query = text.trim().toLocaleLowerCase('de-DE');
   if (query.length < 3) return [];
-  return Object.entries(names).filter(([, name]) => name.toLocaleLowerCase('de-DE').startsWith(query)).map(([id]) => id);
+  return Object.entries(names)
+    .filter(([, name]) => name.toLocaleLowerCase('de-DE').startsWith(query))
+    .map(([id]) => id);
 }
 
 /** The text filter: a title or alias contains the text, or a named shop ([filterShops]) has the row's cheapest price. */
@@ -96,19 +117,32 @@ export function matchesChip(facts: RowFacts, chip: ChipFilter): boolean {
   return true;
 }
 
-export interface Row { item: WishlistItem; facts: RowFacts }
+export interface Row {
+  item: WishlistItem;
+  facts: RowFacts;
+}
 
-const localDay = (seconds: number) => { const date = new Date(seconds * 1000); return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`; };
+const localDay = (seconds: number) => {
+  const date = new Date(seconds * 1000);
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+};
 
 /** "Wünsche" ticks: cumulative number of items per local day they were added (empty without creation dates). */
 export function addedTicks(items: WishlistItem[]): number[] {
-  const dates = items.map(item => item.created_at).filter(at => Number.isFinite(at) && at > 0).sort((a, b) => a - b);
+  const dates = items
+    .map(item => item.created_at)
+    .filter(at => Number.isFinite(at) && at > 0)
+    .sort((a, b) => a - b);
   if (!dates.length) return [];
   const ticks: number[] = [];
   let last = '';
   dates.forEach((at, index) => {
     const day = localDay(at);
-    if (day === last) ticks[ticks.length - 1] = index + 1; else { ticks.push(index + 1); last = day; }
+    if (day === last) ticks[ticks.length - 1] = index + 1;
+    else {
+      ticks.push(index + 1);
+      last = day;
+    }
   });
   return ticks;
 }
@@ -133,20 +167,35 @@ export function reachedTrend(rows: Row[], rules: Record<string, TargetRule | und
   return { since, ticks };
 }
 
-export interface CheaperKpi { count: number; best: Row | null; ticks: number[] }
+export interface CheaperKpi {
+  count: number;
+  best: Row | null;
+  ticks: number[];
+}
 /** "Weltweit günstiger": rows whose cheapest region is at least 20 % below the target-country price, the biggest saving and the sorted savings. */
 export function cheaperKpi(rows: Row[]): CheaperKpi {
   const cheaper = rows.filter(row => isWorldCheaper(row.facts));
-  const best = rows.reduce<Row | null>((top, row) => row.facts.saving !== null && (top === null || row.facts.saving > top.facts.saving!) ? row : top, null);
+  const best = rows.reduce<Row | null>((top, row) => (row.facts.saving !== null && (top === null || row.facts.saving > top.facts.saving!) ? row : top), null);
   return { count: cheaper.length, best, ticks: cheaper.map(row => row.facts.saving!).sort((a, b) => a - b) };
 }
 
 /** First two words of a title for the KPI foot ("Indiana Jones und der Große Kreis" → "Indiana Jones"). */
-export const shortTitle = (title: string) => title.split(/\s+/).filter(Boolean).slice(0, 2).join(' ').replace(/[:,–-]+$/, '');
+export const shortTitle = (title: string) =>
+  title
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .join(' ')
+    .replace(/[:,–-]+$/, '');
 
-export interface FetchKpi { used: number; limit: number; demand: number | null; ticks: number[];
+export interface FetchKpi {
+  used: number;
+  limit: number;
+  demand: number | null;
+  ticks: number[];
   /** The owner paused the automatic checks (0.7.0). */
-  paused: boolean }
+  paused: boolean;
+}
 /** "Abrufe heute" summed over the enabled shops; demand and the hourly ticks only when the backend reports them. */
 export function fetchKpi(status: FetchStatusResponse | null, nowMs = Date.now()): FetchKpi | null {
   const shops = status?.shops.filter(shop => shop.enabled) ?? [];
@@ -160,7 +209,7 @@ export function fetchKpi(status: FetchStatusResponse | null, nowMs = Date.now())
   if (hours.length) {
     const perHour = Array.from({ length: 24 }, (_, hour) => hours.reduce((sum, list) => sum + (Number(list[hour]) || 0), 0));
     // Up to the current hour (or the last hour with requests, if the server clock is ahead): later hours are still empty.
-    const lastActive = perHour.reduce((last, value, hour) => value > 0 ? hour : last, -1);
+    const lastActive = perHour.reduce((last, value, hour) => (value > 0 ? hour : last), -1);
     const end = Math.max(new Date(nowMs).getHours(), lastActive);
     let total = 0;
     ticks = perHour.slice(0, end + 1).map(value => (total += value));
@@ -178,6 +227,7 @@ export function alarmSentToday(events: AlertEvent[] | null | undefined, nowMs = 
 export function sparkHeights(trend: (number | null)[]): (number | null)[] {
   const values = trend.filter((value): value is number => value !== null);
   if (!values.length) return trend.map(() => null);
-  const low = Math.min(...values) * .92, high = Math.max(...values);
-  return trend.map(value => value === null ? null : Math.max(3, (value - low) / (high - low || 1) * 22));
+  const low = Math.min(...values) * 0.92,
+    high = Math.max(...values);
+  return trend.map(value => (value === null ? null : Math.max(3, ((value - low) / (high - low || 1)) * 22)));
 }

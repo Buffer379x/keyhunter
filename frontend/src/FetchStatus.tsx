@@ -16,9 +16,17 @@ export function paceText(seconds: number): string {
   return `alle ${(seconds / 3600).toLocaleString('de-DE', { maximumFractionDigits: 1 })} Std.`;
 }
 function describe(shop: FetchShopStatus, nowSeconds: number): { tone: Tone; text: string; title: string } {
-  const last = shop.last_success_at === null ? 'Noch kein erfolgreicher Abruf' : `Letzter erfolgreicher Abruf ${new Date(shop.last_success_at * 1000).toLocaleString('de-DE')}`;
+  const last =
+    shop.last_success_at === null
+      ? 'Noch kein erfolgreicher Abruf'
+      : `Letzter erfolgreicher Abruf ${new Date(shop.last_success_at * 1000).toLocaleString('de-DE')}`;
   if (!shop.enabled) return { tone: 'off', text: 'aus', title: `Abruf ausgeschaltet. ${last}` };
-  if (shop.paused_until !== null && shop.paused_until > nowSeconds) return { tone: 'warn', text: 'pausiert', title: `Pausiert bis ${new Date(shop.paused_until * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr. ${last}` };
+  if (shop.paused_until !== null && shop.paused_until > nowSeconds)
+    return {
+      tone: 'warn',
+      text: 'pausiert',
+      title: `Pausiert bis ${new Date(shop.paused_until * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr. ${last}`,
+    };
   if (shop.last_error) return { tone: 'error', text: 'Fehler', title: `Letzter Abruf fehlgeschlagen. ${last}` };
   const pace = shop.budget.pace_seconds;
   if (pace) return { tone: 'ok', text: paceText(pace), title: `Abrufe gleichmäßig verteilt, ${paceText(pace)}. ${last}` };
@@ -42,49 +50,88 @@ export default function FetchStatus({ csrf, onOpen }: { csrf: string; onOpen: ()
     let cancel = () => {};
     const load = () => {
       api<FetchStatusResponse>('/status/fetch', 'GET', undefined, undefined, controller.signal)
-        .then(next => { if (!controller.signal.aborted) setData(next); })
+        .then(next => {
+          if (!controller.signal.aborted) setData(next);
+        })
         .catch(() => {})
-        .finally(() => { if (!controller.signal.aborted) cancel = whenVisible(load, REFRESH_MS); });
+        .finally(() => {
+          if (!controller.signal.aborted) cancel = whenVisible(load, REFRESH_MS);
+        });
     };
     load();
-    const reload = () => { cancel(); load(); };
+    const reload = () => {
+      cancel();
+      load();
+    };
     window.addEventListener(FETCH_STATUS_CHANGED, reload);
-    return () => { controller.abort(); cancel(); window.removeEventListener(FETCH_STATUS_CHANGED, reload); };
+    return () => {
+      controller.abort();
+      cancel();
+      window.removeEventListener(FETCH_STATUS_CHANGED, reload);
+    };
   }, []);
   if (!data || data.shops.length === 0) return null;
   const paused = data.paused_at ?? null;
   async function toggle() {
-    setBusy(true); setError('');
+    setBusy(true);
+    setError('');
     try {
       await api('/status/fetch/pause', 'POST', { paused: paused === null }, csrf);
       window.dispatchEvent(new Event(FETCH_STATUS_CHANGED));
-    } catch (e) { setError(e instanceof Error ? e.message : 'Konnte nicht umgeschaltet werden.'); }
-    finally { setBusy(false); }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Konnte nicht umgeschaltet werden.');
+    } finally {
+      setBusy(false);
+    }
   }
   const nowSeconds = Date.now() / 1000;
   const active = data.shops.filter(shop => shop.enabled);
   const used = active.reduce((sum, shop) => sum + shop.budget.used, 0);
   const limit = active.reduce((sum, shop) => sum + shop.budget.limit, 0);
-  const since = paused !== null ? new Date(paused * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
-  return <div className={`fetch-mini${paused !== null ? ' paused' : ''}`}>
-    <div className="fetch-head">
-      <span className="label">Abrufstatus</span>
-      <IconButton className="fetch-toggle" disabled={busy} onClick={() => void toggle()}
-        label={paused === null ? 'Automatische Abfragen pausieren' : 'Automatische Abfragen fortsetzen'}><Icon name={paused === null ? 'pause' : 'play'} /></IconButton>
+  const since =
+    paused !== null ? new Date(paused * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+  return (
+    <div className={`fetch-mini${paused !== null ? ' paused' : ''}`}>
+      <div className="fetch-head">
+        <span className="label">Abrufstatus</span>
+        <IconButton
+          className="fetch-toggle"
+          disabled={busy}
+          onClick={() => void toggle()}
+          label={paused === null ? 'Automatische Abfragen pausieren' : 'Automatische Abfragen fortsetzen'}
+        >
+          <Icon name={paused === null ? 'pause' : 'play'} />
+        </IconButton>
+      </div>
+      <button type="button" className="fetch-open" onClick={onOpen} title="Abrufstatus öffnen">
+        {paused !== null && <span className="fetch-paused">Pausiert seit {since}</span>}
+        {data.shops.map(shop => {
+          const state =
+            paused !== null ? { tone: 'warn' as Tone, text: 'pausiert', title: `Automatische Abfragen pausiert seit ${since}` } : describe(shop, nowSeconds);
+          return (
+            <span key={shop.source} className="fetch-row" title={state.title}>
+              <i className={`dot${state.tone === 'ok' ? '' : ` ${state.tone}`}`} aria-hidden="true" />
+              {shopNames[shop.source] ?? shop.source}
+              <span className="mono">{state.text}</span>
+            </span>
+          );
+        })}
+        {limit > 0 && (
+          <>
+            <span className="bar" aria-hidden="true">
+              <i style={{ width: `${Math.min(100, (used / limit) * 100)}%` }} />
+            </span>
+            <span className="fetch-budget">
+              {used} von {limit} Abrufen heute
+            </span>
+          </>
+        )}
+      </button>
+      {error && (
+        <span className="fetch-error" role="alert">
+          {error}
+        </span>
+      )}
     </div>
-    <button type="button" className="fetch-open" onClick={onOpen} title="Abrufstatus öffnen">
-      {paused !== null && <span className="fetch-paused">Pausiert seit {since}</span>}
-      {data.shops.map(shop => {
-        const state = paused !== null ? { tone: 'warn' as Tone, text: 'pausiert', title: `Automatische Abfragen pausiert seit ${since}` } : describe(shop, nowSeconds);
-        return <span key={shop.source} className="fetch-row" title={state.title}>
-          <i className={`dot${state.tone === 'ok' ? '' : ` ${state.tone}`}`} aria-hidden="true" />{shopNames[shop.source] ?? shop.source}<span className="mono">{state.text}</span>
-        </span>;
-      })}
-      {limit > 0 && <>
-        <span className="bar" aria-hidden="true"><i style={{ width: `${Math.min(100, used / limit * 100)}%` }} /></span>
-        <span className="fetch-budget">{used} von {limit} Abrufen heute</span>
-      </>}
-    </button>
-    {error && <span className="fetch-error" role="alert">{error}</span>}
-  </div>;
+  );
 }

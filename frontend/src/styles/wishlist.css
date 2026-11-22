@@ -3,94 +3,316 @@
  * (docs/modernization/design-v4/preview.html, viewWishlist): page head, KPI tiles, filter panel and the `table.wl` table,
  * which becomes a list of cards up to 720 px. Tokens only. Additions the prototype does not show are marked "(added)".
  */
-.wishlist-page h1:focus { outline: none; }
-.wl-loading { color: var(--muted); } /* (added) */
-.kpi-foot .warn { color: var(--warn); } /* (added) "zu knapp" */
+.wishlist-page h1:focus {
+  outline: none;
+}
+.wl-loading {
+  color: var(--muted);
+} /* (added) */
+.kpi-foot .warn {
+  color: var(--warn);
+} /* (added) "zu knapp" */
 
 /* Filter panel: chips and "Liste filtern …" */
-.wishlist-page .wl-q { width: 200px; }
+.wishlist-page .wl-q {
+  width: 200px;
+}
 
 /* (added, 0.6.2) Sortable column headers: the header text is a button; the arrow shows on the sorted column and on hover. */
 table.wl th .th-sort {
-  display: inline-flex; align-items: center; gap: 4px; padding: 0; margin: 0; border: 0; background: none; cursor: pointer;
-  font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  white-space: nowrap;
 }
-table.wl th.r .th-sort { flex-direction: row-reverse; }
-table.wl th .th-sort svg { width: 12px; height: 12px; opacity: 0; transition: opacity .12s; }
-table.wl th .th-sort:hover { color: var(--text-2); }
-table.wl th .th-sort:hover svg { opacity: .6; }
-table.wl th .th-sort.on { color: var(--accent); }
-table.wl th .th-sort.on svg { opacity: 1; }
-table.wl th .th-sort:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+table.wl th.r .th-sort {
+  flex-direction: row-reverse;
+}
+table.wl th .th-sort svg {
+  width: 12px;
+  height: 12px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+table.wl th .th-sort:hover {
+  color: var(--text-2);
+}
+table.wl th .th-sort:hover svg {
+  opacity: 0.6;
+}
+table.wl th .th-sort.on {
+  color: var(--accent);
+}
+table.wl th .th-sort.on svg {
+  opacity: 1;
+}
+table.wl th .th-sort:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
 
 /* Table cells */
-.game-cell { display: flex; align-items: center; gap: 12px; min-width: 220px; }
-.game-cell .game-name { min-width: 0; }
-.game-cell b { font-weight: 500; display: block; }
-.game-cell small { color: var(--muted); font-size: var(--t-xs); }
+.game-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 220px;
+}
+.game-cell .game-name {
+  min-width: 0;
+}
+.game-cell b {
+  font-weight: 500;
+  display: block;
+}
+.game-cell small {
+  color: var(--muted);
+  font-size: var(--t-xs);
+}
 /* The real cover at the prototype's 34 × 44 (`.cover`); without an image the initials, like the prototype. */
-table.wl .gcover { width: 34px; height: 44px; border-radius: 5px; border: 1px solid var(--cover-line); box-shadow: none; }
-table.wl .gcover .gcover-title { font: 600 11px/1 var(--f-sans); letter-spacing: .02em; color: var(--cover-text); }
-table.wl td.c-target { white-space: nowrap; }
-.wl-sub { color: var(--muted); font-size: var(--t-xs); white-space: nowrap; }
-.wl-note { font-size: var(--t-xs); }
-.world-cell { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+table.wl .gcover {
+  width: 34px;
+  height: 44px;
+  border-radius: 5px;
+  border: 1px solid var(--cover-line);
+  box-shadow: none;
+}
+table.wl .gcover .gcover-title {
+  font: 600 11px/1 var(--f-sans);
+  letter-spacing: 0.02em;
+  color: var(--cover-text);
+}
+table.wl td.c-target {
+  white-space: nowrap;
+}
+.wl-sub {
+  color: var(--muted);
+  font-size: var(--t-xs);
+  white-space: nowrap;
+}
+.wl-note {
+  font-size: var(--t-xs);
+}
+.world-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
 /* The target country is the cheapest worldwide: same flag and price as any other row, set on a faint green ground. */
-.world-cell.home-best { width: fit-content; margin-left: -6px; padding: 3px 6px; border-radius: var(--r-sm); background: var(--ok-bg); }
-.save { font: 500 var(--t-xs)/1.2 var(--f-mono); white-space: nowrap; }
-.save.big { color: var(--accent-2); }
-.save.none { color: var(--faint); }
-.save-pct { font-size: var(--t-label); }
-.wl-status { display: flex; flex-wrap: wrap; gap: 4px; } /* (added) more than one pill: state plus hints */
-.spark { display: flex; align-items: flex-end; gap: 2px; height: 22px; }
-.spark i { width: 3px; border-radius: 1px; background: var(--line-2); }
-.spark i.last { background: var(--accent); }
+.world-cell.home-best {
+  width: fit-content;
+  margin-left: -6px;
+  padding: 3px 6px;
+  border-radius: var(--r-sm);
+  background: var(--ok-bg);
+}
+.save {
+  font: 500 var(--t-xs)/1.2 var(--f-mono);
+  white-space: nowrap;
+}
+.save.big {
+  color: var(--accent-2);
+}
+.save.none {
+  color: var(--faint);
+}
+.save-pct {
+  font-size: var(--t-label);
+}
+.wl-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+} /* (added) more than one pill: state plus hints */
+.spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 22px;
+}
+.spark i {
+  width: 3px;
+  border-radius: 1px;
+  background: var(--line-2);
+}
+.spark i.last {
+  background: var(--accent);
+}
 /* (0.6.3) The game opens with the details button at the end of the row, not with a click on the row. */
-table.wl td.c-more { width: 1%; }
-table.wl .row-open { width: 28px; height: 28px; margin-left: auto; }
-table.wl .row-open:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
-
+table.wl td.c-more {
+  width: 1%;
+}
+table.wl .row-open {
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+}
+table.wl .row-open:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
 
 /* Up to 720 px the rows become cards (prototype `table.wl`) */
 @media (max-width: 720px) {
   /* Fee switch and filter share one line under the chips (0.7.3). */
-  .wishlist-page .wl-q { flex: 1 1 120px; width: auto; min-width: 0; }
-  /* (added, 0.6.2) The headers stay as a row of sort buttons above the cards. */
-  table.wl, table.wl tbody, table.wl thead { display: block; }
-  table.wl thead { border-bottom: 1px solid var(--line); }
-  table.wl thead tr { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 10px 12px; grid-template-areas: none; }
-  table.wl thead th { padding: 0; border: 0; font: 400 var(--t-xs)/1.4 var(--f-sans); letter-spacing: 0; text-transform: none; color: var(--muted); }
-  table.wl thead th.no-sort { display: none; }
-  table.wl th.r .th-sort { flex-direction: row; }
-  table.wl tr {
-    display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "g p d" "w s d";
-    gap: 8px 10px; padding: 12px; border-bottom: 1px solid var(--line);
+  .wishlist-page .wl-q {
+    flex: 1 1 120px;
+    width: auto;
+    min-width: 0;
   }
-  table.wl tr:last-child { border-bottom: 0; }
-  table.wl td { border: 0; padding: 0; }
-  table.wl td.c-game { grid-area: g; }
-  table.wl td.c-de { grid-area: p; text-align: right; }
-  table.wl td.c-world { grid-area: w; }
-  table.wl td.c-status { grid-area: s; text-align: right; }
-  table.wl td.c-more { grid-area: d; align-self: center; width: auto; }
-  table.wl td.c-save, table.wl td.c-target, table.wl td.c-trend { display: none; }
-  .game-cell { min-width: 0; }
-  .wl-status { justify-content: flex-end; }
+  /* (added, 0.6.2) The headers stay as a row of sort buttons above the cards. */
+  table.wl,
+  table.wl tbody,
+  table.wl thead {
+    display: block;
+  }
+  table.wl thead {
+    border-bottom: 1px solid var(--line);
+  }
+  table.wl thead tr {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    padding: 10px 12px;
+    grid-template-areas: none;
+  }
+  table.wl thead th {
+    padding: 0;
+    border: 0;
+    font: 400 var(--t-xs)/1.4 var(--f-sans);
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--muted);
+  }
+  table.wl thead th.no-sort {
+    display: none;
+  }
+  table.wl th.r .th-sort {
+    flex-direction: row;
+  }
+  table.wl tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: 'g p d' 'w s d';
+    gap: 8px 10px;
+    padding: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  table.wl tr:last-child {
+    border-bottom: 0;
+  }
+  table.wl td {
+    border: 0;
+    padding: 0;
+  }
+  table.wl td.c-game {
+    grid-area: g;
+  }
+  table.wl td.c-de {
+    grid-area: p;
+    text-align: right;
+  }
+  table.wl td.c-world {
+    grid-area: w;
+  }
+  table.wl td.c-status {
+    grid-area: s;
+    text-align: right;
+  }
+  table.wl td.c-more {
+    grid-area: d;
+    align-self: center;
+    width: auto;
+  }
+  table.wl td.c-save,
+  table.wl td.c-target,
+  table.wl td.c-trend {
+    display: none;
+  }
+  .game-cell {
+    min-width: 0;
+  }
+  .wl-status {
+    justify-content: flex-end;
+  }
 }
 
 /* (0.7.1) The title or the cover opens the game when the settings say so (instead of the details button). */
-.game-cell .title-open, .game-cell .cover-open { padding: 0; margin: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.game-cell .cover-open { display: block; flex: none; border-radius: 5px; }
-.game-cell .title-open { display: block; max-width: 100%; }
-.game-cell .title-open:hover b { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
-.game-cell .cover-open:hover .gcover { outline: 2px solid var(--accent); outline-offset: 1px; }
-.game-cell .title-open:focus-visible, .game-cell .cover-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.game-cell .title-open,
+.game-cell .cover-open {
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.game-cell .cover-open {
+  display: block;
+  flex: none;
+  border-radius: 5px;
+}
+.game-cell .title-open {
+  display: block;
+  max-width: 100%;
+}
+.game-cell .title-open:hover b {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.game-cell .cover-open:hover .gcover {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.game-cell .title-open:focus-visible,
+.game-cell .cover-open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
 /* Shop filter in the list filter (0.7.4): what a shop name in the field means. */
-.wishlist-page .wl-shop-note { margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: var(--t-xs); }
+.wishlist-page .wl-shop-note {
+  margin: 0;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--t-xs);
+}
 /* In the cart (0.8.0): a small basket right after the title. */
-.game-cell .game-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.game-cell .in-cart { display: inline-flex; flex: none; color: var(--accent); }
+.game-cell .game-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.game-cell .in-cart {
+  display: inline-flex;
+  flex: none;
+  color: var(--accent);
+}
 /* (0.9.0) A wish paused on its own: the yellow pause symbol after the title, like the basket of the cart. */
-.game-cell .wish-paused { display: inline-flex; flex: none; color: var(--warn); }
+.game-cell .wish-paused {
+  display: inline-flex;
+  flex: none;
+  color: var(--warn);
+}
 /* (0.9.1) Mappings to review: a warning triangle after the title, next to basket and pause. */
-.game-cell .wish-review { display: inline-flex; flex: none; color: var(--warn); }
+.game-cell .wish-review {
+  display: inline-flex;
+  flex: none;
+  color: var(--warn);
+}

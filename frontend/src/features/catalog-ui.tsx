@@ -11,14 +11,36 @@ export const ALL_PLATFORMS = 0;
 export const itemName = (item: WishlistItem) => item.game?.name ?? item.manual_title ?? 'Unbekannter Titel';
 export const selectionAllowed = (game: CatalogGame) => ['base_game', 'edition', 'remake', 'remaster', 'port', 'standalone_expansion'].includes(game.kind);
 export function kindName(game: CatalogGame): string {
-  return ({ base_game: 'Basisspiel', edition: game.edition_name ?? 'Edition', remake: 'Remake', remaster: 'Remaster', port: 'Portierung', standalone_expansion: 'Eigenständige Erweiterung', dlc: 'DLC / Zusatzinhalt', mod: 'Modifikation', bundle: 'Bündel · Inhalte ungeklärt' } as Record<string, string>)[game.kind] ?? 'Produkttyp ungeklärt';
+  return (
+    (
+      {
+        base_game: 'Basisspiel',
+        edition: game.edition_name ?? 'Edition',
+        remake: 'Remake',
+        remaster: 'Remaster',
+        port: 'Portierung',
+        standalone_expansion: 'Eigenständige Erweiterung',
+        dlc: 'DLC / Zusatzinhalt',
+        mod: 'Modifikation',
+        bundle: 'Bündel · Inhalte ungeklärt',
+      } as Record<string, string>
+    )[game.kind] ?? 'Produkttyp ungeklärt'
+  );
 }
 export function releaseYear(timestamp: number | null): string {
   if (timestamp === null) return 'Jahr unbekannt';
   const date = new Date(timestamp * 1000);
   return Number.isFinite(date.getTime()) ? String(date.getUTCFullYear()) : 'Jahr unbekannt';
 }
-const initials = (title: string) => title.replace(/[^\p{L}\p{N} ]/gu, '').split(' ').filter(Boolean).slice(0, 2).map(word => word[0]).join('').toUpperCase();
+const initials = (title: string) =>
+  title
+    .replace(/[^\p{L}\p{N} ]/gu, '')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(word => word[0])
+    .join('')
+    .toUpperCase();
 /** A stable hue per title, so a game without cover art keeps its colour (prototype cover gradient). */
 const titleHue = (title: string) => [...title].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 7) % 360;
 /**
@@ -29,9 +51,24 @@ export function Cover({ src, large = false, title }: { src: string | null; large
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [src]);
   const hue = title ? titleHue(title) : 0;
-  return <div className={`game-cover ${large ? 'large' : ''}`}>
-    {src && !failed ? <img src={src} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
-      : title ? <div className="cover-initials" aria-hidden="true" style={{ background: `linear-gradient(150deg, hsl(${hue} 38% 30%), hsl(${(hue + 30) % 360} 30% 14%))` }}>{initials(title)}</div>
-        : <div className="cover-fallback"><KeyMark small /><span>Kein Cover</span></div>}
-  </div>;
+  return (
+    <div className={`game-cover ${large ? 'large' : ''}`}>
+      {src && !failed ? (
+        <img src={src} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
+      ) : title ? (
+        <div
+          className="cover-initials"
+          aria-hidden="true"
+          style={{ background: `linear-gradient(150deg, hsl(${hue} 38% 30%), hsl(${(hue + 30) % 360} 30% 14%))` }}
+        >
+          {initials(title)}
+        </div>
+      ) : (
+        <div className="cover-fallback">
+          <KeyMark small />
+          <span>Kein Cover</span>
+        </div>
+      )}
+    </div>
+  );
 }

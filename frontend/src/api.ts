@@ -32,7 +32,14 @@ export interface Settings {
 }
 export class HttpError extends Error {
   status: number;
-  constructor(status: number, message: string, public code?: string) { super(message); this.status = status; }
+  constructor(
+    status: number,
+    message: string,
+    public code?: string,
+  ) {
+    super(message);
+    this.status = status;
+  }
 }
 export interface CatalogGame {
   igdb_id: number;
@@ -51,42 +58,49 @@ export interface CatalogGame {
   fetched_at: number;
 }
 export interface PriceBadgeData {
-  cents:number|null;
-  state:'price'|'unknown'|'no_offer'|'review'|'error';
-  observed_at:number|null;
-  checked_at:number|null;
-  stale:boolean;
-  pending:boolean;
+  cents: number | null;
+  state: 'price' | 'unknown' | 'no_offer' | 'review' | 'error';
+  observed_at: number | null;
+  checked_at: number | null;
+  stale: boolean;
+  pending: boolean;
   /** Cheapest current offer of any region (valid in the target country or not). */
-  world?:WorldBest|null;
+  world?: WorldBest | null;
   /**
    * Best price valid in the target country at the end of each of the last 14 UTC days (cents, oldest → newest, today = now);
    * null for a day without a valid price. Comes with 0.6.1; optional so older servers keep working.
    */
-  trend?:(number|null)[];
+  trend?: (number | null)[];
   /** Shop and region of the target-country price, when the server reports them . */
-  source?:string|null;
-  region?:string|null;
+  source?: string | null;
+  region?: string | null;
   /** Estimated total (shop fee from the settings) of the offer behind `cents`; null while that shop has no fee estimate (0.7.3). */
-  estimate_cents?:number|null;
+  estimate_cents?: number | null;
   /** The same prices compared by estimated totals; shops without a fee estimate do not count (0.7.3). */
-  with_fees?:FeeView;
+  with_fees?: FeeView;
 }
 /** Cheapest current offer of any region. `cents` is the compared amount (base price, or estimated total in `with_fees`). */
-export interface WorldBest {cents:number;source?:string;region:string|null;observed_at:number|null;base_cents?:number;estimate_cents?:number|null}
+export interface WorldBest {
+  cents: number;
+  source?: string;
+  region: string | null;
+  observed_at: number | null;
+  base_cents?: number;
+  estimate_cents?: number | null;
+}
 export interface FeeView {
-  cents:number|null;
+  cents: number | null;
   /** Base price of the offer behind `cents`. */
-  base_cents:number|null;
-  observed_at:number|null;
-  stale:boolean;
-  source:string|null;
-  region:string|null;
-  world:WorldBest|null;
-  trend:(number|null)[];
+  base_cents: number | null;
+  observed_at: number | null;
+  stale: boolean;
+  source: string | null;
+  region: string | null;
+  world: WorldBest | null;
+  trend: (number | null)[];
 }
 export interface WishlistItem {
-  price_badge?:PriceBadgeData;
+  price_badge?: PriceBadgeData;
   id: string;
   game_id: string;
   platform_id: number;
@@ -103,13 +117,16 @@ export interface WishlistItem {
   offer_count?: number;
   review_count?: number;
 }
-export interface LibraryItem extends WishlistItem { acquired_at:number; }
+export interface LibraryItem extends WishlistItem {
+  acquired_at: number;
+}
 export type SourceStatuses = Record<string, { state: string; enabled: boolean; configured?: boolean; last_success_at: number | null; retry_at: number | null }>;
 export async function api<T>(path: string, method = 'GET', body?: unknown, csrf?: string, signal?: AbortSignal): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`/api/v1${path}`, {
-      method, credentials: 'same-origin',
+      method,
+      credentials: 'same-origin',
       signal,
       headers: { ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...(csrf ? { 'X-CSRF-Token': csrf } : {}) },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
@@ -168,32 +185,81 @@ export interface FetchRun {
 /** `paused_at`: the owner paused the automatic checks at this time (0.7.0); null or missing while they run. */
 /** One of the next fetches the scheduler will run (0.8.3): `due_at` is the estimated start, `requested` a manual refresh. */
 export interface UpcomingFetch {
-  source: string; kind: string; wish_id: string | null; link_id: number | null; game: string | null; region: string | null;
-  search_page: number | null; due_at: number; requested: boolean;
+  source: string;
+  kind: string;
+  wish_id: string | null;
+  link_id: number | null;
+  game: string | null;
+  region: string | null;
+  search_page: number | null;
+  due_at: number;
+  requested: boolean;
 }
 export interface FetchStatusResponse {
-  paused_at?: number | null; shops: FetchShopStatus[]; errors_24h: number; recent_runs: FetchRun[];
-  upcoming?: UpcomingFetch[]; upcoming_paused?: boolean;
+  paused_at?: number | null;
+  shops: FetchShopStatus[];
+  errors_24h: number;
+  recent_runs: FetchRun[];
+  upcoming?: UpcomingFetch[];
+  upcoming_paused?: boolean;
 }
 /** A page of a filtered, searched list (0.8.3: Log and the fetch runs). */
-export interface Paged { total: number; page: number; per_page: number }
+export interface Paged {
+  total: number;
+  page: number;
+  per_page: number;
+}
 export type LogLevel = 'info' | 'warn' | 'error';
-export interface LogEntry { id: number; at: number; level: LogLevel; area: string; message: string }
+export interface LogEntry {
+  id: number;
+  at: number;
+  level: LogLevel;
+  area: string;
+  message: string;
+}
 /** GET /log: the event log of the last 7 days. */
-export interface LogPage extends Paged { entries: LogEntry[] }
+export interface LogPage extends Paged {
+  entries: LogEntry[];
+}
 /** GET /status/fetch/runs: the fetch runs with the game they were for. */
-export interface RunEntry extends FetchRun { id: number; game: string | null; region: string | null }
-export interface RunPage extends Paged { runs: RunEntry[] }
+export interface RunEntry extends FetchRun {
+  id: number;
+  game: string | null;
+  region: string | null;
+}
+export interface RunPage extends Paged {
+  runs: RunEntry[];
+}
 /** Event on window after the automatic checks were paused or resumed, so every status view reloads at once. */
 export const FETCH_STATUS_CHANGED = 'keyhunter:fetch-status';
 /** The shopping cart changed (0.8.0): the navigation reads its count again. */
 export const CART_CHANGED = 'keyhunter:cart';
 
 /** Delivery of one alert through one channel (0.9.0); `error` is the short reason of the last failure, never a secret. */
-export interface AlertDelivery { channel: string; name: string; state: string; attempts: number; error: string | null }
+export interface AlertDelivery {
+  channel: string;
+  name: string;
+  state: string;
+  attempts: number;
+  error: string | null;
+}
 /** GET /alerts: the active channels ("Telegram", "E-Mail") and the delivery log (wish_id is null for test messages). */
-export interface AlertEvent { id: number; wish_id: string | null; state: string; observed_at: number; sent_at: number | null; cents: number | null; attempts: number; deliveries?: AlertDelivery[] }
-export interface AlertOverview { configured: boolean; channels?: string[]; rules: unknown[]; events: AlertEvent[] }
+export interface AlertEvent {
+  id: number;
+  wish_id: string | null;
+  state: string;
+  observed_at: number;
+  sent_at: number | null;
+  cents: number | null;
+  attempts: number;
+  deliveries?: AlertDelivery[];
+}
+export interface AlertOverview {
+  configured: boolean;
+  channels?: string[];
+  rules: unknown[];
+  events: AlertEvent[];
+}
 
 export type ChannelKind = 'ntfy' | 'telegram' | 'discord' | 'email' | 'gotify' | 'pushover' | 'webhook';
 /**
@@ -201,6 +267,12 @@ export type ChannelKind = 'ntfy' | 'telegram' | 'discord' | 'email' | 'gotify' |
  * which secret is stored (tokens, passwords and secret URLs are never returned). `from_file`: ntfy served by /config/ntfy.env.
  */
 export interface ChannelView {
-  kind: ChannelKind; name: string; enabled: boolean; configured: boolean; active: boolean; from_file: boolean;
-  settings: Record<string, string>; secrets: Record<string, boolean>;
+  kind: ChannelKind;
+  name: string;
+  enabled: boolean;
+  configured: boolean;
+  active: boolean;
+  from_file: boolean;
+  settings: Record<string, string>;
+  secrets: Record<string, boolean>;
 }

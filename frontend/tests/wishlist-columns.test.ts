@@ -35,7 +35,10 @@ test('visible columns follow the hidden set and what opens the game', async () =
   const order = columnOrder(null);
   assert.deepEqual(visibleColumns(order, ['trend', 'target'], 'button'), ['game', 'price', 'world', 'save', 'status', 'open']);
   // The opener always shows; without the button mode the button column is gone.
-  assert.deepEqual(visibleColumns(order, ['open', 'game'], 'button'), ['game', 'price', 'world', 'save', 'target', 'status', 'trend', 'open'].filter(c => c !== 'game'));
+  assert.deepEqual(
+    visibleColumns(order, ['open', 'game'], 'button'),
+    ['game', 'price', 'world', 'save', 'target', 'status', 'trend', 'open'].filter(c => c !== 'game'),
+  );
   assert.deepEqual(visibleColumns(order, ['game'], 'title'), ['game', 'price', 'world', 'save', 'target', 'status', 'trend']);
   assert.deepEqual(hiddenFor(['game', 'trend'], 'cover'), ['trend']);
   assert.deepEqual(hiddenFor(['open', 'trend'], 'button'), ['trend']);

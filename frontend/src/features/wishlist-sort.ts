@@ -8,12 +8,15 @@ import type { RowFacts } from './wishlist-model.ts';
  */
 export type SortKey = 'added' | 'title' | 'price' | 'world' | 'save' | 'target' | 'status';
 export type SortDir = 'asc' | 'desc';
-export interface WishlistSort { key: SortKey; dir: SortDir }
+export interface WishlistSort {
+  key: SortKey;
+  dir: SortDir;
+}
 export const sortKeys: SortKey[] = ['added', 'title', 'price', 'world', 'save', 'target', 'status'];
 export const DEFAULT_SORT: WishlistSort = { key: 'added', dir: 'desc' };
 
 /** Direction of the first click on a header: the saving starts with the biggest one, everything else ascending. */
-export const firstDir = (key: SortKey): SortDir => key === 'save' || key === 'added' ? 'desc' : 'asc';
+export const firstDir = (key: SortKey): SortDir => (key === 'save' || key === 'added' ? 'desc' : 'asc');
 
 /** A click on a header: first click sorts in its natural direction, the second reverses it, the third goes back to "newest first". */
 export function nextSort(current: WishlistSort, key: SortKey): WishlistSort {
@@ -25,7 +28,12 @@ export function nextSort(current: WishlistSort, key: SortKey): WishlistSort {
 /** Reads the stored sort. Also understands the sort modes of 0.6.1 and older ("price", "save", "target"). */
 export function parseSort(value: string | null | undefined): WishlistSort {
   if (!value) return DEFAULT_SORT;
-  const legacy: Record<string, WishlistSort> = { added: DEFAULT_SORT, price: { key: 'price', dir: 'asc' }, save: { key: 'save', dir: 'desc' }, target: { key: 'status', dir: 'asc' } };
+  const legacy: Record<string, WishlistSort> = {
+    added: DEFAULT_SORT,
+    price: { key: 'price', dir: 'asc' },
+    save: { key: 'save', dir: 'desc' },
+    target: { key: 'status', dir: 'asc' },
+  };
   if (legacy[value]) return legacy[value];
   const [key, dir] = value.split(':');
   return (sortKeys as string[]).includes(key) && (dir === 'asc' || dir === 'desc') ? { key: key as SortKey, dir } : DEFAULT_SORT;
@@ -46,19 +54,26 @@ export function sortWishlist(items: WishlistItem[], facts: Record<string, RowFac
     const row = facts[item.id];
     if (!row) return null;
     switch (sort.key) {
-      case 'price': return row.price;
-      case 'world': return row.world?.cents ?? null;
-      case 'save': return row.saving;
-      case 'target': return row.target;
-      case 'status': return row.price !== null && row.target !== null ? row.price - row.target : null;
-      default: return null;
+      case 'price':
+        return row.price;
+      case 'world':
+        return row.world?.cents ?? null;
+      case 'save':
+        return row.saving;
+      case 'target':
+        return row.target;
+      case 'status':
+        return row.price !== null && row.target !== null ? row.price - row.target : null;
+      default:
+        return null;
     }
   };
   const newest = (a: WishlistItem, b: WishlistItem) => b.created_at - a.created_at || position.get(a.id)! - position.get(b.id)!;
   return [...items].sort((a, b) => {
     if (sort.key === 'added') return sort.dir === 'desc' ? newest(a, b) : a.created_at - b.created_at || position.get(a.id)! - position.get(b.id)!;
     if (sort.key === 'title') return sign * collator.compare(name(a), name(b)) || newest(a, b);
-    const first = value(a), second = value(b);
+    const first = value(a),
+      second = value(b);
     if (first !== second) {
       if (first === null) return 1;
       if (second === null) return -1;

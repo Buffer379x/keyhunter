@@ -47,23 +47,39 @@ test('the column order can be changed by drag and drop', async ({ page }) => {
 test('long facts wrap inside the Infos box and the description has a box of its own', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await signInToFixture(page);
-  await page.route(url => url.pathname === '/api/v1/wishlist', async route => {
-    if (route.request().method() !== 'GET') return route.continue();
-    const response = await route.fetch();
-    const items = await response.json();
-    for (const item of items) if (item.game) {
-      item.game.aliases = ['Road 96: A Very Long Alternative Title For Testing', 'Road Ninety-Six Definitive Edition With Every Extra', 'ロード96'];
-      item.game.platforms = ['PC (Microsoft Windows)', 'PlayStation 4', 'PlayStation 5', 'Xbox One', 'Xbox Series X|S', 'Nintendo Switch', 'Mac', 'Linux'].map((name, id) => ({ id, name }));
-      item.game.summary = 'A procedural road-trip adventure. '.repeat(12);
-    }
-    await route.fulfill({ response, json: items });
-  });
+  await page.route(
+    url => url.pathname === '/api/v1/wishlist',
+    async route => {
+      if (route.request().method() !== 'GET') return route.continue();
+      const response = await route.fetch();
+      const items = await response.json();
+      for (const item of items)
+        if (item.game) {
+          item.game.aliases = ['Road 96: A Very Long Alternative Title For Testing', 'Road Ninety-Six Definitive Edition With Every Extra', 'ロード96'];
+          item.game.platforms = [
+            'PC (Microsoft Windows)',
+            'PlayStation 4',
+            'PlayStation 5',
+            'Xbox One',
+            'Xbox Series X|S',
+            'Nintendo Switch',
+            'Mac',
+            'Linux',
+          ].map((name, id) => ({ id, name }));
+          item.game.summary = 'A procedural road-trip adventure. '.repeat(12);
+        }
+      await route.fulfill({ response, json: items });
+    },
+  );
   await addForza(page);
   await page.reload();
   await openTab(page, 'Infos');
   const facts = page.locator('.info-facts');
   await expect(facts).toContainText('Nintendo Switch');
-  for (const size of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+  for (const size of [
+    { width: 1280, height: 900 },
+    { width: 390, height: 844 },
+  ]) {
     await page.setViewportSize(size);
     await expect.poll(() => facts.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
     const panel = (await page.getByRole('region', { name: 'Infos', exact: true }).boundingBox())!;

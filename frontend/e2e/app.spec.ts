@@ -41,7 +41,8 @@ test('owner can set up, save service fees, use keyboard dialog, and log in again
   // 0.8.3: the fee explanation is the popup of the help symbol (before, a dialog).
   const help = eneba.getByRole('button', { name: 'Hilfe zu Gebühren', exact: true });
   await expect(help).toHaveAccessibleDescription(/Aufschlag in Prozent auf den Grundpreis/);
-  await help.focus(); await page.keyboard.press('Enter');
+  await help.focus();
+  await page.keyboard.press('Enter');
   await expect(page.getByRole('tooltip').filter({ hasText: 'Ein Schätzwert ersetzt weder' })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('tooltip')).toHaveCount(0);
@@ -72,7 +73,8 @@ test('owner replaces and removes the IGDB credentials from settings', async ({ p
   const update = page.waitForRequest(r => r.url().endsWith('/settings/igdb') && r.method() === 'PUT');
   await igdb.getByRole('button', { name: 'Prüfen und speichern' }).click();
   expect((await update).postDataJSON()).toEqual({
-    client_id: 'browser-fixture-client', client_secret: 'browser-fixture-secret',
+    client_id: 'browser-fixture-client',
+    client_secret: 'browser-fixture-secret',
   });
   await expect(page.locator('.toast-pop').filter({ hasText: 'IGDB-Zugang gespeichert und geprüft.' })).toBeVisible();
   await expect(igdb.getByLabel('Client Secret', { exact: true })).toHaveValue('');

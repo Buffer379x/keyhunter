@@ -3,7 +3,13 @@ import assert from 'node:assert/strict';
 import { parseFeePercent, formatFeePercent } from '../src/fees.ts';
 
 test('German decimal input preserves hundredths as integer basis points', () => {
-  for (const [input, expected] of [['2,50', 250], ['1.01', 101], ['0', 0], ['100,00', 10000], [' 3,2 ', 320]] as const) {
+  for (const [input, expected] of [
+    ['2,50', 250],
+    ['1.01', 101],
+    ['0', 0],
+    ['100,00', 10000],
+    [' 3,2 ', 320],
+  ] as const) {
     assert.equal(parseFeePercent(input), expected);
   }
 });

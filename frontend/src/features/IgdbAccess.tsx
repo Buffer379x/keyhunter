@@ -36,10 +36,12 @@ export default function IgdbAccess({ state, configured, enabled, onEnabledChange
     setBusy(true);
     setError('');
     const fields = form ? new FormData(form) : null;
-    const body = fields ? {
-      client_id: String(fields.get('client_id') ?? '').trim(),
-      client_secret: String(fields.get('client_secret') ?? '').trim(),
-    } : undefined;
+    const body = fields
+      ? {
+          client_id: String(fields.get('client_id') ?? '').trim(),
+          client_secret: String(fields.get('client_secret') ?? '').trim(),
+        }
+      : undefined;
     try {
       await api('/settings/igdb', method, body, csrf);
       notify(method === 'PUT' ? 'IGDB-Zugang gespeichert und geprüft.' : 'IGDB-Zugang entfernt.');
@@ -59,38 +61,87 @@ export default function IgdbAccess({ state, configured, enabled, onEnabledChange
     event.preventDefault();
     void change('PUT', event.currentTarget);
   }
-  const chip = state === undefined ? null : chips[enabled ? state : 'disabled'] ?? { tone: 'default' as const, text: state, icon: 'minus' as const };
+  const chip = state === undefined ? null : (chips[enabled ? state : 'disabled'] ?? { tone: 'default' as const, text: state, icon: 'minus' as const });
 
-  return <SettingsPanel title="IGDB-Zugang" titleId="igdb-access-title"
-    aside={<>{chip ? <Pill tone={chip.tone} icon={chip.icon}>{chip.text}</Pill> : <span className="hint">Status wird geladen …</span>}
-      <Help label="Hilfe zum IGDB-Zugang"><span>Spielesuche, Editionen, Cover und Artwork. IGDB ist unabhängig von den Key-Shops.</span>
-        <span>Hinterlege die Client-ID und das Client Secret deiner Twitch-Anwendung. Die Werte liegen geschützt im Datenverzeichnis und werden nie angezeigt. Backups des Datenverzeichnisses enthalten sie.</span></Help></>}>
-    <form className="form-grid" method="post" onSubmit={save} autoComplete="off">
-      <div className="set-two">
-        <div className="form-row"><label htmlFor="igdb-client-id">Client-ID</label>
-          <input id="igdb-client-id" name="client_id" required maxLength={512} spellCheck={false} autoCapitalize="none" disabled={busy}
-            placeholder={configured ? 'gespeichert · zum Ändern neu eingeben' : ''} /></div>
-        <div className="form-row"><label htmlFor="igdb-client-secret">Client Secret</label>
-          <input id="igdb-client-secret" name="client_secret" type="password" required maxLength={512} autoComplete="off" disabled={busy}
-            placeholder={configured ? 'gespeichert · zum Ändern neu eingeben' : ''} /></div>
-      </div>
-      <div className="set-actions">
-        <Button type="submit" disabled={busy || confirmRemoval}>{busy && !confirmRemoval ? 'Wird geprüft …' : 'Prüfen und speichern'}</Button>
-        {configured && !confirmRemoval && <Button type="button" variant="danger" disabled={busy} onClick={() => setConfirmRemoval(true)}>Zugang entfernen</Button>}
-      </div>
-      <Switch checked={enabled} onChange={onEnabledChange}>Spieleindex aktiv</Switch>
-    </form>
-    <ConfirmDialog
-      open={confirmRemoval}
-      title="IGDB-Zugang entfernen?"
-      cancelLabel="Zugang behalten"
-      confirmLabel="Entfernen bestätigen" danger
-      busy={busy}
-      onCancel={() => setConfirmRemoval(false)}
-      onConfirm={() => void change('DELETE')}
+  return (
+    <SettingsPanel
+      title="IGDB-Zugang"
+      titleId="igdb-access-title"
+      aside={
+        <>
+          {chip ? (
+            <Pill tone={chip.tone} icon={chip.icon}>
+              {chip.text}
+            </Pill>
+          ) : (
+            <span className="hint">Status wird geladen …</span>
+          )}
+          <Help label="Hilfe zum IGDB-Zugang">
+            <span>Spielesuche, Editionen, Cover und Artwork. IGDB ist unabhängig von den Key-Shops.</span>
+            <span>
+              Hinterlege die Client-ID und das Client Secret deiner Twitch-Anwendung. Die Werte liegen geschützt im Datenverzeichnis und werden nie angezeigt.
+              Backups des Datenverzeichnisses enthalten sie.
+            </span>
+          </Help>
+        </>
+      }
     >
-      <p>Für neue Katalogabfragen sind anschließend wieder Zugangsdaten nötig.</p>
-      {error && <Notice error>{error}</Notice>}
-    </ConfirmDialog>
-  </SettingsPanel>;
+      <form className="form-grid" method="post" onSubmit={save} autoComplete="off">
+        <div className="set-two">
+          <div className="form-row">
+            <label htmlFor="igdb-client-id">Client-ID</label>
+            <input
+              id="igdb-client-id"
+              name="client_id"
+              required
+              maxLength={512}
+              spellCheck={false}
+              autoCapitalize="none"
+              disabled={busy}
+              placeholder={configured ? 'gespeichert · zum Ändern neu eingeben' : ''}
+            />
+          </div>
+          <div className="form-row">
+            <label htmlFor="igdb-client-secret">Client Secret</label>
+            <input
+              id="igdb-client-secret"
+              name="client_secret"
+              type="password"
+              required
+              maxLength={512}
+              autoComplete="off"
+              disabled={busy}
+              placeholder={configured ? 'gespeichert · zum Ändern neu eingeben' : ''}
+            />
+          </div>
+        </div>
+        <div className="set-actions">
+          <Button type="submit" disabled={busy || confirmRemoval}>
+            {busy && !confirmRemoval ? 'Wird geprüft …' : 'Prüfen und speichern'}
+          </Button>
+          {configured && !confirmRemoval && (
+            <Button type="button" variant="danger" disabled={busy} onClick={() => setConfirmRemoval(true)}>
+              Zugang entfernen
+            </Button>
+          )}
+        </div>
+        <Switch checked={enabled} onChange={onEnabledChange}>
+          Spieleindex aktiv
+        </Switch>
+      </form>
+      <ConfirmDialog
+        open={confirmRemoval}
+        title="IGDB-Zugang entfernen?"
+        cancelLabel="Zugang behalten"
+        confirmLabel="Entfernen bestätigen"
+        danger
+        busy={busy}
+        onCancel={() => setConfirmRemoval(false)}
+        onConfirm={() => void change('DELETE')}
+      >
+        <p>Für neue Katalogabfragen sind anschließend wieder Zugangsdaten nötig.</p>
+        {error && <Notice error>{error}</Notice>}
+      </ConfirmDialog>
+    </SettingsPanel>
+  );
 }
