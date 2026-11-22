@@ -1,0 +1,12 @@
+Scanned /src/Cargo.lock file and found 303 packages
+Scanned /src/package-lock.json file and found 81 packages
+Total 2 packages affected by 2 known vulnerabilities (0 Critical, 0 High, 1 Medium, 0 Low, 1 Unknown) from 1 ecosystem.
+2 vulnerabilities can be fixed.
+
+
++-----------------------------------+------+-----------+----------------+---------+---------------+----------------+
+| OSV URL                           | CVSS | ECOSYSTEM | PACKAGE        | VERSION | FIXED VERSION | SOURCE         |
++-----------------------------------+------+-----------+----------------+---------+---------------+----------------+
+| https://osv.dev/RUSTSEC-2026-0459 | 6.8  | crates.io | libsqlite3-sys | 0.37.0  | 0.39.0        | src/Cargo.lock |
+| https://osv.dev/RUSTSEC-2026-0592 |      | crates.io | url            | 2.5.8   | 2.5.9         | src/Cargo.lock |
++-----------------------------------+------+-----------+----------------+---------+---------------+----------------+

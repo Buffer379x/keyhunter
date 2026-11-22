@@ -1,0 +1,40 @@
+# Container-Messungen keyhunter:0.9.1 (lokal, Image-ID 715fe9f67a2a; ghcr.io/buffer379x/keyhunter:0.9.1 hat andere ID 42f20690292b)
+# Host: 8 Kerne, parallel liefen Browser-Tests anderer Prüf-Agenten (Load ~3,9) – Latenzen schwanken, CPU-Zeit je Request ist robuster.
+# Alle Container mit --dns 127.0.0.1 und --add-host <shop/igdb/twitch/microsoft-Hosts>:127.0.0.1 => keine externen Anfragen möglich.
+
+## Image
+Size=162359742 (162 MB unkomprimiert); docker save (komprimierte Layer) = 41,7 MB
+User=10001:10001 Entrypoint=[/app/docker-entrypoint] Healthcheck=[CMD /app/docker-entrypoint --healthcheck] (30s/3s/start 10s/3 retries) Volumes=/data
+Layer (docker history):
+  85.3MB  debian:bookworm-slim (Basis, nicht per Digest gepinnt)
+  15.3MB  apt-get install ca-certificates curl util-linux + useradd
+  16.6MB  /app/keyhunter (release, lto=thin, strip=true; SQLite 3.51.3 gebündelt)
+   3.45MB /app/frontend
+  12.3kB  docker-entrypoint.sh
+
+## Start / Stopp
+leeres Volume, --user 1000:1000, read-only, cap-drop ALL:        start->/health/ready 544 ms
+500 Wünsche / 2000 Links / 120000 Beobachtungen (51,7 MB DB):    start->/health/ready 825 ms
+Unraid-Template-Parameter (--user 0:0 + --init-unraid-data):     start->/health/ready 907 ms, Neustart 524 ms
+docker stop -t 20: 438 ms bzw. 329 ms, Exit-Code 0 (SIGTERM wird als PID 1 sauber behandelt)
+
+## Leerlauf (cgroup cpu.stat, 60 s, inkl. Healthcheck alle 30 s)
+leere DB:                   0,240 % eines Kerns, RAM 25,5 MiB, 13 PIDs
+500 Wünsche (Eneba pausiert): 0,225 % eines Kerns, RAM 36,2 MiB
+Hintergrundschleifen: je Shop-Worker Poll alle 3 s (2 s nach einem Job), Alarm-Outbox alle 3 s, Editionen alle 10 s.
+
+## Last (256 x GET /api/v1/wishlist, 64 parallel, 500 Wünsche)
+gesamt 7,4 s (~35 req/s), median 1805 ms, p95 1934 ms; cgroup memory.peak 116 MB, danach 103,7 MiB (Allocator behält Speicher)
+
+## Unraid-Modus: Prozessrechte nach setpriv (PID 1 keyhunter)
+Uid 10001 Gid 10001 Groups: (leer) CapInh/CapPrm/CapEff/CapBnd/CapAmb = 0000000000000000 NoNewPrivs: 1
+/data: drwxr-xr-x keyhunter (0755), Dateien 0600 keyhunter
+
+## Upgrade 0.8.3 -> 0.9.1 (benanntes Volume, Owner eingerichtet)
+0.8.3 ready -> stop -> 0.9.1 start->ready 670 ms
+INFO keyhunter: Database backed up before migration from=25 to=27 file=/data/backups/keyhunter-schema-0025-<ms>.db
+/data/backups drwx------ ; Kopie -rw------- 266240 Bytes
+Downgrade 0.9.1-Daten -> 0.8.3: Container beendet sich mit Exit 1: "migration 26 was previously applied but is missing in the resolved migrations"
+
+## Logausgabe
+Standard-Log enthält ANSI-Farbsequenzen (ESC[2m … ESC[0m) auch ohne TTY; pro Start nur 2 Zeilen (setup token ready / KeyHunter ready).

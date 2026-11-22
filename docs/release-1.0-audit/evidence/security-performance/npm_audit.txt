@@ -1,0 +1,5 @@
+# npm audit (frontend/, read-only, 2026-11-22)
+## npm audit --omit=dev
+found 0 vulnerabilities
+## npm audit (inkl. devDependencies)
+found 0 vulnerabilities

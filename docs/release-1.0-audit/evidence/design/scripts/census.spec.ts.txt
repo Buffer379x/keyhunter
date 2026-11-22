@@ -1,0 +1,84 @@
+// TEMPORARY audit spec (release-1.0 design audit, agent "ds"): computed-style census of every main view. Delete after the audit.
+// Writes DS_OUT/census.json: per view the distinct rendered font sizes, weights, families, colours (mapped to tokens),
+// radii, control heights and icon sizes of all visible elements.
+import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { signInToFixture } from '../helpers';
+import { mockAll } from './mocks';
+
+const OUT = process.env.DS_OUT ?? '/tmp/ds-census';
+mkdirSync(OUT, { recursive: true });
+test.use({ locale: 'de-DE', timezoneId: 'Europe/Berlin', colorScheme: 'dark', deviceScaleFactor: 1, viewport: { width: 1440, height: 900 } });
+test.setTimeout(240_000);
+
+type Census = Record<string, Record<string, number>>;
+async function census(page: Page): Promise<Census> {
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(500);
+  return page.evaluate(() => {
+    const out: Record<string, Record<string, number>> = {};
+    const add = (key: string, value: string) => { (out[key] ??= {}); out[key][value] = (out[key][value] ?? 0) + 1; };
+    // token colours, normalised through the browser
+    const root = getComputedStyle(document.documentElement);
+    const probe = document.createElement('i'); document.body.append(probe);
+    const tokenOf: Record<string, string> = {};
+    for (const name of ['--ground', '--shell', '--panel', '--panel-2', '--panel-3', '--cell', '--line', '--line-2', '--text', '--text-2', '--muted', '--faint', '--accent', '--accent-2', '--accent-bg', '--accent-line', '--on-accent', '--world', '--ok', '--ok-bg', '--warn', '--warn-bg', '--danger', '--danger-bg', '--scrim', '--cover-line', '--cover-text']) {
+      probe.style.color = root.getPropertyValue(name).trim();
+      const c = getComputedStyle(probe).color;
+      if (!tokenOf[c]) tokenOf[c] = name;
+    }
+    probe.remove();
+    const tok = (c: string) => tokenOf[c] ?? `LITERAL ${c}`;
+    const visible = (el: Element) => { const r = el.getBoundingClientRect(); if (r.width < 1 || r.height < 1) return false; const cs = getComputedStyle(el); return cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0; };
+    for (const el of Array.from(document.querySelectorAll('body *'))) {
+      if (!visible(el) || el.closest('svg') && el.tagName.toLowerCase() !== 'svg') continue;
+      const cs = getComputedStyle(el);
+      const ownText = Array.from(el.childNodes).some(n => n.nodeType === 3 && n.textContent!.trim().length > 0);
+      if (ownText) {
+        const fam = cs.fontFamily.split(',')[0].replace(/["']/g, '').trim();
+        add('fontSize', cs.fontSize);
+        add('family+weight', `${fam} ${cs.fontWeight}`);
+        add('lineHeight', `${cs.fontSize}/${cs.lineHeight}`);
+        add('textColor', tok(cs.color));
+        add('letterSpacing', `${fam} ${cs.fontSize} ${cs.letterSpacing}${cs.textTransform === 'uppercase' ? ' UPPER' : ''}`);
+      }
+      if (cs.backgroundColor !== 'rgba(0, 0, 0, 0)') add('background', tok(cs.backgroundColor));
+      const bw = parseFloat(cs.borderTopWidth) || parseFloat(cs.borderBottomWidth) || parseFloat(cs.borderLeftWidth);
+      if (bw > 0) add('borderColor', `${bw}px ${tok(cs.borderTopWidth !== '0px' ? cs.borderTopColor : cs.borderBottomWidth !== '0px' ? cs.borderBottomColor : cs.borderLeftColor)}`);
+      if (cs.borderTopLeftRadius !== '0px' && (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' || bw > 0)) add('radius', cs.borderTopLeftRadius);
+      if (cs.boxShadow !== 'none') add('shadow', cs.boxShadow.slice(0, 60));
+      const tag = el.tagName.toLowerCase();
+      const r = el.getBoundingClientRect();
+      if (tag === 'button' || (tag === 'a' && el.classList.contains('btn'))) add('buttonHeight', `${Math.round(r.height)}px ${el.className.toString().split(' ').filter(c => /btn|chip|nav-item|help|seg|tab/.test(c)).join('.') || (el.closest('.seg') ? 'seg' : el.closest('[role=tablist]') ? 'tab' : 'other')}`);
+      if (tag === 'input' || tag === 'select' || el.classList.contains('field')) add('controlHeight', `${Math.round(r.height)}px ${tag}${el.classList.contains('field') ? '.field' : ''}`);
+      if (tag === 'svg' && !el.classList.contains('brand') && !el.closest('.matrix')) add('iconSize', `${Math.round(r.width)}x${Math.round(r.height)}`);
+    }
+    return out;
+  });
+}
+
+test('census at 1440', async ({ page }) => {
+  const forza = await mockAll(page);
+  await signInToFixture(page);
+  const result: Record<string, Census> = {};
+  const run = async (name: string, url: string, ready: () => Promise<void>) => { await page.goto(url); await ready(); result[name] = await census(page); };
+  const h1 = (name: string) => async () => { await expect(page.getByRole('main').getByRole('heading', { name, level: 1 })).toBeVisible(); };
+  await run('wishlist', '/', async () => { await expect(page.locator('table.wl tbody tr').first()).toBeVisible(); });
+  const id = forza();
+  for (const tab of ['preis', 'angebote', 'verlauf', 'editionen', 'alarm', 'infos']) await run(`detail-${tab}`, `/?item=${id}&tab=${tab}`, async () => { await page.getByRole('tablist', { name: 'Spieldetails' }).waitFor(); await page.waitForTimeout(500); });
+  await run('cart', '/?view=cart', h1('Warenkorb'));
+  await run('library', '/?view=library', h1('Bibliothek'));
+  await run('alerts', '/?view=alerts', h1('Preisalarme'));
+  for (const s of ['', 'shops', 'index', 'notifications', 'status', 'log', 'system']) await run(`settings-${s || 'general'}`, `/?view=settings${s ? `&section=${s}` : ''}`, h1('Einstellungen'));
+  // totals over all views
+  const total: Census = {};
+  for (const view of Object.values(result)) for (const [k, m] of Object.entries(view)) for (const [v, n] of Object.entries(m)) { (total[k] ??= {}); total[k][v] = (total[k][v] ?? 0) + n; }
+  writeFileSync(`${OUT}/census.json`, JSON.stringify({ total, views: result }, null, 2));
+  const lines = ['# Computed-style census (1440 x 900, 18 views, visible elements only)', ''];
+  for (const [k, m] of Object.entries(total)) {
+    const sorted = Object.entries(m).sort((a, b) => b[1] - a[1]);
+    lines.push(`## ${k} (${sorted.length} distinct)`, sorted.map(([v, n]) => `${v} ×${n}`).join(' · '), '');
+  }
+  writeFileSync(`${OUT}/census.md`, lines.join('\n'));
+});

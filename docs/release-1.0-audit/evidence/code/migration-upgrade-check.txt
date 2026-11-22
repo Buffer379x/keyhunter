@@ -1,0 +1,28 @@
+# Migrationskette gegen eine KOPIE der alten Datenbank work/phase_b_database/keyhunter.db (+ -wal) im Scratch-Ordner;
+# Kopie danach gelöscht. Nur Aggregate. python3 -I scripts/migtest.py <kopie> backend/migrations
+applied before: 1 ... 10 count 10
+checksum mismatches of applied migrations: []
+rows before: {'wishlist_item': 49, 'offer_link': 125, 'price_observation': 221, 'alert_rule': 0, 'game': 49}
+applied 0011_scheduling.sql
+applied 0012_item_state.sql
+applied 0013_confirmed_name.sql
+applied 0014_budget_pacing.sql
+applied 0015_manual_match.sql
+applied 0016_release_065.sql
+applied 0017_release_070.sql
+applied 0018_release_071.sql
+applied 0019_release_072.sql
+applied 0020_release_073.sql
+applied 0021_release_074.sql
+applied 0022_release_080.sql
+applied 0023_release_081.sql
+applied 0024_release_082.sql
+applied 0025_release_083.sql
+applied 0026_release_090.sql
+applied 0027_notification_channels.sql
+foreign_key_check rows: 0
+integrity_check: ok
+rows after: {'wishlist_item': 49, 'offer_link': 125, 'price_observation': 221, 'alert_rule': 0, 'game': 49}
+
+# Hinweis: Python-sqlite statt sqlx; sqlx-eigene Buchführung (_sqlx_migrations-Insert) und shops::upgrade_fingerprints
+# (Rust, läuft nach jeder Migration) sind dadurch NICHT abgedeckt.

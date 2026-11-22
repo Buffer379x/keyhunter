@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" role="img" aria-label="KeyHunter">
+  <!-- Variant C "Gehängt" (16 px): the same tag and key hole as A, turned 35 degrees like a hanging price tag. -->
+  <rect width="16" height="16" rx="3.5" fill="#FF7A1A"/>
+  <g transform="rotate(-35 8 8)"><path fill="#1B1004" fill-rule="evenodd" d="M0.5 8L4.5 3.5H14.5V12.5H4.5Z M9.8 4.6A2.4 2.4 0 0 1 10.8 9.2L11.7 11.4H7.9L8.8 9.2A2.4 2.4 0 0 1 9.8 4.6Z"/></g>
+</svg>

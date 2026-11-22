@@ -1,0 +1,50 @@
+# npx --yes knip@5 --directory frontend --config <scratch>/knip.json --reporter compact (Repo unverändert)
+# knip.json: entry src/main.tsx, tests/*.test.ts, e2e/**/*.spec.ts, scripts/*.mjs, playwright.config.ts, vite.config.ts
+# Einträge unter e2e/tmp-audit-resp/ stammen aus dem Wegwerf-Ordner eines anderen Audit-Agenten und wurden entfernt.
+Unused dependencies (1)
+package.json: @fontsource-variable/inter, @fontsource/jetbrains-mono, flag-icons
+Unused exports (17)
+e2e/helpers.ts: openDrawer
+src/features/LinkReview.tsx: linkParts
+src/features/Offers.tsx: money, dateTime
+src/features/PriceBadge.tsx: default
+src/features/PriceTab.tsx: stand
+src/features/WishlistRow.tsx: needsReview, reviewText
+src/features/list-view.tsx: PER_PAGE
+src/features/settings/data.ts: FETCH_REFRESH_MS
+src/features/settings/format.ts: WORKER_STALLED_AFTER, outcomeNames, kindNames, clockText
+src/features/settings/sections.ts: isSection
+src/features/wishlist-model.ts: isWorldCheaper
+src/features/wishlist-sort.ts: sortKeys, firstDir
+src/notify.ts: notifyError
+src/ui/Chip.tsx: regName
+src/ui/Layout.tsx: Ticks
+src/ui/index.ts: Ticks
+Unused exported types (12)
+src/features/PriceAlerts.tsx: AlertEvent
+src/features/cart-model.ts: ShopSum, CartSums
+src/features/history-model.ts: Stats
+src/features/offers-model.ts: Validity, Verdict
+src/features/settings/channels.ts: ChannelField
+src/features/settings/draft.ts: SaveState
+src/features/settings/format.ts: Tone, FetchRun
+src/features/wishlist-model.ts: CheaperKpi, FetchKpi
+src/ui/Button.tsx: ButtonVariant
+src/ui/Tabs.tsx: TabItem
+src/ui/index.ts: ButtonVariant, TabItem
+
+## Manuelle Prüfung (grep -w über src, tests, e2e)
+- Abhängigkeiten @fontsource*/flag-icons: FALSCH POSITIV, genutzt über CSS-url() (src/styles/fonts.css:13-27) und import.meta.glob (src/ui/Chip.tsx:25).
+- Vollständig ungenutzt (nur Definition, kein Aufruf):
+    src/notify.ts: notifyError – Vorkommen gesamt: 1 (InfosTab.tsx:15 hat eine eigene, andere needsReview)
+    src/features/settings/format.ts: clockText – Vorkommen gesamt: 1 (InfosTab.tsx:15 hat eine eigene, andere needsReview)
+    src/features/WishlistRow.tsx: needsReview – Vorkommen gesamt: 5 (InfosTab.tsx:15 hat eine eigene, andere needsReview)
+    src/features/PriceBadge.tsx: default export PriceBadge (Komponente) – nirgends importiert; nur badgeStateText/badgeTitle werden genutzt
+    src/ui/Toast.tsx: Toast – nur im Dev-Katalog src/ui/Gallery.tsx (/_ui, nicht im Produktionsbundle) genutzt; Toaster.tsx hat eine eigene lokale Toast-Funktion
+    src/features/GameDetail.tsx:30 Prop onBack – deklariert, von Wishlist.tsx:395 übergeben, nie gelesen
+- Übrige Meldungen: nur unnötig exportiert, intern genutzt (z. B. PER_PAGE, isWorldCheaper, sortKeys).
+
+## Backend-Endpunkte ohne Aufrufer im Frontend
+    GET  /api/v1/catalog/games/{id}/editions  (backend/src/catalog/mod.rs:269) – weder Frontend noch Tests noch Doku; filtert noch auf 169|49 (ohne 360/Xbox)
+    POST /api/v1/wishlist/{id}/preview        (backend/src/wishlist.rs:307) – nur backend/tests/catalog_wishlist.rs:490,539
+    GET  /api/v1/catalog/games/{id}           (backend/src/catalog/mod.rs:225) – nur backend/tests/catalog_wishlist.rs:931

@@ -1,0 +1,125 @@
+# cargo clippy --locked --all-targets --message-format=short -- -W clippy::pedantic -W dead_code
+# Docker keyhunter-build-tools:local (Rust 1.100.0), CARGO_TARGET_DIR=work/check/target-code. Exit 0.
+# Zusätzlich: cargo fmt --check = 0, cargo clippy --all-targets --locked -- -D warnings = 0 (Standard-Lints sauber).
+
+warning: `keyhunter` (lib test) generated 144 warnings (58 duplicates) (run `cargo clippy --fix --lib -p keyhunter --tests -- -W clippy::pedantic -W dead_code` to apply 41 suggestions)
+warning: `keyhunter` (lib) generated 79 warnings (21 duplicates) (run `cargo clippy --fix --lib -p keyhunter -- -W clippy::pedantic -W dead_code` to apply 20 suggestions)
+warning: `keyhunter` (bin "keyhunter" test) generated 2 warnings (run `cargo clippy --fix --bin "keyhunter" -p keyhunter --tests -- -W clippy::pedantic -W dead_code` to apply 2 suggestions)
+warning: `keyhunter` (example "catalog_fixture") generated 4 warnings
+warning: `keyhunter` (bin "keyhunter") generated 2 warnings (2 duplicates)
+warning: `keyhunter` (test "api") generated 8 warnings
+warning: `keyhunter` (test "catalog_wishlist") generated 24 warnings (run `cargo clippy --fix --test "catalog_wishlist" -p keyhunter -- -W clippy::pedantic -W dead_code` to apply 4 suggestions)
+
+## Eindeutige pedantic-Warnungen: 182 (keine dead_code-Warnung)
+
+## Nach Art
+     22 adding items after statements is confusing, since items exist from the start of the scope
+     21 this function has too many lines 
+     19 used X to check that a value is empty
+     17 casting X to X may wrap around the value
+     14 consider adding a X to the last statement for consistent formatting: help: add a X here: X
+     12 long literal lacking separators: help: consider: X
+      9 casting X to X may cause a loss of precision (X is 64 bits wide, but X's mantissa is only 52 bits wide)
+      9 X appended to existing X
+      8 item in documentation is missing backticks
+      7 redundant closure: help: replace the closure with the method itself: X
+      6 docs for function returning X missing X section
+      4 casting X to X may truncate the value
+      3 this function could have a X attribute
+      3 matching over X is more explicit: help: use X instead of X: X
+      3 casting X to X may wrap around the value on targets with 64-bit wide pointers
+      2 unnecessary hashes around raw string literal
+      2 this argument is passed by value, but not consumed in the function body
+      2 these match arms have identical bodies
+      2 calling X is more clear than this expression: help: try: X
+      2 called X on an X value: help: try: X
+      2 binding's name is too similar to existing binding
+      1 you seem to be trying to use X for destructuring a single pattern. Consider using X
+      1 used X on primitive type X: help: try: X
+      1 unnecessary semicolon: help: remove
+      1 unchecked subtraction of a X: help: try: X
+      1 this method could have a X attribute
+      1 this boolean expression can be simplified
+      1 more than 3 bools in a struct
+      1 empty String is being created manually: help: consider using: X
+      1 constructing a X using a smaller unit when a larger unit would be more readable
+      1 casting X to X may lose the sign of the value: help: if this is intentional, use X instead: X
+      1 casting X to X may lose the sign of the value
+      1 case-sensitive file extension comparison
+      1 called X on an X value
+
+## Funktionen > 100 Zeilen (too_many_lines)
+src/alerts.rs:464 (149/100) async fn deliver_one(pool: &SqlitePool, notifier: &Notifier) -> anyhow
+src/alerts.rs:623 (209/100) async fn alarms_follow_fresh_prices_and_retry_per_channel() {
+src/jobs.rs:1859 (179/100) async fn budget_keeps_every_region_of_active_wishes_fresh_alike() {
+src/jobs.rs:2128 (189/100) async fn paced_jobs_wait_while_direct_user_actions_bypass_pacing_but_c
+src/jobs.rs:551 (166/100) async fn complete(
+src/lib.rs:153 (187/100) async fn create_app_inner(
+src/notify.rs:1353 (192/100) fn inputs_are_validated_and_secrets_need_https_outside_the_lan() {
+src/offers.rs:309 (145/100) pub(crate) async fn list(
+src/price_badges.rs:316 (136/100) fn compute(
+src/settings.rs:194 (138/100) pub(crate) async fn put_settings(
+src/shops/driffle.rs:7 (126/100) pub(super) fn parse(url: &Url, body: &str) -> Result<Product, ShopErro
+src/shops/eneba.rs:7 (153/100) pub(super) fn parse(url: &Url, body: &str) -> Result<Product, ShopErro
+tests/api.rs:189 (107/100) async fn settings_require_csrf_and_origin_and_survive_restart_atomical
+tests/api.rs:710 (122/100) async fn automatic_origin_supports_lan_http_and_proxy_https() {
+tests/api.rs:844 (105/100) async fn the_log_records_logins_without_secrets_and_can_be_filtered_se
+tests/api.rs:983 (154/100) async fn notification_channels_are_write_only_validated_and_testable()
+tests/catalog_wishlist.rs:1502 (132/100) async fn saved_badges_distinguish_unqueried_empty_error_and_retained_o
+tests/catalog_wishlist.rs:1641 (151/100) async fn preparing_all_editions_preserves_the_saved_selection_and_expo
+tests/catalog_wishlist.rs:240 (109/100) async fn preferred_and_global_history_follow_the_actual_lowest_country
+tests/catalog_wishlist.rs:2905 (158/100) async fn fetch_runs_carry_their_game_and_can_be_filtered_searched_and_
+tests/catalog_wishlist.rs:941 (154/100) async fn library_moves_preserve_identity_and_require_confirmation() {
+
+## Produktionsrelevante Einzelwarnungen (ohne Stil/Doku)
+examples/catalog_fixture.rs:184:13: warning: casting `u64` to `i64` may wrap around the value
+src/auth.rs:241:15: warning: matching over `()` is more explicit: help: use `()` instead of `_`: `()`
+src/catalog/contents.rs:20:8: warning: this function could have a `#[must_use]` attribute
+src/catalog/contents.rs:33:8: warning: this function could have a `#[must_use]` attribute
+src/catalog/contents.rs:36:8: warning: this function could have a `#[must_use]` attribute
+src/catalog/provider.rs:261:20: warning: this boolean expression can be simplified
+src/catalog/provider.rs:383:36: warning: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
+src/catalog/provider.rs:396:18: warning: unnecessary semicolon: help: remove
+src/catalog/provider.rs:46:12: warning: this method could have a `#[must_use]` attribute
+src/catalog/provider.rs:681:13: warning: unchecked subtraction of a `Duration`: help: try: `Instant::now().checked_sub(Duration::from_secs(1)).unwrap()`
+src/config.rs:26:23: warning: called `map(<f>).unwrap_or_else(<g>)` on an `Option` value: help: try: `env::var_os("KEYHUNTER_DATA_DIR").map_or_else(|| "data".into(), PathBuf::from)`
+src/config.rs:29:27: warning: called `map(<f>).unwrap_or_else(<g>)` on an `Option` value: help: try: `env::var_os("KEYHUNTER_FRONTEND_DIR").map_or_else(|| "../frontend/dist".into(), PathBuf::from)`
+src/jobs.rs:136:51: warning: this argument is passed by value, but not consumed in the function body
+src/jobs.rs:2024:47: warning: casting `usize` to `i64` may wrap around the value on targets with 64-bit wide pointers
+src/jobs.rs:2213:65: warning: casting `usize` to `i64` may wrap around the value on targets with 64-bit wide pointers
+src/jobs.rs:2234:26: warning: casting `usize` to `i64` may wrap around the value on targets with 64-bit wide pointers
+src/jobs.rs:2570:24: warning: casting `i64` to `f64` may cause a loss of precision (`i64` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
+src/jobs.rs:2570:37: warning: casting `i64` to `f64` may cause a loss of precision (`i64` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
+src/jobs.rs:2806:25: warning: casting `i64` to `f64` may cause a loss of precision (`i64` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
+src/jobs.rs:421:17: warning: casting `i64` to `f64` may cause a loss of precision (`i64` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
+src/jobs.rs:422:5: warning: casting `f64` to `i64` may truncate the value
+src/jobs.rs:441:25: warning: casting `i64` to `f64` may cause a loss of precision (`i64` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
+src/jobs.rs:441:46: warning: casting `i64` to `f64` may cause a loss of precision (`i64` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
+src/jobs.rs:588:47: warning: binding's name is too similar to existing binding
+src/jobs.rs:654:25: warning: binding's name is too similar to existing binding
+src/jobs.rs:933:13: warning: casting `i64` to `f64` may cause a loss of precision (`i64` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
+src/jobs.rs:933:28: warning: casting `i64` to `f64` may cause a loss of precision (`i64` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
+src/jobs.rs:933:41: warning: casting `i64` to `f64` may cause a loss of precision (`i64` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
+src/jobs.rs:997:27: warning: casting `f64` to `i64` may truncate the value
+src/lib.rs:103:5: warning: casting `u64` to `i64` may wrap around the value
+src/lib.rs:254:22: warning: calling `TrendCache::default()` is more clear than this expression: help: try: `TrendCache::default()`
+src/lib.rs:432:72: warning: case-sensitive file extension comparison
+src/lib.rs:508:28: warning: unnecessary hashes around raw string literal
+src/main.rs:37:22: warning: matching over `()` is more explicit: help: use `()` instead of `_`: `()`
+src/main.rs:37:40: warning: matching over `()` is more explicit: help: use `()` instead of `_`: `()`
+src/notify.rs:101:13: warning: these match arms have identical bodies
+src/notify.rs:159:13: warning: these match arms have identical bodies
+src/offers.rs:126:1: warning: more than 3 bools in a struct
+src/offers.rs:184:13: warning: casting `f64` to `i64` may truncate the value
+src/offers.rs:825:18: warning: empty String is being created manually: help: consider using: `String::new()`
+src/shops/driffle.rs:33:17: warning: called `map(_).unwrap_or_default()` on an `Option` value
+src/shops/eneba.rs:347:21: warning: casting `i64` to `u64` may lose the sign of the value: help: if this is intentional, use `cast_unsigned()` instead: `page.cast_unsigned()`
+src/shops/eneba.rs:579:33: warning: unnecessary hashes around raw string literal
+src/shops/http.rs:156:25: warning: casting `u64` to `i64` may wrap around the value
+src/shops/http.rs:17:30: warning: constructing a `Duration` using a smaller unit when a larger unit would be more readable
+src/shops/http.rs:290:53: warning: casting `f64` to `u64` may lose the sign of the value
+src/shops/http.rs:290:53: warning: casting `f64` to `u64` may truncate the value
+src/wishlist.rs:41:16: warning: this argument is passed by value, but not consumed in the function body
+
+## #[allow(...)] im Code
+src/jobs.rs:550:#[allow(clippy::too_many_arguments)]

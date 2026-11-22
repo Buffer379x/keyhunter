@@ -1,0 +1,98 @@
+{
+ "8 h | A": {
+  "product_requests_per_day": 926.85,
+  "offer_not_current_share": 0.0001,
+  "wrong_best_world_share": 0.122,
+  "wrong_best_target_share": 0.1178,
+  "detected_share": 0.8517,
+  "max_age_h": 9.2428
+ },
+ "8 h | B": {
+  "product_requests_per_day": 892.325,
+  "offer_not_current_share": 0.0001,
+  "wrong_best_world_share": 0.0998,
+  "wrong_best_target_share": 0.1426,
+  "detected_share": 0.8532,
+  "max_age_h": 17.1922
+ },
+ "8 h | C": {
+  "product_requests_per_day": 1020.3,
+  "offer_not_current_share": 0.0001,
+  "wrong_best_world_share": 0.0969,
+  "wrong_best_target_share": 0.0922,
+  "detected_share": 0.9011,
+  "max_age_h": 17.1486
+ },
+ "12 h | A": {
+  "product_requests_per_day": 618.525,
+  "offer_not_current_share": 0.0001,
+  "wrong_best_world_share": 0.1726,
+  "wrong_best_target_share": 0.1677,
+  "detected_share": 0.7892,
+  "max_age_h": 13.2483
+ },
+ "12 h | B": {
+  "product_requests_per_day": 592.05,
+  "offer_not_current_share": 0.0001,
+  "wrong_best_world_share": 0.1396,
+  "wrong_best_target_share": 0.2004,
+  "detected_share": 0.7923,
+  "max_age_h": 25.0889
+ },
+ "12 h | C": {
+  "product_requests_per_day": 677.825,
+  "offer_not_current_share": 0.0001,
+  "wrong_best_world_share": 0.1359,
+  "wrong_best_target_share": 0.1267,
+  "detected_share": 0.8394,
+  "max_age_h": 25.0656
+ },
+ "16 h | A": {
+  "product_requests_per_day": 463.725,
+  "offer_not_current_share": 0.0,
+  "wrong_best_world_share": 0.2081,
+  "wrong_best_target_share": 0.2035,
+  "detected_share": 0.729,
+  "max_age_h": 17.1983
+ },
+ "16 h | B": {
+  "product_requests_per_day": 443.075,
+  "offer_not_current_share": 0.0819,
+  "wrong_best_world_share": 0.1825,
+  "wrong_best_target_share": 0.2657,
+  "detected_share": 0.7397,
+  "max_age_h": 33.1681
+ },
+ "16 h | C": {
+  "product_requests_per_day": 505.3,
+  "offer_not_current_share": 0.0749,
+  "wrong_best_world_share": 0.1796,
+  "wrong_best_target_share": 0.1673,
+  "detected_share": 0.7947,
+  "max_age_h": 33.0622
+ },
+ "24 h | A": {
+  "product_requests_per_day": 309.175,
+  "offer_not_current_share": 0.0001,
+  "wrong_best_world_share": 0.2672,
+  "wrong_best_target_share": 0.2731,
+  "detected_share": 0.6547,
+  "max_age_h": 25.2331
+ },
+ "24 h | B": {
+  "product_requests_per_day": 292.65,
+  "offer_not_current_share": 0.2336,
+  "wrong_best_world_share": 0.2503,
+  "wrong_best_target_share": 0.3945,
+  "detected_share": 0.6539,
+  "max_age_h": 51.2389
+ },
+ "24 h | C": {
+  "product_requests_per_day": 332.225,
+  "offer_not_current_share": 0.1938,
+  "wrong_best_world_share": 0.2404,
+  "wrong_best_target_share": 0.2316,
+  "detected_share": 0.7132,
+  "max_age_h": 48.0094
+ }
+}

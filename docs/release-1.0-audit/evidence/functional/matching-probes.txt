@@ -1,0 +1,23 @@
+PROBE A reboot: wish Doom (1993, Xbox One) vs DOOM (2016) key: matches=true auto_matches=true
+PROBE B original-Xbox wish Battlefront II (2005) vs 2017 One key: matches=true auto_matches=false
+PROBE C Series wish vs Xbox-One-only key, same title: matches=false auto_matches=false
+PROBE D base wish vs Driffle 'standard edition': matches=true auto_matches=true
+PROBE E base wish vs premium edition: matches=false auto_matches=false
+PROBE F edition wish vs same edition: matches=true auto_matches=true
+PROBE G edition wish vs 'premium' without 'edition': matches=false auto_matches=false
+PROBE eneba name="Forza Horizon 5 PC/XBOX LIVE Key GLOBAL" -> title="forza horizon 5" key_game=true platforms=[169, 49]
+PROBE H base wish, IGDB alias equals other product: matches=true auto_matches=false
+PROBE I GOTY vs base: matches=false auto_matches=false
+PROBE J deluxe vs digital deluxe: matches=false auto_matches=false
+PROBE K remaster kind, same-name original: matches=false auto_matches=false
+PROBE L 360 wish vs One key of same title: matches=true auto_matches=false
+PROBE M manual title: matches=true auto_matches=false
+PROBE eneba name="Forza Horizon 5 (Xbox Series X|S) XBOX LIVE Key EUROPE" -> title="forza horizon 5" key_game=true platforms=[169, 49]
+PROBE eneba name="Forza Horizon 5 (Xbox Series X|S/PC) XBOX LIVE Key TURKEY" -> title="forza horizon 5 xbox series x s" key_game=true platforms=[169, 49]
+PROBE eneba name="Forza Horizon 4 Standard Edition (Xbox One/Windows 10) Xbox Live Key EUROPE" -> title="forza horizon 4 standard edition xbox one windows 10" key_game=true platforms=[169, 49]
+PROBE eneba name="Forza Horizon 5 (Xbox One) XBOX LIVE Key UNITED STATES" -> title="forza horizon 5 xbox one" key_game=true platforms=[169, 49]
+PROBE eneba name="STAR WARS Battlefront II (2017) XBOX LIVE Key EUROPE" -> title="star wars battlefront ii 2017" key_game=true platforms=[169, 49]
+PROBE eneba name="Forza Horizon 5 Premium Edition PC/XBOX LIVE Key GLOBAL" -> title="forza horizon 5 premium edition" key_game=true platforms=[169, 49]
+PROBE eneba name="Forza Horizon 5 XBOX LIVE Key" -> title="forza horizon 5" key_game=true platforms=[169, 49]
+PROBE eneba name="Forza Horizon 5 Xbox Series X|S Key GLOBAL" -> title="" key_game=false platforms=[169, 49]
+PROBE eneba name="Forza Horizon 5 Xbox Live Account" -> title="" key_game=false platforms=[169, 49]

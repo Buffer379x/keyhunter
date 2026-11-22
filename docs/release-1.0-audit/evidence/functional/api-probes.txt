@@ -1,0 +1,90 @@
+KeyHunter 0.9.1 – funktionale API-Proben (Audit 2026-11-22, Bereich functional)
+Umgebung: work/check/target/debug/examples/catalog_fixture (gemockter IGDB-Katalog, keine Shop-/IGDB-Anfragen),
+KEYHUNTER_FIXTURE_PRICES=1, Port 38781, eigenes Datenverzeichnis unter work/check/browser.func*.
+Helfer: scratchpad func/lib.sh (curl mit Origin + X-CSRF-Token), func/inject.py (synthetische offer_link-Zeilen).
+
+== 1. Katalogsuche GET /api/v1/catalog/search ==
+q=Forza Horizon 5                 200 [(1001 base_game), (1002 edition)] cached=False
+q=forza horizon 5                 200 dieselben Treffer, cached=True
+q="FORZA  horizon 5 " (2 Leerz.)  200 cached=False  -> Cache-Schlüssel normalisiert innere Leerzeichen nicht
+q=Forza Horizon 5 platform=0      200 (alle Xbox-Systeme)
+q=Forza Horizon 5 platform=12     200 [] (Fixture-Spiel nicht für Xbox 360)
+q=… platform=6 (PC) / 999         400 invalid_request
+q="f" / 101 Zeichen / Steuerzeichen 400 invalid_request
+q=keinTreffer                     200 []
+q=Ausfall                         503 unavailable "Der Spielekatalog ist vorübergehend nicht erreichbar …" (kein leeres Ergebnis)
+q=dlc                             200 [(1004 'Testspiel Zusatzinhalt (DLC)' kind=dlc)] -> Treffer wird geliefert, ist aber nicht wählbar
+q=1001 / #1002                    200 ID-Treffer zuerst, Textsuche zusätzlich
+q=igdb:9999                       200 ID unbekannt -> nur Textsuche
+q=<script>… / ' OR 1=1 --         200 (als Literal behandelt)
+
+== 2. Wunschliste POST /api/v1/wishlist ==
+{"igdb_id":1001,"platform_id":49}           201 created
+gleiche Anfrage erneut                      200 created=false (kein Duplikat)
+{"igdb_id":1001,"platform_id":12}           422 Plattform passt nicht
+{"igdb_id":1001,"platform_id":6}            400 Nicht unterstützte Plattform
+{"igdb_id":1004,"platform_id":169} (DLC)    422 Produkttyp passt nicht
+{"igdb_id":1002,"platform_id":169}          201 (Edition getrennt)
+{"igdb_id":424242,…}                        404 nicht im Katalog
+{"igdb_id":-1,…} / beide Felder / keines    400
+{"manual_title":"Halo Infinite"}            201 manual_unverified
+{"manual_title":"  halo   INFINITE "}       200 created=false (normalisiert)
+{"manual_title":"Halo Infinite!"}           201 (eigener Eintrag; title_key identisch mit "Halo Infinite")
+{"manual_title":"H"}                        400
+{"igdb_id":"1001"} (String)                 422 text/plain "Failed to deserialize the JSON body …" (kein JSON-Fehlerobjekt)
+"not json"                                  400 text/plain "Failed to parse the request body as JSON …"
+20 kB Titel                                 413 text/plain "Failed to buffer the request body: length limit exceeded"
+POST ohne X-CSRF-Token                      403 forbidden
+
+== 3. Angebotsauswertung mit injizierten Daten (Wunsch Forza Horizon 5, Xbox One; Zielland DE) ==
+link  fall        review     can_confirm eligible stale reasons                 quotes
+2     zero        confirmed  True        False    False ['no_price']            []
+3     negative    confirmed  True        False    False ['no_price']            []
+4     absurd      confirmed  True        False    False ['no_price']            []
+5     mixed[0,2222] confirmed True       True     False []                      [2222]
+6     stale(30h)  confirmed  True        False    True  ['stale']               [1999]
+7     error       confirmed  True        False    False ['source_error']        [1500]
+8     unknown     confirmed  True        False    False ['availability_unknown'] []
+9     soldout     confirmed  True        False    False ['sold_out']            []
+10    premium     pending    False       False    False ['mismatch']            [1800]
+11    account     pending    False       False    False ['mismatch']            [300]
+12    pc-only     pending    False       False    False ['mismatch']            [700]
+13    argentina   confirmed  True        False    False ['activation_unknown']  [900]
+14    blocked DE  confirmed  True        False    False ['activation_blocked']  [1000]
+15    valid       confirmed  True        True     False []                      [2500]
+best_base=2222  last_known={cents:1500, link_id:7}  badge cents=2222 state=price, world=900 (Argentina)
+Legacy-Feld history (link,cents): (2,0) (3,-500) (4,10000001) (5,0) (7,1500) (8,None) (9,None) (15,2500) (6,1999)
+  -> offers.rs:381 nimmt das Minimum aller Rohwerte; der „mixed“-Link erscheint mit 0 statt 2222.
+
+== 4. EU-Zielland AT (0.9.0-Regel) – gesäter Wunsch, Beobachtungen mit market=DE ==
+Ziel DE: best_base 2399, eligible, trend [2999,…,2399] (14 Werte), Zielland-Verlauf 16 Punkte
+Ziel AT (Produkt erlaubt DE+AT): best_base 2399, eligible, trend [None ×14], Zielland-Verlauf 0 Punkte
+Ziel DE wieder: wie oben -> Trend und Zielland-Verlauf hängen am exakten Markt, nicht an der EU-Regel.
+
+== 5. Nutzerfunktionen ==
+PUT alert target 2000 base  204 | target 0 / low+target / basis foo -> 400
+POST cart                   201 | erneut 409 | source gamivo / scope mars 400 | fremde id 404
+PUT pause until +400 d / -10 s 400 | +3 d 200
+POST purchase               204 | erneut 404 ; GET library -> ['Halo Infinite!']
+PUT settings (Eneba Gebühr 250 bp, Intervall 3600, Driffle an) 200
+Edition: POST preview 1002 -> bestehender Eintrag; 1004 (DLC) / 1007 (fremdes Spiel) 422; Wunschliste bleibt 4 Einträge
+
+== 6. Persistenz über Neustart (gleiches Datenverzeichnis) ==
+vorher/nachher identische Hashes für /wishlist (4) /library (1) /cart (1) /alerts /settings /wishlist/{id}/alert
+alte Sitzung nach Neustart gültig (GET /me 200)
+
+== 7. Update und Rückweg (offline, docker --network none) ==
+keyhunter:0.5.0 legt Schema 10 an; synthetische 0.5-Daten (Wunsch, Vorschau, Bibliothek, Link mit 0.5-Fingerabdruck,
+2 Beobachtungen mit zusätzlichem 0-Cent-Angebot, Alarmregel) eingespielt; 0.9.1-Fixture gestartet:
+ - backups/keyhunter-schema-0010-<ts>.db angelegt, Log „Datenbank vor dem Update gesichert (Schema 10 → 27)“
+ - wishlist_item.state: w1 wished, p1 preview (viewed_at übernommen), o1 owned (acquired_at übernommen)
+ - offer_link review confirmed, Fingerabdruck auf v2 umgestellt, Preis 24,99 € eligible, Alarmregel erhalten
+ - valid_cents 2799 / 2499 korrekt (0 ignoriert), aber Verlauf: preferred [(t1,None),(t2,None)], Legacy history [0,0]
+Rückweg: Sicherung als keyhunter.db in leeres Verzeichnis, keyhunter:0.5.0 startet („KeyHunter ready“), Schema 10, 3 Wünsche, integrity ok.
+
+== 8. Manuelle Bestätigung eines Konto-Angebots (key_game=false) ==
+PUT /wishlist/{id}/offers/11 {"decision":"confirmed"}               409 „Die Shop-Daten passen nicht automatisch …“
+PUT /wishlist/{id}/offers/11 {"decision":"confirmed","manual":true} 204
+GET offers: link 11 review=confirmed manual_match=True eligible=True reasons=[] -> best_base 300, Badge 300 (3,00 €)
+  Die Produktansicht der API enthält weder key_game noch platform_ids; der Prüfdialog kann den Grund nicht nennen.
+PUT … /offers/12 (PC-only, keine Xbox-Plattform) manual=true        204

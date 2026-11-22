@@ -1,0 +1,7 @@
+# Trivy (ghcr.io/aquasecurity/trivy, lokales Image 790fd66d1697), Scan von docker save keyhunter:0.9.1, --scanners vuln
+OS: {'Family': 'debian', 'Name': '12.15'}
+/work/kh.tar (debian 12.15) [os-pkgs]: 430 Funde {'LOW': 162, 'HIGH': 104, 'MEDIUM': 153, 'UNKNOWN': 10, 'CRITICAL': 1}; mit verfügbarem Fix: 0
+HIGH/CRITICAL nach Paket: {'libgssapi-krb5-2': 14, 'libk5crypto3': 14, 'libkrb5-3': 14, 'libkrb5support0': 14, 'curl': 5, 'libcurl4': 5, 'bsdutils': 3, 'libblkid1': 3, 'libmount1': 3, 'libsmartcols1': 3, 'libuuid1': 3, 'mount': 3, 'util-linux': 3, 'util-linux-extra': 3, 'zlib1g': 2, 'gzip': 1, 'libacl1': 1, 'libldap-2.5-0': 1, 'libpam-modules': 1, 'libpam-modules-bin': 1}
+CRITICAL CVE-2023-45853 zlib1g 1:1.2.13.dfsg-1 | zlib: integer overflow and resultant heap-based buffer overflow in zipOpenNewFileInZip4_6
+Hinweis: Rust-Abhängigkeiten im gestrippten Binary sind für Trivy unsichtbar (kein cargo-auditable); dafür osv_scanner_lockfiles.txt.
+Davon in Paketen der curl-/Kerberos-/LDAP-/OpenSSL-Kette (nur für den Healthcheck-curl installiert): 193 Funde (HIGH 67, MEDIUM 53, LOW 73). Installierte Debian-Pakete im Runtime-Image: 106.

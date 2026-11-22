@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="KeyHunter">
+  <!-- Variant C at 32 px: the master mark turned 35 degrees. -->
+  <rect width="32" height="32" rx="7" fill="#FF7A1A"/>
+  <g transform="rotate(-35 16 16)"><path fill="#1B1004" fill-rule="evenodd" d="M2.392 15.481L9.392 7.281A.8 .8 0 0 1 10 7H27.2A.8 .8 0 0 1 28 7.8V24.2A.8 .8 0 0 1 27.2 25H10A.8 .8 0 0 1 9.392 24.719L2.392 16.519A.8 .8 0 0 1 2.392 15.481Z M18.8 9.2A3.9 3.9 0 0 1 20.8 16.6L22 21.6H15.6L16.8 16.6A3.9 3.9 0 0 1 18.8 9.2Z"/></g>
+</svg>

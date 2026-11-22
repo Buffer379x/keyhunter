@@ -1,0 +1,17 @@
+# Benachrichtigungskanal Webhook gegen lokalen Mock (127.0.0.1:38799, scripts/mock_hook.py), Fixture 127.0.0.1:38784
+== Webhook-URL http://169.254.169.254/latest/meta-data/ (nur speichern) ==
+{"code":"invalid_request","error":"Über http gehen Zugangsdaten nur an Server im lokalen Netz. Verwende eine https-Adresse."} [400]
+== Webhook mit Token auf öffentliches http ==
+{"code":"invalid_request","error":"Über http gehen Zugangsdaten nur an Server im lokalen Netz. Verwende eine https-Adresse."} [400]
+== Webhook mit Token auf http://127.0.0.1:38799/hook (Loopback gilt als lokal) ==
+{"active":false,"configured":true,"enabled":false,"from_file":false,"kind":"webhook","name":"Webhook","secrets":{"token":true,"url":true},"settings":{}} [200]
+== Test senden ==
+{"ok":true} [200]
+Mock erhielt: POST /hook, Authorization: Bearer …(gekürzt), User-Agent: KeyHunter/0.9.1, JSON-Body mit event=test
+== Ziel antwortet 500 mit JSON {"message": "..."} ==
+{"code":"unavailable","error":"Testnachricht über Webhook fehlgeschlagen: HTTP 500 · interne Antwort des Zielsystems: Zeile 1, Version 9.9 (xxxx…)"} [502]
+=> bis zu 200 Zeichen aus description/message/errorDescription/error der Zielantwort erscheinen in API-Fehler und Event-Log.
+== GET /alerts/channels: Secrets nur als Bool ==
+{'secrets': {'token': True, 'url': True}, ...}
+notification-secrets.json: -rw------- (0600); Token nicht in keyhunter.db/-wal gefunden (grep 0 Treffer)
+Event-Log: "Benachrichtigungskanal Webhook gespeichert (aus)", "Testnachricht über Webhook gesendet" – ohne URL/Token

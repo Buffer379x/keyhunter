@@ -1,0 +1,62 @@
+// Scratch-only probe modules appended to copies of backend/src/offers.rs and backend/src/shops/eneba.rs (not part of the repo).
+mod audit_probe {
+    use super::*;
+    use crate::shops::Availability;
+    fn wish(platform: i64, name: &str, kind: &str, platforms: &[i64], year: i64, aliases: &[&str]) -> Wish {
+        let payload = serde_json::json!({"igdb_id":1,"name":name,"slug":null,"summary":null,"first_release_date":year,
+            "platforms":platforms.iter().map(|p| serde_json::json!({"id":p,"name":"x"})).collect::<Vec<_>>(),
+            "aliases":aliases,"cover_url":null,"version_parent":null,"edition_name":null,"kind":kind,"fetched_at":0}).to_string();
+        Wish::from_parts(platform, None, Some(payload))
+    }
+    fn product(title: &str, platforms: &[i64]) -> Product {
+        Product { id: "p".into(), name: title.into(), title: title.into(), platform_ids: platforms.to_vec(), key_game: true,
+            region: None, allowed: vec![], blocked: vec![], purchase_country: None, offers: vec![], availability: Availability::Unknown }
+    }
+    #[test]
+    fn probe() {
+        let cases: Vec<(&str, Wish, Product)> = vec![
+            ("A reboot: wish Doom (1993, Xbox One) vs DOOM (2016) key", wish(49, "Doom", "base_game", &[49, 12], 1993, &[]), product("doom", &[49])),
+            ("B original-Xbox wish Battlefront II (2005) vs 2017 One key", wish(11, "Star Wars: Battlefront II", "base_game", &[11], 2005, &[]), product("star wars battlefront ii", &[49])),
+            ("C Series wish vs Xbox-One-only key, same title", wish(169, "Forza Horizon 4", "base_game", &[169, 49], 2018, &[]), product("forza horizon 4", &[49])),
+            ("D base wish vs Driffle 'standard edition'", wish(169, "Forza Horizon 5", "base_game", &[169], 2021, &[]), product("forza horizon 5 standard edition", &[169, 49])),
+            ("E base wish vs premium edition", wish(169, "Forza Horizon 5", "base_game", &[169], 2021, &[]), product("forza horizon 5 premium edition", &[169, 49])),
+            ("F edition wish vs same edition", wish(169, "Forza Horizon 5: Premium Edition", "edition", &[169], 2021, &[]), product("forza horizon 5 premium edition", &[169])),
+            ("G edition wish vs 'premium' without 'edition'", wish(169, "Forza Horizon 5: Premium Edition", "edition", &[169], 2021, &[]), product("forza horizon 5 premium", &[169])),
+            ("H base wish, IGDB alias equals other product", wish(169, "Halo: The Master Chief Collection", "base_game", &[169, 49], 2014, &["Halo MCC"]), product("halo mcc", &[169, 49])),
+            ("I GOTY vs base", wish(49, "The Witcher 3: Wild Hunt", "base_game", &[49, 169], 2015, &[]), product("the witcher 3 wild hunt game of the year edition", &[49, 169])),
+            ("J deluxe vs digital deluxe", wish(169, "Forza Horizon 5: Deluxe Edition", "edition", &[169], 2021, &[]), product("forza horizon 5 digital deluxe edition", &[169])),
+            ("K remaster kind, same-name original", wish(169, "Halo: Combat Evolved", "remaster", &[169, 49], 2011, &[]), product("halo combat evolved", &[49])),
+            ("L 360 wish vs One key of same title", wish(12, "Fable II", "base_game", &[12], 2008, &[]), product("fable ii", &[49, 169])),
+        ];
+        for (label, w, p) in cases {
+            println!("PROBE {label}: matches={} auto_matches={}", w.matches(&p), w.auto_matches(&p));
+        }
+        let manual = Wish::from_parts(169, Some("Halo Infinite".into()), None);
+        let p = product("halo infinite", &[169]);
+        println!("PROBE M manual title: matches={} auto_matches={}", manual.matches(&p), manual.auto_matches(&p));
+    }
+}
+mod audit_probe {
+    use super::*;
+    const BASE: &str = include_str!("fixtures/eneba-product-base.html");
+    #[test]
+    fn probe_titles() {
+        let url = Url::parse("https://www.eneba.com/de/xbox-forza-horizon-5-pc-xbox-live-key-global").unwrap();
+        for name in [
+            "Forza Horizon 5 PC/XBOX LIVE Key GLOBAL",
+            "Forza Horizon 5 (Xbox Series X|S) XBOX LIVE Key EUROPE",
+            "Forza Horizon 5 (Xbox Series X|S/PC) XBOX LIVE Key TURKEY",
+            "Forza Horizon 4 Standard Edition (Xbox One/Windows 10) Xbox Live Key EUROPE",
+            "Forza Horizon 5 (Xbox One) XBOX LIVE Key UNITED STATES",
+            "STAR WARS Battlefront II (2017) XBOX LIVE Key EUROPE",
+            "Forza Horizon 5 Premium Edition PC/XBOX LIVE Key GLOBAL",
+            "Forza Horizon 5 XBOX LIVE Key",
+            "Forza Horizon 5 Xbox Series X|S Key GLOBAL",
+            "Forza Horizon 5 Xbox Live Account",
+        ] {
+            let body = BASE.replace("Forza Horizon 5 PC/XBOX LIVE Key GLOBAL", name);
+            let p = parse(&url, &body).unwrap();
+            println!("PROBE eneba name={name:?} -> title={:?} key_game={} platforms={:?}", p.title, p.key_game, p.platform_ids);
+        }
+    }
+}

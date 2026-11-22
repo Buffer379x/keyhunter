@@ -1,0 +1,132 @@
+{
+ "sqlite": "3.46.1",
+ "rows": [
+  {
+   "jobs": 101,
+   "due_share": 0.0,
+   "pending_ms": 0.007058988558128476,
+   "claim_ms": 0.022525025997310877,
+   "trend_others_ms": 0.009587995009496808,
+   "demand_ms": 0.08799400529824197,
+   "idle_cpu_share_pct": 0.00023529961860428253
+  },
+  {
+   "jobs": 101,
+   "due_share": 0.3,
+   "pending_ms": 0.007199007086455822,
+   "claim_ms": 0.039937993278726935,
+   "trend_others_ms": 0.009626004612073302,
+   "demand_ms": 0.0883550092112273,
+   "idle_cpu_share_pct": 0.00023996690288186073
+  },
+  {
+   "jobs": 1001,
+   "due_share": 0.0,
+   "pending_ms": 0.0073820119723677635,
+   "claim_ms": 0.07618800736963749,
+   "trend_others_ms": 0.009762996342033148,
+   "demand_ms": 0.8528600155841559,
+   "idle_cpu_share_pct": 0.0002460670657455921
+  },
+  {
+   "jobs": 1001,
+   "due_share": 0.3,
+   "pending_ms": 0.007467984687536955,
+   "claim_ms": 0.24818599922582507,
+   "trend_others_ms": 0.009873008821159601,
+   "demand_ms": 0.8616670093033463,
+   "idle_cpu_share_pct": 0.00024893282291789853
+  },
+  {
+   "jobs": 2999,
+   "due_share": 0.0,
+   "pending_ms": 0.00757601810619235,
+   "claim_ms": 0.1814459974411875,
+   "trend_others_ms": 0.009740993846207857,
+   "demand_ms": 2.7166119834873825,
+   "idle_cpu_share_pct": 0.00025253393687307835
+  },
+  {
+   "jobs": 2999,
+   "due_share": 0.3,
+   "pending_ms": 0.007373018888756633,
+   "claim_ms": 0.7503030064981431,
+   "trend_others_ms": 0.009881012374535203,
+   "demand_ms": 2.730588021222502,
+   "idle_cpu_share_pct": 0.00024576729629188776
+  },
+  {
+   "jobs": 10001,
+   "due_share": 0.0,
+   "pending_ms": 0.008383009117096663,
+   "claim_ms": 0.5597030103672296,
+   "trend_others_ms": 0.010437972377985716,
+   "demand_ms": 9.756244020536542,
+   "idle_cpu_share_pct": 0.00027943363723655545
+  },
+  {
+   "jobs": 10001,
+   "due_share": 0.3,
+   "pending_ms": 0.008208997314795852,
+   "claim_ms": 2.434808004181832,
+   "trend_others_ms": 0.010404997738078237,
+   "demand_ms": 9.850251983152702,
+   "idle_cpu_share_pct": 0.0002736332438265284
+  },
+  {
+   "jobs": 29999,
+   "due_share": 0.0,
+   "pending_ms": 0.008396978955715895,
+   "claim_ms": 1.6293240187224,
+   "trend_others_ms": 0.010419986210763454,
+   "demand_ms": 34.284463996300474,
+   "idle_cpu_share_pct": 0.0002798992985238632
+  },
+  {
+   "jobs": 29999,
+   "due_share": 0.3,
+   "pending_ms": 0.0082949991337955,
+   "claim_ms": 7.604231010191143,
+   "trend_others_ms": 0.010319985449314117,
+   "demand_ms": 33.18855198449455,
+   "idle_cpu_share_pct": 0.0002764999711265167
+  }
+ ],
+ "plan_claim": [
+  "SEARCH shop_job USING INTEGER PRIMARY KEY (rowid=?)",
+  "SCALAR SUBQUERY 7",
+  "SEARCH s USING INDEX sqlite_autoindex_source_settings_1 (id=?)",
+  "SCALAR SUBQUERY 3",
+  "SEARCH w USING COVERING INDEX wishlist_item_state (state=?)",
+  "CORRELATED SCALAR SUBQUERY 4",
+  "SCAN running",
+  "SEARCH p USING INDEX sqlite_autoindex_shop_state_1 (source=?)",
+  "SEARCH j USING INDEX shop_job_schedule (due<?)",
+  "SEARCH l USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN",
+  "SEARCH t USING INDEX sqlite_autoindex_wishlist_item_1 (id=?) LEFT-JOIN",
+  "SCALAR SUBQUERY 1",
+  "SEARCH app_settings USING INTEGER PRIMARY KEY (rowid=?)",
+  "CORRELATED SCALAR SUBQUERY 2",
+  "SEARCH aw USING INDEX wishlist_item_state (state=?)",
+  "SEARCH ew USING COVERING INDEX sqlite_autoindex_edition_watch_1 (wish_id=? AND track_id=?)",
+  "SCALAR SUBQUERY 6",
+  "SEARCH q USING INDEX sqlite_autoindex_shop_state_1 (source=?)",
+  "USE TEMP B-TREE FOR ORDER BY"
+ ],
+ "plan_pending": [
+  "SCAN CONSTANT ROW",
+  "SCALAR SUBQUERY 4",
+  "SEARCH s USING INDEX sqlite_autoindex_source_settings_1 (id=?)",
+  "SCALAR SUBQUERY 3",
+  "SEARCH w USING COVERING INDEX wishlist_item_state (state=?)",
+  "SEARCH p USING INDEX sqlite_autoindex_shop_state_1 (source=?)",
+  "SEARCH j USING INDEX shop_job_schedule (due<?)",
+  "SEARCH l USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN",
+  "SEARCH t USING INDEX sqlite_autoindex_wishlist_item_1 (id=?) LEFT-JOIN",
+  "SCALAR SUBQUERY 1",
+  "SEARCH app_settings USING INTEGER PRIMARY KEY (rowid=?)",
+  "CORRELATED SCALAR SUBQUERY 2",
+  "SEARCH aw USING INDEX wishlist_item_state (state=?)",
+  "SEARCH ew USING COVERING INDEX sqlite_autoindex_edition_watch_1 (wish_id=? AND track_id=?)"
+ ]
+}

@@ -1,0 +1,68 @@
+{
+ "shifts": [
+  {
+   "at": 548,
+   "value": 0.415,
+   "sources": [
+    {
+     "node": "section.panel",
+     "from": [
+      146,
+      178
+     ],
+     "to": [
+      270,
+      450
+     ]
+    },
+    {
+     "node": "span.count",
+     "from": [
+      117,
+      16
+     ],
+     "to": [
+      117,
+      16
+     ]
+    }
+   ]
+  },
+  {
+   "at": 599,
+   "value": 0.0044,
+   "sources": [
+    {
+     "node": "div.side-foot",
+     "from": [
+      672,
+      34
+     ],
+     "to": [
+      532,
+      175
+     ]
+    }
+   ]
+  }
+ ],
+ "polling_45s": {
+  "requests": {
+   "/api/v1/wishlist/price-badges": 15,
+   "/api/v1/setup": 1,
+   "/api/v1/me": 1,
+   "/api/v1/settings": 1,
+   "/api/v1/sources/status": 1,
+   "/api/v1/library": 2,
+   "/api/v1/alerts": 3,
+   "/api/v1/cart": 2,
+   "/api/v1/wishlist": 1,
+   "/api/v1/status/fetch": 2
+  },
+  "bytes": 4214644
+ },
+ "searchboxes": 2,
+ "xss_literal_text_count": 0,
+ "xss_injected_img": 0,
+ "dialogs": []
+}

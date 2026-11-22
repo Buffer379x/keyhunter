@@ -1,0 +1,22 @@
+    Fetching advisory database from `https://github.com/RustSec/advisory-db.git`
+      Loaded 1560 security advisories (from /workspace/work/check/target-sec/advisory-db)
+    Updating crates.io index
+    Scanning Cargo.lock for vulnerabilities (303 crate dependencies)
+Crate:     libsqlite3-sys
+Version:   0.37.0
+Title:     `libsqlite3-sys` via C SQLite CVE-2026-119375
+Date:      2026-10-30
+ID:        RUSTSEC-2026-0459
+URL:       https://rustsec.org/advisories/RUSTSEC-2026-0459
+Severity:  6.8 (medium)
+Solution:  Upgrade to >=0.39.0 (patched)
+
+Crate:     url
+Version:   2.5.8
+Title:     Stack overflow in `Url::origin()` on nested `blob:` URLs
+Date:      2026-11-20
+ID:        RUSTSEC-2026-0592
+URL:       https://rustsec.org/advisories/RUSTSEC-2026-0592
+Solution:  Upgrade to >=2.5.9 (patched)
+
+error: 2 vulnerabilities found!

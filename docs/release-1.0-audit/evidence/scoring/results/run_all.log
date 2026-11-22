@@ -1,0 +1,34 @@
+done R2 knapp (80 Spiele, Budget 500) 2
+done R2 knapp (80 Spiele, Budget 500) 3
+done R2 knapp (80 Spiele, Budget 500) 1
+done R1 ausreichend (40 Spiele, Budget 2000) 4
+done R2 knapp (80 Spiele, Budget 500) 5
+done R2 knapp (80 Spiele, Budget 500) 4
+done R1 ausreichend (40 Spiele, Budget 2000) 3
+done R1 ausreichend (40 Spiele, Budget 2000) 2
+done R1 ausreichend (40 Spiele, Budget 2000) 5
+done R3 sehr knapp (300 Spiele, Budget 500) 1
+done R1 ausreichend (40 Spiele, Budget 2000) 1
+done R3 sehr knapp (300 Spiele, Budget 500) 2
+done R3 sehr knapp (300 Spiele, Budget 500) 3
+done R3 sehr knapp (300 Spiele, Budget 500) 4
+done R3b gross (300 Spiele, Budget 2000) 1
+done R3 sehr knapp (300 Spiele, Budget 500) 5
+done R3b gross (300 Spiele, Budget 2000) 2
+done R3b gross (300 Spiele, Budget 2000) 3
+done R3b gross (300 Spiele, Budget 2000) 4
+done R3b gross (300 Spiele, Budget 2000) 5
+done E1_neues_Spiel
+done E10_Neustart
+done E11_Zeitspruenge
+done E12_Gleichstand_Determinismus
+done E3_viele_Minimalaenderungen
+done E5_teuer_und_volatil
+done E4_guenstig_und_stabil
+done E14_fehlerhafte_Daten
+done E2_lange_stabil_dann_Sturz
+done E13_unterschiedliche_Shops
+done E9_tausende_Angebote
+done E7_Ausfaelle
+done E8_striktes_Rate_Limit
+finished in 351 s

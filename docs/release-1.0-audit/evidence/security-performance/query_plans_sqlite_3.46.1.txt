@@ -1,0 +1,143 @@
+### wishlist_items (offer_count/review_count je Zeile)
+median 4.8 ms, rows 500
+    SEARCH w USING INDEX wishlist_item_state (state=?)
+    SEARCH g USING INDEX sqlite_autoindex_game_1 (id=?)
+    SEARCH c USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+    CORRELATED SCALAR SUBQUERY 1
+    SEARCH k USING COVERING INDEX sqlite_autoindex_cart_item_1 (wish_id=?)
+    CORRELATED SCALAR SUBQUERY 2
+    SEARCH l USING INDEX offer_link_wish (wish_id=?)
+    SEARCH s USING INDEX sqlite_autoindex_source_settings_1 (id=?)
+    CORRELATED SCALAR SUBQUERY 3
+    SEARCH l USING INDEX offer_link_wish (wish_id=?)
+    SEARCH s USING INDEX sqlite_autoindex_source_settings_1 (id=?)
+    USE TEMP B-TREE FOR LAST TERM OF ORDER BY
+### scheduler_claimable_exists (alle 3 s je Shop)
+median 0.0 ms, rows 1
+    SCAN CONSTANT ROW
+    SCALAR SUBQUERY 4
+    SEARCH s USING INDEX sqlite_autoindex_source_settings_1 (id=?)
+    SCALAR SUBQUERY 3
+    SEARCH w USING COVERING INDEX wishlist_item_state (state=?)
+    SEARCH p USING INDEX sqlite_autoindex_shop_state_1 (source=?)
+    SEARCH j USING INDEX shop_job_schedule (due<?)
+    SEARCH l USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+    SEARCH t USING INDEX sqlite_autoindex_wishlist_item_1 (id=?) LEFT-JOIN
+    SCALAR SUBQUERY 1
+    SEARCH app_settings USING INTEGER PRIMARY KEY (rowid=?)
+    CORRELATED SCALAR SUBQUERY 2
+    SEARCH aw USING INDEX wishlist_item_state (state=?)
+    SEARCH ew USING COVERING INDEX sqlite_autoindex_edition_watch_1 (wish_id=? AND track_id=?)
+### badges_job_summary
+median 6.0 ms, rows 500
+    SCAN j
+    SEARCH s USING INDEX sqlite_autoindex_source_settings_1 (id=?)
+    SEARCH p USING INDEX sqlite_autoindex_shop_state_1 (source=?)
+    SEARCH l USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+    LIST SUBQUERY 2
+    SCAN json_each VIRTUAL TABLE INDEX 1:
+    SEARCH w USING INDEX sqlite_autoindex_wishlist_item_1 (id=?) LEFT-JOIN
+    USE TEMP B-TREE FOR GROUP BY
+    SCALAR SUBQUERY 1
+    SEARCH app_settings USING INTEGER PRIMARY KEY (rowid=?)
+### badges_links_of_items
+median 8.0 ms, rows 2000
+    SEARCH l USING INDEX offer_link_wish (wish_id=?)
+    LIST SUBQUERY 2
+    SCAN json_each VIRTUAL TABLE INDEX 1:
+    SEARCH s USING INDEX sqlite_autoindex_source_settings_1 (id=?)
+    SEARCH p USING INDEX sqlite_autoindex_shop_state_1 (source=?)
+    SEARCH j USING INDEX sqlite_autoindex_shop_job_1 (link_id=?) LEFT-JOIN
+    SCALAR SUBQUERY 1
+    SEARCH app_settings USING INTEGER PRIMARY KEY (rowid=?)
+    USE TEMP B-TREE FOR ORDER BY
+### badges_trend_samples (Cache-Miss, alle Links)
+median 22.9 ms, rows 2000
+    SEARCH l USING INTEGER PRIMARY KEY (rowid=?)
+    LIST SUBQUERY 3
+    SCAN json_each VIRTUAL TABLE INDEX 1:
+    CORRELATED SCALAR SUBQUERY 1
+    SEARCH p USING COVERING INDEX price_history (link_id=? AND market=? AND fingerprint=? AND observed_at<?)
+    CORRELATED SCALAR SUBQUERY 2
+    SEARCH o USING COVERING INDEX price_history (link_id=? AND market=? AND fingerprint=? AND observed_at>? AND observed_at<?)
+### status_backlog
+median 0.3 ms, rows 1
+    SEARCH j USING INDEX shop_job_schedule (due<?)
+    SEARCH l USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+    SEARCH t USING INDEX sqlite_autoindex_wishlist_item_1 (id=?) LEFT-JOIN
+    CORRELATED SCALAR SUBQUERY 1
+    SEARCH aw USING INDEX wishlist_item_state (state=?)
+    SEARCH ew USING COVERING INDEX sqlite_autoindex_edition_watch_1 (wish_id=? AND track_id=?)
+### status_next_job
+median 1.1 ms, rows 1
+    SEARCH j
+    SCALAR SUBQUERY 2
+    SEARCH w USING COVERING INDEX wishlist_item_state (state=?)
+    SEARCH l USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+    SEARCH t USING INDEX sqlite_autoindex_wishlist_item_1 (id=?) LEFT-JOIN
+    CORRELATED SCALAR SUBQUERY 1
+    SEARCH aw USING INDEX wishlist_item_state (state=?)
+    SEARCH ew USING COVERING INDEX sqlite_autoindex_edition_watch_1 (wish_id=? AND track_id=?)
+### status_demand
+median 1.7 ms, rows 3
+    SEARCH s USING INDEX sqlite_autoindex_source_settings_1 (id=?)
+    SCALAR SUBQUERY 2
+    SEARCH w USING COVERING INDEX wishlist_item_state (state=?)
+    SCAN j
+    SEARCH l USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+    SEARCH t USING INDEX sqlite_autoindex_wishlist_item_1 (id=?) LEFT-JOIN
+    CORRELATED SCALAR SUBQUERY 1
+    SEARCH aw USING INDEX wishlist_item_state (state=?)
+    SEARCH ew USING COVERING INDEX sqlite_autoindex_edition_watch_1 (wish_id=? AND track_id=?)
+    USE TEMP B-TREE FOR GROUP BY
+### status_upcoming_candidates
+median 2.1 ms, rows 200
+    SCAN j
+    SCALAR SUBQUERY 2
+    SEARCH w USING COVERING INDEX wishlist_item_state (state=?)
+    SEARCH l USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+    SEARCH t USING INDEX sqlite_autoindex_wishlist_item_1 (id=?) LEFT-JOIN
+    CORRELATED SCALAR SUBQUERY 1
+    SEARCH aw USING INDEX wishlist_item_state (state=?)
+    SEARCH ew USING COVERING INDEX sqlite_autoindex_edition_watch_1 (wish_id=? AND track_id=?)
+    SEARCH g USING INDEX sqlite_autoindex_game_1 (id=?) LEFT-JOIN
+    SEARCH c USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+    USE TEMP B-TREE FOR ORDER BY
+### status_recent_runs
+median 0.1 ms, rows 25
+    SCAN r USING INDEX job_run_recent
+    SEARCH l USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+    SEARCH w USING INDEX sqlite_autoindex_wishlist_item_1 (id=?) LEFT-JOIN
+    SEARCH g USING INDEX sqlite_autoindex_game_1 (id=?) LEFT-JOIN
+    SEARCH c USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+### status_errors_24h
+median 0.3 ms, rows 1
+    SEARCH job_run USING INDEX job_run_recent (started_at>?)
+### status_by_hour
+median 0.2 ms, rows 17
+    SEARCH job_run USING INDEX job_run_recent (started_at>? AND started_at<?)
+    USE TEMP B-TREE FOR GROUP BY
+### runs_count_q=Perf Halo (LIKE)
+median 34.9 ms, rows 1
+    SCAN r
+    SEARCH l USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+    SEARCH w USING INDEX sqlite_autoindex_wishlist_item_1 (id=?) LEFT-JOIN
+    SEARCH g USING INDEX sqlite_autoindex_game_1 (id=?) LEFT-JOIN
+    SEARCH c USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+### runs_page_q=Perf Halo (LIKE)
+median 2.0 ms, rows 50
+    SCAN r USING INDEX job_run_recent
+    SEARCH l USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+    SEARCH w USING INDEX sqlite_autoindex_wishlist_item_1 (id=?) LEFT-JOIN
+    SEARCH g USING INDEX sqlite_autoindex_game_1 (id=?) LEFT-JOIN
+    SEARCH c USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+### runs_count_ohne_filter
+median 28.1 ms, rows 1
+    SCAN r
+    SEARCH l USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+    SEARCH w USING INDEX sqlite_autoindex_wishlist_item_1 (id=?) LEFT-JOIN
+    SEARCH g USING INDEX sqlite_autoindex_game_1 (id=?) LEFT-JOIN
+    SEARCH c USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+### log_count_q (LIKE)
+median 0.2 ms, rows 1
+    SCAN event_log

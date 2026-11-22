@@ -1,0 +1,147 @@
+// TEMPORARY audit spec (release-1.0 design audit, agent "ds"): screenshots of every main view. Delete after the audit.
+// DS_OUT: output folder (absolute). DS_WIDTHS: "1440,1920". DS_ONLY: comma list of shot names to limit the run.
+import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { mkdirSync } from 'node:fs';
+import { signInToFixture } from '../helpers';
+import { mockAll } from './mocks';
+
+const OUT = process.env.DS_OUT ?? '/tmp/ds-shots';
+const WIDTHS = (process.env.DS_WIDTHS ?? '1440,1920').split(',').map(Number);
+const ONLY = process.env.DS_ONLY ? new Set(process.env.DS_ONLY.split(',')) : null;
+mkdirSync(OUT, { recursive: true });
+
+test.use({ locale: 'de-DE', timezoneId: 'Europe/Berlin', colorScheme: 'dark', deviceScaleFactor: 1 });
+test.setTimeout(240_000);
+
+async function settle(page: Page) {
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(450);
+}
+const want = (name: string) => !ONLY || ONLY.has(name);
+async function shot(page: Page, width: number, name: string, opts: { full?: boolean } = {}) {
+  if (!want(name)) return;
+  await settle(page);
+  await page.screenshot({ path: `${OUT}/${name}-${width}.png`, fullPage: false, animations: 'disabled', caret: 'hide', ...(opts.full ? {} : {}) });
+}
+const main = (page: Page) => page.getByRole('main');
+
+for (const width of WIDTHS) {
+  const height = width >= 1900 ? 1080 : 900;
+  test(`views at ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    const forza = await mockAll(page);
+    await page.goto('/');
+    const setup = page.getByRole('button', { name: 'Privaten Bereich einrichten', exact: true });
+    await expect(page.getByRole('button', { name: /^(Privaten Bereich einrichten|Anmelden)$/ })).toBeVisible();
+    if (await setup.isVisible()) await shot(page, width, '00-setup');
+    await signInToFixture(page);
+    await page.evaluate(() => { for (const key of Object.keys(localStorage)) if (key.startsWith('keyhunter.list.')) localStorage.removeItem(key); });
+
+    // Wishlist
+    await page.goto('/');
+    await expect(main(page).getByRole('heading', { name: 'Wunschliste', level: 1 })).toBeVisible();
+    await expect(page.locator('table.wl tbody tr').first()).toBeVisible();
+    await shot(page, width, '01-wishlist');
+    if (want('01b-wishlist-tall')) {
+      await page.setViewportSize({ width, height: 1500 });
+      await shot(page, width, '01b-wishlist-tall');
+      await page.setViewportSize({ width, height });
+    }
+    // Help tooltip on the page head
+    if (want('22-help-tooltip')) {
+      await page.getByRole('button', { name: 'Hilfe zur Wunschliste' }).hover();
+      await expect(page.locator('.help-pop:not([hidden])').first()).toBeVisible();
+      await shot(page, width, '22-help-tooltip');
+      await page.mouse.move(5, 5);
+    }
+    // Search popup in the top bar
+    if (want('20-search-popup')) {
+      await page.getByRole('searchbox', { name: 'Nach Spielen suchen', exact: true }).fill('forza');
+      await expect(page.getByRole('region', { name: 'Suchergebnisse' }).locator('.catalog-result').first()).toBeVisible();
+      await shot(page, width, '20-search-popup');
+      await page.keyboard.press('Escape');
+      await page.getByRole('searchbox', { name: 'Nach Spielen suchen', exact: true }).fill('');
+    }
+    // Add dialog
+    if (want('19-add-dialog')) {
+      await page.getByRole('button', { name: 'Spiel hinzufügen', exact: true }).first().click();
+      const dialog = page.locator('dialog.catalog-dialog');
+      await expect(dialog).toBeVisible();
+      await dialog.locator('input').first().fill('forza');
+      await expect(dialog.locator('.catalog-result').first()).toBeVisible();
+      await shot(page, width, '19-add-dialog');
+      await page.keyboard.press('Escape');
+    }
+    // Toasts: one of each tone
+    if (want('21-toasts')) {
+      await page.evaluate(() => {
+        const fire = (id: number, message: string, tone: string) => window.dispatchEvent(new CustomEvent('keyhunter:notify', { detail: { id: 9000 + id, message, tone } }));
+        fire(1, 'Starfield in den Warenkorb gelegt.', 'success');
+        fire(2, 'Abfragen für Lies of P pausiert bis 28.11.2026.', 'info');
+        fire(3, 'Driffle antwortet nicht. Bitte später erneut versuchen.', 'error');
+      });
+      await expect(page.locator('.toast-pop')).toHaveCount(3);
+      await shot(page, width, '21-toasts');
+    }
+
+    // Game detail tabs (the real seeded wish)
+    const id = forza();
+    for (const [tab, name] of [['', '02-detail-preis'], ['angebote', '03-detail-angebote'], ['verlauf', '04-detail-verlauf'], ['editionen', '05-detail-editionen'], ['alarm', '06-detail-alarm'], ['infos', '07-detail-infos']] as const) {
+      if (!want(name)) continue;
+      await page.goto(`/?item=${id}${tab ? `&tab=${tab}` : ''}`);
+      await page.getByRole('tablist', { name: 'Spieldetails' }).waitFor();
+      await page.waitForTimeout(600);
+      await shot(page, width, name);
+    }
+    // "⋯" menu and the confirm dialog
+    if (want('23-more-menu') || want('24-confirm-dialog')) {
+      await page.goto(`/?item=${id}`);
+      await page.getByRole('tablist', { name: 'Spieldetails' }).waitFor();
+      await page.getByRole('button', { name: 'Weitere Aktionen' }).click();
+      await shot(page, width, '23-more-menu');
+      await page.getByRole('menuitem', { name: 'Von Wunschliste entfernen' }).click();
+      await expect(page.locator('dialog[open]')).toBeVisible();
+      await shot(page, width, '24-confirm-dialog');
+      await page.keyboard.press('Escape');
+      const cancel = page.locator('dialog[open]').getByRole('button', { name: 'Abbrechen' });
+      if (await cancel.count()) await cancel.click();
+    }
+
+    // Cart, library, alerts
+    if (want('08-cart')) {
+      await page.goto('/?view=cart');
+      await expect(main(page).getByRole('heading', { level: 1 })).toBeVisible();
+      await shot(page, width, '08-cart');
+    }
+    if (want('09-library-grid') || want('10-library-list')) {
+      await page.goto('/?view=library');
+      await expect(main(page).getByRole('heading', { name: 'Bibliothek', level: 1 })).toBeVisible();
+      await shot(page, width, '09-library-grid');
+      await page.getByRole('button', { name: 'Liste', exact: true }).click();
+      await shot(page, width, '10-library-list');
+      await page.getByRole('button', { name: 'Kacheln', exact: true }).click();
+    }
+    if (want('11-alerts')) {
+      await page.goto('/?view=alerts');
+      await expect(main(page).getByRole('heading', { level: 1 })).toBeVisible();
+      await shot(page, width, '11-alerts');
+    }
+
+    // Settings tabs
+    for (const [section, name] of [['', '12-settings-general'], ['shops', '13-settings-shops'], ['index', '14-settings-index'], ['notifications', '15-settings-notifications'], ['status', '16-settings-status'], ['log', '17-settings-log'], ['system', '18-settings-system']] as const) {
+      if (!want(name)) continue;
+      await page.goto(`/?view=settings${section ? `&section=${section}` : ''}`);
+      await expect(main(page).getByRole('heading', { name: 'Einstellungen', level: 1 })).toBeVisible();
+      await page.waitForTimeout(500);
+      await shot(page, width, name);
+    }
+
+    // Sign-in screen last
+    if (want('25-signin')) {
+      await page.getByRole('complementary', { name: 'Seitenleiste' }).getByRole('button', { name: 'Abmelden', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Anmelden', exact: true })).toBeVisible();
+      await shot(page, width, '25-signin');
+    }
+  });
+}

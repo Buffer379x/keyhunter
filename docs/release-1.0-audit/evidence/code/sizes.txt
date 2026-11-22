@@ -1,0 +1,78 @@
+# Dateigrößen (Stand 0.9.1, Commit 490a8fb) – Zeilen | Bytes | längste Zeile | Zeilen >160 Zeichen | Datei
+# erzeugt mit wc/awk über backend/src, backend/tests, backend/examples, frontend/src, frontend/tests, frontend/e2e (ohne tmp-audit-*)
+  2972  117350   329    7 backend/src/jobs.rs
+  3067  106666   316   30 backend/tests/catalog_wishlist.rs
+  2024   75080   153    0 backend/src/notify.rs
+  1047   41017   130    0 backend/src/shops/eneba.rs
+  1037   39454   127    0 backend/src/shops/driffle.rs
+   875   36653   342   10 backend/src/offers.rs
+  1141   34182   111    0 backend/tests/api.rs
+   869   32852   191    1 backend/src/alerts.rs
+   817   31934   981   11 backend/src/wishlist.rs
+   451   31489   412   28 frontend/src/features/Wishlist.tsx
+   822   31157   264    4 backend/src/lib.rs
+   822   28654   277    3 backend/src/catalog/provider.rs
+   620   23463   421    2 backend/src/price_badges.rs
+   290   18467   514   16 frontend/src/App.tsx
+   402   16255   777    3 backend/src/settings.rs
+   219   16045   293    9 frontend/e2e/wishlist.spec.ts
+   231   15458   249   11 frontend/src/styles/ui.css
+   221   15360   313    6 frontend/src/styles/detail.css
+   153   14070  1055   19 frontend/src/features/CatalogSearch.tsx
+   172   14041   576    5 frontend/e2e/release040.spec.ts
+   222   13996   306    9 frontend/e2e/settings-sections.spec.ts
+   165   13946   385   19 frontend/src/features/PriceTab.tsx
+   377   13681   191    4 backend/src/catalog/mod.rs
+   389   13556   147    0 backend/src/shops/http.rs
+   402   13500   106    0 backend/src/pricing.rs
+   181   12763   199    7 frontend/e2e/release083.spec.ts
+   161   12707   312   18 frontend/src/features/GameDetail.tsx
+   157   12593   275   16 frontend/src/features/WishlistRow.tsx
+   165   12255   298   16 frontend/src/features/PriceAlerts.tsx
+   347   11963   275    2 backend/src/auth.rs
+   162   11850   243    8 frontend/src/features/offers-model.ts
+   351   11535   190    1 backend/src/shops/mod.rs
+   147   11501   306    9 frontend/tests/wishlist-model.test.ts
+   165   11341   461   13 frontend/e2e/visual/core-views.spec.ts
+   157   11208   253   13 frontend/src/features/Cart.tsx
+   141   11179   293   19 frontend/src/features/settings/FetchPanel.tsx
+   183   11135   182    1 frontend/src/features/wishlist-model.ts
+   159   10826   238    7 frontend/src/features/Library.tsx
+   152   10632   196    7 frontend/e2e/release091.spec.ts
+   308   10182   109    0 backend/src/eventlog.rs
+   149   10111   286    7 frontend/e2e/release090.spec.ts
+   107   10101   305   20 frontend/src/features/Offers.tsx
+   121   10092   624    6 frontend/e2e/release042.spec.ts
+   278   10089   183    1 backend/examples/catalog_fixture.rs
+   102    9943   444   19 frontend/src/features/InfosTab.tsx
+
+# Rust: Produktions- vs. Inline-Testzeilen je Datei (Grenze = erstes #[cfg(test)])
+backend/src/alerts.rs          gesamt=  869 prod=  614 test=  255
+backend/src/auth.rs            gesamt=  347 prod=  347 test=    0
+backend/src/cart.rs            gesamt=  218 prod=  218 test=    0
+backend/src/catalog/contents.rs gesamt=  260 prod=  234 test=   26
+backend/src/catalog/mod.rs     gesamt=  377 prod=  361 test=   16
+backend/src/catalog/provider.rs gesamt=  822 prod=  560 test=  262
+backend/src/config.rs          gesamt=   83 prod=   83 test=    0
+backend/src/edition_tracking.rs gesamt=  170 prod=  170 test=    0
+backend/src/eventlog.rs        gesamt=  308 prod=  242 test=   66
+backend/src/history.rs         gesamt=  118 prod=   64 test=   54
+backend/src/jobs.rs            gesamt= 2972 prod= 1300 test= 1672
+backend/src/lib.rs             gesamt=  822 prod=  441 test=  381
+backend/src/main.rs            gesamt=   38 prod=   38 test=    0
+backend/src/notify.rs          gesamt= 2024 prod= 1164 test=  860
+backend/src/offers.rs          gesamt=  875 prod=  698 test=  177
+backend/src/price_badges.rs    gesamt=  620 prod=  582 test=   38
+backend/src/pricing.rs         gesamt=  402 prod=  234 test=  168
+backend/src/settings.rs        gesamt=  402 prod=  402 test=    0
+backend/src/shops/driffle.rs   gesamt= 1037 prod=  365 test=  672
+backend/src/shops/eneba.rs     gesamt= 1047 prod=  398 test=  649
+backend/src/shops/http.rs      gesamt=  389 prod=  331 test=   58
+backend/src/shops/mod.rs       gesamt=  351 prod=  268 test=   83
+backend/src/wishlist.rs        gesamt=  817 prod=  817 test=    0
+
+# Summen
+Rust prod=9931, Inline-Tests=5437, backend/tests=4208, examples=278
+TS/TSX frontend/src: 5896 Zeilen, 82 Dateien, 406027 Bytes, Ø 68 Zeichen/Zeile (Rust Ø 37); 380 Zeilen >160, 73 Zeilen >250 Zeichen
+CSS frontend/src/styles: 1328 Zeilen, 15 Dateien
+Frontend-Unit-Tests 777 Zeilen (17 Dateien), E2E 3179 Zeilen (27 Specs, davon 19 nach Release benannt)

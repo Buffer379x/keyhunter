@@ -1,0 +1,24 @@
+// TEMPORARY audit probe (agent "ds"). Delete after the audit.
+import { test, expect } from '@playwright/test';
+import { signInToFixture } from '../helpers';
+import { mockAll } from './mocks';
+test.use({ viewport: { width: 1440, height: 900 }, locale: 'de-DE' });
+test('probe odd text styles', async ({ page }) => {
+  const forza = await mockAll(page);
+  await signInToFixture(page);
+  const urls = ['/', `/?item=${forza()}`, `/?item=${forza()}&tab=angebote`, `/?item=${forza()}&tab=infos`, '/?view=cart', '/?view=alerts', '/?view=settings', '/?view=settings&section=status', '/?view=library'];
+  for (const url of urls) {
+    await page.goto(url.includes('item=') ? url.replace(/item=[^&]*/, `item=${forza()}`) : url);
+    await page.waitForTimeout(1200);
+    const odd = await page.evaluate(() => Array.from(document.querySelectorAll('body *')).filter(el => {
+      const cs = getComputedStyle(el); const r = el.getBoundingClientRect();
+      if (r.width < 1 || !Array.from(el.childNodes).some(n => n.nodeType === 3 && n.textContent!.trim())) return false;
+      const fam = cs.fontFamily.split(',')[0];
+      return Number(cs.fontWeight) >= 600 || cs.fontSize === '10px' || cs.fontSize === '22px' || cs.fontSize.includes('.') || (fam.includes('JetBrains') && Number(cs.fontWeight) > 500);
+    }).map(el => { const cs = getComputedStyle(el); return `${el.tagName.toLowerCase()}.${el.className} | ${cs.fontFamily.split(',')[0]} ${cs.fontWeight} ${cs.fontSize} | "${el.textContent!.trim().slice(0, 40)}"`; }));
+    console.log(`\n### ${url}\n` + [...new Set(odd)].join('\n'));
+  }
+  // Is a 600 face of JetBrains Mono loaded? (synthesised bold otherwise)
+  console.log('\nfonts:', await page.evaluate(() => Array.from(document.fonts).map(f => `${f.family} ${f.weight} ${f.status}`).join(' | ')));
+  expect(true).toBe(true);
+});

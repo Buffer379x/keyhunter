@@ -1,0 +1,55 @@
+{
+ "schema_version": 10,
+ "observations": 221,
+ "span_hours": 35.3,
+ "links_with_observations": 115,
+ "observations_per_link_median": 2,
+ "observations_per_link_max": 4,
+ "gap_hours_deciles": [
+  8.0,
+  8.0,
+  11.9,
+  12.7,
+  12.7,
+  13.0,
+  13.3,
+  13.9,
+  15.9
+ ],
+ "consecutive_pairs": 106,
+ "priced_pairs": 88,
+ "sold_out_share_of_observations": 0.208,
+ "stock_transitions": 1,
+ "changes_per_link_day": {
+  ">0%": 0.933,
+  ">0.5%": 0.56,
+  ">2%": 0.448,
+  ">5%": 0.28,
+  ">10%": 0.205
+ },
+ "drops": 32,
+ "rises": 18,
+ "link_errors": {
+  "none": 117,
+  "rate_limited": 8
+ },
+ "priced_links_per_wish": {
+  "1": 4,
+  "2": 2,
+  "3": 1,
+  "4": 4,
+  "5": 1,
+  "6": 1,
+  "8": 1,
+  "9": 1,
+  "10": 1,
+  "22": 1
+ },
+ "max_min_ratio_per_wish": {
+  "median": 1.7,
+  "min": 1.04,
+  "max": 9.7,
+  "n": 13
+ },
+ "share_within_10pct_of_min_median": 0.25
+}

@@ -1,0 +1,23 @@
+# Pausierter Wunsch: Scheduler vs. Anzeige (CODE-01)
+
+## A) SQL-Reproduktion (scripts/predicates.py): SQL-Konstanten aus jobs.rs und Anzeige-SQL aus price_badges.rs/offers.rs
+##    wörtlich extrahiert; die format!-Komposition von claimable()/class()/bypass() (jobs.rs:202-246) nachgebildet,
+##    Schema aus allen 27 Migrationen, In-Memory-SQLite (Python 3 sqlite 3.46.1)
+python3 -I scripts/predicates.py <repo>
+paused wish, product job due 60 s ago
+  scheduler (jobs.rs claimable):         claimable rows = 0
+  same job after resuming the wish:      claimable rows = 1
+  wishlist badge (price_badges.rs):      pending = [True]
+  offers tab (offers.rs links):          queued  = [True]
+
+## B) Bestätigung über die echte API (Fixture-Server mit KEYHUNTER_FIXTURE_PRICES=1, Port 38786, eigenes Datenverzeichnis)
+1. POST /api/v1/setup -> 201
+2. GET /api/v1/wishlist/price-badges            -> {'f1c7…a001': {'state': 'price', 'pending': False}}
+3. PUT /api/v1/wishlist/f1c7…a001/pause {paused:true,until:null} -> 200
+4. In die DB dieses Testservers: INSERT shop_job(source='eneba', link_id=1, due=now-60)  (wie nach Ablauf des Intervalls)
+5. GET /api/v1/wishlist/price-badges            -> {'f1c7…a001': {'state': 'price', 'pending': True}}
+6. GET /api/v1/wishlist/f1c7…a001/offers        -> links queued: [True]
+7. GET /api/v1/wishlist                         -> paused: True
+
+Folge im Frontend: Wishlist.tsx:163-164 pollt /wishlist/price-badges alle 3 s statt 30 s, solange ein Badge pending ist;
+useOffersView.ts:27-28 pollt /offers alle 3 s; WishlistRow.tsx:72 / PriceBadge.tsx:8 zeigen „Wird gesucht …“ bei Status unknown.
