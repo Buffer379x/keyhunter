@@ -219,6 +219,136 @@ async function prepare(page: Page): Promise<string> {
   return rows[0].id;
 }
 
+// DS-08: stress data. Many wishes with very long titles, an offers table with eleven rows of mixed states, a filled cart and a log page.
+const LONG_TITLES = [
+  'Microsoft Flight Simulator 2024: Premium Deluxe Edition mit allen Flugzeugen und Flughäfen sowie dem Weltraumpaket',
+  'The Elder Scrolls IV: Oblivion Remastered Deluxe Edition inklusive aller Erweiterungen und Zusatzinhalte',
+  'Halo Infinite',
+  'Call of Duty: Black Ops 6 Vault Edition – Kampagne, Mehrspieler, Zombies und Warzone Zusatzpaket',
+  'Lies of P',
+  'Assassin’s Creed Valhalla Complete Edition inklusive Season Pass und allen Erweiterungen der Saga',
+  'Forza Horizon 5',
+  'Star Wars Jedi: Survivor Deluxe Edition',
+  'A Plague Tale: Requiem',
+  'Sid Meier’s Civilization VII Founders Edition mit Vorbestellerbonus und digitalem Artbook',
+];
+const wishRows = Array.from({ length: 32 }, (_, i) => {
+  const n = i + 1;
+  const kind = n % 5;
+  const price = kind === 1 || kind === 2 || kind === 4;
+  const cents = 1500 + n * 137;
+  return {
+    id: n.toString(16).padStart(32, '0'),
+    game_id: String(n),
+    platform_id: n % 7 === 0 ? 49 : 169,
+    created_at: now - n * D,
+    verification: n % 11 === 0 ? 'needs_review' : 'manual_unverified',
+    game: null,
+    manual_title: `${LONG_TITLES[i % LONG_TITLES.length]}${i >= LONG_TITLES.length ? ` (Eintrag ${n})` : ''}`,
+    in_cart: n % 9 === 0,
+    paused: n % 13 === 0,
+    paused_until: null,
+    offer_count: kind === 0 ? 0 : kind + 1,
+    review_count: n % 11 === 0 ? 2 : 0,
+    price_badge: price
+      ? { ...badge, cents, world: kind === 2 ? null : { ...badge.world, cents: Math.round(cents * 0.6) }, stale: kind === 4 }
+      : { ...badge, state: kind === 3 ? 'no_offer' : 'unknown', cents: null, world: null, trend: undefined, pending: n % 4 === 0 },
+  };
+});
+const offerLink = (id: number, source: string, region: string, name: string, cents: number, reasons: string[], extra: object = {}) =>
+  link(id, source, region, cents, reasons, { product: { name, region, market: 'DE', activation: 'confirmed', availability: 'in_stock' }, ...extra });
+const manyOffers = {
+  ...offers,
+  links: [
+    offerLink(11, 'eneba', 'Global', 'Forza Horizon 5 Premium Edition Xbox Series X|S / Windows PC Key (Global, Aktivierung weltweit)', 2890, []),
+    offerLink(12, 'driffle', 'DE', 'Forza Horizon 5 Xbox Key DE', 3000, [], { check_every: 3 * H, cheap_score: 0.1 }),
+    offerLink(13, 'eneba', 'Europe', 'Forza Horizon 5 Europe Key', 3190, [], { stale: true, reasons: ['stale'], eligible: false, observed_at: now - 3 * D }),
+    offerLink(14, 'driffle', 'India', 'Forza Horizon 5 India Key', 1290, ['activation_unknown', 'purchase_context_mismatch'], { cheap_score: 0.9 }),
+    offerLink(15, 'eneba', 'Argentina', 'Forza Horizon 5 Argentina Key', 1490, ['activation_blocked']),
+    offerLink(16, 'eneba', 'Turkey', 'Forza Horizon 5 Turkey Key', 1190, ['activation_unknown']),
+    offerLink(17, 'driffle', 'Global', 'Forza Horizon 5 Global Key', 0, ['sold_out']),
+    offerLink(18, 'eneba', 'Europe', 'Forza Horizon 5 Standard Edition EU', 0, ['source_error'], {
+      last_error: 'http_500',
+      retry_at: now + H,
+      observed_at: null,
+      quotes: [],
+    }),
+    offerLink(19, 'driffle', 'Global', 'Forza Horizon 5 Key (Zuordnung offen)', 0, [], {
+      review: 'needs_review',
+      eligible: false,
+      quotes: [],
+      observed_at: null,
+    }),
+    offerLink(20, 'eneba', 'Brazil', 'Forza Horizon 5 Brazil Key', 1390, ['availability_unknown'], { queued: true }),
+    offerLink(21, 'driffle', 'Global', 'Forza Horizon 5 Global Key (von Hand bestätigt)', 3250, [], {
+      manual_match: true,
+      renamed: { from: 'Forza Horizon 5', to: 'Forza Horizon 5 Deluxe' },
+    }),
+  ],
+};
+const cartOffer = (cents: number, region: string, stale = false) => ({
+  cents,
+  estimate_cents: Math.round(cents * 1.03),
+  region,
+  observed_at: now - 2 * H,
+  stale,
+});
+const cartEntry = (n: number, title: string, source: string | null, scope: 'home' | 'world', offers: object) => ({
+  id: n.toString(16).padStart(32, '0'),
+  game_id: String(n),
+  platform_id: 169,
+  created_at: now - n * D,
+  verification: 'manual_unverified',
+  game: null,
+  manual_title: title,
+  in_cart: true,
+  added_at: now - n * H,
+  source,
+  scope,
+  offers,
+});
+const cartEntries = [
+  cartEntry(1, 'Forza Horizon 5', 'eneba', 'home', {
+    eneba: { home: cartOffer(2890, 'Global'), world: cartOffer(1290, 'India') },
+    driffle: { home: cartOffer(3000, 'DE'), world: null },
+  }),
+  cartEntry(2, 'Microsoft Flight Simulator 2024: Premium Deluxe Edition mit allen Flugzeugen', null, 'world', {
+    eneba: { home: cartOffer(5490, 'Europe'), world: cartOffer(3990, 'Argentina') },
+    driffle: { home: cartOffer(5790, 'Global'), world: cartOffer(4190, 'Turkey') },
+  }),
+  cartEntry(3, 'Halo Infinite', 'driffle', 'home', { driffle: { home: cartOffer(1990, 'DE', true), world: null } }),
+  cartEntry(4, 'Lies of P', 'eneba', 'home', { eneba: { home: cartOffer(2490, 'Global'), world: null } }),
+  cartEntry(5, 'Starfield', null, 'world', {}),
+  cartEntry(6, 'A Plague Tale: Requiem', 'driffle', 'world', { driffle: { home: null, world: cartOffer(1490, 'India') } }),
+];
+const logEntries = Array.from({ length: 24 }, (_, i) => {
+  const level = i % 7 === 3 ? 'error' : i % 4 === 1 ? 'warn' : 'info';
+  const messages = {
+    info: [
+      'Angemeldet',
+      'Wunschliste: „Forza Horizon 5“ hinzugefügt',
+      'Warenkorb geändert',
+      'Einstellungen gespeichert',
+      'Zuordnung bestätigt: Eneba, Forza Horizon 5 Global Key',
+    ],
+    warn: ['Driffle: Rate-Limit erreicht, Pause bis 13:10', 'Benachrichtigung konnte nicht zugestellt werden, neuer Versuch in 15 Minuten'],
+    error: [
+      'Eneba: Abruf fehlgeschlagen (HTTP 500) für Forza Horizon 5 Premium Edition Xbox Series X|S / Windows PC Key mit sehr langem Produktnamen aus dem Shop',
+    ],
+  }[level];
+  return {
+    id: 100 - i,
+    at: now - i * 1800,
+    level,
+    area: ['Anmeldung', 'Wunschliste', 'Abruf', 'Warenkorb', 'Benachrichtigung'][i % 5],
+    message: messages[i % messages.length],
+  };
+});
+const logPage = { entries: logEntries, total: 61, page: 1, per_page: 25 };
+const mockLog = async (page: Page) => {
+  await page.route(/\/api\/v1\/log(\?.*)?$/, r => r.fulfill({ json: logPage }));
+};
+
 // Volatile: the app version in the sidebar changes with every release.
 const masks = (page: Page) => [page.locator('.version')];
 
@@ -230,6 +360,7 @@ async function settle(page: Page) {
 const viewports = [
   { name: '1440', width: 1440, height: 900 },
   { name: '1024', width: 1024, height: 768 },
+  { name: '768', width: 768, height: 1024 },
   { name: '390', width: 390, height: 844 },
 ];
 
@@ -270,9 +401,10 @@ for (const vp of viewports) {
     detail('angebote', 'angebote');
     detail('verlauf', 'verlauf');
 
-    const settings = (section: string, file: string, tabName: string, ready = '') =>
+    const settings = (section: string, file: string, tabName: string, ready = '', mock?: (page: Page) => Promise<void>) =>
       test(`settings ${file}`, async ({ page }) => {
         await prepare(page);
+        await mock?.(page);
         await page.goto(`/?view=settings${section ? `&section=${section}` : ''}`);
         await expect(page.getByRole('main').getByRole('heading', { name: 'Einstellungen', level: 1 })).toBeVisible();
         await expect(page.getByRole('tablist', { name: 'Einstellungen', exact: true }).getByRole('tab', { name: tabName, exact: true })).toHaveAttribute(
@@ -313,5 +445,34 @@ for (const vp of viewports) {
     });
     settings('', 'settings-allgemein', 'Allgemein');
     settings('status', 'settings-abrufstatus', 'Abrufstatus', 'Nächste Abfragen');
+
+    test('wishlist many long titles', async ({ page }) => {
+      await prepare(page);
+      await page.route('**/api/v1/wishlist', r => (r.request().method() === 'GET' ? r.fulfill({ json: wishRows }) : r.continue()));
+      await page.goto('/');
+      await expect(page.getByRole('main').getByRole('heading', { name: 'Wunschliste', level: 1 })).toBeVisible();
+      await expect(page.locator('table.wl tbody tr')).toHaveCount(32);
+      await settle(page);
+      await expect(page).toHaveScreenshot(`wishlist-long-${vp.name}.png`, { mask: masks(page) });
+    });
+    test('offers many rows', async ({ page }) => {
+      const id = await prepare(page);
+      await page.route('**/api/v1/wishlist/*/offers', r => (r.request().method() === 'GET' ? r.fulfill({ json: manyOffers }) : r.continue()));
+      await page.goto(`/?item=${id}&tab=angebote`);
+      await page.getByRole('tablist', { name: 'Spieldetails' }).waitFor();
+      await expect(page.getByRole('table', { name: 'Angebote nach Preis' }).getByRole('cell', { name: 'Brasilien', exact: true })).toBeVisible();
+      await settle(page);
+      await expect(page).toHaveScreenshot(`angebote-many-${vp.name}.png`, { mask: masks(page) });
+    });
+    test('cart', async ({ page }) => {
+      await prepare(page);
+      await page.route(/\/api\/v1\/cart$/, r => (r.request().method() === 'GET' ? r.fulfill({ json: cartEntries }) : r.continue()));
+      await page.goto('/?view=cart');
+      await expect(page.getByRole('main').getByRole('heading', { name: 'Warenkorb', level: 1 })).toBeVisible();
+      await expect(page.getByText('Lies of P').first()).toBeVisible();
+      await settle(page);
+      await expect(page).toHaveScreenshot(`cart-${vp.name}.png`, { mask: masks(page) });
+    });
+    settings('log', 'settings-log', 'Log', 'Ereignisse', mockLog);
   });
 }
