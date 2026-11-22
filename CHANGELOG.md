@@ -1,5 +1,38 @@
 # Änderungen
 
+## 0.9.2 – 2026-11-22
+
+Die Anmeldung lässt sich nicht mehr von außen sperren, die Passphrase ist in der App änderbar, und große Wunschlisten laufen deutlich schneller und laden seltener neu. Die Datenbank bleibt unverändert, beim Update ist nichts zu tun. Hinter einem Reverse Proxy kannst du optional `KEYHUNTER_TRUSTED_PROXY` setzen.
+
+### Sicherheit
+
+- **Anmeldung lässt sich nicht mehr von außen sperren:** Bisher galten fünf Fehlversuche je 15 Minuten für alle zusammen; wer die App erreichte, konnte so mit fünf Anfragen den Eigentümer aussperren. Jetzt zählt jede Adresse für sich: Nach fünf falschen Versuchen wartet nur diese Adresse, andere Geräte melden sich weiter mit der richtigen Passphrase an. Gegen verteiltes Raten gilt zusätzlich eine Obergrenze von 100 Fehlversuchen je 15 Minuten über alle Adressen. Eine richtige Anmeldung nimmt ihren Versuch zurück. Das Log meldet gesperrte Versuche wie bisher höchstens einmal je Viertelstunde.
+- **Hinter einem Reverse Proxy:** Ohne weitere Angabe kommen dort alle Anfragen vom Proxy und zählen als eine Adresse (Verhalten wie bisher). Mit der neuen Variable `KEYHUNTER_TRUSTED_PROXY` (IP oder Bereich wie `172.18.0.0/16`, mehrere durch Komma getrennt, im Unraid-Template unter „Advanced“) zählt für Anfragen von dort die Adresse aus `X-Forwarded-For`, von rechts gelesen die erste, die nicht zum Proxy gehört. Eine vom Client vorangestellte Adresse hilft also nicht. Beschrieben in docs/operations.md.
+- **Hängende Anfragen blockieren nichts mehr:** 16 Verbindungen, die nur den Anfang einer Anmeldung schickten und dann schwiegen, blockierten bisher jede weitere Anmeldung beliebig lange. Der Server liest jetzt jede Anfrage vollständig (höchstens 16 KB in 15 Sekunden), bevor sie einen der begrenzten Plätze belegt, und bricht zu langsame Anfragen mit „Die Anfrage kam nicht rechtzeitig vollständig an.“ ab. Keine Anfrage läuft länger als 60 Sekunden. Höchstens vier Passphrasen werden gleichzeitig geprüft.
+- **Passphrase ändern:** Einstellungen › System hat das neue Feld „Passphrase ändern“: aktuelle Passphrase und zweimal die neue, wie bei der Einrichtung 12 bis 128 Zeichen. Die Sitzung in diesem Browser bleibt, alle anderen Geräte werden abgemeldet; das Popup nennt, wie viele Sitzungen endeten. Eine falsche aktuelle Passphrase zählt wie ein Fehlversuch bei der Anmeldung.
+- **Überall abmelden:** Neben „Abmelden“ beendet „Überall abmelden“ nach einer Rückfrage alle Sitzungen auf allen Geräten, auch die aktuelle, etwa nach dem Verlust eines Geräts. Beides steht im Log, ohne Passphrase oder Sitzungsdaten.
+- **Abhängigkeiten aktualisiert:** `url` 2.5.9 (RUSTSEC-2026-0592) und sqlx 0.9.1 mit `libsqlite3-sys` 0.40, also SQLite 3.54.1 (RUSTSEC-2026-0459). Beide Meldungen waren in KeyHunter nicht ausnutzbar. `cargo audit` meldet nichts mehr, die CI nimmt keine Meldung mehr aus.
+
+### Schneller und sparsamer
+
+- **Große Wunschlisten:** Mit dem gebündelten SQLite prüfte der Abrufdienst bei jedem Job erneut, ob es überhaupt einen aktiven Wunsch gibt. Die Zeit wuchs dadurch quadratisch mit der Wunschliste. Bei 500 Wünschen und 2 000 Produktlinks dauerte die Auswahl des nächsten Jobs 251 ms statt jetzt 4 ms, der Abrufstatus (`/status/fetch`) rund 120 ms statt jetzt etwa 15 ms. Ein Test mit 500 Wünschen prüft den Abfrageplan, damit ein künftiges SQLite-Update das nicht unbemerkt zurückbringt.
+- **Kein Dauer-Neuladen mehr:** Wunschliste und Spielseite luden bei einem Rückstand an fälligen Abrufen, dem Normalzustand großer Listen, alle drei Sekunden alle Preise neu. Das waren bei 500 Wünschen rund 6 MB pro Minute und Tab. Schnell (alle 3 s) laden sie jetzt nur noch, solange ein Abruf läuft, den du selbst ausgelöst hast: „Jetzt prüfen“, die erste Suche eines neuen Wunsches oder der erste Preis eines neu hinzugefügten Produkts. Sonst laden sie einmal pro Minute.
+- **Komprimierte Antworten:** API-Antworten und die Dateien der Oberfläche kommen mit gzip oder Brotli (Wunschliste etwa −88 %, Skript etwa −70 %).
+- **Zwischenspeicher-Regeln:** Die Startseite fragt bei jedem Laden nach einer neuen Version, so bleibt nach einem Update keine leere Seite mehr stehen. Die Skripte, Schriften und Flaggen unter `/assets` mit Prüfsumme im Namen lädt der Browser nur einmal. Die App-Symbole bleiben eine Stunde im Zwischenspeicher, API-Antworten nie.
+
+### Behoben
+
+- **Pausiertes Spiel ohne „Wird gesucht …“:** Ein einzeln pausiertes Spiel zeigte nach Ablauf seines Intervalls dauerhaft „Wird gesucht …“ bzw. „Suche eingeplant“, obwohl es gar nicht abgefragt wurde, und seine Seite lud alle drei Sekunden neu. Badge, Angebote, Suchstatus und Abrufstatus folgen jetzt derselben Regel wie der Abrufdienst: wartend ist nur, was er wirklich als Nächstes abfragen würde. Eine laufende Shop-Discovery gilt für ein pausiertes Spiel nicht als Suche. In den Angeboten steht für die fällige Suche eines pausierten Spiels „Abrufe pausiert“.
+
+### Entwicklung und Qualitätssicherung
+
+- Das Frontend wird jetzt mit Prettier formatiert und mit ESLint (typescript-eslint, Regeln für React-Hooks) geprüft: `npm run format`, `npm run format:check` und `npm run lint`. Die einmalige Umformatierung ist ein eigener Commit ohne inhaltliche Änderung.
+- Die Tests unter `frontend/tests` und `frontend/e2e` werden typgeprüft (`npm run typecheck:tests`, eigene `tsconfig.test.json`). Neun veraltete Aufrufe von `rowFacts` in den Tests sind korrigiert.
+- `deploy/check.sh` und damit die CI führen Lint, Formatprüfung und die Typprüfung der Tests aus.
+- Die CI prüft die Rust-Abhängigkeiten mit `cargo audit` (RustSec). Sie meldet nichts.
+- Die visuelle Regressionsprüfung umfasst jetzt 52 Ansichten (vorher 24): zusätzlich 768 px, eine Wunschliste mit 32 Einträgen und sehr langen Titeln, die Angebote-Tabelle mit 11 Zeilen in gemischten Zuständen, der Warenkorb, Einstellungen › Log und Einstellungen › System, jeweils bei 1440, 1024, 768 und 390 px.
+- Der Prüfbericht zu 0.9.1 und der Fahrplan bis 1.0 liegen unter docs/release-1.0-audit/.
+
 ## 0.9.1 – 2026-11-22
 
 Meldungen erscheinen als Popup unten rechts, die Wunschliste blättert seitenweise, und der Warenkorb steht wieder nebeneinander. Die Datenbank bleibt unverändert, beim Update ist nichts zu tun.
