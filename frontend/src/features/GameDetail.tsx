@@ -139,7 +139,7 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
         : <Notice>Für diesen manuellen Titel liegen keine bestätigten Editionen vor.</Notice>}
     </TabPanel>
     <TabPanel id="gd" tab="alarm" value={tab}>
-      <AlarmTab id={item.id} alert={alert} editionName={savedName} code={code || 'Zielland'} hasEstimates={hasEstimates} onSettings={onSettings} onError={onError} />
+      <AlarmTab id={item.id} alert={alert} editionName={savedName} code={code || 'Zielland'} hasEstimates={hasEstimates} onError={onError} />
     </TabPanel>
     <TabPanel id="gd" tab="infos" value={tab}>
       <InfosTab item={item} game={game} state={state} />

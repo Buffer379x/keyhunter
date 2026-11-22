@@ -942,3 +942,191 @@ async fn the_log_records_logins_without_secrets_and_can_be_filtered_searched_and
     let (status, _, _) = call(&f.app, "GET", "/api/v1/log", Value::Null, None, None, None).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
+
+type Seen = std::sync::Arc<std::sync::Mutex<Vec<(String, Value)>>>;
+
+/// A local stand-in for a webhook receiver: records every request and answers with `status`.
+async fn hook_server(status: std::sync::Arc<std::sync::atomic::AtomicU16>) -> (String, Seen) {
+    let seen: Seen = Default::default();
+    let recorder = seen.clone();
+    let router = Router::new().route(
+        "/hook",
+        axum::routing::post(
+            move |headers: axum::http::HeaderMap, axum::Json(body): axum::Json<Value>| {
+                let (recorder, status) = (recorder.clone(), status.clone());
+                async move {
+                    let auth = headers
+                        .get("authorization")
+                        .map_or(String::new(), |v| v.to_str().unwrap().to_owned());
+                    recorder.lock().unwrap().push((auth, body));
+                    StatusCode::from_u16(status.load(std::sync::atomic::Ordering::Relaxed)).unwrap()
+                }
+            },
+        ),
+    );
+    let socket = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/hook", socket.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(socket, router).await.unwrap() });
+    (url, seen)
+}
+
+#[tokio::test]
+async fn notification_channels_are_write_only_validated_and_testable() {
+    let f = Fixture::new().await;
+    let origin = Some("http://localhost:3000");
+    let answer = std::sync::Arc::new(std::sync::atomic::AtomicU16::new(204));
+    let (url, seen) = hook_server(answer.clone()).await;
+    let token = "hook-secret-token-0815";
+    let path = "/api/v1/alerts/channels/webhook";
+    let body = json!({"enabled": true, "secrets": {"url": url, "token": token}});
+    assert_eq!(
+        call(
+            &f.app,
+            "GET",
+            "/api/v1/alerts/channels",
+            Value::Null,
+            None,
+            None,
+            None
+        )
+        .await
+        .0,
+        StatusCode::UNAUTHORIZED
+    );
+    let (cookie, csrf) = setup(&f).await;
+    let put = |body: Value| {
+        call(
+            &f.app,
+            "PUT",
+            path,
+            body,
+            Some(&cookie),
+            Some(&csrf),
+            origin,
+        )
+    };
+    assert_eq!(
+        call(
+            &f.app,
+            "PUT",
+            path,
+            body.clone(),
+            Some(&cookie),
+            None,
+            origin
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    for bad in [
+        json!({"enabled": true, "secrets": {"url": "ftp://127.0.0.1/hook"}}),
+        json!({"enabled": true, "secrets": {"url": "http://user:pw@127.0.0.1/hook"}}),
+        json!({"enabled": true, "secrets": {"url": "http://hooks.example.org/hook", "token": token}}),
+        json!({"enabled": true, "secrets": {"password": token}}),
+        json!({"enabled": true}),
+    ] {
+        let (status, data, _) = put(bad.clone()).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{bad}");
+        assert!(!data.to_string().contains(token));
+    }
+    let (status, _, _) = call(
+        &f.app,
+        "PUT",
+        "/api/v1/alerts/channels/sms",
+        body.clone(),
+        Some(&cookie),
+        Some(&csrf),
+        origin,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, saved, _) = put(body).await;
+    assert_eq!(status, StatusCode::OK, "{saved}");
+    assert_eq!(saved["secrets"], json!({"url": true, "token": true}));
+    assert_eq!(saved["active"], true);
+    let (_, list) = get(&f, &cookie, "/api/v1/alerts/channels").await;
+    let (_, alerts) = get(&f, &cookie, "/api/v1/alerts").await;
+    assert_eq!(alerts["channels"], json!(["Webhook"]));
+    assert_eq!(alerts["configured"], true);
+    for shown in [&saved, &list, &alerts] {
+        let text = shown.to_string();
+        assert!(
+            !text.contains(token) && !text.contains(&url),
+            "a secret is returned: {text}"
+        );
+    }
+    // The secret lies owner-only in the data directory, never in the database.
+    use std::os::unix::fs::PermissionsExt;
+    let file = f.config.data_dir.join("notification-secrets.json");
+    assert_eq!(
+        std::fs::metadata(&file).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+    let database = std::fs::read(f.config.data_dir.join("keyhunter.db")).unwrap();
+    assert!(!database.windows(token.len()).any(|w| w == token.as_bytes()));
+
+    let test = "/api/v1/alerts/channels/webhook/test";
+    let (status, data, _) = call(
+        &f.app,
+        "POST",
+        test,
+        Value::Null,
+        Some(&cookie),
+        Some(&csrf),
+        origin,
+    )
+    .await;
+    assert_eq!((status, data), (StatusCode::OK, json!({"ok": true})));
+    let (auth, sent) = seen.lock().unwrap().pop().unwrap();
+    assert_eq!(auth, format!("Bearer {token}"));
+    assert_eq!(sent["event"], "test");
+    assert_eq!(sent["title"], "KeyHunter: Testnachricht");
+    answer.store(500, std::sync::atomic::Ordering::Relaxed);
+    let (status, data, _) = call(
+        &f.app,
+        "POST",
+        test,
+        Value::Null,
+        Some(&cookie),
+        Some(&csrf),
+        origin,
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+    assert_eq!(
+        data["error"],
+        "Testnachricht über Webhook fehlgeschlagen: HTTP 500 · Internal Server Error"
+    );
+    let (status, _, _) = call(
+        &f.app,
+        "POST",
+        "/api/v1/alerts/channels/telegram/test",
+        Value::Null,
+        Some(&cookie),
+        Some(&csrf),
+        origin,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    let (_, log) = get(&f, &cookie, "/api/v1/log?per_page=200").await;
+    let log = log.to_string();
+    assert!(log.contains("Testnachricht über Webhook gesendet"));
+    assert!(log.contains("Testnachricht über Webhook fehlgeschlagen (HTTP 500"));
+    assert!(!log.contains(token) && !log.contains(&url));
+
+    let (status, _, _) = call(
+        &f.app,
+        "DELETE",
+        path,
+        Value::Null,
+        Some(&cookie),
+        Some(&csrf),
+        origin,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (_, alerts) = get(&f, &cookie, "/api/v1/alerts").await;
+    assert_eq!(alerts["configured"], false);
+    assert!(!std::fs::read_to_string(&file).unwrap().contains(token));
+}

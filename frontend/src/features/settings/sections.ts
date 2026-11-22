@@ -18,3 +18,11 @@ export const routeSection = (): Section => {
   return isSection(value) ? value : 'general';
 };
 export const sectionLabel = (id: Section) => sections.find(s => s.id === id)?.label ?? 'Allgemein';
+/** Open a settings tab from a page without access to the app navigation; App follows the URL through popstate. */
+export function openSection(id: Section) {
+  const url = new URL(location.href);
+  url.search = id === 'general' ? '?view=settings' : `?view=settings&section=${id}`;
+  url.hash = '';
+  history.pushState(null, '', url);
+  dispatchEvent(new PopStateEvent('popstate'));
+}

@@ -183,6 +183,18 @@ export const FETCH_STATUS_CHANGED = 'keyhunter:fetch-status';
 /** The shopping cart changed (0.8.0): the navigation reads its count again. */
 export const CART_CHANGED = 'keyhunter:cart';
 
-/** GET /alerts: ntfy channel state and the delivery log (wish_id is null for test messages). */
-export interface AlertEvent { id: number; wish_id: string | null; state: string; observed_at: number; sent_at: number | null; cents: number | null; attempts: number }
-export interface AlertOverview { configured: boolean; rules: unknown[]; events: AlertEvent[] }
+/** Delivery of one alert through one channel (0.9.0); `error` is the short reason of the last failure, never a secret. */
+export interface AlertDelivery { channel: string; name: string; state: string; attempts: number; error: string | null }
+/** GET /alerts: the active channels ("Telegram", "E-Mail") and the delivery log (wish_id is null for test messages). */
+export interface AlertEvent { id: number; wish_id: string | null; state: string; observed_at: number; sent_at: number | null; cents: number | null; attempts: number; deliveries?: AlertDelivery[] }
+export interface AlertOverview { configured: boolean; channels?: string[]; rules: unknown[]; events: AlertEvent[] }
+
+export type ChannelKind = 'ntfy' | 'telegram' | 'discord' | 'email' | 'gotify' | 'pushover' | 'webhook';
+/**
+ * GET /alerts/channels (0.9.0): one entry per built-in channel. `settings` holds the visible values; `secrets` only says
+ * which secret is stored (tokens, passwords and secret URLs are never returned). `from_file`: ntfy served by /config/ntfy.env.
+ */
+export interface ChannelView {
+  kind: ChannelKind; name: string; enabled: boolean; configured: boolean; active: boolean; from_file: boolean;
+  settings: Record<string, string>; secrets: Record<string, boolean>;
+}

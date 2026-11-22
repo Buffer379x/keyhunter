@@ -11,7 +11,7 @@ test('Preisalarme lists every target sorted by distance and a row opens the alar
   await signInToFixture(page);
   const wishes = [[1, 'Starfield', 'Premium Edition', 4000, 4749], [2, 'Forza Horizon 5', 'Standard Edition', 2900, 2890], [3, 'Ori', null, 800, null], [4, 'Halo', null, null, 1500]] as const;
   await page.route('**/api/v1/alerts', route => route.request().method() !== 'GET' ? route.continue() : route.fulfill({ json: {
-    configured: true,
+    configured: true, channels: ['ntfy'],
     rules: wishes.map(([n, title, , target]) => ({ wish_id: id(n), title, mode: target === null ? 'low' : 'target', basis: 'base', target_cents: target, enabled: true, delivery: null })),
     events: [{ id: 1, wish_id: id(2), state: 'sent', observed_at: 1795107000, sent_at: 1795107060, cents: 2890, attempts: 1 }],
   } }));
@@ -20,7 +20,7 @@ test('Preisalarme lists every target sorted by distance and a row opens the alar
     : route.fulfill({ json: wishes.map(([n, title, edition]) => ({ id: id(n), game_id: String(n), platform_id: 169, created_at: n, verification: 'catalog', game: game(n, title, edition, null), manual_title: null })) }));
   await navTo(page, 'Preisalarme');
   await expect(page.getByRole('heading', { name: 'Preisalarme', level: 1 })).toBeVisible();
-  await expect(page.getByText('ntfy eingerichtet', { exact: true })).toBeVisible();
+  await expect(page.getByText('Kanal: ntfy', { exact: true })).toBeVisible();
   const table = page.getByRole('table', { name: 'Preisalarme nach Abstand' });
   await expect(table.getByRole('columnheader')).toHaveText(['Spiel', 'Ziel', /^Jetzt [A-Z]{2}$/, 'Abstand', 'Status']);
   const rows = table.locator('tbody tr');

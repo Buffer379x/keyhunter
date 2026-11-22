@@ -7,8 +7,7 @@ use reqwest::{
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
-    io::Write,
-    os::unix::fs::{OpenOptionsExt, PermissionsExt},
+    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     time::{Duration, Instant, SystemTime},
 };
@@ -419,24 +418,7 @@ fn read_credentials(path: &Path) -> Option<IgdbCredentials> {
 }
 
 fn write_credentials(path: &Path, credentials: &IgdbCredentials) -> anyhow::Result<()> {
-    let temporary =
-        path.with_file_name(format!(".igdb-credentials-{}.tmp", crate::random_token()?));
-    let mut file = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(&temporary)?;
-    let result = (|| -> anyhow::Result<()> {
-        let body = serde_json::to_vec(credentials)?;
-        file.write_all(&body)?;
-        file.sync_all()?;
-        fs::rename(&temporary, path)?;
-        Ok(())
-    })();
-    if result.is_err() {
-        let _ = fs::remove_file(temporary);
-    }
-    result
+    crate::write_private(path, &serde_json::to_vec(credentials)?)
 }
 
 pub(super) async fn decode<T: serde::de::DeserializeOwned>(

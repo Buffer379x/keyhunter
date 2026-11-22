@@ -972,13 +972,11 @@ async fn library_moves_preserve_identity_and_require_confirmation() {
         .execute(&pool)
         .await
         .unwrap();
-    sqlx::query(
-        "INSERT INTO alert_outbox(wish_id,observed_at,message,due) VALUES(?,1,'fixture',1)",
-    )
-    .bind(id)
-    .execute(&pool)
-    .await
-    .unwrap();
+    sqlx::query("INSERT INTO alert_outbox(wish_id,observed_at,due) VALUES(?,1,1)")
+        .bind(id)
+        .execute(&pool)
+        .await
+        .unwrap();
     sqlx::query("INSERT INTO shop_job(source,link_id,due,lease_until,lease_token) VALUES('eneba',?,0,9999999999,'inflight')").bind(link).execute(&pool).await.unwrap();
     assert_eq!(
         f.call(

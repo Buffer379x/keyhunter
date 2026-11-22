@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, FETCH_STATUS_CHANGED } from '../../api';
-import type { AlertOverview, FetchStatusResponse } from '../../api';
+import type { FetchStatusResponse } from '../../api';
 import { whenVisible } from '../../poll';
 
 export const FETCH_REFRESH_MS = 30_000;
@@ -31,25 +31,4 @@ export function useFetchStatus(poll: boolean) {
   }, [poll, tick]);
   const reload = useCallback(() => setTick(n => n + 1), []);
   return { data, failed, loadedAt, reload };
-}
-
-/** GET /alerts: whether ntfy is set up and the delivery log. While a test message is pending it is read again every 5 s. */
-export function useAlertOverview() {
-  const [data, setData] = useState<AlertOverview | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    let cancel = () => {};
-    api<AlertOverview>('/alerts', 'GET', undefined, undefined, controller.signal)
-      .then(next => {
-        if (controller.signal.aborted) return;
-        setData(next); setFailed(false);
-        if (next.configured && next.events.some(event => event.wish_id === null && event.state === 'pending')) cancel = whenVisible(() => setTick(n => n + 1), 5000);
-      })
-      .catch(() => { if (!controller.signal.aborted) setFailed(true); });
-    return () => { controller.abort(); cancel(); };
-  }, [tick]);
-  const reload = useCallback(() => setTick(n => n + 1), []);
-  return { data, failed, reload };
 }

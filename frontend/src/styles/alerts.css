@@ -34,3 +34,4 @@
   .alerts-page .delivery-table .c-time { grid-area: t; color: var(--muted); font-size: var(--t-xs); }
   .alerts-page .delivery-table .c-price { grid-area: p; }
 }
+.alerts-page .delivery-channels { display: block; margin-top: 4px; }

@@ -3,7 +3,9 @@ import type { FormEvent } from 'react';
 import { api, HttpError } from '../api';
 import type { AlertOverview } from '../api';
 import { Button, Help, Icon, Inset, Label, Notice, Panel, PanelHead, Seg, Switch, Toast } from '../components';
+import { SetupLink } from './PriceAlerts';
 import type { AlertState, Rule } from './PriceAlerts';
+import { channelLine } from './settings/channels';
 import { money } from './price-format';
 
 const parseEuro = (text: string): number => {
@@ -20,12 +22,13 @@ const deliveryNames: Record<string, string> = { pending: 'wartet auf Zustellung'
 /**
  * Alarm: the rule of the saved edition (GET/PUT/DELETE /wishlist/{id}/alert) and its triggers from the delivery log.
  * Only the settings of the backend model: target price or new low, price basis, active. The backend counts offers that are
- * valid in the target country only, sends through ntfy and holds back a second message for the same game within 24 hours.
+ * valid in the target country only, sends through every active channel and holds back a second message for the same game
+ * within 24 hours.
  */
-export default function AlarmTab({ id, alert, editionName, code, hasEstimates, onSettings, onError }: {
-  id: string; alert: AlertState; editionName: string; code: string; hasEstimates: boolean; onSettings: () => void; onError: (error: unknown) => void;
+export default function AlarmTab({ id, alert, editionName, code, hasEstimates, onError }: {
+  id: string; alert: AlertState; editionName: string; code: string; hasEstimates: boolean; onError: (error: unknown) => void;
 }) {
-  const { rule, ready, configured } = alert;
+  const { rule, ready, channels } = alert;
   const [mode, setMode] = useState<Rule['mode']>('target');
   const [basis, setBasis] = useState<Rule['basis']>('base');
   const [enabled, setEnabled] = useState(true);
@@ -72,7 +75,7 @@ export default function AlarmTab({ id, alert, editionName, code, hasEstimates, o
             {mode === 'target' && <label className="form-row"><span>Zielpreis</span><span className="field target-field"><input inputMode="decimal" maxLength={10} required value={target} onChange={event => setTarget(event.target.value)} aria-label="Zielpreis" /><span className="muted">€</span></span></label>}
             {showBasis && <div className="form-row"><span>Preisgrundlage</span><Seg label="Preisgrundlage" value={basis} onChange={setBasis} options={[{ value: 'base', label: 'Grundpreis' }, { value: 'estimate', label: 'Gesamtpreis geschätzt' }]} /></div>}
             <Switch checked={enabled} onChange={setEnabled}>{mode === 'target' ? `Benachrichtigen, wenn ein in ${code} aktivierbarer Key das Ziel erreicht` : `Benachrichtigen bei einem neuen Tiefstpreis eines in ${code} aktivierbaren Keys`}</Switch>
-            <div className="with-help"><span className="hint">Kanal: ntfy{configured ? '' : ' · noch nicht eingerichtet, die Regel wird trotzdem gespeichert'}{!configured && <> · <button type="button" className="text-button" onClick={onSettings}>Kanal einrichten</button></>}</span>
+            <div className="with-help"><span className="hint">{channelLine(channels)}{!channels.length && <> · die Regel wird trotzdem gespeichert · <SetupLink /></>}</span>
               <Help label="Hilfe zum Preisalarm">Es zählen nur in {code} aktivierbare Keys; {mode === 'target' ? 'der Alarm kommt, wenn der Preis auf oder unter das Ziel fällt' : 'der Alarm kommt bei jedem neuen Tiefstpreis seit dem Speichern'}, höchstens einmal je Spiel in 24 Stunden.</Help></div>
             {error && <Notice error>{error}</Notice>}
             <div className="actions">

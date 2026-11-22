@@ -4,7 +4,7 @@
 
 1. Lade das [Unraid-Template](https://raw.githubusercontent.com/Buffer379x/keyhunter/main/deploy/unraid/keyhunter.xml) und lege es im Ordner `/boot/config/plugins/dockerMan/templates-user` ab. Wähle in der Docker-Ansicht **Add Container** und das KeyHunter-Template.
 2. Das Feld **Repository** enthält `ghcr.io/buffer379x/keyhunter:latest`. Unraid lädt das Image beim Anwenden aus dem [GitHub-Package](https://github.com/users/Buffer379x/packages/container/package/keyhunter).
-3. Wähle ein eigenes lokales Appdata-Verzeichnis für `/data`. Das aktuelle Unraid-Template bereitet diesen Ordner beim Start vor. Nutze für SQLite ein lokales Dateisystem. Optional bindest du ein Verzeichnis für die ntfy-Datei als `/config` schreibgeschützt ein.
+3. Wähle ein eigenes lokales Appdata-Verzeichnis für `/data`. Das aktuelle Unraid-Template bereitet diesen Ordner beim Start vor. Nutze für SQLite ein lokales Dateisystem. Benachrichtigungen richtest du in der App ein (siehe [notifications.md](notifications.md)); eine ältere ntfy-Datei kannst du weiter als `/config` schreibgeschützt einbinden.
 4. Öffne die WebUI in Unraid. Bei eigener LAN-IP erreichst du sie direkt unter `http://<Container-IP>:3000`. Im Bridge-Modus verwendest du die IP des Unraid-Hosts und den veröffentlichten Port.
 5. Verwende den Code aus der Datei `bootstrap-token` im gemounteten Datenverzeichnis, um deinen Eigentümerzugang einzurichten.
 
@@ -36,7 +36,7 @@ Beim Upgrade von 0.2.0 verwende das bestehende Datenvolume und hinterlege den IG
 
 Der Server speichert die IGDB-Werte in `igdb-credentials.json` mit Rechten 0600 im Datenvolume. Die Einstellungen zeigen den Konfigurationsstatus. Die gespeicherten Werte sind für den Besitzer der Datei lesbar. Schütze das Datenvolume und alle Sicherungen entsprechend.
 
-Für ntfy verwende optional die [ntfy.env.example](../deploy/ntfy.env.example) als Vorlage. Bei Unraid liegt die Datei im Konfigurationsmount unter `/config/ntfy.env`, bei Compose auf dem Host unter `work/local/runtime/config/ntfy.env`. Verwende Rechte 0600 und den passenden Eigentümer. `NTFY_URL` ist die vollständige Topic-URL. Ein separater Bearer-Token erfordert HTTPS. Starte nach Änderung der ntfy-Datei neu.
+Benachrichtigungskanäle (ntfy, Telegram, Discord, E-Mail, Gotify, Pushover, Webhook) richtest du unter **Einstellungen → Benachrichtigungen** ein; Anleitung und Nachrichtenformat stehen in [notifications.md](notifications.md). Tokens, Passwörter und geheime Adressen speichert der Server in `notification-secrets.json` mit Rechten 0600 im Datenvolume und gibt sie nie zurück. Die bisherige ntfy-Datei bleibt gültig, bis in der App eine Topic-URL gespeichert wird: [ntfy.env.example](../deploy/ntfy.env.example) als Vorlage, bei Unraid im Konfigurationsmount unter `/config/ntfy.env`, bei Compose auf dem Host unter `work/local/runtime/config/ntfy.env`, Rechte 0600 und passender Eigentümer. `NTFY_URL` ist die vollständige Topic-URL; ein separater Bearer-Token erfordert HTTPS. Starte nach Änderung der ntfy-Datei neu.
 
 ## Jobs und Speicher
 
@@ -48,11 +48,11 @@ Seit 0.8.3 nennt `GET /api/v1/status/fetch` unter `upcoming` außerdem die fünf
 
 ### Log
 
-**Einstellungen → Log** (API `GET /api/v1/log` mit `level`, `q`, `page`, `per_page`) protokolliert Anmeldungen, Änderungen an Wunschliste, Bibliothek, Warenkorb, Zuordnungen, Preisalarmen und Einstellungen, zugestellte und fehlgeschlagene Benachrichtigungen sowie Fehler beim Abruf (ohne „Nicht gefunden“). Jeder Eintrag hat eine Stufe (Info, Warnung, Fehler) und einen Bereich. Einträge bleiben 7 Tage; jeder neue Eintrag löscht ältere automatisch. Passphrase, Sitzungen, Tokens, Zugangsdaten und die ntfy-Adresse werden nie geschrieben. Wiederholte Hintergrundfehler erscheinen höchstens einmal pro Stunde.
+**Einstellungen → Log** (API `GET /api/v1/log` mit `level`, `q`, `page`, `per_page`) protokolliert Anmeldungen, Änderungen an Wunschliste, Bibliothek, Warenkorb, Zuordnungen, Preisalarmen und Einstellungen, zugestellte und fehlgeschlagene Benachrichtigungen sowie Fehler beim Abruf (ohne „Nicht gefunden“). Jeder Eintrag hat eine Stufe (Info, Warnung, Fehler) und einen Bereich. Einträge bleiben 7 Tage; jeder neue Eintrag löscht ältere automatisch. Passphrase, Sitzungen, Tokens, Zugangsdaten und Adressen der Benachrichtigungskanäle werden nie geschrieben. Wiederholte Hintergrundfehler erscheinen höchstens einmal pro Stunde.
 
 ## Backup und Update
 
-Stoppe den Container vor dem Kopieren des vollständigen Datenverzeichnisses, einschließlich vorhandener SQLite-WAL- und SHM-Dateien. Bewahre Backups auf einem getrennten Datenträger auf. Das Datenbackup enthält den IGDB-Zugang. Sichere die getrennte ntfy-Datei ebenfalls geschützt. Starte nach einem Update mit einer konsistenten Kopie der Daten. Für einen Rollback verwende das vorherige Image zusammen mit dem Stand vor der Migration. Wiederherstellung auf eine frische Instanz lässt sich über `/health/ready`, die Anmeldung und die vorhandenen Wunschlisten, Zuordnungen und Regeln prüfen.
+Stoppe den Container vor dem Kopieren des vollständigen Datenverzeichnisses, einschließlich vorhandener SQLite-WAL- und SHM-Dateien. Bewahre Backups auf einem getrennten Datenträger auf. Das Datenbackup enthält den IGDB-Zugang und die Zugangsdaten der Benachrichtigungskanäle. Sichere eine getrennte ntfy-Datei ebenfalls geschützt. Starte nach einem Update mit einer konsistenten Kopie der Daten. Für einen Rollback verwende das vorherige Image zusammen mit dem Stand vor der Migration. Wiederherstellung auf eine frische Instanz lässt sich über `/health/ready`, die Anmeldung und die vorhandenen Wunschlisten, Zuordnungen und Regeln prüfen.
 
 
 ## Offline-Installation

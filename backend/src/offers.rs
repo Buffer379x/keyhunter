@@ -159,6 +159,10 @@ impl Link {
     pub(crate) fn fingerprint(&self) -> Option<&str> {
         self.fingerprint.as_deref()
     }
+    /// The shop page of the offer.
+    pub(crate) fn url(&self) -> &str {
+        &self.url
+    }
     pub(crate) fn product(&self) -> Option<Product> {
         serde_json::from_str(self.latest.as_deref()?).ok()
     }
