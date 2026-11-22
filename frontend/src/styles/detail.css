@@ -552,9 +552,6 @@
   font: 500 10px var(--f-mono);
   color: var(--faint);
 } /* (added) region of the worldwide price */
-.chart-hint {
-  padding: 0 16px 12px;
-} /* (added) */
 .kpi.world .kpi-val b {
   color: var(--world);
 }

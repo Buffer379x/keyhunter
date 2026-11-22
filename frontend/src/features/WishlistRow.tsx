@@ -7,13 +7,10 @@ import { itemName, kindName, platformName } from './catalog-ui';
 import { countryData } from './regions';
 import GameCover from './GameCover';
 import { pauseText } from './wish-pause';
-import { badgeStateText, badgeTitle } from './PriceBadge';
+import { badgeStateText, badgeTitle } from './price-badge-text';
 import { WORLD_SHARE, sparkHeights } from './wishlist-model';
 import type { RowFacts } from './wishlist-model';
 import type { OpenMode, WishlistColumn } from './wishlist-columns';
-
-/** Is this entry something the owner has to look at (unconfirmed match, or the shop mapping needs review)? */
-export const needsReview = (item: WishlistItem, badge?: PriceBadgeData) => badge?.state === 'review' || item.verification !== 'catalog';
 
 /** Short region code for the `.reg` badge: ISO codes as they are, "GL" for global, the region keys shortened. */
 export function regCode(region: string | null | undefined): { code: string; name: string } | null {
@@ -30,7 +27,7 @@ export function regCode(region: string | null | undefined): { code: string; name
 }
 
 /** "Standard Edition · 2021" (manual entries: "Manuell · Xbox Series X|S"). */
-/** "38 Angebote" after the year (0.9.1); nothing from an older server. */
+/** "38 Angebote" after the year (0.9.1); nothing for an item without a price badge. */
 const offerText = (item: WishlistItem) => (item.offer_count === undefined ? '' : ` (${item.offer_count} ${item.offer_count === 1 ? 'Angebot' : 'Angebote'})`);
 function subline(item: WishlistItem) {
   const game = item.game;
@@ -41,7 +38,7 @@ function subline(item: WishlistItem) {
 }
 
 /** Why a row carries the warning symbol (0.9.1): mappings to review under Infos, or a catalog choice that is not confirmed. */
-export function reviewText(item: WishlistItem): string {
+function reviewText(item: WishlistItem): string {
   const parts: string[] = [];
   const count = item.review_count ?? 0;
   if (count > 0) parts.push(count === 1 ? '1 ungeprüfte Zuordnung' : `${count} ungeprüfte Zuordnungen`);
@@ -52,6 +49,16 @@ export function reviewText(item: WishlistItem): string {
 
 /** Observation time of the shown price (base price or estimated total). */
 const observedAt = (badge: PriceBadgeData, facts: RowFacts) => (facts.basis === 'estimate' ? (badge.with_fees?.observed_at ?? null) : badge.observed_at);
+
+/** What the server knows about the cheapest region in the target country (RESP-14), for the title of the INT price. */
+function activationText(activation: 'confirmed' | 'blocked' | 'unknown' | null, code: string) {
+  const land = code || 'dem Zielland';
+  return activation === 'blocked'
+    ? `Laut Shop in ${land} nicht aktivierbar.`
+    : activation === 'confirmed'
+      ? `In ${land} aktivierbar, aber nicht im selben Markt.`
+      : `Aktivierung in ${land} ungeklärt.`;
+}
 
 /** Text of the "Preis INT" cell (cheapest region worldwide) when nothing is known about prices yet (the status column says whether a search runs). */
 function missingWorld(badge: PriceBadgeData | undefined) {
@@ -269,7 +276,7 @@ export default function WishlistRow({
           <>
             <div
               className="world-cell"
-              title={`Günstigste Region weltweit: ${reg?.name ?? 'Region unbekannt'}. Nicht automatisch im Zielland aktivierbar.${worldOther}`}
+              title={`Günstigste Region weltweit: ${reg?.name ?? 'Region unbekannt'}. ${activationText(world.activation, code)}${worldOther}`}
             >
               {reg && <Reg code={reg.code} />}
               <Price cents={world.cents} tone="world" />

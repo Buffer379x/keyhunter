@@ -12,7 +12,7 @@ export const sections: { id: Section; label: string; icon: IconName }[] = [
   { id: 'system', label: 'System', icon: 'shield' },
 ];
 const ids = sections.map(s => s.id);
-export const isSection = (value: string | null): value is Section => ids.includes(value as Section);
+const isSection = (value: string | null): value is Section => ids.includes(value as Section);
 export const routeSection = (): Section => {
   const value = new URL(location.href).searchParams.get('section');
   return isSection(value) ? value : 'general';

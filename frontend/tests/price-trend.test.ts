@@ -17,6 +17,8 @@ const link = (id: number, score: number | undefined, extra: Partial<Link> = {}):
   attempted_at: 1,
   last_error: null,
   retry_at: 0,
+  data_state: 'current',
+  current: true,
   cheap_score: score,
   product: { name: 'Game', region: 'Argentina', market: 'DE', activation: 'unknown', availability: 'in_stock' },
   quotes: [],

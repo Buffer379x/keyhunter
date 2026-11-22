@@ -117,16 +117,6 @@ table.wl td.c-target {
   border-radius: var(--r-sm);
   background: var(--ok-bg);
 }
-.save {
-  font: 500 var(--t-xs)/1.2 var(--f-mono);
-  white-space: nowrap;
-}
-.save.big {
-  color: var(--accent-2);
-}
-.save.none {
-  color: var(--faint);
-}
 .save-pct {
   font-size: var(--t-label);
 }
@@ -134,7 +124,7 @@ table.wl td.c-target {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-} /* (added) more than one pill: state plus hints */
+}
 .spark {
   display: flex;
   align-items: flex-end;

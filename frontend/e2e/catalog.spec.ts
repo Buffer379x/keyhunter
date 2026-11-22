@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { saveSettings, signInToFixture, navTo, settingsCountry } from './helpers';
 import { openTab, openWishlistRow, removeCurrent, wishlistHeading, wishlistRows } from './detail-helpers';
+import { withState } from './offer-state';
 
 test('catalog choice persists, editions stay distinct, filters and removal work on mobile', async ({ page }) => {
   const errors: string[] = [];
@@ -89,7 +90,7 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
   await expect(page.getByLabel('Produktlink von Eneba oder Driffle')).not.toBeVisible();
 
   // Synthetic response verifies rendering and filtering independently of shop availability.
-  const link = (id: number, eligible: boolean, region = eligible ? 'Global' : 'United States') => ({
+  const rawLink = (id: number, eligible: boolean, region = eligible ? 'Global' : 'United States') => ({
     id,
     source: 'eneba',
     url: 'https://www.eneba.com/de/xbox-fixture-xbox-live-key-global',
@@ -107,15 +108,17 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
     product: { name: 'Synthetic UI offer', region, market: 'DE', activation: eligible ? 'confirmed' : 'blocked', availability: 'in_stock' },
     quotes: [{ id: String(id), seller: null, base_cents: eligible ? 2499 : 1299, estimated_total_cents: null }],
   });
+  const link = (...args: Parameters<typeof rawLink>) => withState(rawLink(...args));
   let target = 'DE';
   await page.route('**/api/v1/wishlist/*/offers', route =>
     route.request().method() === 'GET'
       ? route.fulfill({
           json: {
             links: [link(1, true), link(2, false), link(3, true, 'Deutschland'), link(4, false, 'Argentina')],
-            history: [],
+            histories: { preferred: [], all: [] },
             best_base: 2499,
             best_estimate: null,
+            offer_count: 4,
             target_country: target,
             discovery_running: false,
             searches: [{ source: 'eneba', status: 'complete', checked_at: 1794950000, result_count: 4, last_error: null }],

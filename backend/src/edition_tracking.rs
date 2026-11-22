@@ -1,3 +1,4 @@
+use crate::extract::ApiPath;
 use crate::{
     ApiError, ApiResult, Shared, auth, catalog,
     eventlog::{self, Area, Level},
@@ -6,7 +7,7 @@ use crate::{
 };
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::State,
     http::{HeaderMap, StatusCode},
 };
 use serde::Serialize;
@@ -51,9 +52,9 @@ async fn snapshot(state: &Shared, id: &str) -> ApiResult<Prepared> {
     for track in ids {
         items.push(wishlist::item(&state.pool, &track).await?);
     }
-    let (target, scope) = crate::price_badges::context(&state.pool).await?;
+    let target = crate::offers::target(&state.pool).await?;
     let ids: Vec<String> = items.iter().map(|item| item.id.clone()).collect();
-    let mut badges = crate::price_badges::load_many(state, &ids, &target, &scope).await?;
+    let mut badges = crate::price_badges::load_many(state, &ids, &target).await?;
     for item in &mut items {
         item.price_badge = badges.remove(&item.id);
     }
@@ -67,18 +68,17 @@ async fn snapshot(state: &Shared, id: &str) -> ApiResult<Prepared> {
 
 pub(crate) async fn get(
     State(state): State<Shared>,
-    Path(id): Path<String>,
-    headers: HeaderMap,
+    _: auth::Session,
+    ApiPath(id): ApiPath<String>,
 ) -> ApiResult<Json<Prepared>> {
-    auth::authenticate(&state, &headers).await?;
     Ok(Json(snapshot(&state, &id).await?))
 }
 pub(crate) async fn prepare(
     State(state): State<Shared>,
-    Path(id): Path<String>,
+    session: auth::Session,
+    ApiPath(id): ApiPath<String>,
     headers: HeaderMap,
 ) -> ApiResult<Json<Prepared>> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     prepare_one(&state, &id).await?;
     Ok(Json(snapshot(&state, &id).await?))
@@ -108,7 +108,7 @@ async fn prepare_one(state: &Shared, id: &str) -> ApiResult<()> {
             let track=wishlist::track_edition(&mut tx,&entry,saved.platform_id).await?;
             if track!=id {sqlx::query("INSERT OR IGNORE INTO edition_watch(wish_id,track_id) VALUES(?,?)").bind(id).bind(&track).execute(&mut *tx).await?;}
         }
-        sqlx::query("UPDATE edition_scan SET checked_at=?,lease_until=0,next_attempt=?,last_error=NULL WHERE wish_id=?").bind(now()).bind(now()+86400).bind(id).execute(&mut *tx).await?;
+        sqlx::query("UPDATE edition_scan SET checked_at=?,lease_until=0,next_attempt=?,last_error=NULL WHERE wish_id=?").bind(now()).bind(now()+crate::DAY).bind(id).execute(&mut *tx).await?;
         tx.commit().await?;
         let ids:Vec<String>=sqlx::query_scalar("SELECT track_id FROM edition_watch WHERE wish_id=?").bind(id).fetch_all(&state.pool).await?;
         for track in ids {crate::jobs::schedule_wish(&state.pool,&track).await?;}
@@ -128,11 +128,14 @@ async fn prepare_one(state: &Shared, id: &str) -> ApiResult<()> {
             eventlog::REPEAT,
         )
         .await;
-        sqlx::query("UPDATE edition_scan SET checked_at=?,lease_until=0,next_attempt=?,last_error='catalog_unavailable' WHERE wish_id=?").bind(now()).bind(now()+900).bind(id).execute(&state.pool).await?;
+        sqlx::query("UPDATE edition_scan SET checked_at=?,lease_until=0,next_attempt=?,last_error='catalog_unavailable' WHERE wish_id=?").bind(now()).bind(now()+RETRY_AFTER_OUTAGE).bind(id).execute(&state.pool).await?;
     }
     // A catalog outage leaves the saved selection and any prepared observations usable.
     Ok(())
 }
+
+/// After a catalog outage the editions are prepared again this much later (a day after success).
+const RETRY_AFTER_OUTAGE: i64 = 900;
 
 pub(crate) fn start(state: &Shared) {
     let state = state.clone();

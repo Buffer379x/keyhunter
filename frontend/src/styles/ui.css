@@ -582,7 +582,7 @@ tbody tr.click:hover td {
   color: var(--world);
 }
 
-/* Status dot, bar, note, empty state, toast */
+/* Status dot, bar, note, empty state */
 .dot {
   width: 6px;
   height: 6px;
@@ -656,23 +656,6 @@ tbody tr.click:hover td {
 }
 .empty .btn {
   margin-top: 4px;
-}
-.toast {
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-  z-index: var(--z-toast);
-  background: var(--panel-3);
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-md);
-  padding: 10px 14px;
-  box-shadow: var(--shadow-tip);
-  font-size: var(--t-sm);
-  max-width: calc(100vw - 32px);
-}
-.toast[hidden] {
-  display: none;
 }
 
 /* Dev-only component sheet (/_ui) */

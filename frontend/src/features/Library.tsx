@@ -5,7 +5,6 @@ import { Button, ConfirmDialog, EmptyState, Field, Icon, IconButton, Notice, Pag
 import { Cover, itemName, platformName } from './catalog-ui';
 import CatalogSearch from './CatalogSearch';
 import { libraryItems } from './library-sort';
-import '../styles/library.css';
 import { notify } from '../notify';
 
 type Order = 'added' | 'name';
@@ -60,7 +59,6 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
   // A–Z is the default (0.6.5); a new key, so the earlier default "Zuletzt gekauft" does not stick.
   const [sort, setSort] = useState<Order>(() => (stored(SORT_KEY, 'name') === 'added' ? 'added' : 'name'));
   const [view, setView] = useState<View>(() => (stored(VIEW_KEY, 'tiles') === 'rows' ? 'rows' : 'tiles'));
-  const setMessage = notify;
   /** Full-text filter of the tiles and the list (0.9.0): title, edition and system; empty shows everything. */
   const [query, setQuery] = useState('');
   const systems = [...new Set(items.map(item => item.platform_id))].sort((a, b) => platformName(a).localeCompare(platformName(b), 'de'));
@@ -93,7 +91,7 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
       onCountChange(rows.length);
     }
     if (activeSystem !== 'all' && activeSystem !== String(entry.platform_id)) filter('all');
-    setMessage(created ? `${itemName(entry)} ist jetzt in der Bibliothek.` : `${itemName(entry)} ist bereits in der Bibliothek.`);
+    notify(created ? `${itemName(entry)} ist jetzt in der Bibliothek.` : `${itemName(entry)} ist bereits in der Bibliothek.`);
   }
 
   useEffect(() => {
@@ -125,7 +123,6 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
   }, []);
   async function confirm() {
     if (!action || busy) return;
-    setMessage('');
     const { kind, item } = action;
     setBusy(true);
     setError('');

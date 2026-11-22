@@ -1,11 +1,8 @@
 pub mod contents;
 pub mod provider;
+use crate::extract::{ApiPath, ApiQuery};
 use crate::{ApiError, ApiResult, Shared, auth, internal, now};
-use axum::{
-    Json,
-    extract::{Path, Query, State},
-    http::{HeaderMap, StatusCode},
-};
+use axum::{Json, extract::State, http::StatusCode};
 use provider::{CatalogError, CatalogGame};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -86,7 +83,7 @@ pub(crate) async fn load_game(state: &Shared, id: i64) -> ApiResult<CatalogGame>
         "SELECT payload FROM catalog_game WHERE igdb_id = ? AND fetched_at > ?",
     )
     .bind(id)
-    .bind(now() - 86400)
+    .bind(now() - crate::DAY)
     .fetch_optional(&state.pool)
     .await?
         && let Ok(game) = serde_json::from_str(&payload)
@@ -135,10 +132,9 @@ fn igdb_id(text: &str) -> Option<i64> {
 
 pub(crate) async fn search(
     State(state): State<Shared>,
-    headers: HeaderMap,
-    Query(query): Query<SearchQuery>,
+    _: auth::Session,
+    ApiQuery(query): ApiQuery<SearchQuery>,
 ) -> ApiResult<Json<Value>> {
-    auth::authenticate(&state, &headers).await?;
     enabled(&state).await?;
     let text = query.q.trim();
     if !(2..=100).contains(&text.chars().count())
@@ -160,19 +156,17 @@ pub(crate) async fn search(
     .await?
         && let Ok(ids) = serde_json::from_str::<Vec<i64>>(&row.get::<String, _>("result_ids"))
     {
-        let mut games = Vec::new();
-        for id in &ids {
-            if let Some(payload) = sqlx::query_scalar::<_, String>(
-                "SELECT payload FROM catalog_game WHERE igdb_id = ?",
-            )
-            .bind(id)
-            .fetch_optional(&state.pool)
-            .await?
-                && let Ok(game) = serde_json::from_str::<CatalogGame>(&payload)
-            {
-                games.push(game);
-            }
-        }
+        // One query for all cached games, in the order of the result (CODE-08).
+        let payloads: Vec<String> = sqlx::query_scalar(
+            "SELECT c.payload FROM json_each(?) r JOIN catalog_game c ON c.igdb_id = r.value ORDER BY r.key",
+        )
+        .bind(serde_json::to_string(&ids).map_err(|_| internal())?)
+        .fetch_all(&state.pool)
+        .await?;
+        let games: Vec<CatalogGame> = payloads
+            .iter()
+            .filter_map(|payload| serde_json::from_str(payload).ok())
+            .collect();
         if games.len() == ids.len() {
             return Ok(Json(
                 json!({"games":games,"cached":true,"fetched_at":row.get::<i64,_>("fetched_at")}),
@@ -211,7 +205,7 @@ pub(crate) async fn search(
         .bind(&key).bind(serde_json::to_string(&ids).map_err(|_| internal())?).bind(now()).execute(&state.pool).await?;
     sqlx::query("DELETE FROM catalog_search WHERE query_key NOT IN (SELECT query_key FROM catalog_search ORDER BY fetched_at DESC, query_key LIMIT 400)").execute(&state.pool).await?;
     sqlx::query("DELETE FROM catalog_game WHERE fetched_at < ? AND NOT EXISTS (SELECT 1 FROM game WHERE game.igdb_id = catalog_game.igdb_id)")
-        .bind(now() - 7 * 86400).execute(&state.pool).await?;
+        .bind(now() - 7 * crate::DAY).execute(&state.pool).await?;
     Ok(Json(
         json!({"games":games,"cached":false,"fetched_at":now()}),
     ))
@@ -224,11 +218,10 @@ pub(crate) struct PlatformQuery {
 }
 pub(crate) async fn game_detail(
     State(state): State<Shared>,
-    headers: HeaderMap,
-    Path(id): Path<i64>,
-    Query(query): Query<PlatformQuery>,
+    _: auth::Session,
+    ApiPath(id): ApiPath<i64>,
+    ApiQuery(query): ApiQuery<PlatformQuery>,
 ) -> ApiResult<Json<CatalogGame>> {
-    auth::authenticate(&state, &headers).await?;
     if !platform_valid(query.platform) {
         return Err(ApiError(
             StatusCode::BAD_REQUEST,
@@ -247,9 +240,8 @@ pub(crate) async fn game_detail(
 
 pub(crate) async fn source_status(
     State(state): State<Shared>,
-    headers: HeaderMap,
+    _: auth::Session,
 ) -> ApiResult<Json<Value>> {
-    auth::authenticate(&state, &headers).await?;
     let active: bool = sqlx::query_scalar("SELECT enabled FROM source_settings WHERE id='igdb'")
         .fetch_one(&state.pool)
         .await?;
@@ -266,38 +258,15 @@ pub(crate) async fn source_status(
     Ok(Json(Value::Object(entries)))
 }
 
-pub(crate) async fn editions(
-    State(state): State<Shared>,
-    Path(id): Path<i64>,
-    headers: HeaderMap,
-) -> ApiResult<Json<Vec<CatalogGame>>> {
-    auth::authenticate(&state, &headers).await?;
-    enabled(&state).await?;
-    let game = load_game(&state, id).await?;
-    let parent = game.version_parent.unwrap_or(id);
-    let games = state
-        .catalog
-        .editions(parent)
-        .await
-        .map_err(provider_error)?;
-    save_games(&state, &games).await?;
-    Ok(Json(
-        games
-            .into_iter()
-            .filter(|g| {
-                g.selection_allowed() && g.platforms.iter().any(|p| p.id == 169 || p.id == 49)
-            })
-            .collect(),
-    ))
-}
+/// Edition contents that are not all verified are looked up again after 15 minutes (verified ones after a day).
+const UNVERIFIED_CONTENTS_TTL: i64 = 900;
 
 pub(crate) async fn edition_comparison(
     State(state): State<Shared>,
-    Path(id): Path<i64>,
-    headers: HeaderMap,
-    Query(query): Query<PlatformQuery>,
+    _: auth::Session,
+    ApiPath(id): ApiPath<i64>,
+    ApiQuery(query): ApiQuery<PlatformQuery>,
 ) -> ApiResult<Json<Value>> {
-    auth::authenticate(&state, &headers).await?;
     if !platform_valid(query.platform) {
         return Err(ApiError(
             StatusCode::BAD_REQUEST,
@@ -316,9 +285,9 @@ pub(crate) async fn edition_comparison(
         && let Ok(entries) = serde_json::from_str::<Vec<contents::EditionContent>>(&payload)
     {
         let ttl = if entries.iter().all(|e| e.status == "verified") {
-            86400
+            crate::DAY
         } else {
-            900
+            UNVERIFIED_CONTENTS_TTL
         };
         if at > now() - ttl {
             return Ok(Json(

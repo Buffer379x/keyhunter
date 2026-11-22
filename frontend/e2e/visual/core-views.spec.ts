@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { signInToFixture } from '../helpers';
+import { withState } from '../offer-state';
 
 // Visual regression of the seven core views at three viewports. Run only through deploy/visual-check.sh.
 // Determinism: fixed clock, all price data mocked (the fixture has no shop prices), animations and caret off.
@@ -10,7 +11,7 @@ const now = NOW_MS / 1000,
   H = 3600,
   D = 86400;
 
-const link = (id: number, source: string, region: string, cents: number, reasons: string[], extra = {}) => ({
+const rawLink = (id: number, source: string, region: string, cents: number, reasons: string[], extra = {}) => ({
   id,
   source,
   url: 'https://www.eneba.com/de/xbox-fixture-key-global',
@@ -44,6 +45,7 @@ const link = (id: number, source: string, region: string, cents: number, reasons
       ],
   ...extra,
 });
+const link = (...args: Parameters<typeof rawLink>) => withState(rawLink(...args));
 const pt = (days: number, cents: number, region: string, source = 'eneba') => ({ observed_at: now - days * D, base_cents: cents, link_id: 1, region, source });
 const offers = {
   links: [
@@ -57,10 +59,10 @@ const offers = {
     preferred: [pt(21, 3499, 'DE'), pt(14, 3299, 'DE', 'driffle'), pt(8, 3099, 'Global'), pt(1, 2890, 'Global')],
     all: [pt(21, 1590, 'India'), pt(14, 1490, 'Argentina', 'driffle'), pt(8, 1390, 'India'), pt(1, 1290, 'India')],
   },
-  history: [],
   best_base: 2890,
   best_estimate: 2948,
   last_known: null,
+  offer_count: 4,
   target_country: 'DE',
   searches: [{ source: 'eneba', status: 'complete', checked_at: now - 2 * H, result_count: 3, last_error: null }],
   sources: [],
@@ -259,6 +261,7 @@ const offerLink = (id: number, source: string, region: string, name: string, cen
   link(id, source, region, cents, reasons, { product: { name, region, market: 'DE', activation: 'confirmed', availability: 'in_stock' }, ...extra });
 const manyOffers = {
   ...offers,
+  offer_count: 8,
   links: [
     offerLink(11, 'eneba', 'Global', 'Forza Horizon 5 Premium Edition Xbox Series X|S / Windows PC Key (Global, Aktivierung weltweit)', 2890, []),
     offerLink(12, 'driffle', 'DE', 'Forza Horizon 5 Xbox Key DE', 3000, [], { check_every: 3 * H, cheap_score: 0.1 }),

@@ -34,7 +34,7 @@ export async function signInToFixture(page: Page) {
 }
 
 /** Open the sidebar drawer when the layout has one (up to 900 px). */
-export async function openDrawer(page: Page) {
+async function openDrawer(page: Page) {
   const menu = page.getByRole('button', { name: 'Menü öffnen', exact: true });
   if (await menu.isVisible()) await menu.click();
 }

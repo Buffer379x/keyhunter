@@ -3,6 +3,7 @@
 //! live in `<data>/notification-secrets.json` (0600), written like the IGDB access; the API only says whether one is set.
 //! An existing ntfy file (`KEYHUNTER_NTFY_ENV_FILE`) serves the ntfy channel as long as no topic URL is saved in the UI.
 
+use crate::extract::ApiPath;
 use crate::{
     ApiError, ApiResult, Shared, auth,
     config::is_local_http_origin,
@@ -10,7 +11,7 @@ use crate::{
 };
 use axum::{
     Json,
-    extract::{Path, State, rejection::JsonRejection},
+    extract::{State, rejection::JsonRejection},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
@@ -1041,9 +1042,8 @@ pub(crate) struct ChannelInput {
 /// GET /alerts/channels: every channel with its switch, visible settings and which secrets are stored.
 pub(crate) async fn list_channels(
     State(state): State<Shared>,
-    headers: HeaderMap,
+    _: auth::Session,
 ) -> ApiResult<Json<Value>> {
-    auth::authenticate(&state, &headers).await?;
     let channels = state.notifier.channels(&state.pool).await?;
     Ok(Json(
         json!({"channels": channels.iter().map(view).collect::<Vec<_>>()}),
@@ -1062,11 +1062,11 @@ async fn channel_view(state: &Shared, kind: Kind) -> ApiResult<Json<Value>> {
 /// PUT /alerts/channels/{kind}: `{"enabled", "settings": {…}, "secrets": {…}}`; answers like one entry of the list.
 pub(crate) async fn put_channel(
     State(state): State<Shared>,
-    Path(kind): Path<String>,
+    session: auth::Session,
+    ApiPath(kind): ApiPath<String>,
     headers: HeaderMap,
     input: Result<Json<ChannelInput>, JsonRejection>,
 ) -> ApiResult<Json<Value>> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     let kind = Kind::from_id(&kind).ok_or(UNKNOWN)?;
     let Json(input) = input.map_err(|_| BAD_INPUT)?;
@@ -1089,10 +1089,10 @@ pub(crate) async fn put_channel(
 /// DELETE /alerts/channels/{kind}: switch off and forget settings and secrets.
 pub(crate) async fn delete_channel(
     State(state): State<Shared>,
-    Path(kind): Path<String>,
+    session: auth::Session,
+    ApiPath(kind): ApiPath<String>,
     headers: HeaderMap,
 ) -> ApiResult<StatusCode> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     let kind = Kind::from_id(&kind).ok_or(UNKNOWN)?;
     state.notifier.remove(&state.pool, kind).await?;
@@ -1110,17 +1110,22 @@ pub(crate) async fn delete_channel(
 /// switched off). 200 `{"ok": true}`, or 502 with the reason in `error`.
 pub(crate) async fn test_channel(
     State(state): State<Shared>,
-    Path(kind): Path<String>,
+    session: auth::Session,
+    ApiPath(kind): ApiPath<String>,
     headers: HeaderMap,
 ) -> Response {
-    test(&state, &kind, &headers)
+    test(&state, &session, &kind, &headers)
         .await
         .unwrap_or_else(IntoResponse::into_response)
 }
 
-async fn test(state: &Shared, kind: &str, headers: &HeaderMap) -> ApiResult<Response> {
-    let session = auth::authenticate(state, headers).await?;
-    auth::require_csrf(state, headers, &session)?;
+async fn test(
+    state: &Shared,
+    session: &auth::Session,
+    kind: &str,
+    headers: &HeaderMap,
+) -> ApiResult<Response> {
+    auth::require_csrf(state, headers, session)?;
     let kind = Kind::from_id(kind).ok_or(UNKNOWN)?;
     let channels = state.notifier.channels(&state.pool).await?;
     let target = channels

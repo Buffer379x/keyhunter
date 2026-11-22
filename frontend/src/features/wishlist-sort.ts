@@ -12,11 +12,11 @@ export interface WishlistSort {
   key: SortKey;
   dir: SortDir;
 }
-export const sortKeys: SortKey[] = ['added', 'title', 'price', 'world', 'save', 'target', 'status'];
+const sortKeys: SortKey[] = ['added', 'title', 'price', 'world', 'save', 'target', 'status'];
 export const DEFAULT_SORT: WishlistSort = { key: 'added', dir: 'desc' };
 
 /** Direction of the first click on a header: the saving starts with the biggest one, everything else ascending. */
-export const firstDir = (key: SortKey): SortDir => (key === 'save' || key === 'added' ? 'desc' : 'asc');
+const firstDir = (key: SortKey): SortDir => (key === 'save' || key === 'added' ? 'desc' : 'asc');
 
 /** A click on a header: first click sorts in its natural direction, the second reverses it, the third goes back to "newest first". */
 export function nextSort(current: WishlistSort, key: SortKey): WishlistSort {

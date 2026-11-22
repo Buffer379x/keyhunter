@@ -2,7 +2,24 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, CART_CHANGED, HttpError } from '../api';
 import { notify } from '../notify';
 import type { WishlistItem } from '../api';
-import { Button, EmptyState, Icon, Help, IconButton, Inset, Label, Notice, PageHeading, Panel, PanelHead, Price, Reg, Seg, formatPrice } from '../components';
+import {
+  Button,
+  EmptyState,
+  Icon,
+  Help,
+  IconButton,
+  Inset,
+  Label,
+  Notice,
+  PageHeading,
+  Panel,
+  PanelHead,
+  Pill,
+  Price,
+  Reg,
+  Seg,
+  formatPrice,
+} from '../components';
 import { whenVisible } from '../poll';
 import { itemName } from './catalog-ui';
 import GameCover from './GameCover';
@@ -10,12 +27,14 @@ import { cartSums, entryShop } from './cart-model';
 import type { CartEntry, CartLine, CartScope } from './cart-model';
 import { shopNames } from './shop-names';
 import { regCode } from './WishlistRow';
-import '../styles/cart.css';
 
 /** Prices follow the saved shop checks: the cart reads them again this often while the tab is visible. */
 const REFRESH_MS = 60_000;
 const games = (n: number) => `${n} ${n === 1 ? 'Spiel' : 'Spiele'}`;
 const shopName = (id: string | null) => (id ? (shopNames[id] ?? id) : 'Shop unbekannt');
+/** Warning chip text of an offer that is not safely activatable in the target country (RESP-14). */
+const riskText = (risk: NonNullable<CartLine['risk']>, code: string) =>
+  risk === 'blocked' ? `In ${code} nicht aktivierbar` : risk === 'unknown' ? `Aktivierung in ${code} ungeklärt` : 'Anderer Kaufkontext';
 const time = (ms: number) => new Date(ms).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 
 interface Props {
@@ -24,6 +43,8 @@ interface Props {
   targetCountry: string;
   onOpen: (item: WishlistItem) => void;
   onOpenWishlist: () => void;
+  /** The number of entries for the navigation, after each read. */
+  onCountChange: (count: number) => void;
   onError: (error: unknown) => void;
 }
 
@@ -31,7 +52,7 @@ interface Props {
  * Warenkorb (0.8.0): wishes the owner plans to buy together, with the total without and with the estimated fees, split by
  * shop. Each wish is in it once; "Gekauft" or deleting the wish takes it out.
  */
-export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onError }: Props) {
+export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onCountChange, onError }: Props) {
   const [entries, setEntries] = useState<CartEntry[] | null>(null);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
   const [loadError, setLoadError] = useState('');
@@ -48,6 +69,7 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
         const cart = await api<CartEntry[]>('/cart', 'GET', undefined, undefined, controller.signal);
         if (controller.signal.aborted) return;
         setEntries(cart);
+        onCountChange(cart.length);
         setLoadedAt(Date.now());
         setLoadError('');
       } catch (e) {
@@ -65,7 +87,7 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
       controller.abort();
       cancel();
     };
-  }, [reload, onError]);
+  }, [reload, onCountChange, onError]);
 
   const change = useCallback(
     async (method: 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown) => {
@@ -211,6 +233,20 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
                                 {reg.name}
                               </span>
                             )}
+                            {line.base !== null && line.risk && (
+                              <span className="cart-risk">
+                                <Pill tone="warn" icon="alert">
+                                  {riskText(line.risk, code || 'Zielland')}
+                                </Pill>
+                                <Help label={`Hilfe zur Aktivierung für ${name}`}>
+                                  <span>
+                                    Dieses Angebot ist günstiger, aber KeyHunter kann nicht sicher sagen, dass der Key in {code || 'deinem Zielland'}{' '}
+                                    funktioniert (Aktivierung ungeklärt, gesperrt oder anderer Kaufkontext).
+                                  </span>
+                                  <span>Prüfe die Produktseite oder wechsle oben auf {code || 'Ziel'}, dann zählt nur ein sicher aktivierbarer Key.</span>
+                                </Help>
+                              </span>
+                            )}
                           </span>
                         </td>
                         <td className="c-key r">
@@ -290,6 +326,18 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
                 <dd className="mono">+{formatPrice(sums.fees)}</dd>
                 <dt className="cart-grand">Gesamt mit Gebühren</dt>
                 <dd className="cart-grand mono">{formatPrice(sums.total)}</dd>
+                {sums.risky && (
+                  <>
+                    <dt className="with-help cart-risky">
+                      davon nicht sicher in {code || 'Zielland'} aktivierbar
+                      <Help label="Hilfe zu unsicheren Keys">
+                        {games(sums.risky.count)} im Warenkorb zählen mit einem Angebot, dessen Aktivierung in {code || 'deinem Zielland'} nicht bestätigt ist.
+                        Die Summe oben enthält sie.
+                      </Help>
+                    </dt>
+                    <dd className="cart-risky mono">{formatPrice(sums.risky.total)}</dd>
+                  </>
+                )}
               </dl>
               {sums.extra && (
                 <dl className="cart-extra" aria-label="Mehrkosten">

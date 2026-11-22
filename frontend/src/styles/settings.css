@@ -147,15 +147,6 @@
 .settings-page .set-fee-input input {
   text-align: right;
 }
-.settings-page .set-add {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: end;
-  gap: 10px;
-}
-.settings-page .set-add .form-row {
-  flex: 1 1 240px;
-}
 
 /* Abrufstatus (viewFetch) */
 .settings-page .shop-body {
@@ -247,9 +238,6 @@
 }
 
 /* (0.6.5) Column order of the wishlist: one row per column with its place and "nach oben" / "nach unten". */
-.settings-page .col-order-hint {
-  margin: 0;
-}
 .settings-page .col-order {
   list-style: none;
   margin: 0;

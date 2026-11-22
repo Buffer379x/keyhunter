@@ -89,7 +89,7 @@ export function Kpi({
 }
 
 /** Up to the last 9 values as 2 px bars, 34 px high; the newest is orange. Decorative. */
-export function Ticks({ values, count = 9 }: { values: number[]; count?: number }) {
+function Ticks({ values, count = 9 }: { values: number[]; count?: number }) {
   const shown = values.slice(-count);
   const low = Math.min(...shown) * 0.9,
     high = Math.max(...shown);

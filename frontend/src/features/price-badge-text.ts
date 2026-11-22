@@ -1,5 +1,4 @@
 import type { PriceBadgeData } from '../api';
-import { Price } from '../components';
 import { dateTime } from './price-format';
 
 // Status vocabulary of the design (03 §6): a missing price is named by its cause.
@@ -18,25 +17,4 @@ export function badgeTitle(badge: PriceBadgeData | undefined, scopeLabel: string
   ]
     .filter(Boolean)
     .join(' · ');
-}
-
-/**
- * Permanent price of one item (edition list): the saved price with split cents, or the state as text. A missing price is
- * never drawn as a price. `title` carries scope, time of the query and whether the value is the last known one.
- */
-export default function PriceBadge({
-  badge,
-  className = '',
-  scopeLabel = 'Beobachteter Grundpreis',
-}: {
-  badge?: PriceBadgeData;
-  className?: string;
-  scopeLabel?: string;
-}) {
-  const hasPrice = !!badge && badge.state === 'price' && badge.cents !== null && badge.cents > 0;
-  return (
-    <span className={`price-badge ${className} ${hasPrice ? 'known' : 'unknown'} ${badge?.stale ? 'stale' : ''}`} title={badgeTitle(badge, scopeLabel)}>
-      {hasPrice ? <Price cents={badge!.cents} tone={badge!.stale ? 'stale' : 'default'} /> : badgeStateText(badge)}
-    </span>
-  );
 }

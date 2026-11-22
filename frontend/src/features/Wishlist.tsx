@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { AlertEvent, CatalogGame, FetchStatusResponse, PriceBadgeData, WishlistItem } from '../api';
-import { api, CART_CHANGED, FETCH_STATUS_CHANGED } from '../api';
+import type { AlertEvent, CatalogGame, PriceBadgeData, WishlistItem } from '../api';
+import { api, CART_CHANGED } from '../api';
+import { useFetchStatus } from '../fetch-status';
 import { Button, Chip, ConfirmDialog, EmptyState, Field, Help, Icon, Inset, Kpi, Notice, Panel, PanelHead, Seg, formatPrice } from '../components';
 import CatalogSearch from './CatalogSearch';
 import GameDetail, { isTab } from './GameDetail';
@@ -79,7 +80,6 @@ const SORT_KEY = 'keyhunter.wishlist.sort';
 const BASIS_KEY = 'keyhunter.wishlist.basis';
 /** Key-shops the list filter knows by name (IGDB is a catalog, not a shop). */
 const SHOP_NAMES = Object.fromEntries(Object.entries(shopNames).filter(([id]) => id !== 'igdb'));
-const FETCH_REFRESH_MS = 60_000;
 /**
  * History state of a game opened from the list: the number of history entries since the list (opening the game plus
  * every tab change). "Zur Wunschliste" goes back that many steps, so the list entry with its scroll position is reused.
@@ -138,7 +138,6 @@ export default function Wishlist({
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState('');
   /** Messages after an action are popups at the bottom right (0.9.1). */
-  const setMessage = notify;
   // The view (chip, search, page size, page) is kept when the owner leaves the list and comes back (0.9.1).
   const view = useListView<ChipFilter>('keyhunter.list.wishlist', CHIPS, 'alle');
   const chip = view.filter;
@@ -172,7 +171,8 @@ export default function Wishlist({
   const [badges, setBadges] = useState<Record<string, PriceBadgeData>>({});
   const [alerts, setAlerts] = useState<AlertRules>({});
   const [events, setEvents] = useState<AlertEvent[] | null>(null);
-  const [fetchStatus, setFetchStatus] = useState<FetchStatusResponse | null>(null);
+  // Request budget for the "Abrufe heute" tile, from the app's one fetch-status poller (shared with the sidebar card).
+  const { data: fetchStatus } = useFetchStatus();
   const [editionItems, setEditionItems] = useState<WishlistItem[]>([]);
   const [tab, setTab] = useState<TabId>(routeTab);
   const [editionError, setEditionError] = useState('');
@@ -297,32 +297,6 @@ export default function Wishlist({
       .catch(() => {});
     return () => controller.abort();
   }, []);
-  // Request budget for the "Abrufe heute" tile, refreshed like the sidebar card (at most every 60 s, never while hidden).
-  useEffect(() => {
-    const controller = new AbortController();
-    let cancel = () => {};
-    const load = () => {
-      api<FetchStatusResponse>('/status/fetch', 'GET', undefined, undefined, controller.signal)
-        .then(next => {
-          if (!controller.signal.aborted) setFetchStatus(next);
-        })
-        .catch(() => {})
-        .finally(() => {
-          if (!controller.signal.aborted) cancel = whenVisible(load, FETCH_REFRESH_MS);
-        });
-    };
-    load();
-    const reload = () => {
-      cancel();
-      load();
-    };
-    window.addEventListener(FETCH_STATUS_CHANGED, reload);
-    return () => {
-      controller.abort();
-      cancel();
-      window.removeEventListener(FETCH_STATUS_CHANGED, reload);
-    };
-  }, []);
   const closeSearch = useCallback(() => onAddOpen(false), [onAddOpen]);
 
   const load = useCallback(async () => {
@@ -397,7 +371,6 @@ export default function Wishlist({
     if (!showingDetail.current) listScroll.current = scroller()?.scrollTop ?? 0;
     returnFocus.current = showingDetail.current ? null : id;
     setSelectedId(id);
-    setMessage('');
     const url = new URL(window.location.href);
     url.hash = '';
     url.searchParams.delete('view');
@@ -452,7 +425,7 @@ export default function Wishlist({
     filterList('');
     setChip('alle');
     open(item.id);
-    setMessage(created ? `${itemName(item)} wurde vorgemerkt.` : 'Dieser Titel ist bereits auf deiner Wunschliste.');
+    notify(created ? `${itemName(item)} wurde vorgemerkt.` : 'Dieser Titel ist bereits auf deiner Wunschliste.');
   }
   async function remove() {
     if (!removeItem || removing) return;
@@ -470,7 +443,7 @@ export default function Wishlist({
         closeDetail();
       }
       focusListAfterRemove.current = true;
-      setMessage(`${itemName(removeItem)} wurde aus der Wunschliste entfernt.`);
+      notify(`${itemName(removeItem)} wurde aus der Wunschliste entfernt.`);
       setRemoveItem(null);
     } catch (e) {
       setRemoveError(e instanceof Error ? e.message : 'Entfernen fehlgeschlagen.');
@@ -485,13 +458,12 @@ export default function Wishlist({
     if (!selected || preview || carting) return;
     const inCart = !!selected.in_cart;
     setCarting(true);
-    setMessage('');
     try {
       if (inCart) await api(`/cart/${encodeURIComponent(selected.id)}`, 'DELETE', undefined, csrf);
       else await api('/cart', 'POST', { wish_id: selected.id }, csrf);
       setItems(current => current.map(item => (item.id === selected.id ? { ...item, in_cart: !inCart } : item)));
       window.dispatchEvent(new Event(CART_CHANGED));
-      setMessage(inCart ? `${itemName(selected)} ist nicht mehr im Warenkorb.` : `${itemName(selected)} liegt jetzt im Warenkorb.`);
+      notify(inCart ? `${itemName(selected)} ist nicht mehr im Warenkorb.` : `${itemName(selected)} liegt jetzt im Warenkorb.`);
     } catch (error) {
       onError(error);
     } finally {
@@ -503,7 +475,6 @@ export default function Wishlist({
   async function pauseWish(until: number | null | false) {
     if (!selected || preview || pausing) return;
     setPausing(true);
-    setMessage('');
     try {
       const next = await api<WishlistItem>(
         `/wishlist/${encodeURIComponent(selected.id)}/pause`,
@@ -512,7 +483,7 @@ export default function Wishlist({
         csrf,
       );
       setItems(current => current.map(item => (item.id === selected.id ? { ...item, paused: next.paused, paused_until: next.paused_until } : item)));
-      setMessage(until === false ? `Die Abfragen für ${itemName(selected)} laufen wieder.` : `${itemName(selected)}: ${pauseText(next)}.`);
+      notify(until === false ? `Die Abfragen für ${itemName(selected)} laufen wieder.` : `${itemName(selected)}: ${pauseText(next)}.`);
     } catch (error) {
       onError(error);
     } finally {
@@ -523,16 +494,13 @@ export default function Wishlist({
   async function cartOffer(source: string, scope: 'home' | 'world') {
     if (!selected || preview || carting) return;
     setCarting(true);
-    setMessage('');
     try {
       if (selected.in_cart) await api(`/cart/${encodeURIComponent(selected.id)}`, 'PUT', { source, scope }, csrf);
       else await api('/cart', 'POST', { wish_id: selected.id, source, scope }, csrf);
       setItems(current => current.map(item => (item.id === selected.id ? { ...item, in_cart: true } : item)));
       window.dispatchEvent(new Event(CART_CHANGED));
       const shop = shopNames[source] ?? source;
-      setMessage(
-        `${itemName(selected)} liegt im Warenkorb: ${shop}, ${scope === 'home' ? `Preis ${targetCountry?.toUpperCase() || 'Zielland'}` : 'Preis INT'}.`,
-      );
+      notify(`${itemName(selected)} liegt im Warenkorb: ${shop}, ${scope === 'home' ? `Preis ${targetCountry?.toUpperCase() || 'Zielland'}` : 'Preis INT'}.`);
     } catch (error) {
       onError(error);
     } finally {
@@ -542,7 +510,6 @@ export default function Wishlist({
   async function purchase() {
     if (!selected || preview || purchasing) return;
     setPurchasing(true);
-    setMessage('');
     try {
       await api(`/wishlist/${selected.id}/purchase`, 'POST', {}, csrf);
       ++loadGeneration.current;
@@ -553,7 +520,7 @@ export default function Wishlist({
       if (selected.in_cart) window.dispatchEvent(new Event(CART_CHANGED));
       returnFocus.current = null;
       closeDetail();
-      setMessage(`${itemName(selected)} wurde in die Bibliothek verschoben.`);
+      notify(`${itemName(selected)} wurde in die Bibliothek verschoben.`);
       requestAnimationFrame(() => listHeading.current?.focus({ preventScroll: true }));
     } catch (error) {
       onError(error);
@@ -698,7 +665,6 @@ export default function Wishlist({
           offersColumns={offersColumns}
           offersHidden={offersHidden}
           onTab={changeTab}
-          onBack={closeDetail}
           onPurchase={() => void purchase()}
           onRemove={() => {
             setRemoveError('');

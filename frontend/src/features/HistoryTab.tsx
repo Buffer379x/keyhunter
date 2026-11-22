@@ -25,8 +25,8 @@ export default function HistoryTab({
   target: number | null;
 }) {
   const now = Date.now() / 1000;
-  const preferred = view.histories?.preferred ?? view.history ?? [];
-  const all = view.histories?.all ?? [];
+  const preferred = view.histories.preferred;
+  const all = view.histories.all;
   const [chosen, setChosen] = useState<Range | null>(null);
   const days = chosen ?? defaultRange([...preferred, ...all], now);
   const home = dailyStats(preferred, days, now),
@@ -85,7 +85,8 @@ export default function HistoryTab({
                 <Legend code={land} target={target} targetLabel={target !== null ? `Ziel ${money(target)}` : undefined} />
                 {gaps && (
                   <Help label="Hilfe zu leeren Spalten">
-                    Leere Spalten: an diesen Tagen gab es keine gültige Messung. Ein Messwert gilt bis zur nächsten Abfrage, höchstens 24 Stunden.
+                    Leere Spalten: an diesen Tagen gab es keine gültige Messung. Ein Messwert gilt bis zur nächsten Abfrage, höchstens doppelt so lange wie sein
+                    Abfrageintervall und mindestens 24 Stunden.
                   </Help>
                 )}
               </div>

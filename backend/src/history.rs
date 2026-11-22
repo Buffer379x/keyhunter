@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 pub(crate) struct Sample {
     pub link_id: i64,
     pub observed_at: i64,
+    /// How long the observation counts ([`crate::offers::Link::fresh_for`] of its link).
+    pub fresh_for: i64,
     pub base_cents: Option<i64>,
     pub availability: String,
     pub region: Option<String>,
@@ -16,6 +18,8 @@ pub(crate) struct Point {
     pub link_id: Option<i64>,
     pub region: Option<String>,
     pub source: Option<String>,
+    /// End of the validity of the winning observation (FUNC-05: its link's freshness limit); `None` without a price.
+    pub fresh_until: Option<i64>,
 }
 pub(crate) fn minimum_series(samples: &[Sample]) -> Vec<Point> {
     use std::collections::{BTreeMap, BTreeSet};
@@ -25,7 +29,7 @@ pub(crate) fn minimum_series(samples: &[Sample]) -> Vec<Point> {
     let mut events: BTreeMap<i64, Vec<&Sample>> = BTreeMap::new();
     for sample in samples {
         events.entry(sample.observed_at).or_default().push(sample);
-        let expires = sample.observed_at.saturating_add(crate::pricing::FRESH);
+        let expires = sample.observed_at.saturating_add(sample.fresh_for);
         if expires <= end {
             events.entry(expires).or_default();
         }
@@ -33,7 +37,7 @@ pub(crate) fn minimum_series(samples: &[Sample]) -> Vec<Point> {
     let mut current: BTreeMap<i64, &Sample> = BTreeMap::new();
     let mut output = Vec::new();
     for (time, updates) in events {
-        current.retain(|_, s| s.observed_at.saturating_add(crate::pricing::FRESH) > time);
+        current.retain(|_, s| s.observed_at.saturating_add(s.fresh_for) > time);
         let updated: BTreeSet<_> = updates.iter().map(|s| s.link_id).collect();
         for sample in updates {
             current.remove(&sample.link_id);
@@ -50,6 +54,7 @@ pub(crate) fn minimum_series(samples: &[Sample]) -> Vec<Point> {
             link_id: best.map(|s| s.link_id),
             region: best.and_then(|s| s.region.clone()),
             source: best.map(|s| s.source.clone()),
+            fresh_until: best.map(|s| s.observed_at.saturating_add(s.fresh_for)),
         };
         if !updated.is_empty()
             || output.last().is_some_and(|p: &Point| {
@@ -69,6 +74,7 @@ mod tests {
         Sample {
             link_id: id,
             observed_at: time,
+            fresh_for: crate::pricing::FRESH,
             base_cents: cents,
             region: Some(region.into()),
             source: "eneba".into(),
@@ -114,5 +120,23 @@ mod tests {
         );
         assert_eq!(points.last().unwrap().base_cents, Some(1200));
         assert!(minimum_series(&[]).is_empty());
+    }
+    /// FUNC-05: a price holds for its link's freshness limit, not a fixed day.
+    #[test]
+    fn a_price_holds_as_long_as_its_link_counts_it_current_func05() {
+        let mut weekly = sample(1, 100, Some(900), "Global");
+        weekly.fresh_for = 14 * 86400;
+        let points = minimum_series(&[weekly, sample(2, 3 * 86400, Some(1000), "Europe")]);
+        assert_eq!(
+            points
+                .iter()
+                .map(|p| (p.observed_at, p.base_cents, p.fresh_until))
+                .collect::<Vec<_>>(),
+            [
+                (100, Some(900), Some(100 + 14 * 86400)),
+                (3 * 86400, Some(900), Some(100 + 14 * 86400))
+            ],
+            "three days later the weekly price still wins"
+        );
     }
 }

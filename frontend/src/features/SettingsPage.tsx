@@ -7,12 +7,11 @@ import Index from './settings/Index';
 import Notifications from './settings/Notifications';
 import FetchPanel from './settings/FetchPanel';
 import System from './settings/System';
-import { useFetchStatus } from './settings/data';
+import { useFetchStatus } from '../fetch-status';
 import type { SettingsDraft } from './settings/draft';
 import Log from './settings/Log';
 import { sections } from './settings/sections';
 import type { Section } from './settings/sections';
-import '../styles/settings.css';
 
 const OPERATIONS_GUIDE = 'https://github.com/Buffer379x/keyhunter/blob/main/docs/operations.md';
 /** The HTTPS notice, once closed, stays closed in this browser (0.9.0). */

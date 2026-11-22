@@ -7,25 +7,24 @@ export interface SourceSettings {
   configured: boolean;
   poll_interval_seconds: number;
   /**
-   * Most fetches per day for this shop (effective value, 20 to 2000; null for IGDB, absent before 0.6.1).
+   * Most fetches per day for this shop (effective value, 20 to 2000; null for IGDB).
    * PUT replaces it: null clears the setting, so the default applies again.
    */
-  daily_jobs?: number | null;
+  daily_jobs: number | null;
   /** The default of `daily_jobs` (environment variable or 500), shown as placeholder; null for IGDB. */
-  daily_jobs_default?: number | null;
+  daily_jobs_default: number | null;
 }
 export interface Settings {
   target_country: string | null;
   currency: string;
-  wishlist_price_scope: 'preferred' | 'all';
   /** Order of the wishlist table columns (keys of `WISHLIST_COLUMNS`); the server returns a complete order. */
   wishlist_columns?: string[];
   /** Hidden wishlist columns and what opens the game page ("button", "title", "cover"), 0.7.1. */
   wishlist_hidden?: string[];
   wishlist_open?: string;
-  /** Order and hidden columns of the offers table on the game page (0.8.2); absent from older servers. */
-  offers_columns?: string[];
-  offers_hidden?: string[];
+  /** Order and hidden columns of the offers table on the game page (0.8.2). */
+  offers_columns: string[];
+  offers_hidden: string[];
   sources: SourceSettings[];
   countries: string[];
   confirmed_activation_countries?: string[];
@@ -71,9 +70,9 @@ export interface PriceBadgeData {
   world?: WorldBest | null;
   /**
    * Best price valid in the target country at the end of each of the last 14 UTC days (cents, oldest → newest, today = now);
-   * null for a day without a valid price. Comes with 0.6.1; optional so older servers keep working.
+   * null for a day without a valid price.
    */
-  trend?: (number | null)[];
+  trend: (number | null)[];
   /** Shop and region of the target-country price, when the server reports them . */
   source?: string | null;
   region?: string | null;
@@ -90,6 +89,10 @@ export interface WorldBest {
   observed_at: number | null;
   base_cents?: number;
   estimate_cents?: number | null;
+  /** The region can be bought for the target country: activation confirmed there and the same market (0.9.3, RESP-14). */
+  fits_target?: boolean;
+  /** Activation of the offer in the target country. */
+  activation?: 'confirmed' | 'blocked' | 'unknown';
 }
 export interface FeeView {
   cents: number | null;
@@ -111,8 +114,8 @@ export interface WishlistItem {
   verification: 'catalog' | 'needs_review' | 'manual_unverified';
   game: CatalogGame | null;
   manual_title: string | null;
-  /** In the shopping cart (0.8.0); absent from older servers. */
-  in_cart?: boolean;
+  /** In the shopping cart (0.8.0). */
+  in_cart: boolean;
   /** Paused on its own (0.9.0): no automatic checks until `paused_until` (null: until resumed by hand). */
   paused?: boolean;
   paused_until?: number | null;

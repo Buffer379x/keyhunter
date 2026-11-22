@@ -322,17 +322,6 @@
   gap: 8px;
   flex-wrap: wrap;
 }
-.grid-2 {
-  display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
-}
-.stack {
-  display: grid;
-  gap: 16px;
-  min-width: 0;
-}
 
 /* Header search (src/features/CatalogSearch.tsx, inline mode) */
 .search {

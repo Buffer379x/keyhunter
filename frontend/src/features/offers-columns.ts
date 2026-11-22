@@ -2,8 +2,11 @@
  * Columns of the offers table on the game page (tab Angebote, 0.8.2): order and visibility come from the settings
  * (`offers_columns`, `offers_hidden`), like the wishlist columns. The actions (cart, "Zum Shop") always stay last.
  */
+/** The key `score` stays (0.9.3 shows it as "Prüftempo"), so stored column choices keep working. */
 export const OFFERS_COLUMNS = ['shop', 'region', 'validity', 'price', 'diff', 'score', 'seen'] as const;
 export type OffersColumn = (typeof OFFERS_COLUMNS)[number];
+/** Hidden until the owner turns it on (SCORE-03 / RESP-19); the backend's default and "Standard wiederherstellen" use the same list. */
+export const OFFERS_DEFAULT_HIDDEN: readonly OffersColumn[] = ['score'];
 /** Without the price the table has no purpose: it is always shown. */
 export const OFFERS_REQUIRED: OffersColumn = 'price';
 
@@ -16,7 +19,7 @@ export const offersColumnName = (column: OffersColumn, code: string) =>
       validity: 'Gültigkeit',
       price: 'Preis',
       diff: `vs. ${code || 'Zielland'}`,
-      score: 'Score',
+      score: 'Prüftempo',
       seen: 'Gesehen',
     }) as Record<OffersColumn, string>
   )[column];
@@ -31,9 +34,3 @@ export function offersOrder(stored: readonly string[] | null | undefined): Offer
 /** Columns the table shows, in order: not hidden, the price always. */
 export const visibleOffersColumns = (order: OffersColumn[], hidden: readonly string[] | null | undefined) =>
   order.filter(column => column === OFFERS_REQUIRED || !hidden?.includes(column));
-
-/**
- * Half of the colour scale a score (0 to 100) lies on: the CSS mixes red into yellow up to 50 ("lo") and yellow into green
- * from 50 ("hi"), so every score has its own colour between red (0) and green (100).
- */
-export const scoreTone = (score: number) => (score < 50 ? 'lo' : 'hi');

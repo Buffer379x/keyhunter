@@ -40,6 +40,13 @@ Scratch-Kopie des Backends; das Repository wird nicht verändert):
 sh docs/release-1.0-audit/evidence/scoring/xval/run_xval.sh <scratch-ordner>
 ```
 
+## Nachtrag 1.0 (Phase B)
+
+`sim/khsim.py` enthält seit 1.0 die Backoff-Regel für tote Links (FUNC-13/SCORE-06, `jobs::dead_link`): Nach fünf
+„nicht gefunden“ bzw. „nicht lesbar“ in Folge wartet ein Produktlink das Vierfache seines Intervalls, bis ein Abruf
+gelingt. `xval/results/errors.rust.jsonl` stammt aus dem Code mit dieser Regel; alle drei Szenarien sind damit wieder
+IDENTICAL. Die übrigen Ergebnisse unter `results/` sind der Stand des Audits (0.9.1).
+
 ## Determinismus
 
 Alle Zufallswerte stammen aus `random.Random(seed)`. Zwei Läufe mit gleichem Seed erzeugen ein identisches Abruf-Log

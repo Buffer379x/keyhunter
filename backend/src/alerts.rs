@@ -1,3 +1,5 @@
+use crate::DAY;
+use crate::extract::{ApiJson, ApiPath};
 use crate::{
     ApiError, ApiResult, Shared, auth,
     eventlog::{self, Area, Level},
@@ -7,7 +9,7 @@ use crate::{
 };
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::State,
     http::{HeaderMap, StatusCode},
 };
 use serde::{Deserialize, Serialize};
@@ -15,7 +17,6 @@ use serde_json::{Value, json};
 use sqlx::{FromRow, SqliteConnection, SqlitePool};
 use std::{sync::Arc, time::Duration};
 
-const DAY: i64 = 86400;
 const COOLDOWN: i64 = DAY;
 /// Deliveries of one alert per channel before it counts as failed.
 const ATTEMPTS: i64 = 3;
@@ -52,10 +53,9 @@ async fn rule(conn: &mut SqliteConnection, id: &str) -> sqlx::Result<Option<Stor
 
 pub(crate) async fn get_rule(
     State(state): State<Shared>,
-    Path(id): Path<String>,
-    headers: HeaderMap,
+    _: auth::Session,
+    ApiPath(id): ApiPath<String>,
 ) -> ApiResult<Json<Value>> {
-    auth::authenticate(&state, &headers).await?;
     offers::wish(&state.pool, &id).await?;
     let mut conn = state.pool.acquire().await?;
     let current = rule(&mut conn, &id).await?.map(|r| Rule {
@@ -72,11 +72,11 @@ pub(crate) async fn get_rule(
 
 pub(crate) async fn put_rule(
     State(state): State<Shared>,
-    Path(id): Path<String>,
+    session: auth::Session,
+    ApiPath(id): ApiPath<String>,
     headers: HeaderMap,
-    Json(input): Json<Rule>,
+    ApiJson(input): ApiJson<Rule>,
 ) -> ApiResult<StatusCode> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     crate::wishlist::require_unowned(&state.pool, &id).await?;
     offers::wish(&state.pool, &id).await?;
@@ -130,10 +130,10 @@ pub(crate) async fn put_rule(
 
 pub(crate) async fn remove_rule(
     State(state): State<Shared>,
-    Path(id): Path<String>,
+    session: auth::Session,
+    ApiPath(id): ApiPath<String>,
     headers: HeaderMap,
 ) -> ApiResult<StatusCode> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     let removed = sqlx::query("DELETE FROM alert_rule WHERE wish_id=?")
         .bind(&id)
@@ -187,11 +187,7 @@ struct DeliveryView {
     attempts: i64,
     error: Option<String>,
 }
-pub(crate) async fn list(
-    State(state): State<Shared>,
-    headers: HeaderMap,
-) -> ApiResult<Json<Value>> {
-    auth::authenticate(&state, &headers).await?;
+pub(crate) async fn list(State(state): State<Shared>, _: auth::Session) -> ApiResult<Json<Value>> {
     let rules: Vec<RuleView> = sqlx::query_as("SELECT r.*, COALESCE(g.manual_title,json_extract(c.payload,'$.name')) AS title,
         (SELECT state FROM alert_outbox o WHERE o.wish_id=r.wish_id ORDER BY o.id DESC LIMIT 1) AS delivery
         FROM alert_rule r JOIN wishlist_item w ON w.id=r.wish_id JOIN game g ON g.id=w.game_id
@@ -226,9 +222,9 @@ pub(crate) async fn list(
 /// alert (outbox, one delivery per channel) and shows up in "Letzte Zustellungen".
 pub(crate) async fn test_message(
     State(state): State<Shared>,
+    session: auth::Session,
     headers: HeaderMap,
 ) -> ApiResult<StatusCode> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     if state.notifier.active(&state.pool).await?.is_empty() {
         return Err(ApiError(
@@ -269,6 +265,8 @@ struct Best {
     shop: String,
     region: Option<String>,
     url: String,
+    /// Freshness limit of the offer's link ([`crate::pricing::fresh_for`]).
+    fresh_for: i64,
 }
 struct Check {
     scope: String,
@@ -320,6 +318,7 @@ async fn check(
                         .map_or_else(|| link.source.clone(), |shop| shop.name().into()),
                     region: product.region.clone(),
                     url: link.url().to_owned(),
+                    fresh_for: link.fresh_for(),
                 });
             }
         }
@@ -481,11 +480,9 @@ async fn deliver_one(pool: &SqlitePool, notifier: &Notifier) -> anyhow::Result<(
         if let Some(rule) = rule(&mut conn, id).await?.filter(|r| r.enabled) {
             let current = check(&mut conn, id, &rule, None, t).await?;
             row.scope.as_deref() == Some(&current.scope)
-                && current
-                    .best
-                    .zip(row.cents)
-                    .is_some_and(|(best, recorded)| best.cents <= recorded)
-                && t - row.observed_at <= crate::pricing::FRESH
+                && current.best.zip(row.cents).is_some_and(|(best, recorded)| {
+                    best.cents <= recorded && t - row.observed_at <= best.fresh_for
+                })
         } else {
             false
         }

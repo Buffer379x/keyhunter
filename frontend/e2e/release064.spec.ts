@@ -2,9 +2,10 @@ import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { signInToFixture } from './helpers';
 import { openTab, removeCurrent } from './detail-helpers';
+import { withState } from './offer-state';
 
 const now = () => Math.floor(Date.now() / 1000);
-const link = (id: number, region: string, cents: number, extra: object = {}) => ({
+const rawLink = (id: number, region: string, cents: number, extra: object = {}) => ({
   id,
   source: 'eneba',
   url: `https://www.eneba.com/de/xbox-forza-horizon-5-${region.toLowerCase()}-key`,
@@ -23,11 +24,12 @@ const link = (id: number, region: string, cents: number, extra: object = {}) => 
   quotes: [{ id: String(id), seller: null, base_cents: cents, estimated_total_cents: null }],
   ...extra,
 });
+const link = (...args: Parameters<typeof rawLink>) => withState(rawLink(...args));
 const view = (links: object[]) => ({
   links,
   histories: { preferred: [], all: [] },
-  history: [],
   best_base: 2890,
+  offer_count: links.length,
   best_estimate: null,
   target_country: 'DE',
   searches: [],
@@ -112,6 +114,50 @@ test('an automatically found product that does not match can be checked in a pop
   expect(bodies).toEqual([{ decision: 'confirmed', manual: true }]);
   await expect(match).toContainText('Von dir bestätigt');
   await expect(match.getByRole('link', { name: /Produktseite/ })).toHaveAttribute('title', found.url);
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
+  await removeCurrent(page);
+});
+
+test('an account offer cannot be confirmed by hand and a possible namesake names the release year (FUNC-04, FUNC-01)', async ({ page }) => {
+  await openForza(page);
+  const account = link(8, 'Global', 300, {
+    review: 'pending',
+    can_confirm: false,
+    manual_allowed: false,
+    mismatch: ['key_type'],
+    eligible: false,
+    reasons: [],
+    product: { name: 'Forza Horizon 5 Xbox Live Account', region: 'Global', market: 'DE', activation: 'confirmed', availability: 'in_stock' },
+  });
+  const namesake = link(9, 'Europe', 2490, {
+    review: 'pending',
+    can_confirm: false,
+    manual_allowed: true,
+    mismatch: ['year'],
+    eligible: false,
+    reasons: [],
+    product: { name: 'Forza Horizon 5 Xbox One Key EUROPE', region: 'Europe', market: 'DE', activation: 'confirmed', availability: 'in_stock' },
+  });
+  const bodies: unknown[] = [];
+  await page.route('**/api/v1/wishlist/*/offers', route =>
+    route.request().method() === 'GET' ? route.fulfill({ json: view([account, namesake]) }) : route.continue(),
+  );
+  await page.route('**/api/v1/wishlist/*/offers/*', async route => {
+    bodies.push(route.request().postDataJSON());
+    await route.fulfill({ status: 204, body: '' });
+  });
+  await page.reload();
+  await openTab(page, 'Infos');
+  const dialog = page.getByRole('dialog', { name: 'Zuordnung prüfen', exact: true });
+  await page.locator('.match').filter({ hasText: 'Account' }).getByRole('button', { name: 'Prüfen', exact: true }).click();
+  await expect(dialog.getByRole('note')).toContainText('kein Aktivierungscode');
+  await expect(dialog.getByRole('note')).toContainText('zählen nie als Key-Preis');
+  await expect(dialog.getByRole('button', { name: 'Zuordnung bestätigen', exact: true })).toBeDisabled();
+  await dialog.getByRole('button', { name: 'Abbrechen', exact: true }).click();
+  await page.locator('.match').filter({ hasText: 'Xbox One Key' }).getByRole('button', { name: 'Prüfen', exact: true }).click();
+  await expect(dialog.getByRole('note')).toContainText('gleichnamigen Spiel aus einem anderen Erscheinungsjahr');
+  await dialog.getByRole('button', { name: 'Zuordnung bestätigen', exact: true }).click();
+  expect(bodies).toEqual([{ decision: 'confirmed', manual: true }]);
   await page.unrouteAll({ behavior: 'ignoreErrors' });
   await removeCurrent(page);
 });

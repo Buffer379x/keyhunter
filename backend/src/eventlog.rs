@@ -7,7 +7,7 @@ use crate::{ApiError, ApiResult, Shared, auth, now, shops::Shop};
 use axum::{
     Json,
     extract::{Query, State, rejection::QueryRejection},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -213,10 +213,9 @@ const FILTER: &str = r"FROM event_log WHERE (?1 IS NULL OR level=?1)
 /// GET /api/v1/log?level=&q=&page=&per_page=: entries, newest first, and the number after filtering.
 pub(crate) async fn list(
     State(state): State<Shared>,
-    headers: HeaderMap,
+    _: auth::Session,
     query: Result<Query<LogQuery>, QueryRejection>,
 ) -> ApiResult<Json<Value>> {
-    auth::authenticate(&state, &headers).await?;
     let Query(query) = query.map_err(|_| BAD_FILTER)?;
     let level = choice(query.level.as_deref(), &["info", "warn", "error"])?;
     let pattern = pattern(query.q.as_deref())?;

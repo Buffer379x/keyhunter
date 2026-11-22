@@ -46,6 +46,14 @@ export default function App() {
   const [alertCount, setAlertCount] = useState<number | null>(null);
   const [cartCount, setCartCount] = useState<number | null>(null);
   const [cartRevision, setCartRevision] = useState(0);
+  // A change of the wishlist size (add, remove, purchase) also changes the other counts; its first report does not.
+  const [wishlistSize, setWishlistSize] = useState(0);
+  const knownWishlist = useRef(wishlistCount);
+  knownWishlist.current = wishlistCount;
+  const reportWishlistCount = useCallback((count: number) => {
+    if (knownWishlist.current !== null && knownWishlist.current !== count) setWishlistSize(n => n + 1);
+    setWishlistCount(count);
+  }, []);
   const drawer = useMediaQuery(mediaQuery.drawer);
   const [sourceStatus, setSourceStatus] = useState<SourceStatuses | null>(null);
   const [busy, setBusy] = useState(false);
@@ -277,28 +285,8 @@ export default function App() {
     if (!drawer) setNavOpen(false);
   }, [drawer]);
   const openSettings = useCallback((next: Section = 'general') => navigate('settings', next), [navigate]);
-  // Counts in the navigation: one cheap read after sign-in and whenever the wishlist or the page changes.
-  useEffect(() => {
-    if (screen !== 'ready' || page === 'library') return;
-    const controller = new AbortController();
-    api<unknown[]>('/library', 'GET', undefined, undefined, controller.signal)
-      .then(rows => {
-        if (!controller.signal.aborted) setLibraryCount(rows.length);
-      })
-      .catch(() => {});
-    return () => controller.abort();
-  }, [screen, page, wishlistCount]);
-  useEffect(() => {
-    if (screen !== 'ready') return;
-    const controller = new AbortController();
-    api<{ rules: { enabled: boolean }[] }>('/alerts', 'GET', undefined, undefined, controller.signal)
-      .then(data => {
-        if (!controller.signal.aborted) setAlertCount(data.rules.filter(rule => rule.enabled).length);
-      })
-      .catch(() => {});
-    return () => controller.abort();
-  }, [screen, page, wishlistCount]);
-  // The cart count (0.8.0): after sign-in, on every page change and whenever the cart changes.
+  // Counts in the navigation (CODE-08): one small read after sign-in, on every page change and whenever the wishlist
+  // or the cart changes. The open list page reports its own count, so a read in flight never overwrites it.
   useEffect(() => {
     const changed = () => setCartRevision(n => n + 1);
     window.addEventListener(CART_CHANGED, changed);
@@ -307,24 +295,17 @@ export default function App() {
   useEffect(() => {
     if (screen !== 'ready') return;
     const controller = new AbortController();
-    api<unknown[]>('/cart', 'GET', undefined, undefined, controller.signal)
-      .then(rows => {
-        if (!controller.signal.aborted) setCartCount(rows.length);
+    api<{ wishlist: number; cart: number; library: number; alerts: number }>('/counts', 'GET', undefined, undefined, controller.signal)
+      .then(counts => {
+        if (controller.signal.aborted) return;
+        if (page !== 'wishlist') setWishlistCount(counts.wishlist);
+        if (page !== 'cart') setCartCount(counts.cart);
+        if (page !== 'library') setLibraryCount(counts.library);
+        setAlertCount(counts.alerts);
       })
       .catch(() => {});
     return () => controller.abort();
-  }, [screen, page, wishlistCount, cartRevision]);
-  // Opened directly on another page (reload, link): read the wishlist size once for the navigation.
-  useEffect(() => {
-    if (screen !== 'ready' || page === 'wishlist' || wishlistCount !== null) return;
-    const controller = new AbortController();
-    api<unknown[]>('/wishlist', 'GET', undefined, undefined, controller.signal)
-      .then(rows => {
-        if (!controller.signal.aborted) setWishlistCount(rows.length);
-      })
-      .catch(() => {});
-    return () => controller.abort();
-  }, [screen, page, wishlistCount]);
+  }, [screen, page, wishlistSize, cartRevision]);
 
   const countryNames = useMemo(() => new Intl.DisplayNames(['de'], { type: 'region' }), []);
   const countries = useMemo(
@@ -477,7 +458,7 @@ export default function App() {
               onAddOpen={setAddOpen}
               onTitle={setGameTitle}
               onSettings={() => openSettings()}
-              onCountChange={setWishlistCount}
+              onCountChange={reportWishlistCount}
               onError={handleProtectedError}
             />
           ) : page === 'library' ? (
@@ -496,6 +477,7 @@ export default function App() {
               targetCountry={savedCountry ?? ''}
               onOpen={selectSearchResult}
               onOpenWishlist={() => navigate('wishlist')}
+              onCountChange={setCartCount}
               onError={handleProtectedError}
             />
           ) : page === 'alerts' ? (

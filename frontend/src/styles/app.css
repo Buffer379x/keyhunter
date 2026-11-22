@@ -1,14 +1,4 @@
 /* Shared form rows, notices, dialogs and the skip link (the sign-in screen is in pages.css). Primitives live in ui.css, the shell in shell.css. Tokens only. */
-.form-row > label,
-.field-label {
-  font-size: var(--t-xs);
-  color: var(--text-2);
-}
-.field-help {
-  color: var(--muted);
-  font-size: var(--t-xs);
-  line-height: 1.4;
-}
 .notice {
   padding: 10px 14px;
   border: 1px solid var(--line-2);
@@ -27,15 +17,6 @@
 .notice .btn {
   margin-inline-start: 8px;
 }
-.card-footnote {
-  color: var(--muted);
-  font-size: var(--t-xs);
-  margin-top: 12px;
-}
-.source-link {
-  color: var(--accent-2);
-  text-underline-offset: 0.2em;
-}
 .text-button {
   color: var(--accent-2);
   background: transparent;
@@ -44,16 +25,6 @@
   min-height: var(--h-btn);
   text-decoration: underline;
   text-underline-offset: 0.2em;
-}
-.status-dot {
-  width: 6px;
-  height: 6px;
-  flex: 0 0 6px;
-  border-radius: 50%;
-  background: var(--ok);
-}
-.status-dot.searching {
-  background: var(--warn);
 }
 
 /* Dialogs (ConfirmDialog, InfoDialog, the add dialog): a floating panel like the search popover */

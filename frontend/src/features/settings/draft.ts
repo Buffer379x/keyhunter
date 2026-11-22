@@ -3,7 +3,7 @@ import { api, HttpError } from '../../api';
 import type { Settings } from '../../api';
 import { formatFeePercent, parseFeePercent } from '../../fees';
 
-export type SaveState = 'clean' | 'dirty' | 'saving' | 'error';
+type SaveState = 'clean' | 'dirty' | 'saving' | 'error';
 const shopLabels: Record<string, string> = { eneba: 'Eneba', driffle: 'Driffle' };
 const feeError = (id: string) => `${shopLabels[id] ?? id}: Gebühren bitte als Zahl von 0 bis 100 mit höchstens zwei Nachkommastellen eingeben.`;
 const feeDrafts = (data: Settings) => Object.fromEntries(data.sources.map(source => [source.id, formatFeePercent(source.fee_basis_points)]));

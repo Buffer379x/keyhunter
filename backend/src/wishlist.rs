@@ -1,3 +1,4 @@
+use crate::extract::{ApiJson, ApiPath};
 use crate::{
     ApiError, ApiResult, Shared, auth,
     catalog::{self, provider::CatalogGame},
@@ -6,7 +7,7 @@ use crate::{
 };
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::State,
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
@@ -27,15 +28,17 @@ pub(crate) struct WishlistItem {
     /// Paused on its own (0.9.0): no automatic checks until `paused_until` (null: until resumed).
     paused: bool,
     paused_until: Option<i64>,
-    /// Offers of the confirmed products of active shops, one per seller price (0.9.1, the count of the tab Angebote).
-    offer_count: i64,
+    /// Offers of the confirmed products of active shops, one per valid seller price (0.9.1, the count of the tab
+    /// Angebote; one rule since 0.9.3, [`crate::offers::Link::offer_count`], FUNC-11). Only with the price badge.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    offer_count: Option<i64>,
     /// Mappings waiting for the owner (0.9.1): products not yet confirmed or rejected, and confirmed ones the shop renamed.
     review_count: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) price_badge: Option<crate::price_badges::PriceBadge>,
 }
 macro_rules! items_sql {
-    ($suffix:literal) => { concat!("SELECT w.id, w.game_id, w.platform_id, w.created_at, g.manual_title, c.payload, EXISTS(SELECT 1 FROM cart_item k WHERE k.wish_id = w.id) AS in_cart, w.paused_at IS NOT NULL AND (w.paused_until IS NULL OR w.paused_until > CAST(strftime('%s','now') AS INTEGER)) AS paused, w.paused_until, (SELECT COALESCE(SUM(json_array_length(l.latest, '$.offers')), 0) FROM offer_link l JOIN source_settings s ON s.id = l.source WHERE l.wish_id = w.id AND l.review = 'confirmed' AND s.enabled AND s.configured AND l.latest IS NOT NULL) AS offer_count, (SELECT COUNT(*) FROM offer_link l JOIN source_settings s ON s.id = l.source WHERE l.wish_id = w.id AND s.enabled AND s.configured AND (l.review = 'pending' OR (l.review = 'confirmed' AND l.confirmed_name IS NOT NULL AND l.confirmed_name != json_extract(l.latest, '$.name')))) AS review_count FROM wishlist_item w JOIN game g ON g.id = w.game_id LEFT JOIN catalog_game c ON c.igdb_id = g.igdb_id", $suffix) };
+    ($suffix:literal) => { concat!("SELECT w.id, w.game_id, w.platform_id, w.created_at, g.manual_title, c.payload, EXISTS(SELECT 1 FROM cart_item k WHERE k.wish_id = w.id) AS in_cart, w.paused_at IS NOT NULL AND (w.paused_until IS NULL OR w.paused_until > CAST(strftime('%s','now') AS INTEGER)) AS paused, w.paused_until, (SELECT COUNT(*) FROM offer_link l JOIN source_settings s ON s.id = l.source WHERE l.wish_id = w.id AND s.enabled AND s.configured AND (l.review = 'pending' OR (l.review = 'confirmed' AND l.confirmed_name IS NOT NULL AND l.confirmed_name != json_extract(l.latest, '$.name')))) AS review_count FROM wishlist_item w JOIN game g ON g.id = w.game_id LEFT JOIN catalog_game c ON c.igdb_id = g.igdb_id", $suffix) };
 }
 
 fn decode(row: SqliteRow) -> ApiResult<WishlistItem> {
@@ -68,17 +71,35 @@ fn decode(row: SqliteRow) -> ApiResult<WishlistItem> {
             .unwrap_or(false)
             .then(|| row.try_get("paused_until").ok().flatten())
             .flatten(),
-        offer_count: row.try_get("offer_count").unwrap_or(0),
+        offer_count: None,
         review_count: row.try_get("review_count").unwrap_or(0),
         price_badge: None,
     })
 }
 
+/// GET /api/v1/counts: the numbers of the navigation (CODE-08), the same rows the wishlist, cart, library and
+/// alert lists show (enabled alerts only), without building those lists.
+pub(crate) async fn counts(
+    State(state): State<Shared>,
+    _: auth::Session,
+) -> ApiResult<Json<serde_json::Value>> {
+    let (wishlist, cart, library, alerts): (i64, i64, i64, i64) = sqlx::query_as(
+        "SELECT (SELECT COUNT(*) FROM wishlist_item WHERE state='wished'),
+        (SELECT COUNT(*) FROM cart_item k JOIN wishlist_item w ON w.id=k.wish_id WHERE w.state='wished'),
+        (SELECT COUNT(*) FROM wishlist_item WHERE state='owned'),
+        (SELECT COUNT(*) FROM alert_rule r JOIN wishlist_item w ON w.id=r.wish_id WHERE w.state='wished' AND r.enabled)",
+    )
+    .fetch_one(&state.pool)
+    .await?;
+    Ok(Json(
+        serde_json::json!({"wishlist": wishlist, "cart": cart, "library": library, "alerts": alerts}),
+    ))
+}
+
 pub(crate) async fn list(
     State(state): State<Shared>,
-    headers: HeaderMap,
+    _: auth::Session,
 ) -> ApiResult<Json<Vec<WishlistItem>>> {
-    auth::authenticate(&state, &headers).await?;
     let rows = sqlx::query(items_sql!(
         " WHERE w.state='wished' ORDER BY w.created_at DESC, w.rowid DESC"
     ))
@@ -108,11 +129,12 @@ pub(crate) async fn items(state: &Shared, ids: &[String]) -> ApiResult<Vec<Wishl
 }
 
 async fn with_badges(state: &Shared, mut items: Vec<WishlistItem>) -> ApiResult<Vec<WishlistItem>> {
-    let (target, scope) = crate::price_badges::context(&state.pool).await?;
+    let target = crate::offers::target(&state.pool).await?;
     let ids: Vec<String> = items.iter().map(|item| item.id.clone()).collect();
-    let mut badges = crate::price_badges::load_many(state, &ids, &target, &scope).await?;
+    let mut badges = crate::price_badges::load_many(state, &ids, &target).await?;
     for item in &mut items {
         item.price_badge = badges.remove(&item.id);
+        item.offer_count = item.price_badge.as_ref().map(|badge| badge.offer_count);
     }
     Ok(items)
 }
@@ -215,10 +237,10 @@ impl Target {
 
 pub(crate) async fn add(
     State(state): State<Shared>,
+    session: auth::Session,
     headers: HeaderMap,
-    Json(input): Json<AddInput>,
+    ApiJson(input): ApiJson<AddInput>,
 ) -> ApiResult<Response> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     if let (Some(id), None) = (input.igdb_id, &input.manual_title) {
         let existing = sqlx::query(items_sql!(
@@ -306,11 +328,11 @@ pub(crate) struct PreviewInput {
 
 pub(crate) async fn preview(
     State(state): State<Shared>,
+    session: auth::Session,
     headers: HeaderMap,
-    Path(id): Path<String>,
-    Json(input): Json<PreviewInput>,
+    ApiPath(id): ApiPath<String>,
+    ApiJson(input): ApiJson<PreviewInput>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     let row = sqlx::query(items_sql!(" WHERE w.id=? AND w.state='wished'"))
         .bind(&id)
@@ -366,10 +388,10 @@ pub(crate) async fn preview(
 
 pub(crate) async fn remove(
     State(state): State<Shared>,
+    session: auth::Session,
     headers: HeaderMap,
-    Path(id): Path<String>,
+    ApiPath(id): ApiPath<String>,
 ) -> ApiResult<StatusCode> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     if id.len() != 32 || !id.bytes().all(|c| c.is_ascii_hexdigit()) {
         return Err(ApiError(
@@ -440,9 +462,8 @@ pub(crate) struct LibraryItem {
 
 pub(crate) async fn library(
     State(state): State<Shared>,
-    headers: HeaderMap,
+    _: auth::Session,
 ) -> ApiResult<Json<Vec<LibraryItem>>> {
-    auth::authenticate(&state, &headers).await?;
     let rows = sqlx::query("SELECT w.id,w.game_id,w.platform_id,w.created_at,g.manual_title,c.payload,0 AS in_cart,COALESCE(w.acquired_at,0) AS acquired_at FROM wishlist_item w JOIN game g ON g.id=w.game_id LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id WHERE w.state='owned' ORDER BY w.acquired_at DESC,w.rowid DESC")
     .fetch_all(&state.pool)
     .await?;
@@ -467,17 +488,17 @@ pub(crate) struct PauseInput {
 }
 
 /// Longest pause with an end date: one year.
-const PAUSE_MAX: i64 = 366 * 86400;
+const PAUSE_MAX: i64 = 366 * crate::DAY;
 
 /// `PUT /wishlist/{id}/pause` (0.9.0): pause or resume the automatic checks of one wish. The global
 /// pause does not touch it: a wish paused here stays paused when the checks are resumed.
 pub(crate) async fn pause(
     State(state): State<Shared>,
+    session: auth::Session,
     headers: HeaderMap,
-    Path(id): Path<String>,
-    Json(input): Json<PauseInput>,
+    ApiPath(id): ApiPath<String>,
+    ApiJson(input): ApiJson<PauseInput>,
 ) -> ApiResult<Json<WishlistItem>> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     let t = now();
     if input.paused
@@ -525,7 +546,13 @@ pub(crate) async fn pause(
 
 /// "24.12.2026" (UTC date) for the log.
 fn date_text(seconds: i64) -> String {
-    let days = seconds.div_euclid(86400);
+    let (year, month, day) = civil(seconds);
+    format!("{day:02}.{month:02}.{year}")
+}
+
+/// Year, month and day (UTC) of a Unix time.
+pub(crate) fn civil(seconds: i64) -> (i64, i64, i64) {
+    let days = seconds.div_euclid(crate::DAY);
     // Civil date from days since 1970-01-01 (Howard Hinnant's algorithm).
     let z = days + 719_468;
     let era = z.div_euclid(146_097);
@@ -535,16 +562,15 @@ fn date_text(seconds: i64) -> String {
     let mp = (5 * doy + 2) / 153;
     let day = doy - (153 * mp + 2) / 5 + 1;
     let month = if mp < 10 { mp + 3 } else { mp - 9 };
-    let year = yoe + era * 400 + i64::from(month <= 2);
-    format!("{day:02}.{month:02}.{year}")
+    (yoe + era * 400 + i64::from(month <= 2), month, day)
 }
 
 pub(crate) async fn purchase(
     State(state): State<Shared>,
+    session: auth::Session,
     headers: HeaderMap,
-    Path(id): Path<String>,
+    ApiPath(id): ApiPath<String>,
 ) -> ApiResult<StatusCode> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     let mut tx = state.pool.begin().await?;
     if !mark_owned(&mut tx, &id).await? {
@@ -613,10 +639,10 @@ pub(crate) struct OwnedInput {
 /// A preview of an edition becomes an owned item too.
 pub(crate) async fn add_owned(
     State(state): State<Shared>,
+    session: auth::Session,
     headers: HeaderMap,
-    Json(input): Json<OwnedInput>,
+    ApiJson(input): ApiJson<OwnedInput>,
 ) -> ApiResult<Response> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     let target =
         Target::check(&state, input.igdb_id, input.manual_title, input.platform_id).await?;
@@ -702,11 +728,11 @@ pub(crate) struct RestoreInput {
 }
 pub(crate) async fn restore(
     State(state): State<Shared>,
+    session: auth::Session,
     headers: HeaderMap,
-    Path(id): Path<String>,
-    Json(input): Json<RestoreInput>,
+    ApiPath(id): ApiPath<String>,
+    ApiJson(input): ApiJson<RestoreInput>,
 ) -> ApiResult<StatusCode> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     if !input.confirm {
         return Err(ApiError(
@@ -811,7 +837,9 @@ pub(crate) async fn track_edition(
 }
 
 async fn with_badge(state: &crate::AppState, mut item: WishlistItem) -> ApiResult<WishlistItem> {
-    let (target, scope) = crate::price_badges::context(&state.pool).await?;
-    item.price_badge = Some(crate::price_badges::load(state, &item.id, &target, &scope).await?);
+    let target = crate::offers::target(&state.pool).await?;
+    let badge = crate::price_badges::load(state, &item.id, &target).await?;
+    item.offer_count = Some(badge.offer_count);
+    item.price_badge = Some(badge);
     Ok(item)
 }

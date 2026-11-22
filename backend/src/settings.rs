@@ -1,3 +1,4 @@
+use crate::extract::ApiJson;
 use crate::{ApiError, ApiResult, Shared, auth};
 use axum::{
     Json,
@@ -102,8 +103,6 @@ fn column_order(stored: &str) -> Vec<String> {
 pub(crate) struct Settings {
     target_country: Option<String>,
     currency: String,
-    #[serde(default = "default_price_scope")]
-    wishlist_price_scope: String,
     /// Order of the wishlist table columns. Absent on PUT keeps the stored order.
     #[serde(default)]
     wishlist_columns: Option<Vec<String>>,
@@ -125,13 +124,9 @@ pub(crate) struct Settings {
     confirmed_activation_countries: Vec<String>,
 }
 
-fn default_price_scope() -> String {
-    "preferred".into()
-}
-
 async fn load(state: &Shared) -> ApiResult<Settings> {
     let row = sqlx::query(
-        "SELECT target_country, currency, wishlist_price_scope, wishlist_columns, wishlist_hidden, wishlist_open, offers_columns, offers_hidden FROM app_settings WHERE id = 1",
+        "SELECT target_country, currency, wishlist_columns, wishlist_hidden, wishlist_open, offers_columns, offers_hidden FROM app_settings WHERE id = 1",
     )
     .fetch_one(&state.pool)
     .await?;
@@ -139,7 +134,6 @@ async fn load(state: &Shared) -> ApiResult<Settings> {
     Ok(Settings {
         target_country: row.get("target_country"),
         currency: row.get("currency"),
-        wishlist_price_scope: row.get("wishlist_price_scope"),
         wishlist_columns: Some(column_order(row.get("wishlist_columns"))),
         wishlist_hidden: Some(
             row.get::<String, _>("wishlist_hidden")
@@ -185,18 +179,17 @@ async fn load(state: &Shared) -> ApiResult<Settings> {
 
 pub(crate) async fn get_settings(
     State(state): State<Shared>,
-    headers: HeaderMap,
+    _: auth::Session,
 ) -> ApiResult<Json<Settings>> {
-    auth::authenticate(&state, &headers).await?;
     Ok(Json(load(&state).await?))
 }
 
 pub(crate) async fn put_settings(
     State(state): State<Shared>,
+    session: auth::Session,
     headers: HeaderMap,
-    Json(input): Json<Settings>,
+    ApiJson(input): ApiJson<Settings>,
 ) -> ApiResult<Json<Settings>> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     let bad = || {
         ApiError(
@@ -204,8 +197,7 @@ pub(crate) async fn put_settings(
             "Ungültige Einstellungen. Land, Gebühren (0–100 %) und Tagesbudget (20–2000 Abrufe) prüfen.",
         )
     };
-    if !matches!(input.wishlist_price_scope.as_str(), "preferred" | "all")
-        || input.currency != "EUR"
+    if input.currency != "EUR"
         || input
             .target_country
             .as_ref()
@@ -272,13 +264,12 @@ pub(crate) async fn put_settings(
         .bind(&open)
         .execute(&mut *tx)
         .await?;
-    sqlx::query(
-        "UPDATE app_settings SET target_country = ?, wishlist_price_scope = ? WHERE id = 1",
-    )
-    .bind(input.target_country)
-    .bind(input.wishlist_price_scope)
-    .execute(&mut *tx)
-    .await?;
+    // The column wishlist_price_scope stays in the schema unread: the wishlist shows the target-country price and the
+    // cheapest region side by side since 0.6.1 (CODE-05).
+    sqlx::query("UPDATE app_settings SET target_country = ? WHERE id = 1")
+        .bind(input.target_country)
+        .execute(&mut *tx)
+        .await?;
     if let Some(columns) = &input.offers_columns {
         sqlx::query("UPDATE app_settings SET offers_columns = ? WHERE id = 1")
             .bind(columns.join(","))
@@ -357,13 +348,13 @@ fn stored_daily_jobs(source: &SourceSettings) -> Option<i64> {
 
 pub(crate) async fn put_igdb_credentials(
     State(state): State<Shared>,
+    session: auth::Session,
     headers: HeaderMap,
     input: Result<
         Json<crate::catalog::provider::IgdbCredentials>,
         axum::extract::rejection::JsonRejection,
     >,
 ) -> ApiResult<StatusCode> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     let Json(input) = input.map_err(|_| {
         ApiError(
@@ -388,9 +379,9 @@ pub(crate) async fn put_igdb_credentials(
 
 pub(crate) async fn delete_igdb_credentials(
     State(state): State<Shared>,
+    session: auth::Session,
     headers: HeaderMap,
 ) -> ApiResult<StatusCode> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     state
         .catalog

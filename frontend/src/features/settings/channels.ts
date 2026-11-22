@@ -1,7 +1,7 @@
 import type { ChannelKind, ChannelView } from '../../api.ts';
 
 /** One input of a channel form; `secret` fields are write-only (password input, never prefilled). */
-export interface ChannelField {
+interface ChannelField {
   key: string;
   label: string;
   secret?: boolean;

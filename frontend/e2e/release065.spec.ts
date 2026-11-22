@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { saveSettings, navTo, signInToFixture } from './helpers';
 import { backToList, openTab, removeCurrent, wishlistRows, wishlistTable } from './detail-helpers';
+import { withState } from './offer-state';
 
 const columnList = (page: Page) => page.getByRole('list', { name: 'Spaltenreihenfolge der Wunschliste', exact: true });
 
@@ -84,7 +85,7 @@ test('the price trend shows the steadily cheapest region and each product its ch
   await page.getByRole('region', { name: 'Suchergebnisse' }).getByRole('button', { name: 'Forza Horizon 5 (Xbox Series X|S) vormerken', exact: true }).click();
   await expect(page).toHaveURL(/[?&]item=/);
   const now = Math.floor(Date.now() / 1000);
-  const link = (id: number, region: string, cents: number, score: number, every: number, availability = 'in_stock') => ({
+  const rawLink = (id: number, region: string, cents: number, score: number, every: number, availability = 'in_stock') => ({
     id,
     source: 'eneba',
     url: `https://www.eneba.com/de/xbox-forza-horizon-5-${region.toLowerCase()}-key`,
@@ -104,6 +105,7 @@ test('the price trend shows the steadily cheapest region and each product its ch
     product: { name: `Forza Horizon 5 Xbox Key ${region}`, region, market: 'DE', activation: region === 'Germany' ? 'confirmed' : 'unknown', availability },
     quotes: availability === 'in_stock' ? [{ id: String(id), seller: null, base_cents: cents, estimated_total_cents: null }] : [],
   });
+  const link = (...args: Parameters<typeof rawLink>) => withState(rawLink(...args));
   const view = {
     links: [
       link(1, 'Germany', 3990, 0.5, 8 * 3600),
@@ -112,8 +114,8 @@ test('the price trend shows the steadily cheapest region and each product its ch
       link(4, 'India', 0, 0.5, 48 * 3600, 'sold_out'),
     ],
     histories: { preferred: [], all: [] },
-    history: [],
     best_base: 3990,
+    offer_count: 3,
     best_estimate: null,
     target_country: 'DE',
     searches: [],

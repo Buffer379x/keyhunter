@@ -2,6 +2,7 @@
 //! are in it; prices come from the same saved observations as the wishlist badges, so they follow
 //! every new shop check.
 
+use crate::extract::{ApiJson, ApiPath};
 use crate::price_badges::ShopOffers;
 use crate::{
     ApiError, ApiResult, Shared, auth,
@@ -11,7 +12,7 @@ use crate::{
 };
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::State,
     http::{HeaderMap, StatusCode},
 };
 use serde::{Deserialize, Serialize};
@@ -33,9 +34,8 @@ pub(crate) struct CartEntry {
 /// The cart, oldest first, each wish with its current price badge.
 pub(crate) async fn list(
     State(state): State<Shared>,
-    headers: HeaderMap,
+    _: auth::Session,
 ) -> ApiResult<Json<Vec<CartEntry>>> {
-    auth::authenticate(&state, &headers).await?;
     let rows: Vec<(String, i64, Option<String>, String)> = sqlx::query_as(
         "SELECT k.wish_id,k.added_at,k.source,k.scope FROM cart_item k JOIN wishlist_item w ON w.id=k.wish_id
         WHERE w.state='wished' ORDER BY k.added_at,k.rowid",
@@ -44,7 +44,7 @@ pub(crate) async fn list(
     .await?;
     let ids: Vec<String> = rows.iter().map(|(id, ..)| id.clone()).collect();
     let mut items = crate::wishlist::items(&state, &ids).await?;
-    let (target, _) = crate::price_badges::context(&state.pool).await?;
+    let target = crate::offers::target(&state.pool).await?;
     let mut offers = crate::price_badges::shop_offers(&state, &ids, &target).await?;
     Ok(Json(
         rows.into_iter()
@@ -95,10 +95,10 @@ const NOT_A_WISH: ApiError = ApiError(
 
 pub(crate) async fn add(
     State(state): State<Shared>,
+    session: auth::Session,
     headers: HeaderMap,
-    Json(input): Json<AddInput>,
+    ApiJson(input): ApiJson<AddInput>,
 ) -> ApiResult<StatusCode> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     let (source, scope) = choice(input.source, input.scope)?;
     let added = sqlx::query(
@@ -149,11 +149,11 @@ pub(crate) struct ChangeInput {
 /// Shop and price scope of one entry (cart page switch and shop choice, or an offer from the Angebote tab).
 pub(crate) async fn change(
     State(state): State<Shared>,
+    session: auth::Session,
     headers: HeaderMap,
-    Path(id): Path<String>,
-    Json(input): Json<ChangeInput>,
+    ApiPath(id): ApiPath<String>,
+    ApiJson(input): ApiJson<ChangeInput>,
 ) -> ApiResult<StatusCode> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     let (source, scope) = choice(input.source, Some(input.scope))?;
     let changed = sqlx::query("UPDATE cart_item SET source=?,scope=? WHERE wish_id=?")
@@ -193,10 +193,10 @@ const NOT_IN_CART: ApiError = ApiError(
 
 pub(crate) async fn remove(
     State(state): State<Shared>,
+    session: auth::Session,
     headers: HeaderMap,
-    Path(id): Path<String>,
+    ApiPath(id): ApiPath<String>,
 ) -> ApiResult<StatusCode> {
-    let session = auth::authenticate(&state, &headers).await?;
     auth::require_csrf(&state, &headers, &session)?;
     let removed = sqlx::query("DELETE FROM cart_item WHERE wish_id=?")
         .bind(&id)

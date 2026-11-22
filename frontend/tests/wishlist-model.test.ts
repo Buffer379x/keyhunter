@@ -24,6 +24,7 @@ const item = (id: string, created_at = 1000, title = id): WishlistItem => ({
   verification: 'catalog',
   game: null,
   manual_title: title,
+  in_cart: false,
 });
 const badge = (cents: number | null, world: number | null = null, extra: Partial<PriceBadgeData> = {}): PriceBadgeData => ({
   state: cents === null ? 'unknown' : 'price',
@@ -33,6 +34,7 @@ const badge = (cents: number | null, world: number | null = null, extra: Partial
   stale: false,
   pending: false,
   world: world === null ? null : { cents: world, region: 'IN', observed_at: 1 },
+  trend: [],
   ...extra,
 });
 const rule = (target: number, extra: Partial<TargetRule> = {}): TargetRule => ({
@@ -51,7 +53,18 @@ test('row facts: saving only when the cheapest region is really cheaper', () => 
   assert.equal(cheaper.reached, true);
   assert.equal(rowFacts(badge(1875, 1875), undefined).saving, null, 'same price is no saving');
   assert.equal(rowFacts(badge(null, 990), undefined).saving, null, 'no target price, no saving');
-  assert.deepEqual(rowFacts(badge(null, 990), undefined).world, { cents: 990, other: null, region: 'IN', source: null });
+  assert.deepEqual(rowFacts(badge(null, 990), undefined).world, { cents: 990, other: null, region: 'IN', source: null, activation: null });
+});
+test('FUNC-03: no saving against a price that is only the last known one', () => {
+  assert.equal(rowFacts(badge(2890, 1290), undefined).saving, 1600);
+  const stale = rowFacts(badge(2890, 1290, { stale: true }), undefined);
+  assert.equal(stale.stale, true);
+  assert.equal(stale.saving, null);
+  assert.equal(stale.share, null);
+});
+test('RESP-14: the cheapest region keeps what the server says about its activation in the target country', () => {
+  const world = { cents: 1290, region: 'IN', observed_at: 1, fits_target: false, activation: 'unknown' as const };
+  assert.equal(rowFacts(badge(2890, null, { world }), undefined).world?.activation, 'unknown');
 });
 test('row facts: only enabled target rules on the base price count as reached, the target is shown anyway', () => {
   assert.equal(rowFacts(badge(2000), rule(2500, { enabled: false })).reached, false);
@@ -82,8 +95,8 @@ test('row facts: "Mit Gebühren" shows the estimated totals, compares estimate r
   assert.equal(base.reached, true, 'base rule against the base price');
   const total = rowFacts(fees, rule(1050), 'estimate');
   assert.deepEqual([total.price, total.other, total.source, total.stale, total.basis], [1090, 1000, 'eneba', true, 'estimate']);
-  assert.deepEqual(total.world, { cents: 880, other: 800, region: 'IN', source: 'eneba' });
-  assert.equal(total.saving, 210);
+  assert.deepEqual(total.world, { cents: 880, other: 800, region: 'IN', source: 'eneba', activation: null });
+  assert.equal(total.saving, null, 'the total is only the last known one: no saving (FUNC-03)');
   assert.deepEqual(total.trend, [null, 1090]);
   assert.equal(total.reached, false, 'a base rule does not compare with a total');
   assert.equal(rowFacts(fees, rule(1050, { basis: 'estimate' }), 'estimate').over, 40);

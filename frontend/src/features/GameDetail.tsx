@@ -7,7 +7,7 @@ import GameCover from './GameCover';
 import HistoryTab from './HistoryTab';
 import InfosTab, { reviewLinks } from './InfosTab';
 import OffersTab from './Offers';
-import { offerRows, summarize } from './offers-model';
+import { fetchFailed, offerRows, summarize } from './offers-model';
 import type { Basis, OffersView, Summary } from './offers-model';
 import { ruleTarget, targetReached, useAlertRule } from './PriceAlerts';
 import type { AlertState, Rule } from './PriceAlerts';
@@ -35,8 +35,6 @@ type Props = {
   targetCountry: string | null;
   targetLabel: string;
   tab: TabId;
-  /** Kept for compatibility: the way back is the breadcrumb of the top bar (design v4 has no back button in the detail). */
-  onBack?: () => void;
   purchasing: boolean;
   onTab: (tab: TabId) => void;
   onPurchase: () => void;
@@ -75,12 +73,15 @@ const year = (game: CatalogGame | null) => (game?.first_release_date ? String(ne
 function StatusPill({
   view,
   summary,
+  failed,
   rule,
   searching,
   code,
 }: {
   view: OffersView | null;
   summary: Summary;
+  /** The fetch failed and nothing current is left (RESP-11). */
+  failed: boolean;
   rule: Rule | null;
   searching: boolean;
   code: string;
@@ -95,7 +96,15 @@ function StatusPill({
           Wird gesucht …
         </Pill>
       );
-    return <Pill tone="dim">{summary.pricedCount === 0 ? 'Kein Angebot' : `Nichts in ${code} gültig`}</Pill>;
+    if (failed)
+      return (
+        <Pill tone="danger" icon="alert">
+          Abruf fehlgeschlagen
+        </Pill>
+      );
+    return (
+      <Pill tone="dim">{summary.pricedCount === 0 ? 'Kein Angebot' : summary.currentCount === 0 ? 'Kein aktueller Preis' : `Nichts in ${code} gültig`}</Pill>
+    );
   }
   if (targetReached(rule, cents))
     return (
@@ -166,7 +175,7 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
   const canView = (g: CatalogGame) => !!itemOf(g);
   const items = [
     { id: 'preis', label: 'Preis' },
-    { id: 'angebote', label: 'Angebote', count: view ? summary.pricedCount : null },
+    { id: 'angebote', label: 'Angebote', count: view ? view.offer_count : null },
     { id: 'verlauf', label: 'Verlauf' },
     { id: 'editionen', label: 'Editionen', count: item.game ? variants.length : null },
     { id: 'alarm', label: 'Alarm' },
@@ -211,7 +220,7 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
                   Manuell · ungeprüft
                 </Pill>
               )}
-              <StatusPill view={view} summary={summary} rule={rule} searching={searching} code={code || 'Zielland'} />
+              <StatusPill view={view} summary={summary} failed={fetchFailed(view, rows)} rule={rule} searching={searching} code={code || 'Zielland'} />
               {item.paused && (
                 <Pill tone="warn" icon="pause" className="pause-pill">
                   {pauseText(item)}

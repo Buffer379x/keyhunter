@@ -1,6 +1,6 @@
 import type { ComponentProps, ReactNode } from 'react';
 
-export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger';
+type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger';
 type Native = ComponentProps<'button'>;
 const variantClass = (variant: ButtonVariant) => (variant === 'default' ? '' : ` ${variant}`);
 

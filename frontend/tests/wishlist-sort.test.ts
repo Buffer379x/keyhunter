@@ -15,6 +15,7 @@ const item = (id: string, created_at: number): WishlistItem => ({
   verification: 'catalog',
   game: null,
   manual_title: titles[id],
+  in_cart: false,
 });
 const badge = (cents: number | null, world?: number): PriceBadgeData => ({
   state: cents === null ? 'unknown' : 'price',
@@ -24,6 +25,7 @@ const badge = (cents: number | null, world?: number): PriceBadgeData => ({
   stale: false,
   pending: false,
   world: world === undefined ? null : { cents: world, region: 'IN', observed_at: 1 },
+  trend: [],
 });
 const rule = (target: number) => ({ mode: 'target' as const, basis: 'base' as const, target_cents: target, enabled: true });
 

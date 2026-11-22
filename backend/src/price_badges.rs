@@ -1,13 +1,11 @@
+use crate::DAY;
+use crate::extract::ApiQuery;
 use crate::shops::Product;
 use crate::{
     ApiError, ApiResult, AppState, Shared, auth, jobs, now, offers,
     pricing::{self, Reason},
 };
-use axum::{
-    Json,
-    extract::{Query, State},
-    http::{HeaderMap, StatusCode},
-};
+use axum::{Json, extract::State, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use sqlx::{AssertSqlSafe, SqlitePool};
 use std::{
@@ -41,6 +39,9 @@ pub(crate) struct PriceBadge {
     pub estimate_cents: Option<i64>,
     /// The same view compared by estimated totals, for the wishlist switch "Mit Gebühren".
     pub with_fees: FeeView,
+    /// Offers of the wish by [`offers::Link::offer_count`] (FUNC-11); the wishlist item carries it as `offer_count`.
+    #[serde(skip)]
+    pub offer_count: i64,
 }
 
 /// Prices of a badge compared by estimated totals (base price plus the shop fee from the
@@ -61,7 +62,6 @@ pub(crate) struct FeeView {
 
 /// Number of UTC days in [`PriceBadge::trend`].
 const TREND_DAYS: i64 = 14;
-const DAY: i64 = 86400;
 
 #[derive(Clone, Serialize)]
 pub(crate) struct WorldBest {
@@ -73,24 +73,16 @@ pub(crate) struct WorldBest {
     pub source: String,
     pub region: Option<String>,
     pub observed_at: i64,
-}
-
-pub(crate) async fn context(pool: &SqlitePool) -> ApiResult<(String, String)> {
-    let (target, scope): (Option<String>, String) =
-        sqlx::query_as("SELECT target_country, wishlist_price_scope FROM app_settings WHERE id=1")
-            .fetch_one(pool)
-            .await?;
-    Ok((target.unwrap_or_default(), scope))
+    /// The cheapest region can be bought for the target country (RESP-14): activation confirmed there and the same
+    /// market ([`pricing::Verdict::fits_target`]). `false` marks an offer whose use in the target country is not safe.
+    pub fits_target: bool,
+    /// Activation of the offer in the target country: `confirmed`, `blocked` or `unknown`.
+    pub activation: &'static str,
 }
 
 /// Display a saved observation; live alert eligibility remains stricter.
-pub(crate) async fn load(
-    state: &AppState,
-    id: &str,
-    target: &str,
-    scope: &str,
-) -> ApiResult<PriceBadge> {
-    load_many(state, &[id.to_string()], target, scope)
+pub(crate) async fn load(state: &AppState, id: &str, target: &str) -> ApiResult<PriceBadge> {
+    load_many(state, &[id.to_string()], target)
         .await?
         .remove(id)
         .ok_or(ApiError(
@@ -111,9 +103,9 @@ struct JobSummary {
 /// Observation time and price of a link: `None` when it was not valid in the target country.
 type Series = Vec<(i64, Option<i64>)>;
 type Samples = BTreeMap<i64, Series>;
-/// A link a badge shows: id, latest observation time, confirmed fingerprint and the shop fee
-/// in basis points (`None` while the shop has no fee estimate).
-type ShownLink = (i64, Option<i64>, Option<String>, Option<i64>);
+/// A link a badge shows: id, latest observation time, confirmed fingerprint, the shop fee in basis points (`None`
+/// while the shop has no fee estimate) and whether its product can be activated in the target country now.
+type ShownLink = (i64, Option<i64>, Option<String>, Option<i64>, bool);
 /// Link id and its shop fee in basis points (see [`ShownLink`]).
 type LinkFee = (i64, Option<i64>);
 
@@ -125,6 +117,8 @@ struct TrendKey {
     target: String,
     observed_at: Option<i64>,
     fingerprint: Option<String>,
+    /// The product can be activated in the target country (it changes only with a new observation).
+    active: bool,
 }
 
 /// Trend samples per link, so polling the badges reads only links with new observations.
@@ -144,6 +138,7 @@ impl TrendCache {
     ) -> sqlx::Result<Samples> {
         let mut samples = Samples::new();
         let mut missing = vec![];
+        let mut active = vec![];
         {
             let cache = self.0.lock().unwrap_or_else(|e| e.into_inner());
             for (link, key) in links {
@@ -151,7 +146,12 @@ impl TrendCache {
                     Some((cached, values)) if cached == key => {
                         samples.insert(*link, values.clone());
                     }
-                    _ => missing.push(*link),
+                    _ => {
+                        missing.push(*link);
+                        if key.active {
+                            active.push(*link);
+                        }
+                    }
                 }
             }
         }
@@ -161,7 +161,7 @@ impl TrendCache {
         if missing.is_empty() {
             return Ok(samples);
         }
-        let fetched = trend_samples(pool, &missing, &key.target, key.start, t).await?;
+        let fetched = trend_samples(pool, &missing, &active, &key.target, key.start, t).await?;
         let mut cache = self.0.lock().unwrap_or_else(|e| e.into_inner());
         if cache.len() + fetched.len() > TREND_CACHE_LINKS {
             cache.clear();
@@ -178,28 +178,40 @@ impl TrendCache {
 
 /// Observations that decide the trend of the given links, in one query that reads only the
 /// `price_history` index: per link the last observation before the window (carried forward)
-/// and every observation in the window, all in the target country with the link's confirmed
-/// fingerprint. One row per link keeps the transfer small.
+/// and every observation in the window, all with the link's confirmed fingerprint and valid in
+/// the target country by the rule of the price (FUNC-02, [`pricing::counts_in`]): bought in the
+/// same market, and activatable in the target country. An observation in the target country
+/// itself carries its own activation (`valid_cents`); one elsewhere in the EU market counts with
+/// its stock price when the product can be activated in the target country now (`active`).
+/// One row per link keeps the transfer small.
 async fn trend_samples(
     pool: &SqlitePool,
     links: &[i64],
+    active: &[i64],
     target: &str,
     start: i64,
     t: i64,
 ) -> sqlx::Result<Samples> {
     let links = serde_json::to_string(links).unwrap_or_else(|_| "[]".into());
+    let active = serde_json::to_string(active).unwrap_or_else(|_| "[]".into());
+    let markets = serde_json::to_string(&pricing::markets(target)).unwrap_or_else(|_| "[]".into());
     let rows: Vec<(i64, Option<i64>, Option<String>)> = sqlx::query_as(
         "SELECT l.id,
-            (SELECT p.valid_cents FROM price_observation p WHERE p.link_id=l.id AND p.market=?2
-                AND p.fingerprint=l.fingerprint AND p.observed_at<?3 ORDER BY p.observed_at DESC LIMIT 1),
-            (SELECT group_concat(o.observed_at||':'||COALESCE(o.valid_cents,''),',') FROM price_observation o
-                WHERE o.link_id=l.id AND o.market=?2 AND o.fingerprint=l.fingerprint AND o.observed_at>=?3 AND o.observed_at<=?4)
+            (SELECT CASE WHEN p.market=?2 THEN p.valid_cents WHEN l.id IN (SELECT value FROM json_each(?5)) THEN p.stock_cents END
+                FROM price_observation p WHERE p.link_id=l.id AND p.fingerprint=l.fingerprint AND p.observed_at<?3
+                AND (p.market=?2 OR p.market IN (SELECT value FROM json_each(?6))) ORDER BY p.observed_at DESC LIMIT 1),
+            (SELECT group_concat(o.observed_at||':'||COALESCE(CASE WHEN o.market=?2 THEN o.valid_cents
+                    WHEN l.id IN (SELECT value FROM json_each(?5)) THEN o.stock_cents END,''),',')
+                FROM price_observation o WHERE o.link_id=l.id AND o.fingerprint=l.fingerprint AND o.observed_at>=?3
+                AND o.observed_at<=?4 AND (o.market=?2 OR o.market IN (SELECT value FROM json_each(?6))))
         FROM offer_link l WHERE l.id IN (SELECT value FROM json_each(?1))",
     )
     .bind(links)
     .bind(target)
     .bind(start)
     .bind(t)
+    .bind(active)
+    .bind(markets)
     .fetch_all(pool)
     .await?;
     let mut samples = Samples::new();
@@ -253,7 +265,6 @@ pub(crate) async fn load_many(
     state: &AppState,
     ids: &[String],
     target: &str,
-    scope: &str,
 ) -> ApiResult<BTreeMap<String, PriceBadge>> {
     let pool = &state.pool;
     let t = now();
@@ -279,10 +290,6 @@ pub(crate) async fn load_many(
     .await?;
     let mut jobs: BTreeMap<String, JobSummary> =
         jobs.into_iter().map(|j| (j.item.clone(), j)).collect();
-    // Since 0.6.1 the wishlist always shows the target-country price next to the cheapest region
-    // worldwide (`world`), so the stored scope setting no longer changes `cents`.
-    let _ = scope;
-    let price_scope = pricing::Scope::for_wishlist(target, "preferred");
     let start = t - t.rem_euclid(DAY) - (TREND_DAYS - 1) * DAY;
     let mut shown = vec![];
     let mut badges: Vec<(String, PriceBadge, Vec<LinkFee>)> = wishes
@@ -293,26 +300,25 @@ pub(crate) async fn load_many(
                 &wish,
                 &links.remove(&id).unwrap_or_default(),
                 job.as_ref(),
-                &price_scope,
+                target,
                 t,
             );
             let ids = links_shown
                 .iter()
-                .map(|(link, .., fee)| (*link, *fee))
+                .map(|(link, _, _, fee, _)| (*link, *fee))
                 .collect();
-            shown.extend(
-                links_shown
-                    .into_iter()
-                    .map(|(link, observed_at, fingerprint, _)| {
-                        let key = TrendKey {
-                            start,
-                            target: target.to_string(),
-                            observed_at,
-                            fingerprint,
-                        };
-                        (link, key)
-                    }),
-            );
+            shown.extend(links_shown.into_iter().map(
+                |(link, observed_at, fingerprint, _, active)| {
+                    let key = TrendKey {
+                        start,
+                        target: target.to_string(),
+                        observed_at,
+                        fingerprint,
+                        active,
+                    };
+                    (link, key)
+                },
+            ));
             (id, badge, ids)
         })
         .collect();
@@ -332,9 +338,10 @@ fn compute(
     wish: &offers::Wish,
     links: &[offers::Link],
     job: Option<&JobSummary>,
-    price_scope: &pricing::Scope,
+    target: &str,
     t: i64,
 ) -> (PriceBadge, Vec<ShownLink>) {
+    let price_scope = &pricing::Scope::target(target);
     let mut result = PriceBadge {
         cents: None,
         state: "unknown",
@@ -349,6 +356,7 @@ fn compute(
         trend: vec![],
         estimate_cents: None,
         with_fees: FeeView::default(),
+        offer_count: 0,
     };
     let mut observed = false;
     let mut review = false;
@@ -364,6 +372,7 @@ fn compute(
             continue;
         };
         observed = true;
+        result.offer_count += link.offer_count(wish, &product);
         let verdict = pricing::evaluate(link, wish, Some(&product), price_scope, t);
         if verdict.has(Reason::SourceDisabled)
             || verdict.has(Reason::Rejected)
@@ -382,17 +391,18 @@ fn compute(
 
     // Base price and estimated total of the offer a best price comes from.
     let amounts = |link_id| {
-        candidates
-            .iter()
-            .find(|(link, ..)| link.id == link_id)
-            .map(|(link, product, ..)| {
+        candidates.iter().find(|(link, ..)| link.id == link_id).map(
+            |(link, product, verdict, _)| {
                 (
                     pricing::base(link, product),
                     pricing::estimate(link, product),
                     link.source.clone(),
                     product.region.clone(),
+                    verdict.fits_target(),
+                    product.activation(target),
                 )
-            })
+            },
+        )
     };
     // Cheapest current offer of any region, and the best target-country price: a current price
     // wins, otherwise the last known one is shown, marked as stale. Once by base price and once
@@ -406,7 +416,7 @@ fn compute(
         )
         .current
         .and_then(|best| {
-            let (base, estimate, source, region) = amounts(best.link_id)?;
+            let (base, estimate, source, region, fits_target, activation) = amounts(best.link_id)?;
             Some(WorldBest {
                 cents: best.cents,
                 base_cents: base.unwrap_or(best.cents),
@@ -414,6 +424,8 @@ fn compute(
                 source,
                 region,
                 observed_at: best.observed_at,
+                fits_target,
+                activation,
             })
         });
         let prices = pricing::best(
@@ -434,7 +446,7 @@ fn compute(
         result.cents = Some(best.cents);
         result.observed_at = Some(best.observed_at);
         result.stale = stale;
-        if let Some((_, estimate, source, region)) = amounts(best.link_id) {
+        if let Some((_, estimate, source, region, ..)) = amounts(best.link_id) {
             result.estimate_cents = estimate;
             result.source = Some(source);
             result.region = region;
@@ -446,7 +458,7 @@ fn compute(
         result.with_fees.cents = Some(best.cents);
         result.with_fees.observed_at = Some(best.observed_at);
         result.with_fees.stale = stale;
-        if let Some((base, _, source, region)) = amounts(best.link_id) {
+        if let Some((base, _, source, region, ..)) = amounts(best.link_id) {
             result.with_fees.base_cents = base;
             result.with_fees.source = Some(source);
             result.with_fees.region = region;
@@ -465,15 +477,17 @@ fn compute(
     } else {
         "unknown"
     };
-    // The trend follows the same links: enabled shop, not rejected, matching and confirmed.
+    // The trend follows the same links: enabled shop, not rejected, matching, confirmed and a key (FUNC-04).
     let shown = candidates
         .iter()
-        .map(|(link, ..)| {
+        .filter(|(_, _, verdict, _)| !verdict.has(Reason::NotAKey))
+        .map(|(link, product, ..)| {
             (
                 link.id,
                 link.observed_at,
                 link.fingerprint().map(str::to_string),
                 link.fee_estimation_enabled.then_some(link.fee_basis_points),
+                product.activation(target) == "confirmed",
             )
         })
         .collect();
@@ -489,6 +503,11 @@ pub(crate) struct CartOffer {
     pub observed_at: i64,
     /// Only the last known price (no current offer); target-country prices only.
     pub stale: bool,
+    /// Can be bought for the target country (RESP-14, [`pricing::Verdict::fits_target`]): always for `home`; a `world`
+    /// offer of another region may not be safely activatable there.
+    pub fits_target: bool,
+    /// Activation of the offer in the target country: `confirmed`, `blocked` or `unknown`.
+    pub activation: &'static str,
 }
 
 /// A shop's best offers for a wish: valid in the target country (`home`) and of any region (`world`).
@@ -511,7 +530,7 @@ pub(crate) async fn shop_offers(
     let ids_json = serde_json::to_string(ids).map_err(|_| crate::internal())?;
     let wishes = offers::wishes(pool, &ids_json).await?;
     let mut links = offers::links_of_items(pool, &ids_json).await?;
-    let home_scope = pricing::Scope::for_wishlist(target, "preferred");
+    let home_scope = pricing::Scope::target(target);
     let mut result = BTreeMap::new();
     for (id, wish) in wishes {
         let mut by_shop: BTreeMap<String, Vec<_>> = BTreeMap::new();
@@ -542,7 +561,7 @@ pub(crate) async fn shop_offers(
             .into_iter()
             .map(|(source, rows)| {
                 let offer = |best: pricing::Best, stale: bool| {
-                    let (link, product, ..) =
+                    let (link, product, verdict, _) =
                         rows.iter().find(|(link, ..)| link.id == best.link_id)?;
                     Some(CartOffer {
                         cents: best.cents,
@@ -550,6 +569,8 @@ pub(crate) async fn shop_offers(
                         region: product.region.clone(),
                         observed_at: best.observed_at,
                         stale,
+                        fits_target: verdict.fits_target(),
+                        activation: product.activation(target),
                     })
                 };
                 let home = pricing::best(
@@ -587,13 +608,12 @@ pub(crate) struct BadgeQuery {
 
 pub(crate) async fn list(
     State(state): State<Shared>,
-    headers: HeaderMap,
-    Query(query): Query<BadgeQuery>,
+    _: auth::Session,
+    ApiQuery(query): ApiQuery<BadgeQuery>,
 ) -> ApiResult<Json<BTreeMap<String, PriceBadge>>> {
-    auth::authenticate(&state, &headers).await?;
-    let (target, scope) = context(&state.pool).await?;
+    let target = offers::target(&state.pool).await?;
     let ids:Vec<String>=sqlx::query_scalar("SELECT w.id FROM wishlist_item w WHERE w.state!='owned' AND (w.state='wished' OR EXISTS(SELECT 1 FROM edition_watch e JOIN wishlist_item a ON a.id=e.wish_id WHERE e.track_id=w.id AND (?1 IS NULL OR a.id=?1) AND a.state='wished'))").bind(query.anchor).fetch_all(&state.pool).await?;
-    Ok(Json(load_many(&state, &ids, &target, &scope).await?))
+    Ok(Json(load_many(&state, &ids, &target).await?))
 }
 
 #[cfg(test)]

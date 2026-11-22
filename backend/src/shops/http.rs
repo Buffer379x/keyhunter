@@ -15,6 +15,8 @@ use url::Url;
 const USER_AGENT: &str = "Keyhunter";
 /// A client, its pinned DNS answer and robots.txt are reused this long.
 const CLIENT_TTL: Duration = Duration::from_secs(24 * 3600);
+/// A shop that throttles (429, 503) without `Retry-After` is paused this long.
+const THROTTLE_WITHOUT_RETRY_AFTER: i64 = 900;
 
 struct Session {
     client: Client,
@@ -159,8 +161,8 @@ async fn fetch(
                     })
                 })
             })
-            .unwrap_or(900)
-            .clamp(60, 7 * 86400);
+            .unwrap_or(THROTTLE_WITHOUT_RETRY_AFTER)
+            .clamp(60, 7 * crate::DAY);
         return Err(ShopError::Throttled(wait));
     }
     if res.status().is_redirection() || matches!(res.status().as_u16(), 401 | 403) {

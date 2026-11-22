@@ -15,6 +15,10 @@ export interface CartOffer {
   region: string | null;
   observed_at: number;
   stale: boolean;
+  /** Can be bought for the target country (0.9.3, RESP-14): always for `home`, not always for a `world` offer. */
+  fits_target?: boolean;
+  /** Activation of the offer in the target country. */
+  activation?: 'confirmed' | 'blocked' | 'unknown';
 }
 export interface ShopOffers {
   home: CartOffer | null;
@@ -39,11 +43,16 @@ export interface CartLine {
   fee: number | null;
   /** The price is only the last known one (no current offer). */
   stale: boolean;
+  /**
+   * Why the counted offer is not safe to use in the target country (RESP-14): its activation there, or null when it fits
+   * (always for a target-country offer). `confirmed` here means activatable but sold in another market.
+   */
+  risk: 'confirmed' | 'blocked' | 'unknown' | null;
   /** The cheapest variant of this game (any shop, any region), for the comparison; null without any offer. */
   cheapest: { source: string; base: number; fee: number | null } | null;
 }
 
-export interface ShopSum {
+interface ShopSum {
   source: string;
   count: number;
   keys: number;
@@ -51,7 +60,7 @@ export interface ShopSum {
   total: number;
 }
 
-export interface CartSums {
+interface CartSums {
   lines: CartLine[];
   shops: ShopSum[];
   keys: number;
@@ -60,6 +69,8 @@ export interface CartSums {
   /** keys + fees (shops without an estimate count with their key price). */
   total: number;
   unknownFees: string[];
+  /** Games whose counted offer is not safely activatable in the target country, with their key prices and totals; null without any (RESP-14). */
+  risky: { count: number; keys: number; total: number } | null;
   missing: CartEntry[];
   /**
    * Extra cost of the chosen shops and scopes against the cheapest composition (every game at its cheapest variant), on the
@@ -103,8 +114,10 @@ export function cartLine(item: CartEntry): CartLine {
   const cheapest = variant && { source: variant.source, base: variant.offer.cents, fee: fee(variant.offer) };
   const source = entryShop(item);
   const offer = automatic(item) ? (variant?.offer ?? null) : source ? (offers[source]?.[item.scope] ?? null) : null;
-  if (!offer || offer.cents <= 0) return { item, source, region: null, base: null, fee: null, stale: false, cheapest };
-  return { item, source, region: offer.region, base: offer.cents, fee: fee(offer), stale: offer.stale, cheapest };
+  if (!offer || offer.cents <= 0) return { item, source, region: null, base: null, fee: null, stale: false, risk: null, cheapest };
+  // Older payloads without the flag count as fitting.
+  const risk = offer.fits_target === false ? (offer.activation ?? 'unknown') : null;
+  return { item, source, region: offer.region, base: offer.cents, fee: fee(offer), stale: offer.stale, risk, cheapest };
 }
 
 export function cartSums(entries: CartEntry[]): CartSums {
@@ -129,9 +142,13 @@ export function cartSums(entries: CartEntry[]): CartSums {
   const chosen = entries.some(entry => entry.source !== null || entry.scope !== 'world');
   const extraKeys = compared.reduce((total, line) => total + line.base! - line.cheapest!.base, 0);
   const extraTotal = compared.reduce((total, line) => total + line.base! + (line.fee ?? 0) - line.cheapest!.base - (line.cheapest!.fee ?? 0), 0);
+  const risky = priced.filter(line => line.risk !== null);
   return {
     lines,
     shops: shopSums,
+    risky: risky.length
+      ? { count: risky.length, keys: risky.reduce((n, l) => n + l.base!, 0), total: risky.reduce((n, l) => n + l.base! + (l.fee ?? 0), 0) }
+      : null,
     keys,
     fees,
     total: keys + fees,

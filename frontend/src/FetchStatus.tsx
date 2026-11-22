@@ -1,12 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api, FETCH_STATUS_CHANGED } from './api';
 import { Icon, IconButton } from './components';
-import type { FetchShopStatus, FetchStatusResponse } from './api';
-import { whenVisible } from './poll';
+import type { FetchShopStatus } from './api';
+import { useFetchStatus } from './fetch-status';
 import { relativeTime } from './time';
 import { shopNames } from './features/Offers';
-
-const REFRESH_MS = 60_000;
 
 type Tone = 'ok' | 'warn' | 'error' | 'off';
 /** "alle 3 Min." from the planned spacing; under a minute in seconds, from an hour in hours. */
@@ -38,38 +36,13 @@ function describe(shop: FetchShopStatus, nowSeconds: number): { tone: Tone; text
  * Abrufstatus mini card in the sidebar footer (`.fetch-mini`): the label with a play / pause button for the automatic checks
  * (0.7.1; while paused only direct actions of the owner run), then per shop a status dot, the name and the pace ("alle 3 Min.",
  * from budget.pace_seconds) or the current state, a bar and "X von Y Abrufen heute" summed over the active shops. The status
- * part is a button that opens Einstellungen › Abrufstatus. Loaded once, refreshed at most every 60 s and never while the tab
- * is hidden, and at once after a pause or resume. Shows nothing until the API answered or without shops.
+ * part is a button that opens Einstellungen › Abrufstatus. The status comes from the app's one poller (`useFetchStatus`),
+ * refreshed at once after a pause or resume. Shows nothing until the API answered or without shops.
  */
 export default function FetchStatus({ csrf, onOpen }: { csrf: string; onOpen: () => void }) {
-  const [data, setData] = useState<FetchStatusResponse | null>(null);
+  const { data } = useFetchStatus();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  useEffect(() => {
-    const controller = new AbortController();
-    let cancel = () => {};
-    const load = () => {
-      api<FetchStatusResponse>('/status/fetch', 'GET', undefined, undefined, controller.signal)
-        .then(next => {
-          if (!controller.signal.aborted) setData(next);
-        })
-        .catch(() => {})
-        .finally(() => {
-          if (!controller.signal.aborted) cancel = whenVisible(load, REFRESH_MS);
-        });
-    };
-    load();
-    const reload = () => {
-      cancel();
-      load();
-    };
-    window.addEventListener(FETCH_STATUS_CHANGED, reload);
-    return () => {
-      controller.abort();
-      cancel();
-      window.removeEventListener(FETCH_STATUS_CHANGED, reload);
-    };
-  }, []);
   if (!data || data.shops.length === 0) return null;
   const paused = data.paused_at ?? null;
   async function toggle() {

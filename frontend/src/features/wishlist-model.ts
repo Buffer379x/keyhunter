@@ -29,7 +29,7 @@ export interface RowFacts {
   source: string | null;
   stale: boolean;
   /** Cheapest current offer of any region; `other` as above. */
-  world: { cents: number; other: number | null; region: string | null; source: string | null } | null;
+  world: { cents: number; other: number | null; region: string | null; source: string | null; activation: 'confirmed' | 'blocked' | 'unknown' | null } | null;
   /** Cents the cheapest region saves against `price` (only when it is really cheaper). */
   saving: number | null;
   /** `saving` as a share of `price` (0..1). */
@@ -64,9 +64,12 @@ export function rowFacts(badge: PriceBadgeData | undefined, rule: TargetRule | n
           other: positive(basis === 'estimate' ? best.base_cents : best.estimate_cents),
           region: best.region,
           source: best.source ?? null,
+          activation: best.activation ?? null,
         }
       : null;
-  const saving = price !== null && world !== null && world.cents < price ? price - world.cents : null;
+  // A saving against a price that is only the last known one would be invented (FUNC-03).
+  const stale = price !== null && !!(basis === 'estimate' ? fees?.stale : badge?.stale);
+  const saving = price !== null && !stale && world !== null && world.cents < price ? price - world.cents : null;
   const target = rule && rule.mode === 'target' ? rule.target_cents : null;
   const days = basis === 'estimate' ? fees?.trend : badge?.trend;
   const trend = days && days.some(value => value !== null) ? days : null;
@@ -75,7 +78,7 @@ export function rowFacts(badge: PriceBadgeData | undefined, rule: TargetRule | n
     price,
     other,
     source: price === null ? null : ((basis === 'estimate' ? fees?.source : badge?.source) ?? null),
-    stale: price !== null && !!(basis === 'estimate' ? fees?.stale : badge?.stale),
+    stale,
     world,
     saving,
     share: saving !== null ? saving / price! : null,
@@ -109,7 +112,7 @@ export function matchesText(titles: string[], facts: RowFacts, text: string, sho
 
 /** 'pause': wishes paused on their own (0.9.0); a fact of the item, checked by the list itself. */
 export type ChipFilter = 'alle' | 'ziel' | 'welt' | 'offen' | 'pause';
-export const isWorldCheaper = (facts: RowFacts) => facts.share !== null && facts.share >= WORLD_SHARE - 1e-9;
+const isWorldCheaper = (facts: RowFacts) => facts.share !== null && facts.share >= WORLD_SHARE - 1e-9;
 export function matchesChip(facts: RowFacts, chip: ChipFilter): boolean {
   if (chip === 'ziel') return facts.reached;
   if (chip === 'welt') return isWorldCheaper(facts);
@@ -167,7 +170,7 @@ export function reachedTrend(rows: Row[], rules: Record<string, TargetRule | und
   return { since, ticks };
 }
 
-export interface CheaperKpi {
+interface CheaperKpi {
   count: number;
   best: Row | null;
   ticks: number[];
@@ -188,7 +191,7 @@ export const shortTitle = (title: string) =>
     .join(' ')
     .replace(/[:,–-]+$/, '');
 
-export interface FetchKpi {
+interface FetchKpi {
   used: number;
   limit: number;
   demand: number | null;
