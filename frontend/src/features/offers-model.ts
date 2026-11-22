@@ -36,6 +36,7 @@ export type PriceBadgeLike = {
   checked_at: number | null;
   stale: boolean;
   pending: boolean;
+  refreshing?: boolean;
   world?: { cents: number; region: string | null; observed_at: number | null } | null;
 };
 export type OffersView = {

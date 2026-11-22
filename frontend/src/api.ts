@@ -63,7 +63,10 @@ export interface PriceBadgeData {
   observed_at: number | null;
   checked_at: number | null;
   stale: boolean;
+  /** A job of the wish runs or waits for its shop (scheduler rule); shows "Wird gesucht …". */
   pending: boolean;
+  /** A pending fetch the owner triggered (refresh, first search of a new wish): only then the page polls every 3 s. */
+  refreshing?: boolean;
   /** Cheapest current offer of any region (valid in the target country or not). */
   world?: WorldBest | null;
   /**

@@ -260,7 +260,7 @@ export default function Wishlist({
     const controller = new AbortController();
     let cancel = () => {};
     async function readPrices() {
-      let pending = false;
+      let refreshing = false;
       try {
         const data = await api<Record<string, PriceBadgeData>>(
           `/wishlist/price-badges?anchor=${selected?.id ?? ''}`,
@@ -271,12 +271,13 @@ export default function Wishlist({
         );
         if (!controller.signal.aborted) {
           updateBadges(data);
-          pending = Object.values(data).some(badge => badge.pending);
+          // Fast only for a fetch the owner triggered; a backlog of due checks is the normal state (PERF-02).
+          refreshing = Object.values(data).some(badge => badge.refreshing);
         }
       } catch {
         /* Retain saved badges during a failed local read. */
       }
-      if (!controller.signal.aborted) cancel = whenVisible(() => void readPrices(), pending ? 3000 : 30000);
+      if (!controller.signal.aborted) cancel = whenVisible(() => void readPrices(), refreshing ? 3000 : 60000);
     }
     void readPrices();
     return () => {

@@ -3065,3 +3065,120 @@ async fn fetch_runs_carry_their_game_and_can_be_filtered_searched_and_paged() {
     .await;
     assert_eq!(s, StatusCode::UNAUTHORIZED);
 }
+
+/// CODE-01/PERF-02: the badge, the offer rows and the search state use the scheduler's own rule. A paused wish
+/// with due jobs is neither pending nor queued; only a fetch the owner triggered makes the pages poll quickly.
+#[tokio::test]
+async fn a_paused_wish_is_not_pending_and_only_owner_fetches_are_refreshing() {
+    let f = Fixture::new().await;
+    let (_, saved) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":1,"platform_id":169}),
+        )
+        .await;
+    let id = saved["item"]["id"].as_str().unwrap();
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(
+            sqlx::sqlite::SqliteConnectOptions::new()
+                .filename(f.config.data_dir.join("keyhunter.db")),
+        )
+        .await
+        .unwrap();
+    let t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    let link: i64 = sqlx::query_scalar("INSERT INTO offer_link(wish_id,source,url,review) VALUES(?,'eneba','https://www.eneba.com/de/xbox-example-key-global','confirmed') RETURNING id")
+        .bind(id).fetch_one(&pool).await.unwrap();
+    sqlx::query("INSERT INTO shop_job(source,link_id,due) VALUES('eneba',?,?)")
+        .bind(link)
+        .bind(t - 60)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let badges = "/api/v1/wishlist/price-badges";
+    let offers = format!("/api/v1/wishlist/{id}/offers");
+    let state = |badge: &Value| (badge["pending"].clone(), badge["refreshing"].clone());
+    // The first search of a new wish is a direct user action.
+    let (_, data) = f.call("GET", badges, Value::Null).await;
+    assert_eq!(state(&data[id]), (json!(true), json!(true)));
+    // Searched before: the due price waits for its turn, without fast polling.
+    sqlx::query("UPDATE shop_job SET checked_at=?,initial=0 WHERE wish_id=?")
+        .bind(t - 3600)
+        .bind(id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let (_, data) = f.call("GET", badges, Value::Null).await;
+    assert_eq!(state(&data[id]), (json!(true), json!(false)));
+    // Paused on its own with due jobs: nothing waits, nothing searches.
+    sqlx::query("UPDATE shop_job SET due=? WHERE wish_id=?")
+        .bind(t - 60)
+        .bind(id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let (code, _) = f
+        .call(
+            "PUT",
+            &format!("/api/v1/wishlist/{id}/pause"),
+            json!({"paused":true}),
+        )
+        .await;
+    assert_eq!(code, StatusCode::OK);
+    let (_, data) = f.call("GET", badges, Value::Null).await;
+    assert_eq!(state(&data[id]), (json!(false), json!(false)));
+    let (_, view) = f.call("GET", &offers, Value::Null).await;
+    assert_eq!(view["links"][0]["queued"], false);
+    assert_eq!(view["searches"][0]["status"], "paused");
+    assert_eq!(
+        view["discovery_running"], false,
+        "a discovery does not search for a paused wish"
+    );
+    assert_eq!(view["price_badge"]["pending"], false);
+    let (_, status) = f.call("GET", "/api/v1/status/fetch", Value::Null).await;
+    let eneba = status["shops"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|shop| shop["source"] == "eneba")
+        .unwrap();
+    assert_eq!(eneba["backlog"]["products"], 0);
+    assert_eq!(eneba["backlog"]["searches"], 0);
+    // "Jetzt prüfen" of the paused wish runs and polls quickly.
+    let (code, _) = f
+        .call("POST", &format!("{offers}/refresh"), Value::Null)
+        .await;
+    assert!(code.is_success());
+    let (_, view) = f.call("GET", &offers, Value::Null).await;
+    assert_eq!(view["links"][0]["queued"], true);
+    assert_eq!(view["price_badge"]["refreshing"], true);
+    // A job of the wish in progress counts as pending, the shop's retry pause holds the rest.
+    sqlx::query("UPDATE shop_job SET requested_at=0")
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE wishlist_item SET paused_at=NULL WHERE id=?")
+        .bind(id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE shop_state SET retry_at=? WHERE source='eneba'")
+        .bind(t + 3600)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let (_, data) = f.call("GET", badges, Value::Null).await;
+    assert_eq!(state(&data[id]), (json!(false), json!(false)));
+    sqlx::query("UPDATE shop_job SET lease_until=? WHERE link_id=?")
+        .bind(t + 120)
+        .bind(link)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let (_, data) = f.call("GET", badges, Value::Null).await;
+    assert_eq!(state(&data[id]), (json!(true), json!(false)));
+}

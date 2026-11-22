@@ -11,7 +11,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use sqlx::{FromRow, SqlitePool};
+use sqlx::{AssertSqlSafe, FromRow, SqlitePool};
 use std::collections::BTreeMap;
 
 pub(crate) use crate::pricing::FRESH;
@@ -225,6 +225,33 @@ pub(crate) fn with_fee(cents: i64, basis_points: i64) -> i64 {
     cents + (cents * basis_points + 5000) / 10000
 }
 
+/// Columns of [`Link`] for `offer_link l` joined with its shop (`s`, `p`), item (`t`) and job (`j`, optional).
+/// `queued` is the scheduler's [`crate::jobs::pending`]; placeholders as there (`?1` the item or item ids).
+fn link_query(filter: &str) -> String {
+    format!(
+        "SELECT l.*, (s.enabled AND s.configured) AS enabled, s.fee_estimation_enabled, s.fee_basis_points, p.retry_at,
+        COALESCE({},0) AS queued,
+        CAST(MIN(604800,MAX(MIN(900,s.poll_interval_seconds),ROUND(s.poll_interval_seconds
+            *CASE WHEN t.state='preview' THEN 2 ELSE 1 END*j.pace))) AS INTEGER) AS check_every,
+        j.pace AS pace, t.state='preview' AS preview
+        FROM offer_link l JOIN source_settings s ON s.id=l.source JOIN shop_state p ON p.source=l.source
+        JOIN wishlist_item t ON t.id=l.wish_id LEFT JOIN shop_job j ON j.link_id=l.id WHERE {filter} ORDER BY l.id",
+        crate::jobs::pending()
+    )
+}
+
+/// Binds the clock placeholders `?2` to `?5` of the scheduler conditions after `?1`.
+pub(crate) fn clock<'q, O>(
+    query: sqlx::query::QueryAs<'q, sqlx::Sqlite, O, sqlx::sqlite::SqliteArguments>,
+    ts: i64,
+) -> sqlx::query::QueryAs<'q, sqlx::Sqlite, O, sqlx::sqlite::SqliteArguments> {
+    query
+        .bind(ts)
+        .bind(ts / 86400)
+        .bind(crate::jobs::daily_budget())
+        .bind(ts - 900)
+}
+
 pub(crate) async fn links<'e>(
     executor: impl sqlx::Executor<'e, Database = sqlx::Sqlite>,
     id: &str,
@@ -232,15 +259,12 @@ pub(crate) async fn links<'e>(
 ) -> sqlx::Result<Vec<Link>> {
     // check_every follows jobs::effective_interval: twice as long for an edition preview, times the price-trend pace,
     // between 15 minutes (or the shop interval) and a week.
-    sqlx::query_as("SELECT l.*, (s.enabled AND s.configured) AS enabled, s.fee_estimation_enabled, s.fee_basis_points, p.retry_at,
-        COALESCE(j.lease_until>?,0) OR COALESCE(j.due<=? AND s.enabled AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<COALESCE(s.daily_jobs,?))
-            AND ((SELECT fetch_paused_at FROM app_settings WHERE id=1) IS NULL OR j.requested_at>?),0) AS queued,
-        CAST(MIN(604800,MAX(MIN(900,s.poll_interval_seconds),ROUND(s.poll_interval_seconds
-            *CASE WHEN w.state='preview' THEN 2 ELSE 1 END*j.pace))) AS INTEGER) AS check_every,
-        j.pace AS pace, w.state='preview' AS preview
-        FROM offer_link l JOIN source_settings s ON s.id=l.source JOIN shop_state p ON p.source=l.source
-        JOIN wishlist_item w ON w.id=l.wish_id LEFT JOIN shop_job j ON j.link_id=l.id WHERE l.wish_id=? ORDER BY l.id")
-        .bind(ts).bind(ts).bind(ts).bind(ts/86400).bind(crate::jobs::daily_budget()).bind(ts-900).bind(id).fetch_all(executor).await
+    clock(
+        sqlx::query_as(AssertSqlSafe(link_query("l.wish_id=?1"))).bind(id),
+        ts,
+    )
+    .fetch_all(executor)
+    .await
 }
 
 /// Links of many items in one query, keyed by item id.
@@ -249,12 +273,15 @@ pub(crate) async fn links_of_items(
     ids_json: &str,
     ts: i64,
 ) -> sqlx::Result<BTreeMap<String, Vec<Link>>> {
-    let rows: Vec<ItemLink> = sqlx::query_as("SELECT l.*, (s.enabled AND s.configured) AS enabled, s.fee_estimation_enabled, s.fee_basis_points, p.retry_at,
-        COALESCE(j.lease_until>?,0) OR COALESCE(j.due<=? AND s.enabled AND p.retry_at<=? AND (p.budget_day!=? OR p.jobs_today<COALESCE(s.daily_jobs,?))
-            AND ((SELECT fetch_paused_at FROM app_settings WHERE id=1) IS NULL OR j.requested_at>?),0) AS queued
-        FROM offer_link l JOIN source_settings s ON s.id=l.source JOIN shop_state p ON p.source=l.source
-        LEFT JOIN shop_job j ON j.link_id=l.id WHERE l.wish_id IN (SELECT value FROM json_each(?)) ORDER BY l.id")
-        .bind(ts).bind(ts).bind(ts).bind(ts/86400).bind(crate::jobs::daily_budget()).bind(ts-900).bind(ids_json).fetch_all(pool).await?;
+    let rows: Vec<ItemLink> = clock(
+        sqlx::query_as(AssertSqlSafe(link_query(
+            "l.wish_id IN (SELECT value FROM json_each(?1))",
+        )))
+        .bind(ids_json),
+        ts,
+    )
+    .fetch_all(pool)
+    .await?;
     let mut map: BTreeMap<String, Vec<Link>> = BTreeMap::new();
     for row in rows {
         map.entry(row.wish_id).or_default().push(row.link);
@@ -412,9 +439,10 @@ pub(crate) async fn list(
             "quotes":quotes}));
     }
     history.sort_unstable_by_key(|a| std::cmp::Reverse(a.observed_at));
-    let discovery_running: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM shop_job j JOIN shop_state p ON p.source=j.source JOIN source_settings s ON s.id=j.source
-        WHERE j.link_id IS NULL AND j.wish_id IS NULL AND s.enabled AND s.configured AND p.retry_at<=? AND j.due<=? AND (p.budget_day!=? OR p.jobs_today<COALESCE(s.daily_jobs,?))) AND (SELECT fetch_paused_at FROM app_settings WHERE id=1) IS NULL").bind(t).bind(t).bind(t/86400).bind(crate::jobs::daily_budget()).fetch_one(&state.pool).await?;
+    // The search of this item and the shop-wide discoveries, pending by the scheduler's own rule. A discovery
+    // does not count for a paused item: what it finds waits for the end of the pause.
     type SearchRow = (
+        bool,
         String,
         bool,
         i64,
@@ -424,16 +452,49 @@ pub(crate) async fn list(
         Option<i64>,
         bool,
     );
-    let search_rows:Vec<SearchRow> = sqlx::query_as(
-        "SELECT j.source,s.enabled,j.due,j.lease_until,j.checked_at,COALESCE(j.last_error,p.last_error),j.result_count,
-        (p.retry_at>? OR (p.budget_day=? AND p.jobs_today>=COALESCE(s.daily_jobs,?)) OR (SELECT fetch_paused_at FROM app_settings WHERE id=1) IS NOT NULL) FROM shop_job j
-        JOIN source_settings s ON s.id=j.source JOIN shop_state p ON p.source=j.source WHERE j.wish_id=?")
-        .bind(t).bind(t/86400).bind(crate::jobs::daily_budget()).bind(&id).fetch_all(&state.pool).await?;
-    let searches=search_rows.into_iter().map(|(source,enabled,due,lease,checked,error,count,paused)| {
-        let status=if !enabled {"disabled"} else if paused {"paused"} else if lease>t {"searching"}
-            else if error.is_some() {"error"} else if checked.is_none() || due<=t {"queued"} else if count==Some(0) {"no_match"} else {"complete"};
-        json!({"source":source,"status":status,"checked_at":checked,"last_error":error,"result_count":count})
-    }).collect();
+    let (discoveries, search_rows): (Vec<SearchRow>, Vec<SearchRow>) = clock(
+        sqlx::query_as(AssertSqlSafe(format!(
+            "SELECT j.wish_id IS NULL,j.source,s.enabled AND s.configured,j.due,j.lease_until,j.checked_at,
+            COALESCE(j.last_error,p.last_error),j.result_count,COALESCE({},0) AND (j.wish_id IS NOT NULL OR EXISTS(
+                SELECT 1 FROM wishlist_item w WHERE w.id=?1 AND (w.paused_at IS NULL OR w.paused_until<=?2)))
+            FROM {} WHERE j.wish_id=?1 OR (j.wish_id IS NULL AND j.link_id IS NULL)",
+            crate::jobs::pending(),
+            crate::jobs::JOBS
+        )))
+        .bind(&id),
+        t,
+    )
+    .fetch_all(&state.pool)
+    .await?
+    .into_iter()
+    .partition(|row: &SearchRow| row.0);
+    let discovery_running = discoveries.iter().any(|row| row.8);
+    let searches = search_rows
+        .into_iter()
+        .map(|(_, source, enabled, due, lease, checked, error, count, pending)| {
+            // A due search that does not wait (a pause, the budget or a retry holds it) is paused, never "queued".
+            let status = if !enabled {
+                "disabled"
+            } else if lease > t {
+                "searching"
+            } else if checked.is_none() || due <= t {
+                if !pending {
+                    "paused"
+                } else if error.is_some() {
+                    "error"
+                } else {
+                    "queued"
+                }
+            } else if error.is_some() {
+                "error"
+            } else if count == Some(0) {
+                "no_match"
+            } else {
+                "complete"
+            };
+            json!({"source":source,"status":status,"checked_at":checked,"last_error":error,"result_count":count})
+        })
+        .collect();
     let (_, scope) = crate::price_badges::context(&state.pool).await?;
     let price_badge = crate::price_badges::load(&state, &id, &target, &scope).await?;
     Ok(Json(OffersView {
