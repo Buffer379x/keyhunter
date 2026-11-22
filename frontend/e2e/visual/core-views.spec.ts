@@ -445,6 +445,7 @@ for (const vp of viewports) {
     });
     settings('', 'settings-allgemein', 'Allgemein');
     settings('status', 'settings-abrufstatus', 'Abrufstatus', 'Nächste Abfragen');
+    settings('system', 'settings-system', 'System', 'Passphrase ändern');
 
     test('wishlist many long titles', async ({ page }) => {
       await prepare(page);

@@ -34,7 +34,8 @@ test('price badge is permanent and its region setting persists', async ({ page }
   await page.reload();
   await expect(row.locator('.c-de')).toContainText('12,34');
   price = null;
-  await page.clock.fastForward(31000);
+  // Without a fetch the owner triggered the badges reload once a minute (PERF-02; 30 s before 0.9.2).
+  await page.clock.fastForward(61000);
   await expect(row.locator('.c-world')).toHaveText('In keinem Shop gefunden');
   await expect(row.locator('.c-status')).toHaveText('Kein Angebot');
   await navTo(page, 'Allgemein');
@@ -43,6 +44,8 @@ test('price badge is permanent and its region setting persists', async ({ page }
   await navTo(page, 'Wunschliste');
   await openWishlistRow(page, /Forza Horizon 5/);
   await removeCurrent(page);
+  // Wait for the removal: after the minute skipped above, the reloads of all pollers compete with it.
+  await expect(page.getByText(/^0 Spiele ·/)).toBeVisible();
 });
 
 test('purchase and restore move the saved edition; owned family additions require confirmation', async ({ page }) => {
