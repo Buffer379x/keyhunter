@@ -53,6 +53,16 @@ export function reviewText(item: WishlistItem): string {
 /** Observation time of the shown price (base price or estimated total). */
 const observedAt = (badge: PriceBadgeData, facts: RowFacts) => (facts.basis === 'estimate' ? (badge.with_fees?.observed_at ?? null) : badge.observed_at);
 
+/** What the server knows about the cheapest region in the target country (RESP-14), for the title of the INT price. */
+function activationText(activation: 'confirmed' | 'blocked' | 'unknown' | null, code: string) {
+  const land = code || 'dem Zielland';
+  return activation === 'blocked'
+    ? `Laut Shop in ${land} nicht aktivierbar.`
+    : activation === 'confirmed'
+      ? `In ${land} aktivierbar, aber nicht im selben Markt.`
+      : `Aktivierung in ${land} ungeklärt.`;
+}
+
 /** Text of the "Preis INT" cell (cheapest region worldwide) when nothing is known about prices yet (the status column says whether a search runs). */
 function missingWorld(badge: PriceBadgeData | undefined) {
   if (badge?.state === 'no_offer') return 'In keinem Shop gefunden';
@@ -269,7 +279,7 @@ export default function WishlistRow({
           <>
             <div
               className="world-cell"
-              title={`Günstigste Region weltweit: ${reg?.name ?? 'Region unbekannt'}. Nicht automatisch im Zielland aktivierbar.${worldOther}`}
+              title={`Günstigste Region weltweit: ${reg?.name ?? 'Region unbekannt'}. ${activationText(world.activation, code)}${worldOther}`}
             >
               {reg && <Reg code={reg.code} />}
               <Price cents={world.cents} tone="world" />

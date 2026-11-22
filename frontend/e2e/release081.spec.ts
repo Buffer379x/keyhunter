@@ -41,6 +41,7 @@ const view = {
   histories: { preferred: [], all: [] },
   history: [],
   best_base: 2890,
+  offer_count: 2,
   best_estimate: null,
   target_country: 'DE',
   searches: [],

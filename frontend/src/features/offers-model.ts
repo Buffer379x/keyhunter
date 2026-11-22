@@ -23,7 +23,7 @@ export type Link = {
   cheap_score?: number;
   /** Interval of the next check in seconds: shop interval, validity in the target country and price trend. */
   check_every?: number | null;
-  /** Score 0 to 100 from the check interval factor (0.8.2); null for unconfirmed or not yet measured products. */
+  /** Check interval factor as 0 to 100 (0.8.2; shown as "Prüftempo", see `tempo`); null for unconfirmed or not yet measured products. */
   score?: number | null;
   product: { name: string; region: string | null; market: string | null; activation: string; availability: string } | null;
   quotes: Quote[];
@@ -108,6 +108,7 @@ const reasonLabels: [string, string][] = [
   ['source_error', 'Abruffehler'],
   ['stale', 'Veraltet'],
   ['not_a_key', 'Kein Xbox-Key'],
+  ['no_price', 'Kein gültiger Preis'],
   ['no_target_country', 'Kein Zielland gewählt'],
 ];
 /** All reasons of a link in a fixed order, with the target country filled in ("DE"). */
@@ -126,12 +127,22 @@ export type OfferRow = {
   status: 'priced' | 'fees_unknown' | 'sold_out' | 'review' | 'none';
 };
 
+/**
+ * Whether the data of a link is a current price (FUNC-03): only then it may show a saving or a cart action. The server
+ * decides (`data_state`, and `current` for a key that counts at all); an older payload without them falls back to the
+ * flags it has.
+ */
+export function isCurrent(link: Link): boolean {
+  if (link.data_state !== undefined) return link.data_state === 'current' && link.current !== false;
+  return !link.stale && !link.reasons?.some(r => r === 'stale' || r === 'source_error');
+}
+
 /** One row per observed price, plus one status row per product without a price. Ordered by price only. */
 export function offerRows(view: OffersView | null, basis: Basis): OfferRow[] {
   const rows: OfferRow[] = [];
   for (const link of view?.links ?? []) {
     if (link.review === 'rejected' || !link.enabled || !link.product) continue;
-    const dead = !!link.stale || !!link.reasons?.some(r => r === 'stale' || r === 'source_error');
+    const live = isCurrent(link);
     if (link.review === 'confirmed' && link.quotes.length) {
       for (const quote of link.quotes) {
         const price = basis === 'estimate' ? quote.estimated_total_cents : quote.base_cents;
@@ -141,7 +152,7 @@ export function offerRows(view: OffersView | null, basis: Basis): OfferRow[] {
           quote,
           price,
           eligible: link.eligible,
-          current: !dead && price !== null,
+          current: live && price !== null,
           status: price === null ? 'fees_unknown' : 'priced',
         });
       }
@@ -167,6 +178,8 @@ export type Summary = {
   excluded: Excluded;
   validCount: number;
   pricedCount: number;
+  /** Rows with a current price, whatever the region: without one the page has no valid price to show. */
+  currentCount: number;
 };
 export function summarize(view: OffersView | null, rows: OfferRow[], basis: Basis, country: string): Summary {
   const targetCents = (basis === 'estimate' ? view?.best_estimate : view?.best_base) ?? null;
@@ -185,7 +198,44 @@ export function summarize(view: OffersView | null, rows: OfferRow[], basis: Basi
     excluded: { count: cheaper.length, reasons, example: cheaper[0] ?? null },
     validCount: live.filter(row => row.eligible).length,
     pricedCount: rows.filter(row => row.price !== null).length,
+    currentCount: live.length,
   };
+}
+
+/**
+ * The fetch failed and nothing current is left to show (RESP-11): a product link whose latest fetch failed, or searches
+ * that all ended in an error or a pause, without a current price. The detail then says "Abruf fehlgeschlagen" instead of
+ * "keine Angebote".
+ */
+export function fetchFailed(view: OffersView | null, rows: OfferRow[]): boolean {
+  if (!view || rows.some(row => row.current)) return false;
+  const links = view.links.some(
+    link => link.enabled && link.review !== 'rejected' && (link.data_state === 'failed' || (link.data_state === undefined && !!link.last_error)),
+  );
+  const searches =
+    view.searches.some(search => search.status === 'error') && view.searches.every(search => search.status === 'error' || search.status === 'paused');
+  return links || searches;
+}
+
+/** The next attempt of a failed fetch (unix seconds) the detail can name, or null. */
+export function nextAttempt(view: OffersView, now: number): number | null {
+  const times = view.links
+    .filter(link => link.enabled && link.retry_at > now && (link.data_state === 'failed' || !!link.last_error))
+    .map(link => link.retry_at);
+  return times.length ? Math.min(...times) : null;
+}
+
+/** Prüftempo of a link (SCORE-03) from the check interval factor (`score`, 0 to 100: factor 0.5 = 100, 1 = 50, 2 = 0). */
+export type Tempo = 'häufig' | 'normal' | 'selten';
+/**
+ * Buckets: from 70 on "häufig" (the interval is at most about three quarters of the shop interval), up to 30 "selten"
+ * (at least about a third longer), else "normal". The Help text of the column names the same limits.
+ */
+export const TEMPO_OFTEN = 70;
+export const TEMPO_RARE = 30;
+export function tempo(score: number | null | undefined): Tempo | null {
+  if (score === null || score === undefined) return null;
+  return score >= TEMPO_OFTEN ? 'häufig' : score <= TEMPO_RARE ? 'selten' : 'normal';
 }
 
 /**
@@ -213,16 +263,25 @@ export const inSentence = (label: string) =>
     ? label.charAt(0).toLowerCase() + label.slice(1)
     : label;
 
-export type Validity = { tone: 'ok' | 'warn' | 'dim' | 'danger'; icon: 'check' | 'alert' | 'x'; text: string };
+export type Validity = { tone: 'ok' | 'warn' | 'dim' | 'danger'; icon: 'check' | 'alert' | 'x' | 'clock'; text: string };
 /** Whether an offer works in the target country, as pill text: valid, unclear (warn) or the main reason why not. */
 export function validity(row: OfferRow, code: string): Validity {
   const country = code || 'Zielland';
+  const { link } = row;
   if (row.status === 'review') return { tone: 'warn', icon: 'alert', text: 'Zuordnung prüfen' };
   if (row.status === 'sold_out') return { tone: 'dim', icon: 'x', text: 'Ausverkauft' };
-  if (row.link.last_error && !row.quote) return { tone: 'danger', icon: 'alert', text: 'Abruffehler' };
+  if (link.reasons?.includes('not_a_key')) return { tone: 'dim', icon: 'x', text: inSentence('Kein Xbox-Key') };
+  // Without a current price (FUNC-03, FUNC-12) the pill says what is true about the data, not that the key is invalid.
+  if (link.data_state === 'failed' || (link.data_state === undefined && link.last_error && !row.quote))
+    return { tone: 'danger', icon: 'alert', text: 'Abruffehler' };
+  if (link.data_state === 'stale') return { tone: 'dim', icon: 'clock', text: inSentence('Veraltet') };
+  if (link.data_state === 'unknown') return { tone: 'dim', icon: 'alert', text: link.observed_at ? 'Verfügbarkeit unbekannt' : 'Noch nicht abgefragt' };
   if (row.eligible) return { tone: 'ok', icon: 'check', text: `in ${country} aktivierbar` };
-  if (row.link.reasons?.includes('activation_unknown')) return { tone: 'warn', icon: 'alert', text: `Aktivierung in ${country} ungeklärt` };
-  return { tone: 'dim', icon: 'x', text: inSentence(reasonList(row.link, country)[0] ?? `nicht in ${country} gültig`) };
+  if (link.reasons?.includes('activation_unknown')) return { tone: 'warn', icon: 'alert', text: `Aktivierung in ${country} ungeklärt` };
+  const reason = reasonList(link, country)[0];
+  if (reason) return { tone: 'dim', icon: 'x', text: inSentence(reason) };
+  // No reason and no price: say so instead of "not valid in DE".
+  return { tone: 'dim', icon: 'x', text: row.price === null ? inSentence('Kein aktueller Preis') : `nicht in ${country} gültig` };
 }
 
 /**

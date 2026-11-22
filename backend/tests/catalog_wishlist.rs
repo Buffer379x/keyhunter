@@ -2866,7 +2866,8 @@ async fn offers_columns_are_saved_and_the_price_cannot_be_hidden() {
             "shop", "region", "validity", "price", "diff", "score", "seen"
         ])
     );
-    assert_eq!(settings["offers_hidden"], json!([]));
+    // 0.9.3 (SCORE-03): the Prüftempo column ("score") is hidden by default.
+    assert_eq!(settings["offers_hidden"], json!(["score"]));
     settings["offers_columns"] = json!([
         "price", "score", "shop", "region", "validity", "diff", "seen"
     ]);

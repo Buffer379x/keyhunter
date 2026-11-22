@@ -28,6 +28,7 @@ const view = (links: object[]) => ({
   histories: { preferred: [], all: [] },
   history: [],
   best_base: 2890,
+  offer_count: links.length,
   best_estimate: null,
   target_country: 'DE',
   searches: [],

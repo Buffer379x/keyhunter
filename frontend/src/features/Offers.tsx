@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Button, EmptyState, Icon, IconButton, Inset, Label, Panel, PanelHead, Pill, Price, Reg, Switch } from '../components';
+import { Button, EmptyState, Help, Icon, IconButton, Inset, Label, Panel, PanelHead, Pill, Price, Reg, Switch } from '../components';
 import { relativeTime } from '../time';
 import { regionCode } from './regions';
 import { dateTime, money } from './price-format';
-import { everyText, reasonList, trendText, validity } from './offers-model';
-import { offersColumnName, offersOrder, scoreTone, visibleOffersColumns } from './offers-columns';
+import { everyText, fetchFailed, nextAttempt, reasonList, tempo, TEMPO_OFTEN, TEMPO_RARE, trendText, validity } from './offers-model';
+import { offersColumnName, offersOrder, visibleOffersColumns } from './offers-columns';
 import type { OffersColumn } from './offers-columns';
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import type { Basis, OfferRow, Summary } from './offers-model';
 import { BasisSwitch, regionName, shopName } from './PriceTab';
 import { shopNames } from './shop-names';
@@ -56,19 +56,11 @@ type Props = {
   hidden?: readonly string[];
 };
 
-/** Tooltip of a score: what it says and where it comes from (offers::Link::score). */
-function scoreTitle(row: OfferRow) {
-  const score = row.link.score!;
+/** Tooltip of the Prüftempo: the bucket, the planned interval and the price trend behind it (offers::Link::score). */
+function tempoTitle(row: OfferRow, label: string) {
   const every = row.link.check_every ? `Abfrage ${everyText(row.link.check_every)}` : null;
   const state = row.link.product?.availability === 'sold_out' ? 'ausverkauft, seltener geprüft' : trendText(row.link);
-  return [
-    `Score ${score} von 100`,
-    state,
-    every,
-    'Je günstiger dieses Angebot im Vergleich zu den anderen des Spiels bleibt, desto häufiger prüft KeyHunter es und desto höher der Score.',
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  return [`Prüftempo ${label}`, state, every].filter(Boolean).join(' · ');
 }
 
 function Seen({ row }: { row: OfferRow }) {
@@ -105,6 +97,8 @@ export default function OffersTab({
   // Off by default: cheaper regions are never hidden unless the owner asks for it.
   const [onlyValid, setOnlyValid] = useState(false);
   if (!view) return null;
+  const failed = fetchFailed(view, rows);
+  const retry = failed ? nextAttempt(view, Date.now() / 1000) : null;
   const shown = onlyValid ? rows.filter(row => row.eligible) : rows;
   const hidden = rows.filter(row => !row.eligible && row.price !== null);
   const bestKey = summary.targetRow?.key;
@@ -142,7 +136,7 @@ export default function OffersTab({
         {rows.length === 0 ? (
           <EmptyState
             icon="search"
-            title={searching ? 'KeyHunter sucht Angebote' : 'Noch keine regionalen Preise'}
+            title={searching ? 'KeyHunter sucht Angebote' : failed ? 'Abruf fehlgeschlagen' : 'Noch keine regionalen Preise'}
             headingLevel={3}
             action={
               !searching && (
@@ -152,7 +146,19 @@ export default function OffersTab({
               )
             }
           >
-            {searching ? 'Die Suche nach regionalen Produkten für diese Edition läuft.' : 'Für diese Edition wurden noch keine Angebote gefunden.'}
+            {searching ? (
+              'Die Suche nach regionalen Produkten für diese Edition läuft.'
+            ) : failed ? (
+              <>
+                Die Shops waren nicht erreichbar.
+                <Help label="Hilfe zum fehlgeschlagenen Abruf">
+                  <span>Das ist kein Ergebnis „keine Angebote“: KeyHunter konnte die Shops nicht lesen und versucht es automatisch erneut.</span>
+                  {retry && <span>Nächster Versuch ca. {dateTime(retry)}.</span>}
+                </Help>
+              </>
+            ) : (
+              'Für diese Edition wurden noch keine Angebote gefunden.'
+            )}
           </EmptyState>
         ) : (
           <table className="offers" aria-label="Angebote nach Preis">
@@ -162,13 +168,20 @@ export default function OffersTab({
                   <th
                     key={column}
                     scope="col"
-                    className={column === 'price' || column === 'diff' || column === 'score' ? 'r' : undefined}
+                    className={column === 'price' || column === 'diff' ? 'r' : undefined}
                     aria-sort={column === 'price' ? 'ascending' : undefined}
-                    title={
-                      column === 'score' ? 'Score 0 bis 100: wie günstig das Angebot im Vergleich bleibt und wie oft KeyHunter es deshalb prüft' : undefined
-                    }
                   >
                     {offersColumnName(column, code)}
+                    {column === 'score' && (
+                      <Help label="Hilfe zum Prüftempo">
+                        <span>Wie oft KeyHunter dieses Angebot prüft. Es ist keine Bewertung des Angebots.</span>
+                        <span>
+                          Häufig: ab {TEMPO_OFTEN} von 100, das Angebot ist meist günstig und kommt öfter dran. Selten: bis {TEMPO_RARE}, es ist meist teuer
+                          oder ausverkauft. Dazwischen: normal.
+                        </span>
+                        <span>Das Tempo ist geplant; bei knappem Abrufbudget kann es länger dauern.</span>
+                      </Help>
+                    )}
                   </th>
                 ))}
                 <th scope="col">
@@ -180,8 +193,9 @@ export default function OffersTab({
               {shown.map(row => {
                 const valid = validity(row, code),
                   reasons = row.eligible ? [] : reasonList(row.link, code).slice(1);
-                const diff = row.price !== null && summary.targetCents !== null ? row.price - summary.targetCents : null;
-                const score = row.link.score ?? null;
+                // No saving against a price that is not current (FUNC-03).
+                const diff = row.current && row.price !== null && summary.targetCents !== null ? row.price - summary.targetCents : null;
+                const speed = tempo(row.link.score);
                 const cells: Record<OffersColumn, ReactNode> = {
                   shop: (
                     <td key="shop">
@@ -208,7 +222,7 @@ export default function OffersTab({
                   price: (
                     <td key="price" className="r">
                       {row.price !== null ? (
-                        <Price cents={row.price} tone={row.key === bestKey ? 'hot' : 'default'} />
+                        <Price cents={row.price} tone={row.key === bestKey ? 'hot' : row.current ? 'default' : 'stale'} />
                       ) : (
                         <span className="price-missing">{missingText(row)}</span>
                       )}
@@ -228,17 +242,14 @@ export default function OffersTab({
                       )}
                     </td>
                   ),
-                  // 0.8.2: 0 (red, rarely checked: steadily the most expensive or sold out) to 100 (green, checked twice as often).
+                  // 0.8.2 "Score", since 0.9.3 "Prüftempo" (häufig / normal / selten): how often the offer is checked, not a rating.
                   score: (
-                    <td key="score" className="r">
-                      {score === null ? (
+                    <td key="score" className="tempo">
+                      {speed === null ? (
                         <span className="save none">–</span>
                       ) : (
-                        <span className={`score ${scoreTone(score)}`} style={{ '--score': score } as CSSProperties} title={scoreTitle(row)}>
-                          <span className="score-bar" aria-hidden="true">
-                            <i />
-                          </span>
-                          <span className="mono">{score}</span>
+                        <span title={tempoTitle(row, speed)}>
+                          <Pill tone="dim">{speed}</Pill>
                         </span>
                       )}
                     </td>
@@ -254,7 +265,7 @@ export default function OffersTab({
                     {columns.map(column => cells[column])}
                     <td className="r">
                       <span className="offer-actions">
-                        {onCart && row.price !== null && (
+                        {onCart && row.current && row.price !== null && (
                           <IconButton
                             className="offer-cart"
                             disabled={cartBusy}

@@ -66,6 +66,11 @@
   height: 30px;
   font-size: var(--t-xs);
 }
+.cart-page .cart-risk {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 .cart-page .cart-region {
   display: flex;
   align-items: center;

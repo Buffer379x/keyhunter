@@ -114,6 +114,7 @@ test('the price trend shows the steadily cheapest region and each product its ch
     histories: { preferred: [], all: [] },
     history: [],
     best_base: 3990,
+    offer_count: 3,
     best_estimate: null,
     target_country: 'DE',
     searches: [],

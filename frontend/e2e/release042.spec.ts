@@ -117,6 +117,7 @@ test('offers are ordered by price and the cheapest region is compared with the t
             histories: { preferred: [], all: [] },
             history: [],
             best_base: 3000,
+            offer_count: 3,
             best_estimate: 3100,
             target_country: 'DE',
             searches: [],

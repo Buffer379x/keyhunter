@@ -1,8 +1,8 @@
-import { BigPrice, Button, Icon, Inset, Label, Panel, PanelHead, Pill, Reg, Seg } from '../components';
+import { BigPrice, Button, Help, Icon, Inset, Label, Panel, PanelHead, Pill, Reg, Seg } from '../components';
 import { relativeTime } from '../time';
 import { countryData, regionCode } from './regions';
 import { dailyStats } from './history-model';
-import { trendLeader, validity, verdict, verdictText } from './offers-model';
+import { fetchFailed, nextAttempt, trendLeader, validity, verdict, verdictText } from './offers-model';
 import type { Basis, OfferRow, OffersView, Summary } from './offers-model';
 import PriceMatrix from './PriceMatrix';
 import { ruleTarget, targetReached } from './PriceAlerts';
@@ -63,6 +63,8 @@ export default function PriceTab({ view, rows, summary, basis, onBasis, hasEstim
   const worldValidity = world ? validity(world, code) : null;
   const observed = [targetRow?.link.observed_at, world?.link.observed_at].filter((at): at is number => !!at);
   const asOf = observed.length ? Math.min(...observed) : null;
+  const failed = fetchFailed(view, rows);
+  const retry = view && failed ? nextAttempt(view, now) : null;
   const soldOut = rows.some(r => r.status === 'sold_out') && !rows.some(r => r.current);
   const fee = (row: OfferRow) => {
     const estimate = row.quote?.estimated_total_cents;
@@ -110,11 +112,21 @@ export default function PriceTab({ view, rows, summary, basis, onBasis, hasEstim
                       ? 'wird geladen …'
                       : soldOut
                         ? 'Ausverkauft'
-                        : summary.pricedCount === 0
-                          ? searching
-                            ? 'Angebote werden gesucht …'
-                            : 'Noch keine Angebote'
-                          : `Kein gültiges Angebot in ${land}`}
+                        : failed
+                          ? 'Abruf fehlgeschlagen'
+                          : summary.pricedCount === 0
+                            ? searching
+                              ? 'Angebote werden gesucht …'
+                              : 'Noch keine Angebote'
+                            : summary.currentCount === 0
+                              ? 'Kein aktueller Preis'
+                              : `Kein gültiges Angebot in ${land}`}
+                    {failed && (
+                      <Help label="Hilfe zum fehlgeschlagenen Abruf">
+                        <span>KeyHunter konnte die Shops nicht lesen. Das heißt nicht, dass es keine Angebote gibt; es versucht es automatisch erneut.</span>
+                        {retry && <span>Nächster Versuch ca. {dateTime(retry)}.</span>}
+                      </Help>
+                    )}
                   </span>
                 )}
                 <div className="chips">
@@ -135,7 +147,7 @@ export default function PriceTab({ view, rows, summary, basis, onBasis, hasEstim
                   )}
                   {targetCents === null && !view?.last_known && summary.pricedCount > 0 && (
                     <Pill tone="dim" icon="minus">
-                      nichts in {code} gültig
+                      {summary.currentCount === 0 ? 'Kein aktueller Preis' : `nichts in ${code} gültig`}
                     </Pill>
                   )}
                 </div>
@@ -190,7 +202,7 @@ export default function PriceTab({ view, rows, summary, basis, onBasis, hasEstim
                     </span>
                   </>
                 ) : (
-                  <span className="compare-missing">{searching ? 'wird gesucht …' : 'kein aktuelles Angebot'}</span>
+                  <span className="compare-missing">{searching ? 'wird gesucht …' : failed ? 'Abruf fehlgeschlagen' : 'kein aktuelles Angebot'}</span>
                 )}
               </div>
             </div>
@@ -204,9 +216,11 @@ export default function PriceTab({ view, rows, summary, basis, onBasis, hasEstim
                   <p>
                     {searching
                       ? 'KeyHunter sucht gerade Angebote in allen Regionen.'
-                      : rows.length
-                        ? `Kein Angebot hat gerade einen aktuellen Preis. Sobald ein Shop wieder liefert, steht hier der Vergleich mit ${land}.`
-                        : 'Sobald Angebote gefunden sind, steht hier der Vergleich mit allen Regionen.'}
+                      : failed
+                        ? 'Der Abruf ist fehlgeschlagen. Sobald ein Shop wieder liefert, steht hier der Vergleich mit allen Regionen.'
+                        : rows.length
+                          ? `Kein Angebot hat gerade einen aktuellen Preis. Sobald ein Shop wieder liefert, steht hier der Vergleich mit ${land}.`
+                          : 'Sobald Angebote gefunden sind, steht hier der Vergleich mit allen Regionen.'}
                   </p>
                 )
               )}

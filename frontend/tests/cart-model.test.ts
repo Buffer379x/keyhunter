@@ -73,3 +73,24 @@ test('cart: sums by shop, unknown fees, and the extra cost against the cheapest 
   // Eneba INT instead of the cheaper Driffle INT.
   assert.deepEqual(cartSums([entry('a', offers(), 'eneba', 'world')]).extra, { keys: 100, total: 220 });
 });
+
+test('RESP-14: an offer that is not safely activatable in the target country is flagged and summed apart', () => {
+  const risky = (cents: number, activation: 'confirmed' | 'blocked' | 'unknown'): CartOffer => ({
+    ...offer(cents, null, 'India'),
+    fits_target: false,
+    activation,
+  });
+  const fits = { ...offer(2000, null, 'Global'), fits_target: true, activation: 'confirmed' as const };
+  const a = entry('a', { eneba: { home: fits, world: risky(900, 'unknown') } }, null, 'world');
+  const b = entry('b', { eneba: { home: fits, world: null } }, 'eneba', 'home');
+  assert.equal(cartLine(a).risk, 'unknown');
+  assert.equal(cartLine(b).risk, null);
+  assert.equal(cartLine(entry('c', { eneba: { home: fits, world: risky(800, 'blocked') } }, 'eneba', 'world')).risk, 'blocked');
+  const sums = cartSums([a, b]);
+  assert.deepEqual(sums.risky, { count: 1, keys: 900, total: 900 });
+  // The totals themselves do not change.
+  assert.equal(sums.keys, 2900);
+  assert.equal(cartSums([b]).risky, null);
+  // Older payloads without the flag count as fitting.
+  assert.equal(cartLine(entry('d', offers())).risk, null);
+});

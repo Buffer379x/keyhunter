@@ -76,6 +76,7 @@ test('edition previews keep the saved version, offers keep price order and histo
               all: [point(now - 8 * day, 1000, 'India'), point(now - day, 900, 'Global')],
             },
             best_base: 900,
+            offer_count: 5,
             best_estimate: null,
             target_country: 'DE',
             discovery_running: false,
