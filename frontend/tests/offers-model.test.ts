@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { offerRows, summarize, reasonList, validity, verdict, verdictText } from '../src/features/offers-model.ts';
+import { mismatchText, offerRows, summarize, reasonList, validity, verdict, verdictText } from '../src/features/offers-model.ts';
 import type { Link, OffersView } from '../src/features/offers-model.ts';
 
 const link = (id: number, region: string, cents: number, reasons: string[] = [], extra: Partial<Link> = {}): Link => ({
@@ -35,6 +35,7 @@ const view = (links: Link[], best: number | null, estimate: number | null = null
   history: [],
   best_base: best,
   best_estimate: estimate,
+  offer_count: links.reduce((n, l) => n + (l.review === 'confirmed' ? l.quotes.length : 0), 0),
   target_country: 'DE',
   discovery_running: false,
   sources: [],
@@ -153,4 +154,18 @@ test('verdict: same price, cheaper region with the effort thresholds 15 % and 30
   assert.equal(only.kind, 'only_world');
   assert.equal(verdictText(only, 'Deutschland', money).lead, 'Für Deutschland gibt es gerade kein gültiges Angebot.');
   assert.equal(verdict(summarize(view([], null), [], 'base', 'DE'), region, 'DE'), null);
+});
+
+test('the review note names what does not match, and a possible namesake of another year (FUNC-01)', () => {
+  assert.equal(mismatchText(['title'], 'Doom'), 'Titel oder Edition passen laut Shop-Daten nicht automatisch zu „Doom“.');
+  assert.equal(mismatchText(['platform'], 'Doom'), 'Die Plattform passt laut Shop-Daten nicht automatisch zu „Doom“.');
+  assert.equal(mismatchText(['title', 'platform'], 'Doom'), 'Titel oder Edition und Plattform passen laut Shop-Daten nicht automatisch zu „Doom“.');
+  assert.match(mismatchText(['year'], 'Doom'), /gleichnamigen Spiel aus einem anderen Erscheinungsjahr als „Doom“/);
+  assert.equal(mismatchText([], 'Doom'), 'Titel, Edition oder Plattform passen laut Shop-Daten nicht automatisch zu „Doom“.');
+});
+
+test('a product that is no Xbox key names that as its reason (FUNC-04)', () => {
+  const account = link(1, 'Global', 300, ['not_a_key'], { manual_match: true });
+  assert.deepEqual(reasonList(account, 'DE'), ['Kein Xbox-Key']);
+  assert.equal(validity(offerRows(view([account], null), 'base')[0], 'DE').text, 'kein Xbox-Key');
 });

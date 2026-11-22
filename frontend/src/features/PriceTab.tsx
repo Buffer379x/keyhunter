@@ -223,9 +223,9 @@ export default function PriceTab({ view, rows, summary, basis, onBasis, hasEstim
                     <Icon name="ext" />
                   </a>
                 )}
-                {summary.pricedCount > 0 && (
+                {!!view?.offer_count && (
                   <Button variant="ghost" onClick={() => onTab('angebote')}>
-                    {summary.pricedCount === 1 ? 'Angebot ansehen' : `Alle ${summary.pricedCount} Angebote`}
+                    {view.offer_count === 1 ? 'Angebot ansehen' : `Alle ${view.offer_count} Angebote`}
                   </Button>
                 )}
                 {view && !rows.length && !searching && (

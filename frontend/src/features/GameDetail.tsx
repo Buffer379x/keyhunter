@@ -166,7 +166,7 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
   const canView = (g: CatalogGame) => !!itemOf(g);
   const items = [
     { id: 'preis', label: 'Preis' },
-    { id: 'angebote', label: 'Angebote', count: view ? summary.pricedCount : null },
+    { id: 'angebote', label: 'Angebote', count: view ? view.offer_count : null },
     { id: 'verlauf', label: 'Verlauf' },
     { id: 'editionen', label: 'Editionen', count: item.game ? variants.length : null },
     { id: 'alarm', label: 'Alarm' },

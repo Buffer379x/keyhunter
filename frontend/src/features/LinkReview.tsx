@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from 'react';
 import { Button, Icon, Notice, Reg } from '../components';
 import type { Link } from './offers-model';
+import { mismatchText } from './offers-model';
 import { money } from './price-format';
 import { countryData, regionCode } from './regions';
 import { shopNames } from './shop-names';
@@ -51,6 +52,9 @@ export default function LinkReview({
   const parts = link ? linkParts(link.url) : { host: '', path: '' };
   const cheapest = link?.quotes.length ? Math.min(...link.quotes.map(quote => quote.base_cents)) : null;
   const renamed = !!link?.renamed && link.review === 'confirmed';
+  const mismatch = link?.mismatch ?? [];
+  /** Not an Xbox key for this system (an account, a PC-only product): never confirmable, never a key price (FUNC-04). */
+  const blocked = !!product && link?.manual_allowed === false;
   return (
     <dialog
       ref={dialog}
@@ -116,12 +120,23 @@ export default function LinkReview({
               <Icon name="ext" />
             </a>
           </div>
-          {product && !link.can_confirm && (
+          {blocked && (
             <div className="note warn" role="note">
               <Icon name="alert" />
               <span>
-                Titel, Edition oder Plattform passen laut Shop-Daten nicht automatisch zu „{game}“. Prüfe die Produktseite: Mit deiner Bestätigung zählt der
-                Preis dieses Produkts. Stellt der Shop ein anderes Produkt hinter den Link, fragt KeyHunter erneut.
+                {mismatch.includes('key_type')
+                  ? 'Laut Shop ist das kein Aktivierungscode, sondern etwa ein Konto oder ein Geschenk.'
+                  : `Laut Shop gilt der Key nicht für die Xbox-Plattform von „${game}“, etwa nur für PC.`}{' '}
+                Solche Angebote zählen nie als Key-Preis, deshalb lässt sich die Zuordnung nicht bestätigen. Verwirf oder lösche sie.
+              </span>
+            </div>
+          )}
+          {product && !blocked && !link.can_confirm && (
+            <div className="note warn" role="note">
+              <Icon name="alert" />
+              <span>
+                {mismatchText(mismatch, game)} Prüfe die Produktseite: Mit deiner Bestätigung zählt der Preis dieses Produkts. Stellt der Shop ein anderes
+                Produkt hinter den Link, fragt KeyHunter erneut.
               </span>
             </div>
           )}
@@ -136,7 +151,7 @@ export default function LinkReview({
             <Button disabled={busy} onClick={onClose}>
               Abbrechen
             </Button>
-            <Button variant="primary" disabled={busy || !product} onClick={() => onConfirm(link)}>
+            <Button variant="primary" disabled={busy || !product || blocked} onClick={() => onConfirm(link)}>
               {busy ? 'Wird gespeichert …' : renamed ? 'Neuen Titel übernehmen' : 'Zuordnung bestätigen'}
             </Button>
           </div>

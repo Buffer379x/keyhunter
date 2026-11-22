@@ -72,3 +72,16 @@ test('default range, axis labels and region codes', () => {
     '–',
   ]);
 });
+
+test('a measurement holds as long as its link counts it current, at least 24 hours (FUNC-05)', () => {
+  const weekly = { ...point(at(5, 10), 3000), fresh_until: at(5, 10) + 14 * DAY };
+  assert.deepEqual(
+    intervals([weekly], now).map(p => [p.start, p.end]),
+    [[at(5, 10), now]],
+  );
+  const short = { ...point(at(5, 10), 3000), fresh_until: at(5, 10) + 3600 };
+  assert.deepEqual(
+    intervals([short], now).map(p => [p.start, p.end]),
+    [[at(5, 10), at(5, 10) + DAY]],
+  );
+});

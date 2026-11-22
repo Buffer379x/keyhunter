@@ -119,7 +119,7 @@ function ShopPanel({
             <label htmlFor={intervalId}>Produktseiten abfragen alle</label>
             <Help label="Hilfe zum Intervall">
               Empfohlen: 8 Stunden pro Produktseite; neue Produkte und manuelle Abfragen kommen früher dran. Bei Fehlern oder einer Pausenbitte des Shops wartet
-              KeyHunter automatisch.
+              KeyHunter automatisch. Ein Preis gilt als aktuell, bis er doppelt so alt ist wie sein Abfrageintervall, mindestens 24 Stunden lang.
             </Help>
           </span>
           <select

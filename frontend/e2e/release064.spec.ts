@@ -115,3 +115,47 @@ test('an automatically found product that does not match can be checked in a pop
   await page.unrouteAll({ behavior: 'ignoreErrors' });
   await removeCurrent(page);
 });
+
+test('an account offer cannot be confirmed by hand and a possible namesake names the release year (FUNC-04, FUNC-01)', async ({ page }) => {
+  await openForza(page);
+  const account = link(8, 'Global', 300, {
+    review: 'pending',
+    can_confirm: false,
+    manual_allowed: false,
+    mismatch: ['key_type'],
+    eligible: false,
+    reasons: [],
+    product: { name: 'Forza Horizon 5 Xbox Live Account', region: 'Global', market: 'DE', activation: 'confirmed', availability: 'in_stock' },
+  });
+  const namesake = link(9, 'Europe', 2490, {
+    review: 'pending',
+    can_confirm: false,
+    manual_allowed: true,
+    mismatch: ['year'],
+    eligible: false,
+    reasons: [],
+    product: { name: 'Forza Horizon 5 Xbox One Key EUROPE', region: 'Europe', market: 'DE', activation: 'confirmed', availability: 'in_stock' },
+  });
+  const bodies: unknown[] = [];
+  await page.route('**/api/v1/wishlist/*/offers', route =>
+    route.request().method() === 'GET' ? route.fulfill({ json: view([account, namesake]) }) : route.continue(),
+  );
+  await page.route('**/api/v1/wishlist/*/offers/*', async route => {
+    bodies.push(route.request().postDataJSON());
+    await route.fulfill({ status: 204, body: '' });
+  });
+  await page.reload();
+  await openTab(page, 'Infos');
+  const dialog = page.getByRole('dialog', { name: 'Zuordnung prüfen', exact: true });
+  await page.locator('.match').filter({ hasText: 'Account' }).getByRole('button', { name: 'Prüfen', exact: true }).click();
+  await expect(dialog.getByRole('note')).toContainText('kein Aktivierungscode');
+  await expect(dialog.getByRole('note')).toContainText('zählen nie als Key-Preis');
+  await expect(dialog.getByRole('button', { name: 'Zuordnung bestätigen', exact: true })).toBeDisabled();
+  await dialog.getByRole('button', { name: 'Abbrechen', exact: true }).click();
+  await page.locator('.match').filter({ hasText: 'Xbox One Key' }).getByRole('button', { name: 'Prüfen', exact: true }).click();
+  await expect(dialog.getByRole('note')).toContainText('gleichnamigen Spiel aus einem anderen Erscheinungsjahr');
+  await dialog.getByRole('button', { name: 'Zuordnung bestätigen', exact: true }).click();
+  expect(bodies).toEqual([{ decision: 'confirmed', manual: true }]);
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
+  await removeCurrent(page);
+});

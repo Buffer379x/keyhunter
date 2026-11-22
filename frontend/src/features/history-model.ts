@@ -1,8 +1,9 @@
 // Pure helpers for the price history: time windows, day buckets for the dot-matrix chart and statistics. No React, no DOM.
 //
 // The backend sends each scope ("preferred": valid in the target country, "all": any region) as a step series of
-// minima: a point holds from its time until the next point. A measurement never holds longer than FRESH (24 h) and
-// never beyond now, so days without a valid measurement stay empty and nothing is interpolated.
+// minima: a point holds from its time until the next point. A measurement never holds longer than its freshness limit
+// (`fresh_until`: twice its check interval, at least FRESH = 24 h) and never beyond now, so days without a valid
+// measurement stay empty and nothing is interpolated.
 import type { HistoryPoint } from './offers-model.ts';
 export const DAY = 86400;
 const FRESH = DAY;
@@ -16,14 +17,14 @@ export function defaultRange(rows: HistoryPoint[], now: number): Range {
 }
 
 type Interval = { start: number; end: number; cents: number; region: string | null };
-/** The time each price of a step series was valid: until the next point, at most FRESH, never after now. */
+/** The time each price of a step series was valid: until the next point, at most its freshness limit, never after now. */
 export function intervals(points: HistoryPoint[], now: number): Interval[] {
   const sorted = [...points].sort((a, b) => a.observed_at - b.observed_at);
   const out: Interval[] = [];
   sorted.forEach((point, i) => {
     if (point.base_cents === null || point.base_cents <= 0) return;
     const next = sorted[i + 1]?.observed_at ?? Infinity;
-    const end = Math.min(next, point.observed_at + FRESH, now);
+    const end = Math.min(next, Math.max(point.fresh_until ?? 0, point.observed_at + FRESH), now);
     if (end > point.observed_at) out.push({ start: point.observed_at, end, cents: point.base_cents, region: point.region ?? null });
   });
   return out;

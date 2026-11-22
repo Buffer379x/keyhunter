@@ -61,6 +61,7 @@ const offers = {
   best_base: 2890,
   best_estimate: 2948,
   last_known: null,
+  offer_count: 4,
   target_country: 'DE',
   searches: [{ source: 'eneba', status: 'complete', checked_at: now - 2 * H, result_count: 3, last_error: null }],
   sources: [],
@@ -259,6 +260,7 @@ const offerLink = (id: number, source: string, region: string, name: string, cen
   link(id, source, region, cents, reasons, { product: { name, region, market: 'DE', activation: 'confirmed', availability: 'in_stock' }, ...extra });
 const manyOffers = {
   ...offers,
+  offer_count: 8,
   links: [
     offerLink(11, 'eneba', 'Global', 'Forza Horizon 5 Premium Edition Xbox Series X|S / Windows PC Key (Global, Aktivierung weltweit)', 2890, []),
     offerLink(12, 'driffle', 'DE', 'Forza Horizon 5 Xbox Key DE', 3000, [], { check_every: 3 * H, cheap_score: 0.1 }),

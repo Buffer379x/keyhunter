@@ -85,7 +85,8 @@ export default function HistoryTab({
                 <Legend code={land} target={target} targetLabel={target !== null ? `Ziel ${money(target)}` : undefined} />
                 {gaps && (
                   <Help label="Hilfe zu leeren Spalten">
-                    Leere Spalten: an diesen Tagen gab es keine gültige Messung. Ein Messwert gilt bis zur nächsten Abfrage, höchstens 24 Stunden.
+                    Leere Spalten: an diesen Tagen gab es keine gültige Messung. Ein Messwert gilt bis zur nächsten Abfrage, höchstens doppelt so lange wie sein
+                    Abfrageintervall und mindestens 24 Stunden.
                   </Help>
                 )}
               </div>

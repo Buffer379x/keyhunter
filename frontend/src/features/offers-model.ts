@@ -27,8 +27,29 @@ export type Link = {
   score?: number | null;
   product: { name: string; region: string | null; market: string | null; activation: string; availability: string } | null;
   quotes: Quote[];
+  /** Why the product does not match plainly (1.0, FUNC-01/FUNC-04); empty for a plain match. */
+  mismatch?: Mismatch[];
+  /** The owner may confirm it by hand: an Xbox key for the wish's system (accounts and PC-only products never). */
+  manual_allowed?: boolean;
+  /** State of the link's data (1.0): only `current` prices may be offered as a saving or a cart action. */
+  data_state?: 'current' | 'stale' | 'failed' | 'unknown';
+  /** A current price of its region (confirmed, fresh, in stock), whatever the target country. */
+  current?: boolean;
+  /** Can be bought for the target country: activation confirmed there and the same market (RESP-14). */
+  fits_target?: boolean;
+  /** End of the freshness limit of the last observation: twice the check interval, at least 24 h (FUNC-05). */
+  fresh_until?: number | null;
 };
-export type HistoryPoint = { observed_at: number; base_cents: number | null; link_id: number | null; region?: string | null; source?: string | null };
+export type Mismatch = 'title' | 'platform' | 'key_type' | 'year';
+export type HistoryPoint = {
+  observed_at: number;
+  base_cents: number | null;
+  link_id: number | null;
+  region?: string | null;
+  source?: string | null;
+  /** End of the validity of the winning observation (its link's freshness limit, at least 24 h). */
+  fresh_until?: number | null;
+};
 export type PriceBadgeLike = {
   cents: number | null;
   state: string;
@@ -47,6 +68,8 @@ export type OffersView = {
   best_base: number | null;
   best_estimate: number | null;
   last_known?: { cents: number; observed_at: number } | null;
+  /** Offers of the game by the server's one rule, the same number the wishlist shows (FUNC-11). */
+  offer_count: number;
   target_country: string;
   discovery_running: boolean;
   sources: { source: string; status: { enabled: boolean; state: string; last_error: string | null } }[];
@@ -84,6 +107,7 @@ const reasonLabels: [string, string][] = [
   ['availability_unknown', 'Verfügbarkeit unbekannt'],
   ['source_error', 'Abruffehler'],
   ['stale', 'Veraltet'],
+  ['not_a_key', 'Kein Xbox-Key'],
   ['no_target_country', 'Kein Zielland gewählt'],
 ];
 /** All reasons of a link in a fixed order, with the target country filled in ("DE"). */
@@ -162,6 +186,25 @@ export function summarize(view: OffersView | null, rows: OfferRow[], basis: Basi
     validCount: live.filter(row => row.eligible).length,
     pricedCount: rows.filter(row => row.price !== null).length,
   };
+}
+
+/**
+ * The first sentence of the review note: what does not match plainly (the server's `mismatch`, FUNC-01). A possible
+ * namesake of another release year has no shop data to point at, so it gets its own sentence.
+ */
+export function mismatchText(mismatch: Mismatch[], game: string): string {
+  if (mismatch.includes('year')) return `Möglicherweise gehört der Key zu einem gleichnamigen Spiel aus einem anderen Erscheinungsjahr als „${game}“.`;
+  const title = mismatch.includes('title'),
+    platform = mismatch.includes('platform');
+  const subject =
+    title && platform
+      ? 'Titel oder Edition und Plattform passen'
+      : title
+        ? 'Titel oder Edition passen'
+        : platform
+          ? 'Die Plattform passt'
+          : 'Titel, Edition oder Plattform passen';
+  return `${subject} laut Shop-Daten nicht automatisch zu „${game}“.`;
 }
 
 /** A reason label inside a sentence: "In DE nicht aktivierbar" becomes "in DE nicht aktivierbar", nouns keep their capital. */
