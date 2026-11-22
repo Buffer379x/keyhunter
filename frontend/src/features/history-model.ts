@@ -40,10 +40,13 @@ export function dayStart(now: number, back: number): number {
 export type Cell = { cents: number; region: string | null } | null;
 export type Column = {
   /** Days back from today of the first and the last day in the column (0 = today). */
-  fromBack: number; toBack: number;
-  start: number; end: number;
+  fromBack: number;
+  toBack: number;
+  start: number;
+  end: number;
   /** Lowest valid price in the column per scope; null when no measurement was valid on any of its days. */
-  home: Cell; world: Cell;
+  home: Cell;
+  world: Cell;
 };
 
 function lowest(series: Interval[], start: number, end: number): Cell {
@@ -58,12 +61,15 @@ function lowest(series: Interval[], start: number, end: number): Cell {
  */
 export function columns(home: HistoryPoint[], world: HistoryPoint[], days: number, count: number, now: number): Column[] {
   const per = Math.max(1, Math.round(days / count));
-  const homeSeries = intervals(home, now), worldSeries = intervals(world, now);
+  const homeSeries = intervals(home, now),
+    worldSeries = intervals(world, now);
   const out: Column[] = [];
   for (let i = 0; i < count; i++) {
-    const toBack = (count - 1 - i) * per, fromBack = toBack + per - 1;
+    const toBack = (count - 1 - i) * per,
+      fromBack = toBack + per - 1;
     if (fromBack >= days) continue;
-    const start = dayStart(now, fromBack), end = dayStart(now, toBack - 1);
+    const start = dayStart(now, fromBack),
+      end = dayStart(now, toBack - 1);
     out.push({ fromBack, toBack, start, end, home: lowest(homeSeries, start, end), world: lowest(worldSeries, start, end) });
   }
   return out;
@@ -72,9 +78,9 @@ export function columns(home: HistoryPoint[], world: HistoryPoint[], days: numbe
 export type Stats = { low: { cents: number; back: number; region: string | null } | null; high: number | null; average: number | null };
 /** Lowest (with its most recent day), highest and mean of the daily minima over the last `days` days; days without data do not count. */
 export function dailyStats(points: HistoryPoint[], days: number, now: number): Stats {
-  const daily = columns(points, [], days, days, now).flatMap(column => column.home ? [{ ...column.home, back: column.toBack }] : []);
+  const daily = columns(points, [], days, days, now).flatMap(column => (column.home ? [{ ...column.home, back: column.toBack }] : []));
   if (!daily.length) return { low: null, high: null, average: null };
-  const low = daily.reduce((best, day) => day.cents < best.cents || (day.cents === best.cents && day.back < best.back) ? day : best);
+  const low = daily.reduce((best, day) => (day.cents < best.cents || (day.cents === best.cents && day.back < best.back) ? day : best));
   return {
     low: { cents: low.cents, back: low.back, region: low.region },
     high: Math.max(...daily.map(day => day.cents)),

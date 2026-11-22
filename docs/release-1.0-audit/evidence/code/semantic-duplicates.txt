@@ -1,0 +1,106 @@
+# Semantische Mehrfachdefinitionen (grep, Stand 490a8fb)
+
+## 1. 'Abfrage wartet/läuft'-Bedingung in SQL: Scheduler (jobs.rs) + Anzeige-Kopien; dazu offers.rs:427-430 (Suchstatus, invertiert '>=')
+backend/src/price_badges.rs:259:    let jobs: Vec<JobSummary> = sqlx::query_as("SELECT COALESCE(j.wish_id,l.wish_id) AS 
+backend/src/offers.rs:236:        COALESCE(j.lease_until>?,0) OR COALESCE(j.due<=? AND s.enabled AND p.retry_at<=? AND (
+backend/src/offers.rs:253:        COALESCE(j.lease_until>?,0) OR COALESCE(j.due<=? AND s.enabled AND p.retry_at<=? AND (
+backend/src/offers.rs:416:        WHERE j.link_id IS NULL AND j.wish_id IS NULL AND s.enabled AND s.configured AND p.ret
+backend/src/jobs.rs:237:        AND (p.budget_day!=?3 OR p.jobs_today<COALESCE(s.daily_jobs,?4))
+
+## 2. Gültiger Preis (1 … 10 000 000 Cent)
+backend/src/alerts.rs:87:                .is_some_and(|c| (1..=10_000_000).contains(&c))
+backend/migrations/0014_budget_pacing.sql:19:        WHERE CAST(json_extract(q.value, '$.cents') AS INTEGER) BETWEEN 1 AND 10000000) END
+backend/migrations/0014_budget_pacing.sql:24:    WHERE CAST(json_extract(q.value, '$.cents') AS INTEGER) BETWEEN 1 AND 10000000) END;
+backend/src/shops/driffle.rs:209:    (1..=10_000_000).contains(&cents).then_some(cents)
+backend/migrations/0005_alerts.sql:5:    target_cents INTEGER CHECK(target_cents BETWEEN 1 AND 10000000),
+backend/src/shops/eneba.rs:125:                .filter(|c| (1..=10_000_000).contains(c))?;
+backend/src/pricing.rs:19:pub(crate) const MAX_CENTS: i64 = 10_000_000;
+backend/src/pricing.rs:103:    (1..=MAX_CENTS).contains(&cents)
+40:            if sample.availability == "in_stock" && sample.base_cents.is_some_and(|n| n > 0) {
+
+## 3. const DAY
+backend/src/alerts.rs:18:const DAY: i64 = 86400;
+backend/src/price_badges.rs:61:const DAY: i64 = 86400;
+backend/src/jobs.rs:64:const DAY: i64 = 86400;
+
+## 4. REQUEST_WINDOW (900 s) als Literal
+backend/src/offers.rs:243:        .bind(ts).bind(ts).bind(ts).bind(ts/86400).bind(crate::jobs::daily_budget()).bind(ts-9
+backend/src/offers.rs:257:        .bind(ts).bind(ts).bind(ts).bind(ts/86400).bind(crate::jobs::daily_budget()).bind(ts-9
+backend/src/offers.rs:679:        .bind(t).bind(t).bind(&id).bind(t).bind(t-900).execute(&state.pool).await?;
+backend/src/offers.rs:682:        .bind(t).bind(t).bind(t).bind(&id).bind(t-900).execute(&state.pool).await?;
+backend/src/price_badges.rs:260:            AND ((SELECT fetch_paused_at FROM app_settings WHERE id=1) IS NULL OR j.requ
+backend/src/jobs.rs:71:const REQUEST_WINDOW: i64 = 900;
+backend/src/jobs.rs:199:const NOT_HELD: &str = "(t.paused_at IS NULL OR (t.paused_until IS NOT NULL AND t.paused_until<=
+
+## 5. Retry-After-Auswertung
+backend/src/catalog/provider.rs:192:                        httpdate::parse_http_date(v).ok().map(|date| {
+backend/src/shops/http.rs:155:                    httpdate::parse_http_date(v).ok().map(|date| {
+
+## 6. Fehlercode-Texte im Frontend
+frontend/src/features/settings/format.ts:41:  ok: 'Erfolgreich', network: 'Netzwerkfehler', not_found: 'Nicht gefunden', rate_limited: 'Abru
+frontend/src/features/InfosTab.tsx:14:const sourceErrors: Record<string, string> = { network: 'Verbindung fehlgeschlagen', rate_limited: 'Ab
+frontend/src/features/Offers.tsx:17:const sourceErrors: Record<string, string> = { network: 'Verbindung fehlgeschlagen', rate_limited: 'Abru
+
+## 7. Weitere doppelte Label-Tabellen
+frontend/src/features/AlarmTab.tsx:21:const deliveryNames: Record<string, string> = { pending: 'wartet auf Zustellung', sent: 'zugestellt', 
+frontend/src/features/InfosTab.tsx:13:const activationNames: Record<string, string> = { confirmed: 'Aktivierung bestätigt', blocked: 'Aktivi
+frontend/src/features/PriceAlerts.tsx:19:const deliveryNames: Record<string, string> = { pending: 'Wartet auf Zustellung', sent: 'Zugestellt
+frontend/src/features/LinkReview.tsx:8:const activationNames: Record<string, string> = { confirmed: 'bestätigt', blocked: 'im Zielland gespe
+
+## 8. Länderliste ISO 3166
+frontend/src/features/regions.ts:2:export const countryCodes = 'AD AE AF AG AI AL AM AO AQ
+backend/src/settings.rs:11:const COUNTRY_CODES: &str = "AD AE AF AG AI AL AM AO AQ AR AS A
+
+## 9. Plattform-IDs
+frontend/src/features/catalog-ui.tsx:6:export const PLATFORMS = [169, 49, 12, 11];
+frontend/src/features/catalog-ui.tsx:9:/** "Alle" in the add dialog: the search covers every system in PLATFOR
+frontend/src/features/catalog-ui.tsx:10:export const ALL_PLATFORMS = 0;
+backend/src/catalog/mod.rs:15:pub(crate) const PLATFORMS: [i64; 4] = [169, 49, 12, 11];
+backend/src/catalog/mod.rs:16:/// `platform` of a catalog search that covers every system in [`PLATFORMS`] ("A
+backend/src/catalog/mod.rs:17:pub(crate) const ALL_PLATFORMS: i64 = 0;
+backend/src/catalog/mod.rs:19:    PLATFORMS.contains(&id)
+backend/src/catalog/mod.rs:21:/// A game is on the searched system, or on any supported one for [`ALL_PLATFORM
+backend/src/catalog/mod.rs:25:        .any(|p| p.id == platform || (platform == ALL_PLATFORMS && PLATFORMS.con
+backend/src/catalog/mod.rs:146:        || !(platform_valid(query.platform) || query.platform == ALL_PLATFORMS)
+backend/src/offers.rs:91:                || (matches!(self.platform_id, 12 | 11) && product.platform_ids.contains(&49)))
+backend/src/shops/eneba.rs:46:        .zip([169, 49, 12])
+backend/src/catalog/mod.rs:288:                g.selection_allowed() && g.platforms.iter().any(|p| p.id == 169 || p.id =
+backend/src/shops/driffle.rs:59:        .zip([169, 49, 12])
+
+## 10. Poll-Schleifen (AbortController + whenVisible) im Frontend
+frontend/src/FetchStatus.tsx:47:        .finally(() => { if (!controller.signal.aborted) cancel = whenVisible(
+frontend/src/features/Cart.tsx:56:      cancel = whenVisible(() => void load(), REFRESH_MS);
+frontend/src/features/useOffersView.ts:28:        cancel = whenVisible(() => void load(), pending ? 3000 : 600
+frontend/src/features/useOffersView.ts:33:        cancel = whenVisible(() => void load(), 10000);
+frontend/src/features/Wishlist.tsx:144:        if (data.preparing) cancel = whenVisible(() => void prepare('GE
+frontend/src/features/Wishlist.tsx:164:      if (!controller.signal.aborted) cancel = whenVisible(() => void r
+frontend/src/features/Wishlist.tsx:181:        .finally(() => { if (!controller.signal.aborted) cancel = whenV
+frontend/src/features/settings/paged.tsx:47:        .finally(() => { if (!controller.signal.aborted) cancel = 
+frontend/src/features/PriceAlerts.tsx:94:        if (current.configured && current.events.some(row => row.stat
+frontend/src/features/settings/data.ts:25:        .finally(() => { if (!controller.signal.aborted && poll) can
+
+## 11. /status/fetch wird parallel gepollt
+frontend/src/FetchStatus.tsx:44:      api<FetchStatusResponse>('/status/fetch', 'GET', undefined, undefined, controller.
+frontend/src/features/Wishlist.tsx:179:      api<FetchStatusResponse>('/status/fetch', 'GET', undefined, undefined, cont
+frontend/src/features/settings/data.ts:22:      api<FetchStatusResponse>('/status/fetch', 'GET', undefined, undefined, c
+
+## 12. try/catch-Hüllen um localStorage
+frontend/src/features/list-view.tsx
+frontend/src/features/Library.tsx
+frontend/src/features/Wishlist.tsx
+frontend/src/features/SettingsPage.tsx
+
+## 13. Spaltenschlüssel Backend/Frontend
+44:const WISHLIST_COLUMNS: [&str; 8] = [
+49:const OFFERS_COLUMNS: [&str; 7] = [
+frontend/src/features/offers-columns.ts
+frontend/src/features/wishlist-columns.ts
+
+## 14. Synthetisches popstate als Navigationsbus
+frontend/src/App.tsx:125:        if (page === 'wishlist' && next === 'wishlist') window.dispatchEvent(new PopS
+frontend/src/App.tsx:164:    if (url.href !== window.location.href) { window.history.pushState(null, '', url);
+frontend/src/features/PriceAlerts.tsx:65:  window.dispatchEvent(new PopStateEvent('popstate'));
+frontend/src/features/settings/sections.ts:27:  dispatchEvent(new PopStateEvent('popstate'));
+
+## 15. Versionsvermerke in Kommentaren
+frontend/src: 136 in 48 Dateien; backend/src: 58 in 18 Dateien

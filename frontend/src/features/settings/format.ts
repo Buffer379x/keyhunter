@@ -3,7 +3,7 @@ import type { FetchBudget, FetchRun, FetchShopStatus } from '../../api.ts';
 /** Seconds without a worker heartbeat after which the backend itself calls a worker stalled (jobs.rs STALL_AFTER). */
 export const WORKER_STALLED_AFTER = 300;
 
-export const shopTitle = (id: string) => ({ eneba: 'Eneba', driffle: 'Driffle', igdb: 'IGDB' } as Record<string, string>)[id] ?? id;
+export const shopTitle = (id: string) => (({ eneba: 'Eneba', driffle: 'Driffle', igdb: 'IGDB' }) as Record<string, string>)[id] ?? id;
 
 const HOUR = 3600;
 const presetHours = [0.25, 0.5, 1, 2, 3, 4, 6, 8, 12, 24, 48, 72, 168];
@@ -33,12 +33,18 @@ export function parseDailyJobs(text: string): number | null {
 export type Tone = 'ok' | 'warn' | 'error' | 'off';
 const clock = (seconds: number) => new Date(seconds * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 /** "20:35 Uhr" within the next 20 hours, otherwise with the date ("21.11., 20:35 Uhr"). */
-const pauseEnd = (seconds: number, nowSeconds: number) => seconds - nowSeconds < 20 * 3600 ? `${clock(seconds)} Uhr` : `${dateTimeText(seconds)} Uhr`;
-export const dateTimeText = (seconds: number) => new Date(seconds * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+const pauseEnd = (seconds: number, nowSeconds: number) => (seconds - nowSeconds < 20 * 3600 ? `${clock(seconds)} Uhr` : `${dateTimeText(seconds)} Uhr`);
+export const dateTimeText = (seconds: number) =>
+  new Date(seconds * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 /** Short German name of an error code in `last_error` and `outcome`. */
 export const outcomeNames: Record<string, string> = {
-  ok: 'Erfolgreich', network: 'Netzwerkfehler', not_found: 'Nicht gefunden', rate_limited: 'Abruflimit erreicht', access_denied: 'Zugriff verweigert', invalid_response: 'Antwort nicht lesbar',
+  ok: 'Erfolgreich',
+  network: 'Netzwerkfehler',
+  not_found: 'Nicht gefunden',
+  rate_limited: 'Abruflimit erreicht',
+  access_denied: 'Zugriff verweigert',
+  invalid_response: 'Antwort nicht lesbar',
 };
 export const outcomeText = (code: string) => outcomeNames[code] ?? code;
 export function outcomeTone(code: string): 'ok' | 'warn' | 'error' {
@@ -53,22 +59,29 @@ export function durationText(ms: number): string {
 
 /** Status line of a shop: tone for the dot, text for the reader. Never colour alone. */
 /** `ago(seconds)` turns a timestamp into "vor 2 Std." (src/time.ts relativeTime). */
-export function shopState(shop: Pick<FetchShopStatus, 'enabled' | 'paused_until' | 'last_error' | 'last_success_at'>, nowSeconds: number, ago: (seconds: number) => string): { tone: Tone; text: string } {
+export function shopState(
+  shop: Pick<FetchShopStatus, 'enabled' | 'paused_until' | 'last_error' | 'last_success_at'>,
+  nowSeconds: number,
+  ago: (seconds: number) => string,
+): { tone: Tone; text: string } {
   if (!shop.enabled) return { tone: 'off', text: 'Deaktiviert' };
   if (shop.paused_until !== null && shop.paused_until > nowSeconds) return { tone: 'warn', text: `Pausiert bis ${pauseEnd(shop.paused_until, nowSeconds)}` };
-  if (shop.last_error) return { tone: 'error', text: `Letzter Abruf fehlgeschlagen${shop.last_success_at === null ? '' : ` · zuletzt erfolgreich ${ago(shop.last_success_at)}`}` };
+  if (shop.last_error)
+    return { tone: 'error', text: `Letzter Abruf fehlgeschlagen${shop.last_success_at === null ? '' : ` · zuletzt erfolgreich ${ago(shop.last_success_at)}`}` };
   if (shop.last_success_at === null) return { tone: 'off', text: 'Aktiv · noch kein Abruf' };
   return { tone: 'ok', text: `Aktiv · letzter Abruf ${ago(shop.last_success_at)}` };
 }
 
 /** Worker state from the heartbeat. A disabled shop has no worker to judge. */
-export function workerState(shop: Pick<FetchShopStatus, 'enabled' | 'worker_seen_at'>, nowSeconds: number, ago: (seconds: number) => string): { tone: Tone; text: string } {
+export function workerState(
+  shop: Pick<FetchShopStatus, 'enabled' | 'worker_seen_at'>,
+  nowSeconds: number,
+  ago: (seconds: number) => string,
+): { tone: Tone; text: string } {
   if (!shop.enabled) return { tone: 'off', text: 'Abruf ausgeschaltet' };
   if (shop.worker_seen_at === null || shop.worker_seen_at <= 0) return { tone: 'off', text: 'Noch kein Lebenszeichen' };
   const age = nowSeconds - shop.worker_seen_at;
-  return age > WORKER_STALLED_AFTER
-    ? { tone: 'error', text: `Reagiert nicht · zuletzt ${ago(shop.worker_seen_at)}` }
-    : { tone: 'ok', text: 'Läuft' };
+  return age > WORKER_STALLED_AFTER ? { tone: 'error', text: `Reagiert nicht · zuletzt ${ago(shop.worker_seen_at)}` } : { tone: 'ok', text: 'Läuft' };
 }
 
 export function budgetShare(used: number, limit: number): number {
@@ -88,10 +101,14 @@ export function untilText(seconds: number, nowSeconds: number): string {
 }
 
 /** Pill in the head of a shop panel on Abrufstatus. */
-export function fetchPill(shop: Pick<FetchShopStatus, 'enabled' | 'paused_until' | 'last_error' | 'worker_seen_at'>, nowSeconds: number): { tone: 'ok' | 'warn' | 'danger' | 'dim'; text: string } {
+export function fetchPill(
+  shop: Pick<FetchShopStatus, 'enabled' | 'paused_until' | 'last_error' | 'worker_seen_at'>,
+  nowSeconds: number,
+): { tone: 'ok' | 'warn' | 'danger' | 'dim'; text: string } {
   if (!shop.enabled) return { tone: 'dim', text: 'Aus' };
   if (shop.paused_until !== null && shop.paused_until > nowSeconds) return { tone: 'warn', text: 'Pausiert' };
-  if (shop.worker_seen_at !== null && shop.worker_seen_at > 0 && nowSeconds - shop.worker_seen_at > WORKER_STALLED_AFTER) return { tone: 'danger', text: 'Reagiert nicht' };
+  if (shop.worker_seen_at !== null && shop.worker_seen_at > 0 && nowSeconds - shop.worker_seen_at > WORKER_STALLED_AFTER)
+    return { tone: 'danger', text: 'Reagiert nicht' };
   if (shop.last_error) return { tone: 'danger', text: 'Fehler' };
   return { tone: 'ok', text: 'Läuft' };
 }
@@ -105,7 +122,8 @@ export function budgetView(budget: FetchBudget) {
   const demand = typeof budget.demand_per_day === 'number' && Number.isFinite(budget.demand_per_day) ? Math.ceil(budget.demand_per_day) : null;
   const pace = typeof budget.pace_seconds === 'number' && budget.pace_seconds > 0 ? budget.pace_seconds : null;
   return {
-    used, limit,
+    used,
+    limit,
     share: budgetShare(used, limit),
     demand,
     demandShare: demand === null || limit <= 0 ? null : Math.min(1, demand / limit),

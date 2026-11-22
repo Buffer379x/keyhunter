@@ -21,35 +21,80 @@ export function Help({ label = 'Hilfe', children, className = '' }: { label?: st
   const pop = useRef<HTMLSpanElement>(null);
   const [at, setAt] = useState<{ left: number; top: number } | null>(null);
   useLayoutEffect(() => {
-    if (!open || !button.current || !pop.current) { setAt(null); return; }
+    if (!open || !button.current || !pop.current) {
+      setAt(null);
+      return;
+    }
     const place = () => {
       const anchor = button.current!.getBoundingClientRect();
       const box = pop.current!.getBoundingClientRect();
-      const width = window.innerWidth; const height = window.innerHeight;
+      const width = window.innerWidth;
+      const height = window.innerHeight;
       const left = Math.min(Math.max(EDGE, anchor.left + anchor.width / 2 - box.width / 2), Math.max(EDGE, width - box.width - EDGE));
       const below = anchor.bottom + GAP;
       const top = below + box.height > height - EDGE && anchor.top - GAP - box.height >= EDGE ? anchor.top - GAP - box.height : below;
       setAt({ left, top });
     };
     place();
-    window.addEventListener('scroll', place, true); window.addEventListener('resize', place);
-    return () => { window.removeEventListener('scroll', place, true); window.removeEventListener('resize', place); };
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
   }, [open]);
   useEffect(() => {
     if (!pinned) return;
-    const outside = (event: PointerEvent) => { if (event.target instanceof Node && !root.current?.contains(event.target)) { setPinned(false); setOpen(false); } };
+    const outside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !root.current?.contains(event.target)) {
+        setPinned(false);
+        setOpen(false);
+      }
+    };
     document.addEventListener('pointerdown', outside);
     return () => document.removeEventListener('pointerdown', outside);
   }, [pinned]);
-  const close = () => { setPinned(false); setOpen(false); };
-  return <span ref={root} className={`help ${className}`.trim()} onMouseEnter={() => setOpen(true)} onMouseLeave={() => { if (!pinned) setOpen(false); }}>
-    <button ref={button} type="button" className="help-btn" aria-label={label} aria-describedby={id} aria-expanded={open}
-      onFocus={event => { if (event.currentTarget.matches(':focus-visible')) setOpen(true); }} onBlur={close}
-      onClick={() => { const next = !pinned; setPinned(next); setOpen(next); }}
-      onKeyDown={event => { if (event.key === 'Escape' && open) { event.stopPropagation(); close(); } }}>
-      <Icon name="help" size={15} />
-    </button>
-    <span ref={pop} id={id} role="tooltip" className="help-pop" hidden={!open}
-      style={at ? { left: at.left, top: at.top } : { left: -9999, top: 0 }}>{children}</span>
-  </span>;
+  const close = () => {
+    setPinned(false);
+    setOpen(false);
+  };
+  return (
+    <span
+      ref={root}
+      className={`help ${className}`.trim()}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => {
+        if (!pinned) setOpen(false);
+      }}
+    >
+      <button
+        ref={button}
+        type="button"
+        className="help-btn"
+        aria-label={label}
+        aria-describedby={id}
+        aria-expanded={open}
+        onFocus={event => {
+          if (event.currentTarget.matches(':focus-visible')) setOpen(true);
+        }}
+        onBlur={close}
+        onClick={() => {
+          const next = !pinned;
+          setPinned(next);
+          setOpen(next);
+        }}
+        onKeyDown={event => {
+          if (event.key === 'Escape' && open) {
+            event.stopPropagation();
+            close();
+          }
+        }}
+      >
+        <Icon name="help" size={15} />
+      </button>
+      <span ref={pop} id={id} role="tooltip" className="help-pop" hidden={!open} style={at ? { left: at.left, top: at.top } : { left: -9999, top: 0 }}>
+        {children}
+      </span>
+    </span>
+  );
 }

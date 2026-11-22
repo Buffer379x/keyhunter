@@ -27,5 +27,9 @@ export const detailsButton = (row: Locator) => row.getByRole('button', { name: /
 /** Open a game from the wishlist table by its title (a string matches the whole title, a RegExp any part). */
 export async function openWishlistRow(page: Page, name: string | RegExp) {
   const title = typeof name === 'string' ? new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) : name;
-  await detailsButton(wishlistRows(page).filter({ has: page.locator('.game-cell b').filter({ hasText: title }) }).first()).click();
+  await detailsButton(
+    wishlistRows(page)
+      .filter({ has: page.locator('.game-cell b').filter({ hasText: title }) })
+      .first(),
+  ).click();
 }

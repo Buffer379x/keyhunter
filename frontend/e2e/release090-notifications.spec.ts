@@ -16,7 +16,9 @@ async function receiver(status: () => number) {
   const hits: Hit[] = [];
   const server = createServer((request, response) => {
     let body = '';
-    request.on('data', chunk => { body += chunk; });
+    request.on('data', chunk => {
+      body += chunk;
+    });
     request.on('end', () => {
       hits.push({ path: request.url ?? '', auth: request.headers.authorization ?? '', body: JSON.parse(body || '{}') });
       response.statusCode = status();
@@ -43,7 +45,15 @@ test('a webhook channel is saved, tested against a local receiver and never show
     await signInToFixture(page);
     await navTo(page, 'Benachrichtigungen');
     const panel = channels(page);
-    await expect(channelTabs(page).getByRole('tab')).toHaveText(['ntfy · aus', 'Telegram · aus', 'Discord · aus', 'E-Mail · aus', 'Gotify · aus', 'Pushover · aus', 'Webhook · aus']);
+    await expect(channelTabs(page).getByRole('tab')).toHaveText([
+      'ntfy · aus',
+      'Telegram · aus',
+      'Discord · aus',
+      'E-Mail · aus',
+      'Gotify · aus',
+      'Pushover · aus',
+      'Webhook · aus',
+    ]);
     await expect(panel.getByText('Kein Kanal aktiv', { exact: true })).toBeVisible();
     await channelTabs(page).getByRole('tab', { name: 'Webhook · aus', exact: true }).click();
     await expect(panel.getByRole('button', { name: 'Hilfe zu Webhook', exact: true })).toBeVisible();
@@ -133,15 +143,35 @@ test('without a channel the alarm page says so and leads to the notification set
 
 test('the delivery log names every channel and the reason of a failure', async ({ page }) => {
   await signInToFixture(page);
-  await page.route('**/api/v1/alerts', route => route.request().method() !== 'GET' ? route.continue() : route.fulfill({ json: {
-    configured: true, channels: ['Telegram', 'E-Mail'], rules: [],
-    events: [{ id: 1, wish_id: null, state: 'sent', observed_at: 1795107000, sent_at: 1795107060, cents: null, attempts: 3, deliveries: [
-      { channel: 'telegram', name: 'Telegram', state: 'sent', attempts: 1, error: null },
-      { channel: 'email', name: 'E-Mail', state: 'failed', attempts: 3, error: 'SMTP: permanent error (535)' },
-    ] }],
-  } }));
+  await page.route('**/api/v1/alerts', route =>
+    route.request().method() !== 'GET'
+      ? route.continue()
+      : route.fulfill({
+          json: {
+            configured: true,
+            channels: ['Telegram', 'E-Mail'],
+            rules: [],
+            events: [
+              {
+                id: 1,
+                wish_id: null,
+                state: 'sent',
+                observed_at: 1795107000,
+                sent_at: 1795107060,
+                cents: null,
+                attempts: 3,
+                deliveries: [
+                  { channel: 'telegram', name: 'Telegram', state: 'sent', attempts: 1, error: null },
+                  { channel: 'email', name: 'E-Mail', state: 'failed', attempts: 3, error: 'SMTP: permanent error (535)' },
+                ],
+              },
+            ],
+          },
+        }),
+  );
   await navTo(page, 'Preisalarme');
   await expect(page.getByText('Kanal: Telegram, E-Mail', { exact: true })).toBeVisible();
-  await expect(page.getByRole('table', { name: 'Letzte Zustellungen' }).locator('.delivery-channels'))
-    .toHaveText('Telegram zugestellt · E-Mail fehlgeschlagen (SMTP: permanent error (535))');
+  await expect(page.getByRole('table', { name: 'Letzte Zustellungen' }).locator('.delivery-channels')).toHaveText(
+    'Telegram zugestellt · E-Mail fehlgeschlagen (SMTP: permanent error (535))',
+  );
 });

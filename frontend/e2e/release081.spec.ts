@@ -19,21 +19,44 @@ test.afterEach(async ({ page }) => {
 
 const now = () => Math.floor(Date.now() / 1000);
 const link = (id: number, region: string, cents: number) => ({
-  id, source: 'eneba', url: `https://www.eneba.com/de/xbox-forza-horizon-5-${region.toLowerCase()}-key`, review: 'confirmed', can_confirm: true,
-  eligible: region === 'Global', queued: false, enabled: true, stale: false, observed_at: now() - 3600, attempted_at: now() - 3600, last_error: null, retry_at: 0,
+  id,
+  source: 'eneba',
+  url: `https://www.eneba.com/de/xbox-forza-horizon-5-${region.toLowerCase()}-key`,
+  review: 'confirmed',
+  can_confirm: true,
+  eligible: region === 'Global',
+  queued: false,
+  enabled: true,
+  stale: false,
+  observed_at: now() - 3600,
+  attempted_at: now() - 3600,
+  last_error: null,
+  retry_at: 0,
   reasons: region === 'Global' ? [] : ['activation_unknown'],
   product: { name: 'Forza Horizon 5 Xbox Key', region, market: 'DE', activation: region === 'Global' ? 'confirmed' : 'unknown', availability: 'in_stock' },
   quotes: [{ id: String(id), seller: null, base_cents: cents, estimated_total_cents: null }],
 });
-const view = { links: [link(1, 'Global', 2890), link(2, 'India', 1290)], histories: { preferred: [], all: [] }, history: [], best_base: 2890, best_estimate: null, target_country: 'DE', searches: [], sources: [], discovery_running: false };
+const view = {
+  links: [link(1, 'Global', 2890), link(2, 'India', 1290)],
+  histories: { preferred: [], all: [] },
+  history: [],
+  best_base: 2890,
+  best_estimate: null,
+  target_country: 'DE',
+  searches: [],
+  sources: [],
+  discovery_running: false,
+};
 
 test('an offer from the Angebote tab goes into the cart with its shop and price scope', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await signInToFixture(page);
   const id = (await (await write(page, 'POST', '/api/v1/wishlist', { igdb_id: 1001, platform_id: 169 })).json()).item.id;
-  await page.route('**/api/v1/wishlist/*/offers', route => route.request().method() === 'GET' ? route.fulfill({ json: view }) : route.continue());
+  await page.route('**/api/v1/wishlist/*/offers', route => (route.request().method() === 'GET' ? route.fulfill({ json: view }) : route.continue()));
   const bodies: { method: string; body: unknown }[] = [];
-  page.on('request', request => { if (/\/api\/v1\/cart(\/|$)/.test(request.url()) && request.method() !== 'GET') bodies.push({ method: request.method(), body: request.postDataJSON() }); });
+  page.on('request', request => {
+    if (/\/api\/v1\/cart(\/|$)/.test(request.url()) && request.method() !== 'GET') bodies.push({ method: request.method(), body: request.postDataJSON() });
+  });
   await page.goto(`/?item=${id}&tab=angebote`);
   await openTab(page, 'Angebote');
   const table = page.getByRole('table', { name: 'Angebote nach Preis', exact: true });

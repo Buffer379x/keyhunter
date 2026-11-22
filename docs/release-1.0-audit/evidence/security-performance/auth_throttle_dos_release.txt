@@ -1,0 +1,42 @@
+# Anmeldedrossel und Request-Stau gegen eigenen Container keyhunter:0.9.1 (127.0.0.1:38794, frisches Datenvolume,
+# DNS im Container blockiert). Ausgaben unverändert aus dem Lauf vom 2026-11-22, gekürzt. Keine Secrets.
+
+== Login-Drossel (global, nicht pro Quelle) ==
+try 1 [401] {"code":"unauthenticated","error":"Anmeldung fehlgeschlagen."}
+try 2 [401] {"code":"unauthenticated","error":"Anmeldung fehlgeschlagen."}
+try 3 [401] {"code":"unauthenticated","error":"Anmeldung fehlgeschlagen."}
+try 4 [401] {"code":"unauthenticated","error":"Anmeldung fehlgeschlagen."}
+try 5 [401] {"code":"unauthenticated","error":"Anmeldung fehlgeschlagen."}
+try 6 [429] {"code":"rate_limited","error":"Zu viele Anmeldeversuche. Bitte nach 15 Minuten erneut versuchen."}
+try 7 [429] {"code":"rate_limited","error":"Zu viele Anmeldeversuche. Bitte nach 15 Minuten erneut versuchen."}
+== korrekte Passphrase direkt danach ==
+[429] {"code":"rate_limited","error":"Zu viele Anmeldeversuche. Bitte nach 15 Minuten erneut versuchen."}
+retry-after: 900
+== andere Quelle (X-Forwarded-For) ebenfalls gesperrt ==
+[429]
+== bestehende Sitzung bleibt gültig ==
+[200]
+== Setup nach Abschluss ==
+{"code":"conflict","error":"Einrichtung bereits abgeschlossen."} [409]
+
+== Request-Stau: 16 Verbindungen senden Header + "{" eines 15-KB-Bodys an POST /api/v1/session und schweigen (scripts/slowbody*.py) ==
+16 haengende POST /api/v1/session -> GET /health/live: 200 8ms
+16 haengende POST /api/v1/session -> GET /health/ready: 200 1ms
+16 haengende POST /api/v1/session -> GET /api/v1/setup: 200 1ms
+16 haengende POST /api/v1/session -> GET /api/v1/me: 401 1ms
+16 haengende POST /api/v1/session -> GET /: 200 4ms
+17. Login (POST /api/v1/session) bei 16 haengenden: TimeoutError nach 12025 ms
+nach 120s Stille: Login TimeoutError nach 10047 ms (blockiert)
+vom Server geschlossene Verbindungen: 0/16
+=> ConcurrencyLimitLayer(16) wirkt je Route; es gibt kein Header-/Body-/Idle-Timeout. Andere Routen bleiben erreichbar.
+
+== RUSTSEC-2026-0592 (url::Url::origin, verschachtelte blob:-URLs) über den Origin-Header ==
+50020 Bytes Origin "blob:"x10000 + "https://example.com/" -> 403 (Anfrage abgewiesen ...)
+Container danach: running=true restarts=0 health=healthy, /health/live {"status":"ok"}
+=> nicht erreichbar: config::parse_origin prüft das Schema vor origin() (config.rs:61).
+
+== Cookie-Flags ==
+Setup über http://127.0.0.1:38784: set-cookie: keyhunter_session=<redacted>; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200
+Login mit Host kh.example.org + Origin https://kh.example.org: ...; Max-Age=43200; Secure
+Login mit Host kh.example.org + Origin http://kh.example.org: [403]
+Login mit Host 172.17.0.5:3000 (Proxy schreibt Host um) + Origin https://kh.example.org: [403]

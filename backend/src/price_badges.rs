@@ -1,6 +1,6 @@
 use crate::shops::Product;
 use crate::{
-    ApiError, ApiResult, AppState, Shared, auth, now, offers,
+    ApiError, ApiResult, AppState, Shared, auth, jobs, now, offers,
     pricing::{self, Reason},
 };
 use axum::{
@@ -9,7 +9,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
 };
 use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
+use sqlx::{AssertSqlSafe, SqlitePool};
 use std::{
     collections::{BTreeMap, HashMap},
     sync::Mutex,
@@ -22,7 +22,10 @@ pub(crate) struct PriceBadge {
     pub observed_at: Option<i64>,
     pub checked_at: Option<i64>,
     pub stale: bool,
+    /// A job of the item runs or really waits for its shop ([`jobs::pending`]).
     pub pending: bool,
+    /// A pending job serves a fetch the owner triggered ([`jobs::direct_action`]); only then the pages poll every 3 s.
+    pub refreshing: bool,
     /// Cheapest current offer of any region, always reported for the comparison with the
     /// target country (the core use case), independent of the badge setting.
     pub world: Option<WorldBest>,
@@ -102,6 +105,7 @@ struct JobSummary {
     checked: Option<i64>,
     failed: bool,
     pending: bool,
+    refreshing: bool,
 }
 
 /// Observation time and price of a link: `None` when it was not valid in the target country.
@@ -255,13 +259,24 @@ pub(crate) async fn load_many(
     let t = now();
     let ids_json = serde_json::to_string(ids).map_err(|_| crate::internal())?;
     let wishes = offers::wishes(pool, &ids_json).await?;
-    let mut links = offers::links_of_items(pool, &ids_json, t).await?;
-    let jobs: Vec<JobSummary> = sqlx::query_as("SELECT COALESCE(j.wish_id,l.wish_id) AS item,MAX(j.checked_at) AS checked,COALESCE(MAX(j.last_error IS NOT NULL),0) AS failed,COALESCE(MAX((j.lease_until>?1 OR j.due<=?1) AND s.enabled AND s.configured AND (j.link_id IS NULL OR l.review!='rejected') AND COALESCE(w.state,'wished')!='owned' AND p.retry_at<=?1 AND (p.budget_day!=?2 OR p.jobs_today<COALESCE(s.daily_jobs,?3))
-            AND ((SELECT fetch_paused_at FROM app_settings WHERE id=1) IS NULL OR j.requested_at>?1-900)),0) AS pending
-        FROM shop_job j JOIN source_settings s ON s.id=j.source JOIN shop_state p ON p.source=j.source LEFT JOIN offer_link l ON l.id=j.link_id
-        LEFT JOIN wishlist_item w ON w.id=COALESCE(j.wish_id,l.wish_id)
-        WHERE COALESCE(j.wish_id,l.wish_id) IN (SELECT value FROM json_each(?4)) GROUP BY 1")
-        .bind(t).bind(t / 86400).bind(crate::jobs::daily_budget()).bind(&ids_json).fetch_all(pool).await?;
+    let mut links = offers::links_of_items(pool, &ids_json).await?;
+    let jobs: Vec<JobSummary> = offers::clock(
+        sqlx::query_as(AssertSqlSafe(format!(
+            "SELECT item,MAX(checked) AS checked,COALESCE(MAX(failed),0) AS failed,COALESCE(MAX(pending),0) AS pending,
+            COALESCE(MAX(pending AND direct),0) AS refreshing FROM (
+                SELECT COALESCE(j.wish_id,l.wish_id) AS item,j.checked_at AS checked,j.last_error IS NOT NULL AS failed,
+                {} AS pending,{} AS direct
+                FROM {} WHERE COALESCE(j.wish_id,l.wish_id) IN (SELECT value FROM json_each(?1))
+            ) GROUP BY item",
+            jobs::pending(),
+            jobs::direct_action(),
+            jobs::JOBS
+        )))
+        .bind(&ids_json),
+        t,
+    )
+    .fetch_all(pool)
+    .await?;
     let mut jobs: BTreeMap<String, JobSummary> =
         jobs.into_iter().map(|j| (j.item.clone(), j)).collect();
     // Since 0.6.1 the wishlist always shows the target-country price next to the cheapest region
@@ -327,6 +342,7 @@ fn compute(
         checked_at: job.and_then(|j| j.checked),
         stale: false,
         pending: job.is_some_and(|j| j.pending),
+        refreshing: job.is_some_and(|j| j.refreshing),
         world: None,
         source: None,
         region: None,
@@ -494,7 +510,7 @@ pub(crate) async fn shop_offers(
     let t = now();
     let ids_json = serde_json::to_string(ids).map_err(|_| crate::internal())?;
     let wishes = offers::wishes(pool, &ids_json).await?;
-    let mut links = offers::links_of_items(pool, &ids_json, t).await?;
+    let mut links = offers::links_of_items(pool, &ids_json).await?;
     let home_scope = pricing::Scope::for_wishlist(target, "preferred");
     let mut result = BTreeMap::new();
     for (id, wish) in wishes {

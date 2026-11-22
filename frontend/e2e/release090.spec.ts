@@ -30,7 +30,13 @@ test('a wish is paused on its own for weeks or until resumed, and stays paused t
   await page.goto(`/?item=${id}`);
   // No limit any more: the head counts the games only.
   await page.getByRole('button', { name: 'Abfragen pausieren', exact: true }).click();
-  await expect(page.getByRole('menu', { name: 'Abfragen pausieren' }).getByRole('menuitem')).toHaveText(['1 Woche', '2 Wochen', '4 Wochen', '8 Wochen', 'Bis ich fortsetze']);
+  await expect(page.getByRole('menu', { name: 'Abfragen pausieren' }).getByRole('menuitem')).toHaveText([
+    '1 Woche',
+    '2 Wochen',
+    '4 Wochen',
+    '8 Wochen',
+    'Bis ich fortsetze',
+  ]);
   await page.getByRole('menuitem', { name: '2 Wochen', exact: true }).click();
   const end = new Date((now() + 14 * 86400) * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   await expect(page.locator('.pause-pill')).toHaveText(`Abfragen pausiert bis ${end}`);
@@ -46,11 +52,26 @@ test('a wish is paused on its own for weeks or until resumed, and stays paused t
   // In the list: a yellow pause symbol after the title, like the basket, and a chip with the paused wishes.
   await backToList(page);
   await expect(page.locator('.page-head p')).toHaveText(/^2 Spiele · Zielland /);
-  const paused = wishlistRows(page).filter({ hasText: 'Standard Edition' }).getByRole('img', { name: `Abfragen pausiert bis ${end}`, exact: true });
+  const paused = wishlistRows(page)
+    .filter({ hasText: 'Standard Edition' })
+    .getByRole('img', { name: `Abfragen pausiert bis ${end}`, exact: true });
   await expect(paused).toBeVisible();
   const warn = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--warn').trim());
-  expect(await paused.evaluate(el => getComputedStyle(el).color)).toBe(await page.evaluate(color => { const probe = document.createElement('i'); probe.style.color = color; document.body.append(probe); const value = getComputedStyle(probe).color; probe.remove(); return value; }, warn));
-  await expect(wishlistRows(page).filter({ hasText: 'Premium' }).getByRole('img', { name: /pausiert/ })).toHaveCount(0);
+  expect(await paused.evaluate(el => getComputedStyle(el).color)).toBe(
+    await page.evaluate(color => {
+      const probe = document.createElement('i');
+      probe.style.color = color;
+      document.body.append(probe);
+      const value = getComputedStyle(probe).color;
+      probe.remove();
+      return value;
+    }, warn),
+  );
+  await expect(
+    wishlistRows(page)
+      .filter({ hasText: 'Premium' })
+      .getByRole('img', { name: /pausiert/ }),
+  ).toHaveCount(0);
   await page.getByRole('button', { name: /^Pausiert/ }).click();
   await expect(wishlistRows(page)).toHaveCount(1);
 
@@ -68,11 +89,30 @@ test('a wish is paused on its own for weeks or until resumed, and stays paused t
 test('the cart takes games only from the wishlist and shows the remove button without scrolling on desktops', async ({ page }) => {
   await signInToFixture(page);
   const offer = (cents: number) => ({ cents, estimate_cents: Math.round(cents * 1.05), region: 'Global', observed_at: now() - 60, stale: false });
-  const entry = (n: number, name: string, source: string | null) => ({ id: String(n).repeat(32), game_id: String(n), platform_id: 169, created_at: 1, verification: 'manual_unverified', game: null,
-    manual_title: name, added_at: 1, source, scope: 'home', offers: { eneba: { home: offer(2890), world: offer(1290) }, driffle: { home: offer(3100), world: offer(1500) } } });
-  await page.route('**/api/v1/cart', route => route.request().method() === 'GET'
-    ? route.fulfill({ json: [entry(1, 'Microsoft Flight Simulator 2024: Premium Deluxe Edition', 'driffle'), entry(2, 'Forza Horizon 5', null), entry(3, "Baldur's Gate 3", 'eneba')] })
-    : route.continue());
+  const entry = (n: number, name: string, source: string | null) => ({
+    id: String(n).repeat(32),
+    game_id: String(n),
+    platform_id: 169,
+    created_at: 1,
+    verification: 'manual_unverified',
+    game: null,
+    manual_title: name,
+    added_at: 1,
+    source,
+    scope: 'home',
+    offers: { eneba: { home: offer(2890), world: offer(1290) }, driffle: { home: offer(3100), world: offer(1500) } },
+  });
+  await page.route('**/api/v1/cart', route =>
+    route.request().method() === 'GET'
+      ? route.fulfill({
+          json: [
+            entry(1, 'Microsoft Flight Simulator 2024: Premium Deluxe Edition', 'driffle'),
+            entry(2, 'Forza Horizon 5', null),
+            entry(3, "Baldur's Gate 3", 'eneba'),
+          ],
+        })
+      : route.continue(),
+  );
   for (const width of [1280, 1500, 1680, 1920, 2560]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.goto('/?view=cart');
@@ -91,8 +131,19 @@ test('the cart takes games only from the wishlist and shows the remove button wi
 test('the library shows the system under each title and filters tiles and list by text', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await signInToFixture(page);
-  const entry = (n: number, title: string, platform: number) => ({ id: String(n).repeat(32), game_id: String(n), platform_id: platform, created_at: n, acquired_at: n, verification: 'manual_unverified', game: null, manual_title: title });
-  await page.route('**/api/v1/library', route => route.fulfill({ json: [entry(1, 'Halo Infinite', 169), entry(2, 'Pokémon Legends', 49), entry(3, 'Halo 3', 12)] }));
+  const entry = (n: number, title: string, platform: number) => ({
+    id: String(n).repeat(32),
+    game_id: String(n),
+    platform_id: platform,
+    created_at: n,
+    acquired_at: n,
+    verification: 'manual_unverified',
+    game: null,
+    manual_title: title,
+  });
+  await page.route('**/api/v1/library', route =>
+    route.fulfill({ json: [entry(1, 'Halo Infinite', 169), entry(2, 'Pokémon Legends', 49), entry(3, 'Halo 3', 12)] }),
+  );
   await page.goto('/?view=library');
   const items = page.getByRole('list', { name: 'Meine Spiele' }).getByRole('listitem');
   await expect(items).toHaveCount(3);

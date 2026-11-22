@@ -185,24 +185,57 @@ async fn attach_failed(pool: &SqlitePool, shop: Shop, error: &anyhow::Error) {
     .await;
 }
 
-// Shared SQL conditions; `j` is shop_job, `l` the joined offer_link and `t` the item the job
-// belongs to (NULL for discovery). `?2` is the current time.
+// Shared SQL of the scheduler. `j` is shop_job, `s` its source_settings, `p` its shop_state, `l` the joined
+// offer_link and `t` the item the job belongs to (NULL for discovery). Placeholders: `?2` now, `?3` UTC day,
+// `?4` default budget, `?5` now - REQUEST_WINDOW; `?1` is the caller's (shop, item or item ids).
 const ITEM: &str = "LEFT JOIN wishlist_item t ON t.id=COALESCE(j.wish_id,l.wish_id)";
+/// Jobs with everything the conditions below refer to.
+pub(crate) const JOBS: &str = "shop_job j JOIN source_settings s ON s.id=j.source JOIN shop_state p ON p.source=j.source
+    LEFT JOIN offer_link l ON l.id=j.link_id LEFT JOIN wishlist_item t ON t.id=COALESCE(j.wish_id,l.wish_id)";
 /// Time the owner paused the automatic checks (0.7.0), NULL while they run.
 pub(crate) const PAUSED_AT: &str = "(SELECT fetch_paused_at FROM app_settings WHERE id=1)";
 const NOT_OWNED: &str = "COALESCE(t.state,'wished')!='owned'";
 /// A preview is fetched while an active wish that is not paused (0.9.0) watches it and it was viewed in the last 14 days.
 const WATCHED_IF_PREVIEW: &str = "(COALESCE(t.state,'wished')!='preview' OR (COALESCE(t.viewed_at,0)>?2-1209600 AND EXISTS(SELECT 1 FROM edition_watch ew JOIN wishlist_item aw ON aw.id=ew.wish_id WHERE ew.track_id=t.id AND aw.state='wished' AND (aw.paused_at IS NULL OR (aw.paused_until IS NOT NULL AND aw.paused_until<=?2)))))";
-const ANY_ACTIVE_WISH: &str = "EXISTS(SELECT 1 FROM wishlist_item w WHERE w.state='wished')";
+/// Uncorrelated scalar subquery, so SQLite evaluates it once per statement. As `EXISTS(…)` SQLite 3.51 turned it
+/// into a join with every job row, quadratic in the size of the wishlist (PERF-01).
+const ANY_ACTIVE_WISH: &str =
+    "(SELECT 1 FROM wishlist_item any_wish WHERE any_wish.state='wished' LIMIT 1) IS NOT NULL";
 /// A wish paused on its own (0.9.0) waits until its pause ends; a check the owner requested still runs.
 /// Independent of the global pause: resuming that leaves these wishes paused. 900 is REQUEST_WINDOW.
 const NOT_HELD: &str = "(t.paused_at IS NULL OR (t.paused_until IS NOT NULL AND t.paused_until<=?2) OR j.requested_at>?2-900)";
+/// The shop can start a job now: no retry pause, budget left today.
+const SHOP_READY: &str =
+    "p.retry_at<=?2 AND (p.budget_day!=?3 OR p.jobs_today<COALESCE(s.daily_jobs,?4))";
 
 /// Jobs the scheduler runs at all (whenever they are due); idle jobs stay out.
 fn queued() -> String {
     format!(
         "(j.link_id IS NULL OR l.review!='rejected') AND {NOT_OWNED} AND {WATCHED_IF_PREVIEW} AND {ANY_ACTIVE_WISH} AND {NOT_HELD}"
     )
+}
+
+/// The one rule for "this job really waits for its shop's worker" (CODE-01): due, not running, its shop switched
+/// on, not held by the global pause (direct user actions excepted) and [`queued`]. The worker additionally needs
+/// [`SHOP_READY`] and its pace ([`claimable`]); the pages show [`pending`]. Needs [`JOBS`].
+fn waiting() -> String {
+    format!(
+        "j.due<=?2 AND j.lease_until<=?2 AND s.enabled AND s.configured AND ({PAUSED_AT} IS NULL OR {}) AND {}",
+        bypass("?5"),
+        queued()
+    )
+}
+
+/// What the pages call pending ("Wird gesucht …", "Suche eingeplant"): the job runs, or it waits and its shop could
+/// start it now. Pacing does not count, a paced job only waits for its turn. Needs [`JOBS`], 0 or NULL otherwise.
+pub(crate) fn pending() -> String {
+    format!("(j.lease_until>?2 OR ({} AND {SHOP_READY}))", waiting())
+}
+
+/// The job serves a fetch the owner triggered (a requested check, the first search of a new wish, the first price
+/// of a link from a user action; [`bypass`]). Pending, only these make the pages poll quickly (PERF-02).
+pub(crate) fn direct_action() -> String {
+    bypass("?5")
 }
 
 /// Claim class (module table); `window` is the placeholder of `now - REQUEST_WINDOW`.
@@ -231,16 +264,9 @@ fn bypass(window: &str) -> String {
 /// `?1` shop, `?2` now, `?3` UTC day, `?4` default budget, `?5` now - REQUEST_WINDOW.
 fn claimable() -> String {
     format!(
-        "FROM shop_job j JOIN source_settings s ON s.id=j.source JOIN shop_state p ON p.source=j.source
-        LEFT JOIN offer_link l ON l.id=j.link_id {ITEM}
-        WHERE j.source=?1 AND s.enabled AND s.configured AND p.retry_at<=?2
-        AND (p.budget_day!=?3 OR p.jobs_today<COALESCE(s.daily_jobs,?4))
-        AND j.due<=?2 AND j.lease_until<=?2 AND (p.paced_until<=?2 OR {})
-        AND ({PAUSED_AT} IS NULL OR {})
-        AND {}",
-        bypass("?5"),
-        bypass("?5"),
-        queued()
+        "FROM {JOBS} WHERE j.source=?1 AND {} AND {SHOP_READY} AND (p.paced_until<=?2 OR {})",
+        waiting(),
+        bypass("?5")
     )
 }
 
@@ -254,6 +280,24 @@ pub(crate) struct Job {
     /// The job serves a direct user action and skipped pacing.
     #[sqlx(skip)]
     bypass: bool,
+}
+
+/// Leases the next job of `?1` (placeholders of [`claimable`], `?6` lease end, `?7` token). Every fourth job of the
+/// day goes to the most overdue job of classes 2..5.
+fn claim_sql() -> String {
+    format!(
+        "UPDATE shop_job SET lease_until=?6,lease_token=?7 WHERE id=(SELECT id FROM (
+            SELECT j.id AS id, j.due AS due, {} AS class {}
+            AND NOT EXISTS(SELECT 1 FROM shop_job running WHERE running.source=j.source AND running.lease_until>?2)
+        ) ORDER BY CASE
+            WHEN class=0 THEN 0
+            WHEN (SELECT CASE WHEN q.budget_day=?3 THEN q.jobs_today ELSE 0 END FROM shop_state q WHERE q.source=?1)%4=3
+                THEN CASE WHEN class>=2 THEN 1 ELSE 2 END
+            ELSE class END, due, id LIMIT 1)
+        RETURNING id,link_id,failures,wish_id,search_page",
+        class("?5"),
+        claimable()
+    )
 }
 
 async fn claim(
@@ -280,20 +324,7 @@ async fn claim(
     }
 
     let mut tx = pool.begin().await?;
-    // Every fourth job of the day goes to the most overdue job of classes 2..5.
-    let sql = format!(
-        "UPDATE shop_job SET lease_until=?6,lease_token=?7 WHERE id=(SELECT id FROM (
-            SELECT j.id AS id, j.due AS due, {} AS class {}
-            AND NOT EXISTS(SELECT 1 FROM shop_job running WHERE running.source=j.source AND running.lease_until>?2)
-        ) ORDER BY CASE
-            WHEN class=0 THEN 0
-            WHEN (SELECT CASE WHEN q.budget_day=?3 THEN q.jobs_today ELSE 0 END FROM shop_state q WHERE q.source=?1)%4=3
-                THEN CASE WHEN class>=2 THEN 1 ELSE 2 END
-            ELSE class END, due, id LIMIT 1)
-        RETURNING id,link_id,failures,wish_id,search_page",
-        class("?5"),
-        claimable()
-    );
+    let sql = claim_sql();
     let mut claimed: Option<Job> = sqlx::query_as(AssertSqlSafe(sql))
         .bind(shop.id())
         .bind(t)
@@ -1034,6 +1065,26 @@ pub(crate) async fn set_paused(
     Ok(Json(json!({ "paused_at": paused_at })))
 }
 
+/// Due jobs of a shop that really wait ([`waiting`]): count, oldest due time, requested refreshes, products, searches.
+async fn backlog(
+    pool: &SqlitePool,
+    shop: Shop,
+    t: i64,
+) -> sqlx::Result<(i64, Option<i64>, i64, i64, i64)> {
+    sqlx::query_as(AssertSqlSafe(format!(
+        "SELECT COUNT(*),MIN(j.due),COALESCE(SUM(j.requested_at>?5),0),COALESCE(SUM(j.link_id IS NOT NULL),0),
+        COALESCE(SUM(j.wish_id IS NOT NULL),0) FROM {JOBS} WHERE j.source=?1 AND {}",
+        waiting()
+    )))
+    .bind(shop.id())
+    .bind(t)
+    .bind(t / DAY)
+    .bind(daily_budget())
+    .bind(t - REQUEST_WINDOW)
+    .fetch_one(pool)
+    .await
+}
+
 /// GET /api/v1/status/fetch: queue, budget, pauses and recent runs per shop.
 pub(crate) async fn status(
     State(state): State<Shared>,
@@ -1053,18 +1104,7 @@ pub(crate) async fn status(
         let Some(shop) = Shop::from_id(&source) else {
             continue;
         };
-        type Backlog = (i64, Option<i64>, Option<i64>, Option<i64>, Option<i64>);
-        let (due, oldest, requested, products, searches): Backlog = sqlx::query_as(AssertSqlSafe(format!(
-            "SELECT COUNT(*),MIN(j.due),SUM(j.requested_at>?3),SUM(j.link_id IS NOT NULL),SUM(j.wish_id IS NOT NULL)
-            FROM shop_job j LEFT JOIN offer_link l ON l.id=j.link_id {ITEM}
-            WHERE j.source=?1 AND j.due<=?2 AND j.lease_until<=?2 AND (j.link_id IS NULL OR l.review!='rejected')
-            AND {NOT_OWNED} AND {WATCHED_IF_PREVIEW} AND {NOT_HELD}"
-        )))
-        .bind(&source)
-        .bind(t)
-        .bind(t - REQUEST_WINDOW)
-        .fetch_one(&state.pool)
-        .await?;
+        let (due, oldest, requested, products, searches) = backlog(&state.pool, shop, t).await?;
         let next_due: Option<i64> =
             sqlx::query_scalar("SELECT MIN(due) FROM shop_job WHERE source=? AND due>?")
                 .bind(&source)
@@ -1078,7 +1118,7 @@ pub(crate) async fn status(
             "last_error": last_error,
             "paused_until": (retry_at > t).then_some(retry_at),
             "budget": budget_status(&state.pool, shop, t).await?,
-            "backlog": {"due": due, "requested": requested.unwrap_or(0), "products": products.unwrap_or(0), "searches": searches.unwrap_or(0)},
+            "backlog": {"due": due, "requested": requested, "products": products, "searches": searches},
             "oldest_due_at": oldest,
             "next_due_at": next_due,
             "worker_seen_at": state.heartbeat.last(shop),
@@ -1198,6 +1238,23 @@ struct Queued {
     region: Option<String>,
 }
 
+/// Candidates of [`upcoming`]: `?1` shop, `?2` now, `?3` now - REQUEST_WINDOW, `?4` paused, `?5` paced until, `?6` limit.
+fn upcoming_sql() -> String {
+    format!(
+            "SELECT j.id,j.source,j.link_id,j.wish_id,j.search_page,j.due,j.requested_at>?3 AS requested,
+            {} AS class,{} AS bypass,{GAME_NAME} AS game,json_extract(l.latest,'$.region') AS region
+            FROM shop_job j LEFT JOIN offer_link l ON l.id=j.link_id {ITEM}
+            LEFT JOIN game g ON g.id=t.game_id LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id
+            WHERE j.source=?1 AND j.lease_until<=?2 AND (NOT ?4 OR {}) AND {}
+            ORDER BY MAX(j.due,CASE WHEN {} THEN 0 ELSE ?5 END),class,j.due,j.id LIMIT ?6",
+            class("?3"),
+            bypass("?3"),
+            bypass("?3"),
+            queued(),
+            bypass("?3")
+    )
+}
+
 /// The next [`UPCOMING`] jobs over all active shops, a best estimate: each shop's worker is replayed with the
 /// claim rules (claimable jobs, class order with every fourth job for classes 2 to 5, retry pause, pacing
 /// after each paced job and the daily budget). Running jobs are left out; while the automatic checks are
@@ -1215,27 +1272,15 @@ async fn upcoming(pool: &SqlitePool, t: i64, paused: bool) -> sqlx::Result<Vec<V
         let Some((mut paced, retry_at, budget_day, jobs_today, setting)) = state else {
             continue;
         };
-        let mut pending: Vec<Queued> = sqlx::query_as(AssertSqlSafe(format!(
-            "SELECT j.id,j.source,j.link_id,j.wish_id,j.search_page,j.due,j.requested_at>?3 AS requested,
-            {} AS class,{} AS bypass,{GAME_NAME} AS game,json_extract(l.latest,'$.region') AS region
-            FROM shop_job j LEFT JOIN offer_link l ON l.id=j.link_id {ITEM}
-            LEFT JOIN game g ON g.id=t.game_id LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id
-            WHERE j.source=?1 AND j.lease_until<=?2 AND (NOT ?4 OR {}) AND {}
-            ORDER BY MAX(j.due,CASE WHEN {} THEN 0 ELSE ?5 END),class,j.due,j.id LIMIT ?6",
-            class("?3"),
-            bypass("?3"),
-            bypass("?3"),
-            queued(),
-            bypass("?3")
-        )))
-        .bind(shop.id())
-        .bind(t)
-        .bind(t - REQUEST_WINDOW)
-        .bind(paused)
-        .bind(paced)
-        .bind(UPCOMING_CANDIDATES)
-        .fetch_all(pool)
-        .await?;
+        let mut pending: Vec<Queued> = sqlx::query_as(AssertSqlSafe(upcoming_sql()))
+            .bind(shop.id())
+            .bind(t)
+            .bind(t - REQUEST_WINDOW)
+            .bind(paused)
+            .bind(paced)
+            .bind(UPCOMING_CANDIDATES)
+            .fetch_all(pool)
+            .await?;
         let limit = daily_limit(setting);
         let mut day = t / DAY;
         let mut used = if budget_day == day { jobs_today } else { 0 };
@@ -2968,5 +3013,134 @@ mod tests {
                 ),
             ]
         );
+    }
+
+    /// 500 active wishes with 4 linked products each (2000 links, one job each) plus a search per wish:
+    /// the data set of the PERF-01 measurement. Everything is due, so the whole queue is a backlog.
+    async fn large_queue(t: i64) -> SqlitePool {
+        let pool = memory().await;
+        sqlx::raw_sql("UPDATE source_settings SET enabled=1,configured=1 WHERE kind='shop'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i+1 FROM n WHERE i<1999)
+            INSERT INTO game(id,manual_title,manual_key,created_at) SELECT 'g'||i,'Game '||i,'game '||i,0 FROM n WHERE i<500",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        for sql in [
+            "INSERT INTO wishlist_item(id,game_id,platform_id,created_at) SELECT 'w'||substr(id,2),id,169,0 FROM game",
+            "WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i+1 FROM n WHERE i<1999)
+            INSERT INTO offer_link(wish_id,source,url,review,observed_at)
+            SELECT 'w'||(i/4),CASE WHEN i%4=3 THEN 'driffle' ELSE 'eneba' END,'https://www.eneba.com/de/xbox-perf-'||i,'confirmed',?1-3600 FROM n",
+            "INSERT INTO shop_job(source,link_id,due,checked_at) SELECT source,id,?1-60-id,?1-3600 FROM offer_link",
+            "INSERT INTO shop_job(source,wish_id,due,checked_at) SELECT 'eneba',id,?1-30,?1-WEEK FROM wishlist_item",
+        ] {
+            sqlx::query(AssertSqlSafe(sql.replace("WEEK", &WEEK.to_string())))
+                .bind(t)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        unpace(&pool).await;
+        pool
+    }
+
+    /// Median duration of `runs` calls in microseconds.
+    async fn median_us<F, Fut>(runs: usize, mut call: F) -> u128
+    where
+        F: FnMut() -> Fut,
+        Fut: std::future::Future<Output = ()>,
+    {
+        let mut times = Vec::with_capacity(runs);
+        for _ in 0..runs {
+            let start = Instant::now();
+            call().await;
+            times.push(start.elapsed().as_micros());
+        }
+        times.sort_unstable();
+        times[runs / 2]
+    }
+
+    /// PERF-01: claim and the fetch status stay fast at 500 wishes and 2000 links.
+    #[tokio::test]
+    async fn perf01_claim_and_status_stay_fast_at_500_wishes() {
+        const T0: i64 = 1_800_000_000 - 1_800_000_000 % DAY + 12 * 3600;
+        let pool = large_queue(T0).await;
+        let claim_us = median_us(11, || {
+            let pool = pool.clone();
+            async move {
+                let job = claim(&pool, Shop::Eneba, "perf", T0, 2000).await.unwrap();
+                assert!(job.is_some());
+                sqlx::raw_sql("UPDATE shop_job SET lease_until=0,lease_token=NULL; UPDATE shop_state SET paced_until=0,jobs_today=0")
+                    .execute(&pool)
+                    .await
+                    .unwrap();
+            }
+        })
+        .await;
+        let status_us = median_us(5, || {
+            let pool = pool.clone();
+            async move {
+                for shop in Shop::ALL {
+                    backlog(&pool, shop, T0).await.unwrap();
+                    budget_status(&pool, shop, T0).await.unwrap();
+                }
+                assert_eq!(upcoming(&pool, T0, false).await.unwrap().len(), UPCOMING);
+            }
+        })
+        .await;
+        println!(
+            "PERF-01 at 500 wishes/2000 links: claim median {claim_us} µs, status queries median {status_us} µs"
+        );
+        // Every scheduler statement evaluates the active-wish check once, as an uncorrelated scalar subquery,
+        // never as an EXISTS join per job row (the plan SQLite 3.51 chose for `EXISTS(…)`).
+        let statements = [
+            format!("SELECT EXISTS(SELECT 1 {})", claimable()),
+            claim_sql(),
+            upcoming_sql(),
+            format!(
+                "SELECT COUNT(*) FROM {JOBS} WHERE j.source=?1 AND {}",
+                waiting()
+            ),
+            format!(
+                "SELECT MAX({}),MAX({}) FROM {JOBS}",
+                pending(),
+                direct_action()
+            ),
+            format!(
+                "SELECT COUNT(*) FROM shop_job j LEFT JOIN offer_link l ON l.id=j.link_id {ITEM} WHERE {}",
+                queued()
+            ),
+        ];
+        for sql in statements {
+            let plan: Vec<(i64, i64, i64, String)> =
+                sqlx::query_as(AssertSqlSafe(format!("EXPLAIN QUERY PLAN {sql}")))
+                    .fetch_all(&pool)
+                    .await
+                    .unwrap();
+            let parent = |id: i64| plan.iter().find(|row| row.0 == id);
+            let checks: Vec<_> = plan
+                .iter()
+                .filter(|row| row.3.contains("any_wish"))
+                .collect();
+            assert!(!checks.is_empty(), "no active-wish check in {plan:?}");
+            for row in checks {
+                let mut up = parent(row.1);
+                while let Some(node) = up.filter(|node| !node.3.contains("SCALAR SUBQUERY")) {
+                    up = parent(node.1);
+                }
+                assert!(
+                    up.is_some_and(|node| !node.3.starts_with("CORRELATED"))
+                        && !row.3.contains("EXISTS"),
+                    "active-wish check evaluated per row: {plan:#?}"
+                );
+            }
+        }
+        // Generous bounds for a debug build; the release build needs a fraction (K22: claim < 5 ms, status < 50 ms).
+        assert!(claim_us < 100_000, "claim took {claim_us} µs");
+        assert!(status_us < 400_000, "status queries took {status_us} µs");
     }
 }

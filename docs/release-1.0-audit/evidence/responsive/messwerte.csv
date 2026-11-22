@@ -1,0 +1,241 @@
+ansicht,viewport,dokument_overflow_px,main_scrollWidth/clientWidth,main_horizontal_verschiebbar,innere_horizontale_scrollbereiche,ziele_gesamt,ziele_unter_24px,ziele_unter_44px,beispiele_unter_24px,abgeschnittene_texte_ellipsis
+add-dialog,768,0,768/768,nein,div.inset.table-wrap 977/712,44,10,44,"input ""Nach Spielen suchen"" 177×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22 | button.th-sort ""SPIEL"" 55×13",0
+add-dialog,1366,0,1130/1130,nein,,52,10,50,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22 | button.th-sort ""SPIEL"" 55×13",0
+add-dialog,1920,0,1684/1684,nein,,52,10,50,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22 | button.th-sort ""SPIEL"" 55×13",0
+add-dialog,2560,0,2324/2324,nein,,52,10,50,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22 | button.th-sort ""SPIEL"" 55×13",0
+add-dialog-manual,768,0,768/768,nein,div.inset.table-wrap 977/712,45,10,45,"input ""Nach Spielen suchen"" 177×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22 | button.th-sort ""SPIEL"" 55×13",0
+add-dialog-manual,1366,0,1130/1130,nein,,53,10,51,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22 | button.th-sort ""SPIEL"" 55×13",0
+add-dialog-manual,1920,0,1684/1684,nein,,53,10,51,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22 | button.th-sort ""SPIEL"" 55×13",0
+add-dialog-manual,2560,0,2324/2324,nein,,53,10,51,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22 | button.th-sort ""SPIEL"" 55×13",0
+alerts,375,0,375/375,nein,,8,5,8,"input ""Nach Spielen suchen"" 252×22 | button.help-btn ""Hilfe zu Preisalarme"" 22×22 | a.alarm-title ""Forza Horizon 5"" 98×20 | a.alarm-title ""Forza Horizon 5"" 98×20",0
+alerts,430,0,430/430,nein,,8,6,8,"input ""Nach Spielen suchen"" 307×22 | button.help-btn ""Hilfe zu Preisalarme"" 22×22 | a.alarm-title ""Forza Horizon 5"" 98×20 | a.alarm-title ""Forza Horizon 5"" 98×20",0
+alerts,768,0,768/768,nein,,10,6,10,"input ""Nach Spielen suchen"" 177×22 | button.help-btn ""Hilfe zu Preisalarme"" 22×22 | a.alarm-title ""Forza Horizon 5"" 98×20 | a.alarm-title ""Forza Horizon 5"" 98×20",0
+alerts,1366,0,1130/1130,nein,,18,6,16,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zu Preisalarme"" 22×22 | a.alarm-title ""Forza Horizon 5"" 98×20 | a.alarm-title ""Forza Horizon 5"" 98×20",0
+alerts,1920,0,1684/1684,nein,,18,6,16,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zu Preisalarme"" 22×22 | a.alarm-title ""Forza Horizon 5"" 98×20 | a.alarm-title ""Forza Horizon 5"" 98×20",0
+alerts,2560,0,2324/2324,nein,,18,6,16,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zu Preisalarme"" 22×22 | a.alarm-title ""Forza Horizon 5"" 98×20 | a.alarm-title ""Forza Horizon 5"" 98×20",0
+cart,375,0,375/375,nein,,24,6,23,"input ""Nach Spielen suchen"" 252×22 | button.help-btn ""Hilfe zu Warenkorb"" 22×22 | button.title-open ""Forza Horizon 5"" 98×20 | button.title-open ""Forza Horizon 5"" 98×20",0
+cart,430,0,430/430,nein,,24,6,23,"input ""Nach Spielen suchen"" 307×22 | button.help-btn ""Hilfe zu Warenkorb"" 22×22 | button.title-open ""Forza Horizon 5"" 98×20 | button.title-open ""Forza Horizon 5"" 98×20",0
+cart,768,0,768/768,nein,,26,6,25,"input ""Nach Spielen suchen"" 177×22 | button.help-btn ""Hilfe zu Warenkorb"" 22×22 | button.title-open ""Forza Horizon 5"" 98×20 | button.title-open ""Forza Horizon 5"" 98×20",0
+cart,1366,0,1130/1130,nein,,34,6,32,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zu Warenkorb"" 22×22 | button.title-open ""Forza Horizon 5"" 98×20 | button.title-open ""Forza Horizon 5"" 98×20",0
+cart,1920,0,1684/1684,nein,,34,6,32,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zu Warenkorb"" 22×22 | button.title-open ""Forza Horizon 5"" 98×20 | button.title-open ""Forza Horizon 5"" 98×20",0
+cart,2560,0,2324/2324,nein,,34,6,32,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zu Warenkorb"" 22×22 | button.title-open ""Forza Horizon 5"" 98×20 | button.title-open ""Forza Horizon 5"" 98×20",0
+confirm-dialog,375,0,403/375,ja,div.tabs 465/335,24,1,22,"input ""Nach Spielen suchen"" 252×22",0
+confirm-dialog,430,0,430/430,nein,div.tabs 465/390,24,1,22,"input ""Nach Spielen suchen"" 307×22",0
+confirm-dialog,768,0,768/768,nein,,27,2,25,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 177×22",0
+confirm-dialog,1366,0,1130/1130,nein,,35,2,31,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+confirm-dialog,1920,0,1684/1684,nein,,35,2,31,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+confirm-dialog,2560,0,2324/2324,nein,,35,2,31,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+detail-alarm,375,0,375/375,nein,div.tabs 465/335,25,4,23,"input ""Nach Spielen suchen"" 252×22 | input ""Zielpreis"" 141×22 | input 30×18 | button.help-btn ""Hilfe zum Preisalarm"" 22×22",0
+detail-alarm,430,0,430/430,nein,div.tabs 465/390,25,4,23,"input ""Nach Spielen suchen"" 307×22 | input ""Zielpreis"" 141×22 | input 30×18 | button.help-btn ""Hilfe zum Preisalarm"" 22×22",0
+detail-alarm,768,0,768/768,nein,,28,5,26,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 177×22 | input ""Zielpreis"" 141×22 | input 30×18",0
+detail-alarm,1366,0,1130/1130,nein,,36,5,32,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22 | input ""Zielpreis"" 141×22 | input 30×18",0
+detail-alarm,1920,0,1684/1684,nein,,36,5,32,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22 | input ""Zielpreis"" 141×22 | input 30×18",0
+detail-alarm,2560,0,2324/2324,nein,,36,5,32,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22 | input ""Zielpreis"" 141×22 | input 30×18",0
+detail-angebote,375,0,375/375,nein,div.tabs 465/335 | div.inset.table-wrap 1228/319,35,3,33,"input ""Nach Spielen suchen"" 252×22 | input 30×18 | button.text-button ""1 Zuordnung prüfen"" 110×18",0
+detail-angebote,430,0,430/430,nein,div.tabs 465/390 | div.inset.table-wrap 1228/374,35,3,33,"input ""Nach Spielen suchen"" 307×22 | input 30×18 | button.text-button ""1 Zuordnung prüfen"" 110×18",0
+detail-angebote,768,0,768/768,nein,div.inset.table-wrap 1228/712,38,4,36,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 177×22 | input 30×18 | button.text-button ""1 Zuordnung prüfen"" 110×18",0
+detail-angebote,1366,0,1130/1130,nein,div.inset.table-wrap 1228/1074,46,4,42,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22 | input 30×18 | button.text-button ""1 Zuordnung prüfen"" 110×18",0
+detail-angebote,1920,0,1684/1684,nein,,46,4,42,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22 | input 30×18 | button.text-button ""1 Zuordnung prüfen"" 110×18",0
+detail-angebote,2560,0,2324/2324,nein,,46,4,42,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22 | input 30×18 | button.text-button ""1 Zuordnung prüfen"" 110×18",0
+detail-editionen,375,0,375/375,nein,div.tabs 465/335 | div.inset.table-wrap 403/319,19,3,17,"input ""Nach Spielen suchen"" 252×22 | summary ""Anzeigen"" 126×18 | summary ""Anzeigen"" 118×18",0
+detail-editionen,430,0,430/430,nein,div.tabs 465/390 | div.inset.table-wrap 403/374,19,3,17,"input ""Nach Spielen suchen"" 307×22 | summary ""Anzeigen"" 126×18 | summary ""Anzeigen"" 118×18",0
+detail-editionen,768,0,768/768,nein,,22,4,20,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 177×22 | summary ""Anzeigen"" 267×18 | summary ""Anzeigen"" 267×18",0
+detail-editionen,1366,0,1130/1130,nein,,30,4,26,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22 | summary ""Anzeigen"" 415×18 | summary ""Anzeigen"" 415×18",0
+detail-editionen,1920,0,1684/1684,nein,,30,4,26,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22 | summary ""Anzeigen"" 510×18 | summary ""Anzeigen"" 510×18",0
+detail-editionen,2560,0,2324/2324,nein,,30,4,26,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22 | summary ""Anzeigen"" 510×18 | summary ""Anzeigen"" 510×18",0
+detail-failed-fetch,375,0,375/375,nein,div.tabs 439/335,17,2,15,"input ""Nach Spielen suchen"" 252×22 | input 30×18",0
+detail-failed-fetch,430,0,430/430,nein,div.tabs 439/390,17,2,15,"input ""Nach Spielen suchen"" 307×22 | input 30×18",0
+detail-failed-fetch,768,0,768/768,nein,,20,3,18,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 177×22 | input 30×18",0
+detail-failed-fetch,1366,0,1130/1130,nein,,28,3,24,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22 | input 30×18",0
+detail-failed-fetch,1920,0,1684/1684,nein,,28,3,24,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22 | input 30×18",0
+detail-failed-fetch,2560,0,2324/2324,nein,,28,3,24,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22 | input 30×18",0
+detail-infos,375,0,375/375,nein,div.tabs 465/335,42,2,41,"input ""Nach Spielen suchen"" 252×22 | button.help-btn ""Hilfe zum Produktlink"" 20×20",0
+detail-infos,430,0,430/430,nein,div.tabs 465/390,42,2,41,"input ""Nach Spielen suchen"" 307×22 | button.help-btn ""Hilfe zum Produktlink"" 20×20",0
+detail-infos,768,0,768/768,nein,,45,3,44,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 177×22 | button.help-btn ""Hilfe zum Produktlink"" 20×20",0
+detail-infos,1366,0,1130/1130,nein,,53,3,50,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zum Produktlink"" 20×20",0
+detail-infos,1920,0,1684/1684,nein,,53,3,50,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zum Produktlink"" 20×20",0
+detail-infos,2560,0,2324/2324,nein,,53,3,50,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zum Produktlink"" 20×20",0
+detail-long-x360,375,0,437/375,ja,div.tabs 439/335,17,1,15,"input ""Nach Spielen suchen"" 252×22",0
+detail-long-x360,430,0,437/430,ja,div.tabs 439/390,17,1,15,"input ""Nach Spielen suchen"" 307×22",0
+detail-long-x360,768,0,768/768,nein,,20,2,18,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 177×22",1
+detail-long-x360,1366,0,1130/1130,nein,,28,2,24,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",1
+detail-long-x360,1920,0,1684/1684,nein,,28,2,24,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+detail-long-x360,2560,0,2324/2324,nein,,28,2,24,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+detail-paused,375,0,437/375,ja,div.tabs 439/335,17,1,15,"input ""Nach Spielen suchen"" 252×22",0
+detail-paused,430,0,437/430,ja,div.tabs 439/390,17,1,15,"input ""Nach Spielen suchen"" 307×22",0
+detail-paused,768,0,768/768,nein,,20,2,18,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 177×22",1
+detail-paused,1366,0,1130/1130,nein,,28,2,24,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",1
+detail-paused,1920,0,1684/1684,nein,,28,2,24,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+detail-paused,2560,0,2324/2324,nein,,28,2,24,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+detail-preis,375,0,403/375,ja,div.tabs 465/335,22,1,20,"input ""Nach Spielen suchen"" 252×22",0
+detail-preis,430,0,430/430,nein,div.tabs 465/390,22,1,20,"input ""Nach Spielen suchen"" 307×22",0
+detail-preis,768,0,768/768,nein,,25,2,23,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 177×22",0
+detail-preis,1366,0,1130/1130,nein,,33,2,29,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+detail-preis,1920,0,1684/1684,nein,,33,2,29,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+detail-preis,2560,0,2324/2324,nein,,33,2,29,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+detail-searching,375,0,437/375,ja,div.tabs 439/335,16,1,14,"input ""Nach Spielen suchen"" 252×22",0
+detail-searching,430,0,437/430,ja,div.tabs 439/390,16,1,14,"input ""Nach Spielen suchen"" 307×22",0
+detail-searching,768,0,768/768,nein,,19,2,17,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 177×22",0
+detail-searching,1366,0,1130/1130,nein,,27,2,23,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+detail-searching,1920,0,1684/1684,nein,,27,2,23,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+detail-searching,2560,0,2324/2324,nein,,27,2,23,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+detail-verlauf,375,0,418/375,ja,div.tabs 465/335,19,1,17,"input ""Nach Spielen suchen"" 252×22",0
+detail-verlauf,430,0,430/430,nein,div.tabs 465/390,19,1,17,"input ""Nach Spielen suchen"" 307×22",0
+detail-verlauf,768,0,768/768,nein,,22,2,20,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 177×22",0
+detail-verlauf,1366,0,1130/1130,nein,,30,2,26,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+detail-verlauf,1920,0,1684/1684,nein,,30,2,26,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+detail-verlauf,2560,0,2324/2324,nein,,30,2,26,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+drawer,375,0,375/375,nein,,36,9,34,"input ""Nach Spielen suchen"" 252×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 126×22 | button.th-sort ""Spiel"" 44×17",0
+drawer,430,0,430/430,nein,,42,9,40,"input ""Nach Spielen suchen"" 307×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 76×22 | button.th-sort ""Spiel"" 44×17",0
+drawer,768,0,768/768,nein,div.inset.table-wrap 977/712,49,9,47,"input ""Nach Spielen suchen"" 177×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22 | button.th-sort ""SPIEL"" 55×13",0
+help-popup,375,0,375/375,nein,,27,9,27,"input ""Nach Spielen suchen"" 252×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 126×22 | button.th-sort ""Spiel"" 44×17",0
+help-popup,430,0,430/430,nein,,33,9,33,"input ""Nach Spielen suchen"" 307×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 76×22 | button.th-sort ""Spiel"" 44×17",0
+help-popup,768,0,768/768,nein,div.inset.table-wrap 977/712,40,9,40,"input ""Nach Spielen suchen"" 177×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22 | button.th-sort ""SPIEL"" 55×13",0
+help-popup,1366,0,1130/1130,nein,,48,9,46,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22 | button.th-sort ""SPIEL"" 55×13",0
+help-popup,1920,0,1684/1684,nein,,48,9,46,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22 | button.th-sort ""SPIEL"" 55×13",0
+help-popup,2560,0,2324/2324,nein,,48,9,46,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22 | button.th-sort ""SPIEL"" 55×13",0
+journey-01-after-setup,1366,0,1130/1130,nein,,21,2,19,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22",0
+journey-02-search-without-igdb,1366,0,1130/1130,nein,,28,3,26,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input 356×22",0
+journey-03-search-results,1366,0,1130/1130,nein,,28,3,26,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input 356×22",0
+journey-04-detail-after-add,1366,0,1130/1130,nein,,34,2,30,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+journey-05-offers-only-de,1366,0,1130/1130,nein,,39,4,35,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22 | input 30×18 | button.text-button ""1 Zuordnung prüfen"" 110×18",0
+journey-06-alarm-saved-no-channel,1366,0,1130/1130,nein,,38,5,34,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22 | input ""Zielpreis"" 141×22 | input 30×18",0
+journey-07-notifications,1366,0,1130/1130,nein,,37,3,32,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zu Benachrichtigungen"" 22×22 | button.help-btn ""Hilfe zu ntfy"" 22×22",0
+journey-08-channel-saved,1366,0,1130/1130,nein,,41,4,36,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zu Benachrichtigungen"" 22×22 | input 30×18 | button.help-btn ""Hilfe zu ntfy"" 22×22",0
+journey-09-editions,1366,0,1130/1130,nein,,30,4,26,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22 | summary ""Anzeigen"" 415×18 | summary ""Anzeigen"" 415×18",0
+journey-10-cart,1366,0,1130/1130,nein,,20,4,18,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zu Warenkorb"" 22×22 | button.title-open ""Forza Horizon 5"" 98×20 | button.help-btn ""Hilfe zu den Gebühren"" 22×22",0
+journey-11-paused,1366,0,1130/1130,nein,,34,2,30,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+journey-12-after-bought,1366,0,1130/1130,nein,,24,2,22,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22",0
+journey-13-library,1366,0,1130/1130,nein,,23,3,21,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zu Bibliothek"" 22×22 | input ""Bibliothek filtern"" 156×22",0
+journey-14-fetch-status,1366,0,1130/1130,nein,,34,5,30,"input ""Nach Spielen suchen"" 201×22 | button.text-button ""Zu den Key-Shops"" 105×18 | button.help-btn ""Hilfe zu den nächsten Abfragen"" 22×22 | button.help-btn ""Hilfe zu den Abrufen"" 22×22",0
+journey-p1-search,375,0,375/375,nein,section.search-pop 409/349,17,3,17,"input ""Nach Spielen suchen"" 252×22 | select ""Plattform wählen"" 132×19 | button.help-btn ""Hilfe zur Wunschliste"" 22×22",1
+journey-p1b-owned-dialog,375,0,375/375,nein,section.search-pop 409/349,19,3,19,"input ""Nach Spielen suchen"" 252×22 | select ""Plattform wählen"" 132×19 | button.help-btn ""Hilfe zur Wunschliste"" 22×22",1
+journey-p2-detail,375,0,403/375,ja,div.tabs 465/335,22,1,20,"input ""Nach Spielen suchen"" 252×22",0
+journey-p3-offers,375,0,375/375,nein,div.tabs 465/335 | div.inset.table-wrap 1228/319,35,3,33,"input ""Nach Spielen suchen"" 252×22 | input 30×18 | button.text-button ""1 Zuordnung prüfen"" 110×18",0
+journey-p4-alarm,375,0,375/375,nein,div.tabs 465/335,25,4,24,"input ""Nach Spielen suchen"" 252×22 | input ""Zielpreis"" 141×22 | input 30×18 | button.help-btn ""Hilfe zum Preisalarm"" 22×22",0
+journey-p5-pause-menu,375,0,375/375,nein,div.tabs 465/335,30,4,29,"input ""Nach Spielen suchen"" 252×22 | input ""Zielpreis"" 141×22 | input 30×18 | button.help-btn ""Hilfe zum Preisalarm"" 22×22",0
+library,375,0,375/375,nein,,11,3,11,"input ""Nach Spielen suchen"" 252×22 | button.help-btn ""Hilfe zu Bibliothek"" 22×22 | input ""Bibliothek filtern"" 291×22",0
+library,430,0,430/430,nein,,11,3,11,"input ""Nach Spielen suchen"" 307×22 | button.help-btn ""Hilfe zu Bibliothek"" 22×22 | input ""Bibliothek filtern"" 346×22",0
+library,768,0,768/768,nein,,12,3,12,"input ""Nach Spielen suchen"" 177×22 | button.help-btn ""Hilfe zu Bibliothek"" 22×22 | input ""Bibliothek filtern"" 156×22",0
+library,1366,0,1130/1130,nein,,20,3,18,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zu Bibliothek"" 22×22 | input ""Bibliothek filtern"" 156×22",0
+library,1920,0,1684/1684,nein,,20,3,18,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zu Bibliothek"" 22×22 | input ""Bibliothek filtern"" 156×22",0
+library,2560,0,2324/2324,nein,,20,3,18,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zu Bibliothek"" 22×22 | input ""Bibliothek filtern"" 156×22",0
+more-menu,375,0,403/375,ja,div.tabs 465/335,24,1,22,"input ""Nach Spielen suchen"" 252×22",0
+more-menu,430,0,430/430,nein,div.tabs 465/390,24,1,22,"input ""Nach Spielen suchen"" 307×22",0
+more-menu,768,0,768/768,nein,,27,2,25,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 177×22",0
+more-menu,1366,0,1130/1130,nein,,35,2,31,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+more-menu,1920,0,1684/1684,nein,,35,2,31,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+more-menu,2560,0,2324/2324,nein,,35,2,31,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+pause-menu,375,0,403/375,ja,div.tabs 465/335,27,1,25,"input ""Nach Spielen suchen"" 252×22",0
+pause-menu,430,0,430/430,nein,div.tabs 465/390,27,1,25,"input ""Nach Spielen suchen"" 307×22",0
+pause-menu,768,0,768/768,nein,,30,2,28,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 177×22",0
+pause-menu,1366,0,1130/1130,nein,,38,2,34,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+pause-menu,1920,0,1684/1684,nein,,38,2,34,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+pause-menu,2560,0,2324/2324,nein,,38,2,34,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+search-popup,375,0,375/375,nein,section.search-pop 409/349,33,10,33,"input ""Nach Spielen suchen"" 252×22 | select ""Plattform wählen"" 132×19 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 126×22",1
+search-popup,430,0,430/430,nein,section.search-pop 464/404,39,10,39,"input ""Nach Spielen suchen"" 307×22 | select ""Plattform wählen"" 132×19 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 76×22",1
+search-popup,768,0,768/768,nein,div.inset.table-wrap 977/712,46,10,46,"input ""Nach Spielen suchen"" 177×22 | select ""Plattform wählen"" 132×19 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22",0
+search-popup,1366,0,1130/1130,nein,,54,10,52,"input ""Nach Spielen suchen"" 201×22 | select ""Plattform wählen"" 132×19 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22",0
+search-popup,1920,0,1684/1684,nein,,54,10,52,"input ""Nach Spielen suchen"" 201×22 | select ""Plattform wählen"" 132×19 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22",0
+search-popup,2560,0,2324/2324,nein,,54,10,52,"input ""Nach Spielen suchen"" 201×22 | select ""Plattform wählen"" 132×19 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22",0
+search-popup-error,375,0,375/375,nein,section.search-pop 409/349,31,10,31,"input ""Nach Spielen suchen"" 252×22 | select ""Plattform wählen"" 132×19 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 126×22",1
+search-popup-error,430,0,430/430,nein,section.search-pop 464/404,37,10,37,"input ""Nach Spielen suchen"" 307×22 | select ""Plattform wählen"" 132×19 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 76×22",1
+search-popup-error,768,0,768/768,nein,div.inset.table-wrap 977/712,44,10,44,"input ""Nach Spielen suchen"" 177×22 | select ""Plattform wählen"" 132×19 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22",0
+search-popup-error,1366,0,1130/1130,nein,,52,10,50,"input ""Nach Spielen suchen"" 201×22 | select ""Plattform wählen"" 132×19 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22",0
+search-popup-error,1920,0,1684/1684,nein,,52,10,50,"input ""Nach Spielen suchen"" 201×22 | select ""Plattform wählen"" 132×19 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22",0
+search-popup-error,2560,0,2324/2324,nein,,52,10,50,"input ""Nach Spielen suchen"" 201×22 | select ""Plattform wählen"" 132×19 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22",0
+settings-allgemein,375,0,375/375,nein,div.tabs.set-tabs 808/335,45,12,42,"input ""Nach Spielen suchen"" 252×22 | button.help-btn ""Hilfe zum Zielland"" 20×20 | button.help-btn ""Hilfe zu Detailseite öffnen über"" 20×20 | button.help-btn ""Hilfe zu den Spalten der Wunschliste"" 22×22",0
+settings-allgemein,430,0,430/430,nein,div.tabs.set-tabs 808/390,45,12,42,"input ""Nach Spielen suchen"" 307×22 | button.help-btn ""Hilfe zum Zielland"" 20×20 | button.help-btn ""Hilfe zu Detailseite öffnen über"" 20×20 | button.help-btn ""Hilfe zu den Spalten der Wunschliste"" 22×22",0
+settings-allgemein,768,0,768/768,nein,div.tabs.set-tabs 808/728,47,12,44,"input ""Nach Spielen suchen"" 177×22 | button.help-btn ""Hilfe zum Zielland"" 20×20 | button.help-btn ""Hilfe zu Detailseite öffnen über"" 20×20 | button.help-btn ""Hilfe zu den Spalten der Wunschliste"" 22×22",0
+settings-allgemein,1366,0,1130/1130,nein,,55,12,50,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zum Zielland"" 20×20 | button.help-btn ""Hilfe zu Detailseite öffnen über"" 20×20 | button.help-btn ""Hilfe zu den Spalten der Wunschliste"" 22×22",0
+settings-allgemein,1920,0,1684/1684,nein,,55,12,50,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zum Zielland"" 20×20 | button.help-btn ""Hilfe zu Detailseite öffnen über"" 20×20 | button.help-btn ""Hilfe zu den Spalten der Wunschliste"" 22×22",0
+settings-allgemein,2560,0,2324/2324,nein,,55,12,50,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zum Zielland"" 20×20 | button.help-btn ""Hilfe zu Detailseite öffnen über"" 20×20 | button.help-btn ""Hilfe zu den Spalten der Wunschliste"" 22×22",0
+settings-index,375,0,375/375,nein,div.tabs.set-tabs 808/335,19,4,17,"input ""Nach Spielen suchen"" 252×22 | button.help-btn ""Hilfe zum IGDB-Zugang"" 22×22 | input 30×18 | button.help-btn ""Hilfe zu den Editionsinhalten"" 22×22",0
+settings-index,430,0,430/430,nein,div.tabs.set-tabs 808/390,19,4,17,"input ""Nach Spielen suchen"" 307×22 | button.help-btn ""Hilfe zum IGDB-Zugang"" 22×22 | input 30×18 | button.help-btn ""Hilfe zu den Editionsinhalten"" 22×22",0
+settings-index,768,0,768/768,nein,div.tabs.set-tabs 808/728,21,4,19,"input ""Nach Spielen suchen"" 177×22 | button.help-btn ""Hilfe zum IGDB-Zugang"" 22×22 | input 30×18 | button.help-btn ""Hilfe zu den Editionsinhalten"" 22×22",0
+settings-index,1366,0,1130/1130,nein,,29,4,25,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zum IGDB-Zugang"" 22×22 | input 30×18 | button.help-btn ""Hilfe zu den Editionsinhalten"" 22×22",0
+settings-index,1920,0,1684/1684,nein,,29,4,25,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zum IGDB-Zugang"" 22×22 | input 30×18 | button.help-btn ""Hilfe zu den Editionsinhalten"" 22×22",0
+settings-index,2560,0,2324/2324,nein,,29,4,25,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zum IGDB-Zugang"" 22×22 | input 30×18 | button.help-btn ""Hilfe zu den Editionsinhalten"" 22×22",0
+settings-log,375,0,375/375,nein,div.tabs.set-tabs 808/335 | div.inset.table-wrap 581/319,19,3,17,"input ""Nach Spielen suchen"" 252×22 | button.help-btn ""Hilfe zum Log"" 22×22 | input ""Log durchsuchen"" 126×22",0
+settings-log,430,0,430/430,nein,div.tabs.set-tabs 808/390 | div.inset.table-wrap 581/374,19,3,17,"input ""Nach Spielen suchen"" 307×22 | button.help-btn ""Hilfe zum Log"" 22×22 | input ""Log durchsuchen"" 181×22",0
+settings-log,768,0,768/768,nein,div.tabs.set-tabs 808/728,21,3,19,"input ""Nach Spielen suchen"" 177×22 | button.help-btn ""Hilfe zum Log"" 22×22 | input ""Log durchsuchen"" 196×22",0
+settings-log,1366,0,1130/1130,nein,,29,3,25,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zum Log"" 22×22 | input ""Log durchsuchen"" 196×22",0
+settings-log,1920,0,1684/1684,nein,,29,3,25,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zum Log"" 22×22 | input ""Log durchsuchen"" 196×22",0
+settings-log,2560,0,2324/2324,nein,,29,3,25,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zum Log"" 22×22 | input ""Log durchsuchen"" 196×22",0
+settings-notifications,375,0,375/375,nein,div.tabs.set-tabs 808/335 | div.tabs.shop-tabs 740/319,25,3,22,"input ""Nach Spielen suchen"" 252×22 | button.help-btn ""Hilfe zu Benachrichtigungen"" 22×22 | button.help-btn ""Hilfe zu ntfy"" 22×22",0
+settings-notifications,430,0,430/430,nein,div.tabs.set-tabs 808/390 | div.tabs.shop-tabs 740/374,25,3,22,"input ""Nach Spielen suchen"" 307×22 | button.help-btn ""Hilfe zu Benachrichtigungen"" 22×22 | button.help-btn ""Hilfe zu ntfy"" 22×22",0
+settings-notifications,768,0,768/768,nein,div.tabs.set-tabs 808/728 | div.tabs.shop-tabs 740/712,27,3,24,"input ""Nach Spielen suchen"" 177×22 | button.help-btn ""Hilfe zu Benachrichtigungen"" 22×22 | button.help-btn ""Hilfe zu ntfy"" 22×22",0
+settings-notifications,1366,0,1130/1130,nein,,35,3,30,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zu Benachrichtigungen"" 22×22 | button.help-btn ""Hilfe zu ntfy"" 22×22",0
+settings-notifications,1920,0,1684/1684,nein,,35,3,30,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zu Benachrichtigungen"" 22×22 | button.help-btn ""Hilfe zu ntfy"" 22×22",0
+settings-notifications,2560,0,2324/2324,nein,,35,3,30,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zu Benachrichtigungen"" 22×22 | button.help-btn ""Hilfe zu ntfy"" 22×22",0
+settings-shops,375,0,375/375,nein,div.tabs.set-tabs 808/335,22,6,19,"input ""Nach Spielen suchen"" 252×22 | input 30×18 | button.help-btn ""Hilfe zum Intervall"" 20×20 | button.help-btn ""Hilfe zu Abrufe pro Tag"" 20×20",0
+settings-shops,430,0,430/430,nein,div.tabs.set-tabs 808/390,22,6,19,"input ""Nach Spielen suchen"" 307×22 | input 30×18 | button.help-btn ""Hilfe zum Intervall"" 20×20 | button.help-btn ""Hilfe zu Abrufe pro Tag"" 20×20",0
+settings-shops,768,0,768/768,nein,div.tabs.set-tabs 808/728,24,6,21,"input ""Nach Spielen suchen"" 177×22 | input 30×18 | button.help-btn ""Hilfe zum Intervall"" 20×20 | button.help-btn ""Hilfe zu Abrufe pro Tag"" 20×20",0
+settings-shops,1366,0,1130/1130,nein,,32,6,27,"input ""Nach Spielen suchen"" 201×22 | input 30×18 | button.help-btn ""Hilfe zum Intervall"" 20×20 | button.help-btn ""Hilfe zu Abrufe pro Tag"" 20×20",0
+settings-shops,1920,0,1684/1684,nein,,32,6,27,"input ""Nach Spielen suchen"" 201×22 | input 30×18 | button.help-btn ""Hilfe zum Intervall"" 20×20 | button.help-btn ""Hilfe zu Abrufe pro Tag"" 20×20",0
+settings-shops,2560,0,2324/2324,nein,,32,6,27,"input ""Nach Spielen suchen"" 201×22 | input 30×18 | button.help-btn ""Hilfe zum Intervall"" 20×20 | button.help-btn ""Hilfe zu Abrufe pro Tag"" 20×20",0
+settings-status,375,0,375/375,nein,div.tabs.set-tabs 808/335 | div.table-wrap 651/319 | div.inset.table-wrap 778/319,21,5,19,"input ""Nach Spielen suchen"" 252×22 | button.text-button ""Zu den Key-Shops"" 105×18 | button.help-btn ""Hilfe zu den nächsten Abfragen"" 22×22 | button.help-btn ""Hilfe zu den Abrufen"" 22×22",0
+settings-status,430,0,430/430,nein,div.tabs.set-tabs 808/390 | div.table-wrap 651/374 | div.inset.table-wrap 778/374,21,5,19,"input ""Nach Spielen suchen"" 307×22 | button.text-button ""Zu den Key-Shops"" 105×18 | button.help-btn ""Hilfe zu den nächsten Abfragen"" 22×22 | button.help-btn ""Hilfe zu den Abrufen"" 22×22",0
+settings-status,768,0,768/768,nein,div.tabs.set-tabs 808/728 | div.inset.table-wrap 778/712,23,5,21,"input ""Nach Spielen suchen"" 177×22 | button.text-button ""Zu den Key-Shops"" 105×18 | button.help-btn ""Hilfe zu den nächsten Abfragen"" 22×22 | button.help-btn ""Hilfe zu den Abrufen"" 22×22",0
+settings-status,1366,0,1130/1130,nein,,31,5,27,"input ""Nach Spielen suchen"" 201×22 | button.text-button ""Zu den Key-Shops"" 105×18 | button.help-btn ""Hilfe zu den nächsten Abfragen"" 22×22 | button.help-btn ""Hilfe zu den Abrufen"" 22×22",0
+settings-status,1920,0,1684/1684,nein,,31,5,27,"input ""Nach Spielen suchen"" 201×22 | button.text-button ""Zu den Key-Shops"" 105×18 | button.help-btn ""Hilfe zu den nächsten Abfragen"" 22×22 | button.help-btn ""Hilfe zu den Abrufen"" 22×22",0
+settings-status,2560,0,2324/2324,nein,,31,5,27,"input ""Nach Spielen suchen"" 201×22 | button.text-button ""Zu den Key-Shops"" 105×18 | button.help-btn ""Hilfe zu den nächsten Abfragen"" 22×22 | button.help-btn ""Hilfe zu den Abrufen"" 22×22",0
+settings-system,375,0,375/375,nein,div.tabs.set-tabs 808/335,15,3,13,"input ""Nach Spielen suchen"" 252×22 | button.help-btn ""Hilfe zur Sicherheit"" 22×22 | button.help-btn ""Hilfe zum Backup"" 22×22",0
+settings-system,430,0,430/430,nein,div.tabs.set-tabs 808/390,15,3,13,"input ""Nach Spielen suchen"" 307×22 | button.help-btn ""Hilfe zur Sicherheit"" 22×22 | button.help-btn ""Hilfe zum Backup"" 22×22",0
+settings-system,768,0,768/768,nein,div.tabs.set-tabs 808/728,17,3,15,"input ""Nach Spielen suchen"" 177×22 | button.help-btn ""Hilfe zur Sicherheit"" 22×22 | button.help-btn ""Hilfe zum Backup"" 22×22",0
+settings-system,1366,0,1130/1130,nein,,25,3,21,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Sicherheit"" 22×22 | button.help-btn ""Hilfe zum Backup"" 22×22",0
+settings-system,1920,0,1684/1684,nein,,25,3,21,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Sicherheit"" 22×22 | button.help-btn ""Hilfe zum Backup"" 22×22",0
+settings-system,2560,0,2324/2324,nein,,25,3,21,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Sicherheit"" 22×22 | button.help-btn ""Hilfe zum Backup"" 22×22",0
+state-add-no-igdb,1366,0,1130/1130,nein,,52,10,50,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22 | button.th-sort ""SPIEL"" 55×13",0
+state-detail-offers-error,375,0,437/375,ja,div.tabs 439/335,18,1,16,"input ""Nach Spielen suchen"" 252×22",0
+state-detail-offers-error,1366,0,1130/1130,nein,,29,2,25,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+state-empty-alerts,375,0,375/375,nein,,4,2,4,"input ""Nach Spielen suchen"" 252×22 | button.help-btn ""Hilfe zu Preisalarme"" 22×22",0
+state-empty-alerts,1366,0,1130/1130,nein,,14,2,12,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zu Preisalarme"" 22×22",0
+state-empty-cart,375,0,375/375,nein,,4,2,4,"input ""Nach Spielen suchen"" 252×22 | button.help-btn ""Hilfe zu Warenkorb"" 22×22",0
+state-empty-cart,1366,0,1130/1130,nein,,14,2,12,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zu Warenkorb"" 22×22",0
+state-empty-library,375,0,375/375,nein,,6,2,6,"input ""Nach Spielen suchen"" 252×22 | button.help-btn ""Hilfe zu Bibliothek"" 22×22",0
+state-empty-library,1366,0,1130/1130,nein,,15,2,13,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zu Bibliothek"" 22×22",0
+state-failed-fetch-angebote,375,0,375/375,nein,div.tabs 439/335,17,2,15,"input ""Nach Spielen suchen"" 252×22 | input 30×18",0
+state-failed-fetch-angebote,1366,0,1130/1130,nein,,28,3,24,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22 | input 30×18",0
+state-failed-fetch-preis,375,0,437/375,ja,div.tabs 439/335,17,1,15,"input ""Nach Spielen suchen"" 252×22",0
+state-failed-fetch-preis,1366,0,1130/1130,nein,,28,2,24,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+state-login-error,375,0,,nein,,2,0,2,,0
+state-login-error,1366,0,,nein,,2,0,2,,0
+state-network-error-toast,375,0,375/375,nein,,25,6,24,"input ""Nach Spielen suchen"" 252×22 | button.help-btn ""Hilfe zu Warenkorb"" 22×22 | button.title-open ""Forza Horizon 5"" 98×20 | button.title-open ""Forza Horizon 5"" 98×20",0
+state-network-error-toast,1366,0,1130/1130,nein,,35,6,33,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zu Warenkorb"" 22×22 | button.title-open ""Forza Horizon 5"" 98×20 | button.title-open ""Forza Horizon 5"" 98×20",0
+state-offline,375,0,,nein,,1,0,1,,0
+state-offline,1366,0,,nein,,1,0,1,,0
+state-settings-index-no-igdb,1366,0,1130/1130,nein,,28,4,24,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zum IGDB-Zugang"" 22×22 | input 30×18 | button.help-btn ""Hilfe zu den Editionsinhalten"" 22×22",0
+state-wishlist-error,375,0,375/375,nein,,8,2,8,"input ""Nach Spielen suchen"" 252×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22",0
+state-wishlist-error,1366,0,1130/1130,nein,,18,2,16,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22",0
+toast,375,0,403/375,ja,div.tabs 465/335,23,1,21,"input ""Nach Spielen suchen"" 252×22",0
+toast,430,0,430/430,nein,div.tabs 465/390,23,1,21,"input ""Nach Spielen suchen"" 307×22",0
+toast,768,0,768/768,nein,,26,2,24,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 177×22",1
+toast,1366,0,1130/1130,nein,,34,2,30,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+toast,1920,0,1684/1684,nein,,34,2,30,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+toast,2560,0,2324/2324,nein,,34,2,30,"button ""Wunschliste"" 79×21 | input ""Nach Spielen suchen"" 201×22",0
+webkit-angebote,375,0,375/375,nein,div.tabs 464/335 | div.inset.table-wrap 1228/319,35,3,33,"input ""Nach Spielen suchen"" 252×22 | input 30×18 | button.text-button ""1 Zuordnung prüfen"" 111×18",0
+webkit-detail,375,0,391/375,ja,div.tabs 464/335,22,1,20,"input ""Nach Spielen suchen"" 252×22",0
+webkit-wishlist,375,0,375/375,nein,,18,9,18,"input ""Nach Spielen suchen"" 252×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 121×22 | button.th-sort ""Spiel"" 44×17",0
+wishlist,375,0,375/375,nein,,27,9,27,"input ""Nach Spielen suchen"" 252×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 126×22 | button.th-sort ""Spiel"" 44×17",0
+wishlist,430,0,430/430,nein,,33,9,33,"input ""Nach Spielen suchen"" 307×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 76×22 | button.th-sort ""Spiel"" 44×17",0
+wishlist,768,0,768/768,nein,div.inset.table-wrap 977/712,40,9,40,"input ""Nach Spielen suchen"" 177×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22 | button.th-sort ""SPIEL"" 55×13",0
+wishlist,1366,0,1130/1130,nein,,48,9,46,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22 | button.th-sort ""SPIEL"" 55×13",0
+wishlist,1920,0,1684/1684,nein,,48,9,46,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22 | button.th-sort ""SPIEL"" 55×13",0
+wishlist,2560,0,2324/2324,nein,,48,9,46,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22 | button.th-sort ""SPIEL"" 55×13",0
+wishlist-filter-empty,375,0,375/375,nein,,12,3,12,"input ""Nach Spielen suchen"" 252×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 126×22",0
+wishlist-filter-empty,430,0,430/430,nein,,12,3,12,"input ""Nach Spielen suchen"" 307×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 76×22",0
+wishlist-filter-empty,768,0,768/768,nein,,14,3,14,"input ""Nach Spielen suchen"" 177×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22",0
+wishlist-filter-empty,1366,0,1130/1130,nein,,22,3,20,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22",0
+wishlist-filter-empty,1920,0,1684/1684,nein,,22,3,20,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22",0
+wishlist-filter-empty,2560,0,2324/2324,nein,,22,3,20,"input ""Nach Spielen suchen"" 201×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 156×22",0
+zoom-angebote,zoom200,0,683/683,nein,div.inset.table-wrap 1228/627,35,3,33,"input ""Nach Spielen suchen"" 560×22 | input 30×18 | button.text-button ""1 Zuordnung prüfen"" 110×18",0
+zoom-angebote,zoom400,0,320/320,nein,div.tabs 465/280 | div.inset.table-wrap 1228/264,29,2,27,"input ""Nach Spielen suchen"" 197×22 | input 30×18",0
+zoom-detail,zoom200,0,683/683,nein,,22,1,20,"input ""Nach Spielen suchen"" 560×22",0
+zoom-detail,zoom400,0,403/320,ja,div.tabs 465/280,17,1,16,"input ""Nach Spielen suchen"" 197×22",0
+zoom-search,zoom200,0,683/683,nein,section.search-pop 717/657,35,10,35,"input ""Nach Spielen suchen"" 560×22 | select ""Plattform wählen"" 132×19 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 204×22",1
+zoom-search,zoom400,0,320/320,nein,section.search-pop 354/294,25,10,25,"input ""Nach Spielen suchen"" 197×22 | select ""Plattform wählen"" 132×19 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 206×22",1
+zoom-settings-status,zoom200,0,683/683,nein,div.tabs.set-tabs 808/643 | div.table-wrap 651/627 | div.inset.table-wrap 778/627,21,5,19,"input ""Nach Spielen suchen"" 560×22 | button.text-button ""Zu den Key-Shops"" 105×18 | button.help-btn ""Hilfe zu den nächsten Abfragen"" 22×22 | button.help-btn ""Hilfe zu den Abrufen"" 22×22",0
+zoom-settings-status,zoom400,0,320/320,nein,div.tabs.set-tabs 808/280 | div.table-wrap 651/264 | div.seg 270/248 | div.inset.table-wrap 778/264,13,2,11,"input ""Nach Spielen suchen"" 197×22 | button.text-button ""Zu den Key-Shops"" 105×18",0
+zoom-wishlist,zoom200,0,683/683,nein,,29,9,29,"input ""Nach Spielen suchen"" 560×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 204×22 | button.th-sort ""Spiel"" 44×17",0
+zoom-wishlist,zoom400,0,320/320,nein,,19,9,19,"input ""Nach Spielen suchen"" 197×22 | button.help-btn ""Hilfe zur Wunschliste"" 22×22 | input ""Liste filtern"" 206×22 | button.th-sort ""Spiel"" 44×17",0

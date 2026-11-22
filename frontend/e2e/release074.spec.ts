@@ -23,10 +23,21 @@ test('the list filter also takes a shop name and keeps the games where that shop
   const base = (await write(page, 'POST', '/api/v1/wishlist', { igdb_id: 1001, platform_id: 169 })).item.id;
   const premium = (await write(page, 'POST', '/api/v1/wishlist', { igdb_id: 1002, platform_id: 169 })).item.id;
   const t = Math.floor(Date.now() / 1000) - 3600;
-  const badge = (source: string, world: string) => ({ state: 'price', cents: 2890, source, region: 'Global', observed_at: t, checked_at: t, stale: false, pending: false,
-    world: { cents: 1290, source: world, region: 'India', observed_at: t } });
+  const badge = (source: string, world: string) => ({
+    state: 'price',
+    cents: 2890,
+    source,
+    region: 'Global',
+    observed_at: t,
+    checked_at: t,
+    stale: false,
+    pending: false,
+    world: { cents: 1290, source: world, region: 'India', observed_at: t },
+  });
   // Base game: cheapest in Germany at Eneba, worldwide at Driffle. Premium: Driffle for both.
-  await page.route(/\/api\/v1\/wishlist\/price-badges(?:\?.*)?$/, route => route.fulfill({ json: { [base]: badge('eneba', 'driffle'), [premium]: badge('driffle', 'driffle') } }));
+  await page.route(/\/api\/v1\/wishlist\/price-badges(?:\?.*)?$/, route =>
+    route.fulfill({ json: { [base]: badge('eneba', 'driffle'), [premium]: badge('driffle', 'driffle') } }),
+  );
   await page.goto('/');
   const filter = page.getByLabel('Liste filtern');
   await expect(filter).toHaveAttribute('placeholder', 'Spiel oder Shop filtern …');

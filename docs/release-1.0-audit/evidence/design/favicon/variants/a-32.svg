@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="KeyHunter">
+  <!-- Variant A at 32 px: the master tag, key hole head enlarged from r 3.3 to r 4.2 and the foot widened. -->
+  <rect width="32" height="32" rx="7" fill="#FF7A1A"/>
+  <path fill="#1B1004" fill-rule="evenodd" d="M4.392 15.481L11.392 7.281A.8 .8 0 0 1 12 7H26.2A.8 .8 0 0 1 27 7.8V24.2A.8 .8 0 0 1 26.2 25H12A.8 .8 0 0 1 11.392 24.719L4.392 16.519A.8 .8 0 0 1 4.392 15.481Z M19 9A4.2 4.2 0 0 1 21.1 16.9L22.4 22H15.6L16.9 16.9A4.2 4.2 0 0 1 19 9Z"/>
+</svg>

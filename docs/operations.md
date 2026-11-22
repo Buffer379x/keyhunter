@@ -20,6 +20,14 @@ Bei Compose oder einem eigenen `docker run` läuft das Image standardmäßig dir
 
 Für HTTPS leite mit einem Reverse Proxy an Port 3000 weiter. Der Proxy muss den ursprünglichen Host einschließlich eines nicht standardmäßigen Ports weiterreichen. Falls der Proxy den Host umschreibt oder du genau eine Adresse erlauben möchtest, setze `KEYHUNTER_ORIGIN` auf die vollständige Browser-URL ohne Pfad. Wenn HTTP-Anmeldung und Änderungen gesperrt bleiben sollen, setze `KEYHUNTER_ALLOW_INSECURE_HTTP=false`.
 
+### Anmeldeschutz und Passphrase
+
+Nach fünf falschen Anmeldeversuchen innerhalb von 15 Minuten wartet die betroffene Adresse den Rest dieser 15 Minuten; andere Geräte melden sich weiter an. Über alle Adressen zusammen sind 100 Fehlversuche je 15 Minuten erlaubt, danach ist die Anmeldung für alle kurz gesperrt. Eine laufende Sitzung bleibt davon unberührt. Anfragen, deren Daten nicht innerhalb von 15 Sekunden vollständig ankommen, bricht der Server ab; keine Anfrage läuft länger als 60 Sekunden.
+
+Hinter einem Reverse Proxy kommen alle Anfragen von der Adresse des Proxys und zählen damit als eine Quelle: Fünf Fehlversuche von irgendwoher sperren dann alle, die über den Proxy kommen. Setze deshalb `KEYHUNTER_TRUSTED_PROXY` auf die Adresse des Proxys, als IP oder Bereich (z. B. `172.18.0.0/16`, mehrere durch Komma getrennt). Nur für Anfragen von dort zählt die Adresse, die der Proxy in `X-Forwarded-For` einträgt; von rechts gelesen die erste, die nicht selbst zum Proxy gehört. Der Proxy muss den Header setzen bzw. ergänzen (nginx: `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`). Trage dort nie Adressen ein, von denen auch andere Geräte direkt zugreifen.
+
+Unter **Einstellungen → System** änderst du die Passphrase: aktuelle Passphrase und zweimal die neue mit 12 bis 128 Zeichen. Die Sitzung in diesem Browser bleibt, alle anderen enden. **Überall abmelden** beendet alle Sitzungen, auch die aktuelle, etwa nach dem Verlust eines Geräts.
+
 Bei einem Upgrade auf 0.2.2 kannst du für den direkten Zugriff per LAN-IP eine alte `KEYHUNTER_ORIGIN` entfernen oder leeren. Falls `KEYHUNTER_ALLOW_INSECURE_HTTP` auf `false` steht, setze es auf `true` oder entferne es. Das Datenvolume bleibt erhalten.
 
 Bei einem bereits eingerichteten Container kannst du das Feld **Repository** direkt auf `ghcr.io/buffer379x/keyhunter:latest` ändern. Behalte das Datenvolume und die lokale Konfiguration. Unraids Funktion **Check for Updates** erkennt neue Images unter diesem Tag. Für eine feste Version lässt sich `latest` durch eine Versionsnummer ersetzen.

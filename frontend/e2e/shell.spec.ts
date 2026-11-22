@@ -4,13 +4,25 @@ import { openWishlistRow, removeCurrent } from './detail-helpers';
 
 const now = () => Math.floor(Date.now() / 1000);
 const shop = (source: string, used: number, limit: number, pace?: number) => ({
-  source, enabled: true, last_success_at: now() - 60, last_error: null, paused_until: null,
-  budget: pace === undefined ? { used, limit } : { used, limit, limit_source: 'default', demand_per_day: 470, pace_seconds: pace, next_at: now() + pace, by_hour: Array(24).fill(0) },
-  backlog: { due: 0, requested: 0, products: 0, searches: 0 }, oldest_due_at: null, next_due_at: null, worker_seen_at: now(),
+  source,
+  enabled: true,
+  last_success_at: now() - 60,
+  last_error: null,
+  paused_until: null,
+  budget:
+    pace === undefined
+      ? { used, limit }
+      : { used, limit, limit_source: 'default', demand_per_day: 470, pace_seconds: pace, next_at: now() + pace, by_hour: Array(24).fill(0) },
+  backlog: { due: 0, requested: 0, products: 0, searches: 0 },
+  oldest_due_at: null,
+  next_due_at: null,
+  worker_seen_at: now(),
 });
 
 test('sidebar fetch card sums the budget, shows the pace when the backend sends it and opens Abrufstatus', async ({ page }) => {
-  await page.route('**/api/v1/status/fetch', route => route.fulfill({ json: { shops: [shop('eneba', 300, 500, 180), shop('driffle', 112, 500)], errors_24h: 0, recent_runs: [] } }));
+  await page.route('**/api/v1/status/fetch', route =>
+    route.fulfill({ json: { shops: [shop('eneba', 300, 500, 180), shop('driffle', 112, 500)], errors_24h: 0, recent_runs: [] } }),
+  );
   await signInToFixture(page);
   const sidebar = page.getByRole('complementary', { name: 'Seitenleiste' });
   // The status part of the card is the button (its text is its name); the play / pause button sits beside it.

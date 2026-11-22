@@ -37,13 +37,13 @@ test('an alarm rule opens the editor and offers recover after a temporary read f
   await page.getByRole('button', { name: 'Forza Horizon 5 (Xbox Series X|S) vormerken', exact: true }).click();
   await expect(page).toHaveURL(/[?&]item=/);
   await page.getByRole('button', { name: 'Ziel setzen', exact: true }).click();
-  await expect(page.getByLabel('Zielpreis',{exact:true})).toBeVisible();
-  await page.getByLabel('Zielpreis',{exact:true}).fill('15,00');
+  await expect(page.getByLabel('Zielpreis', { exact: true })).toBeVisible();
+  await page.getByLabel('Zielpreis', { exact: true }).fill('15,00');
   await page.getByRole('button', { name: 'Speichern', exact: true }).click();
   await expect(page.getByText('Alarmregel gespeichert.')).toBeVisible();
   await navTo(page, 'Preisalarme');
   await page.getByRole('link', { name: 'Forza Horizon 5', exact: true }).click();
-  await expect(page.getByLabel('Zielpreis',{exact:true})).toHaveValue('15,00');
+  await expect(page.getByLabel('Zielpreis', { exact: true })).toHaveValue('15,00');
   await expect(page.getByRole('button', { name: 'Ziel 15,00 €', exact: true })).toBeVisible();
 
   let failed = false;

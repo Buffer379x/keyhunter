@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { api } from '../../api';
 import type { Settings, WishlistItem } from '../../api';
-import { Button, Help, Icon, Notice, TabPanel, Tabs } from '../../components';
+import { Button, Help, Icon, TabPanel, Tabs } from '../../components';
 import { downloadJson, wishlistExport } from '../wishlist-export';
 import { SettingsPanel } from './parts';
 import type { SettingsDraft } from './draft';
@@ -16,56 +16,114 @@ function TableColumns({ settings, edit }: { settings: Settings; edit: SettingsDr
     { id: 'wishlist', label: 'Wunschliste', body: <WishlistColumns settings={settings} edit={edit} /> },
     { id: 'offers', label: 'Angebote', body: <OffersColumns settings={settings} edit={edit} /> },
   ];
-  return <SettingsPanel title="Tabellenspalten" titleId="general-columns-title" insetClassName="col-panel">
-    <Tabs id="columns" label="Tabelle" className="col-tabs" value={table} onChange={id => setTable(id as 'wishlist' | 'offers')} items={tabs.map(({ id, label }) => ({ id, label }))} />
-    {tabs.map(tab => <TabPanel key={tab.id} id="columns" tab={tab.id} value={table}>{tab.body}</TabPanel>)}
-  </SettingsPanel>;
+  return (
+    <SettingsPanel title="Tabellenspalten" titleId="general-columns-title" insetClassName="col-panel">
+      <Tabs
+        id="columns"
+        label="Tabelle"
+        className="col-tabs"
+        value={table}
+        onChange={id => setTable(id as 'wishlist' | 'offers')}
+        items={tabs.map(({ id, label }) => ({ id, label }))}
+      />
+      {tabs.map(tab => (
+        <TabPanel key={tab.id} id="columns" tab={tab.id} value={table}>
+          {tab.body}
+        </TabPanel>
+      ))}
+    </SettingsPanel>
+  );
 }
 
-export default function General({ settings, countries, edit, onError }: {
-  settings: Settings; countries: { code: string; name: string }[]; edit: SettingsDraft['edit']; onError: (error: unknown) => void;
+export default function General({
+  settings,
+  countries,
+  edit,
+  onError,
+}: {
+  settings: Settings;
+  countries: { code: string; name: string }[];
+  edit: SettingsDraft['edit'];
+  onError: (error: unknown) => void;
 }) {
   const [exporting, setExporting] = useState(false);
   const confirmed = settings.confirmed_activation_countries ?? [];
   const nameOf = (code: string) => countries.find(c => c.code === code)?.name ?? code;
   const target = settings.target_country;
   const unconfirmed = target !== null && !confirmed.includes(target);
-  const targetName = target ? nameOf(target) : 'Zielland';
 
   async function exportList() {
     setExporting(true);
     try {
       const rows = await api<WishlistItem[]>('/wishlist');
       downloadJson('keyhunter-wunschliste.json', wishlistExport(rows));
-    } catch (e) { onError(e); } // a popup (0.9.1)
-    finally { setExporting(false); }
+    } catch (e) {
+      onError(e);
+    } finally {
+      // a popup (0.9.1)
+      setExporting(false);
+    }
   }
-  return <>
-    <SettingsPanel title="Region und Anzeige" titleId="general-region-title">
-      <div className="form-grid">
-        <div className="form-row">
-          <span className="with-help"><label htmlFor="target-country">Zielland</label>
-            <Help label="Hilfe zum Zielland"><span>Der beste Preis gilt für dieses Land. Die Wunschliste zeigt immer diesen Preis und daneben die günstigste Region weltweit.</span>
-              <span>Abgefragt werden alle Regionen gleich, das Zielland wird nicht bevorzugt. Ob ein Key im Zielland aktivierbar ist, prüft KeyHunter für jedes Land einzeln anhand der Länderliste des Shops.</span>
-              <span>Die Shops werden aus der EU abgefragt; ihr Euro-Preis gilt in allen EU-Ländern gleich. Für Länder außerhalb der EU zählt kein Angebot als gültiger Bestpreis.</span></Help></span>
-          <select id="target-country" className="set-w-260" value={target ?? ''} onChange={event => edit(current => ({ ...current, target_country: event.target.value || null }))}>
-            <option value="">Bitte wählen</option>
-            {countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
-          </select>
+  return (
+    <>
+      <SettingsPanel title="Region und Anzeige" titleId="general-region-title">
+        <div className="form-grid">
+          <div className="form-row">
+            <span className="with-help">
+              <label htmlFor="target-country">Zielland</label>
+              <Help label="Hilfe zum Zielland">
+                <span>Der beste Preis gilt für dieses Land. Die Wunschliste zeigt immer diesen Preis und daneben die günstigste Region weltweit.</span>
+                <span>
+                  Abgefragt werden alle Regionen gleich, das Zielland wird nicht bevorzugt. Ob ein Key im Zielland aktivierbar ist, prüft KeyHunter für jedes
+                  Land einzeln anhand der Länderliste des Shops.
+                </span>
+                <span>
+                  Die Shops werden aus der EU abgefragt; ihr Euro-Preis gilt in allen EU-Ländern gleich. Für Länder außerhalb der EU zählt kein Angebot als
+                  gültiger Bestpreis.
+                </span>
+              </Help>
+            </span>
+            <select
+              id="target-country"
+              className="set-w-260"
+              value={target ?? ''}
+              onChange={event => edit(current => ({ ...current, target_country: event.target.value || null }))}
+            >
+              <option value="">Bitte wählen</option>
+              {countries.map(c => (
+                <option key={c.code} value={c.code}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {unconfirmed && (
+            <div className="note warn" role="note" data-testid="activation-note">
+              <Icon name="alert" />
+              <span>
+                Die Shop-Preise gelten für Käufe aus der EU. Für {nameOf(target)} werden Angebote angezeigt, zählen aber nicht als gültiger Bestpreis.
+              </span>
+            </div>
+          )}
         </div>
-        {unconfirmed && <div className="note warn" role="note" data-testid="activation-note"><Icon name="alert" /><span>Die Shop-Preise gelten für Käufe aus der EU. Für {nameOf(target)} werden Angebote angezeigt, zählen aber nicht als gültiger Bestpreis.</span></div>}
-      </div>
-    </SettingsPanel>
+      </SettingsPanel>
 
-    <TableColumns settings={settings} edit={edit} />
+      <TableColumns settings={settings} edit={edit} />
 
-    <SettingsPanel title="Export" titleId="general-export-title">
-      <div className="form-grid">
-        <div className="set-row">
-          <div className="with-help"><h3 className="set-row-title">Wunschliste exportieren</h3><Help label="Hilfe zum Export">Titel, Plattform, IGDB-ID, Art und Prüfstatus als JSON-Datei.</Help></div>
-          <Button loading={exporting} onClick={() => void exportList()}><Icon name="download" />Exportieren</Button>
+      <SettingsPanel title="Export" titleId="general-export-title">
+        <div className="form-grid">
+          <div className="set-row">
+            <div className="with-help">
+              <h3 className="set-row-title">Wunschliste exportieren</h3>
+              <Help label="Hilfe zum Export">Titel, Plattform, IGDB-ID, Art und Prüfstatus als JSON-Datei.</Help>
+            </div>
+            <Button loading={exporting} onClick={() => void exportList()}>
+              <Icon name="download" />
+              Exportieren
+            </Button>
+          </div>
         </div>
-      </div>
-    </SettingsPanel>
-  </>;
+      </SettingsPanel>
+    </>
+  );
 }

@@ -4,118 +4,401 @@
  * Scoped under .settings-page: this file is bundled before ui.css, so plain class selectors would lose against it.
  * Tokens only.
  */
-.settings-page .set-panel { display: grid; gap: 16px; min-width: 0; align-content: start; }
-.settings-page .panel-head h2 { margin: 0; }
-.settings-page .form-grid > p { margin: 0; }
-.settings-page .hint.bad { color: var(--danger); }
-.settings-page .set-w-260 { max-width: 260px; }
-.settings-page .set-w-200 { max-width: 200px; }
-.settings-page .set-pad { padding: 12px 16px; }
+.settings-page .set-panel {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  align-content: start;
+}
+.settings-page .panel-head h2 {
+  margin: 0;
+}
+.settings-page .form-grid > p {
+  margin: 0;
+}
+.settings-page .hint.bad {
+  color: var(--danger);
+}
+.settings-page .set-w-260 {
+  max-width: 260px;
+}
+.settings-page .set-w-200 {
+  max-width: 200px;
+}
+.settings-page .set-pad {
+  padding: 12px 16px;
+}
 /* Controls in form rows use the row's 12 px text, as in the prototype (its .field sits in the .form-row > span rule). */
-.settings-page .form-row > :is(input, select), .settings-page .form-row .field input { font-size: var(--t-xs); }
+.settings-page .form-row > :is(input, select),
+.settings-page .form-row .field input {
+  font-size: var(--t-xs);
+}
 
 /* Save bar in the page head (0.6.5): status, "Verwerfen", "Speichern". With unsaved changes the head sticks below the top bar. */
-.settings-page .set-save { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 10px; min-height: 32px; margin-left: auto; }
-.settings-page .set-save > .label { display: inline-flex; align-items: center; gap: 8px; font-size: var(--t-xs); color: var(--text-2); }
-.settings-page .set-save.dirty > .label, .settings-page .set-save.error > .label { color: var(--warn); }
-.settings-page .set-save .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.settings-page .set-save .spinner { width: 11px; height: 11px; }
-.settings-page .set-save-error { flex-basis: 100%; text-align: right; color: var(--danger); font-size: var(--t-xs); }
+.settings-page .set-save {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 10px;
+  min-height: 32px;
+  margin-left: auto;
+}
+.settings-page .set-save > .label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--t-xs);
+  color: var(--text-2);
+}
+.settings-page .set-save.dirty > .label,
+.settings-page .set-save.error > .label {
+  color: var(--warn);
+}
+.settings-page .set-save .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.settings-page .set-save .spinner {
+  width: 11px;
+  height: 11px;
+}
+.settings-page .set-save-error {
+  flex-basis: 100%;
+  text-align: right;
+  color: var(--danger);
+  font-size: var(--t-xs);
+}
 .settings-page.unsaved > .page-head {
-  position: sticky; top: -22px; z-index: var(--z-sticky); margin-top: -22px; padding: 22px 0 12px;
-  background: var(--ground); box-shadow: 0 1px 0 var(--line);
+  position: sticky;
+  top: -22px;
+  z-index: var(--z-sticky);
+  margin-top: -22px;
+  padding: 22px 0 12px;
+  background: var(--ground);
+  box-shadow: 0 1px 0 var(--line);
 }
 
 /* Notes: the prototype's .note in accent; warn tone for the HTTP notice and a demand above the daily limit (added) */
-.note.warn { background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
-.note.warn svg { color: var(--warn); }
-.note a, .note .text-button { color: var(--accent-2); min-height: 0; }
-.settings-page > .note, .settings-page .set-panel > .note { margin: 0; }
+.note.warn {
+  background: var(--warn-bg);
+  border-color: color-mix(in srgb, var(--warn) 35%, transparent);
+}
+.note.warn svg {
+  color: var(--warn);
+}
+.note a,
+.note .text-button {
+  color: var(--accent-2);
+  min-height: 0;
+}
+.settings-page > .note,
+.settings-page .set-panel > .note {
+  margin: 0;
+}
 
 /* Text and action rows inside a form grid */
-.settings-page .set-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
-.settings-page .set-row > :first-child { flex: 1 1 260px; min-width: 0; }
-.settings-page .set-row-title { margin: 0 0 2px; font-size: var(--t-sm); font-weight: 500; }
-.settings-page .set-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-.settings-page .set-two { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+.settings-page .set-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+.settings-page .set-row > :first-child {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.settings-page .set-row-title {
+  margin: 0 0 2px;
+  font-size: var(--t-sm);
+  font-weight: 500;
+}
+.settings-page .set-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.settings-page .set-two {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+}
 
 /* Key-Shops */
-.settings-page .shops { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
-.settings-page .set-fee { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-.settings-page .set-fee-input { width: 110px; }
-.settings-page .set-fee-input input { text-align: right; }
-.settings-page .set-add { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
-.settings-page .set-add .form-row { flex: 1 1 240px; }
+.settings-page .shops {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.settings-page .set-fee {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.settings-page .set-fee-input {
+  width: 110px;
+}
+.settings-page .set-fee-input input {
+  text-align: right;
+}
+.settings-page .set-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+}
+.settings-page .set-add .form-row {
+  flex: 1 1 240px;
+}
 
 /* Abrufstatus (viewFetch) */
-.settings-page .shop-body { padding: 14px 16px 16px; display: grid; gap: 14px; }
-.settings-page .shop-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.settings-page .shop-stats div { display: grid; gap: 4px; min-width: 0; }
-.settings-page .shop-stats b { font: 500 var(--t-lg) var(--f-mono); font-variant-numeric: tabular-nums; }
-.settings-page .budget { display: grid; gap: 6px; }
-.settings-page .budget .bar { height: 6px; position: relative; overflow: visible; }
-.settings-page .budget .need { position: absolute; top: -4px; width: 2px; height: 14px; margin-left: -1px; background: var(--world); }
-.settings-page .budget-l { display: flex; justify-content: space-between; font-size: var(--t-xs); color: var(--muted); gap: 8px; flex-wrap: wrap; }
-.settings-page .set-problem { color: var(--warn); }
-.settings-page .set-runs td { white-space: nowrap; }
-.settings-page .set-runs td.set-run-target { white-space: normal; min-width: 180px; color: var(--text-2); }
+.settings-page .shop-body {
+  padding: 14px 16px 16px;
+  display: grid;
+  gap: 14px;
+}
+.settings-page .shop-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.settings-page .shop-stats div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.settings-page .shop-stats b {
+  font: 500 var(--t-lg) var(--f-mono);
+  font-variant-numeric: tabular-nums;
+}
+.settings-page .budget {
+  display: grid;
+  gap: 6px;
+}
+.settings-page .budget .bar {
+  height: 6px;
+  position: relative;
+  overflow: visible;
+}
+.settings-page .budget .need {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 14px;
+  margin-left: -1px;
+  background: var(--world);
+}
+.settings-page .budget-l {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--t-xs);
+  color: var(--muted);
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.settings-page .set-problem {
+  color: var(--warn);
+}
+.settings-page .set-runs td {
+  white-space: nowrap;
+}
+.settings-page .set-runs td.set-run-target {
+  white-space: normal;
+  min-width: 180px;
+  color: var(--text-2);
+}
 
 /* System: label and value rows */
-.settings-page .set-facts { margin: 0; display: grid; }
-.settings-page .set-facts > div { display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
-.settings-page .set-facts dt { min-width: 120px; color: var(--muted); }
-.settings-page .set-facts dd { margin: 0; overflow-wrap: anywhere; }
+.settings-page .set-facts {
+  margin: 0;
+  display: grid;
+}
+.settings-page .set-facts > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.settings-page .set-facts dt {
+  min-width: 120px;
+  color: var(--muted);
+}
+.settings-page .set-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
 
 @media (max-width: 900px) {
-  .settings-page .shops { grid-template-columns: minmax(0, 1fr); }
+  .settings-page .shops {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 @media (max-width: 720px) {
-  .settings-page .shop-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .settings-page .shop-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* (0.6.5) Column order of the wishlist: one row per column with its place and "nach oben" / "nach unten". */
-.settings-page .col-order-hint { margin: 0; }
-.settings-page .col-order { list-style: none; margin: 0; padding: 0; max-width: 420px; border: 1px solid var(--line); border-radius: var(--r-sm); }
-.settings-page .col-order li { display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 12px; }
-.settings-page .col-order li + li { border-top: 1px solid var(--line); }
-.settings-page .col-order .col-pos { width: 16px; color: var(--faint); font-size: var(--t-xs); text-align: right; }
-.settings-page .col-order .col-name { flex: 1; min-width: 0; font-size: var(--t-sm); }
-.settings-page .col-order .icon-btn { width: 28px; height: 28px; }
-.settings-page .col-order .icon-btn:disabled { opacity: .35; cursor: default; }
+.settings-page .col-order-hint {
+  margin: 0;
+}
+.settings-page .col-order {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: 420px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+.settings-page .col-order li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 12px;
+}
+.settings-page .col-order li + li {
+  border-top: 1px solid var(--line);
+}
+.settings-page .col-order .col-pos {
+  width: 16px;
+  color: var(--faint);
+  font-size: var(--t-xs);
+  text-align: right;
+}
+.settings-page .col-order .col-name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--t-sm);
+}
+.settings-page .col-order .icon-btn {
+  width: 28px;
+  height: 28px;
+}
+.settings-page .col-order .icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
 
 /* (0.7.0) Drag and drop of the column order: the grip, the held row and no text selection while dragging. */
-.settings-page .col-order .col-grip { display: grid; place-items: center; width: 20px; height: 28px; margin-left: -6px; color: var(--faint); cursor: grab; touch-action: none; }
-.settings-page .col-order .col-grip:hover { color: var(--text-2); }
-.settings-page .col-order .col-grip svg { width: 16px; height: 16px; }
-.settings-page .col-order.dragging { user-select: none; cursor: grabbing; }
-.settings-page .col-order.dragging .col-grip { cursor: grabbing; }
-.settings-page .col-order li.held { background: var(--accent-bg); box-shadow: inset 2px 0 0 var(--accent); }
-.settings-page .col-order li.held .col-name { color: var(--text); }
+.settings-page .col-order .col-grip {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 28px;
+  margin-left: -6px;
+  color: var(--faint);
+  cursor: grab;
+  touch-action: none;
+}
+.settings-page .col-order .col-grip:hover {
+  color: var(--text-2);
+}
+.settings-page .col-order .col-grip svg {
+  width: 16px;
+  height: 16px;
+}
+.settings-page .col-order.dragging {
+  user-select: none;
+  cursor: grabbing;
+}
+.settings-page .col-order.dragging .col-grip {
+  cursor: grabbing;
+}
+.settings-page .col-order li.held {
+  background: var(--accent-bg);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.settings-page .col-order li.held .col-name {
+  color: var(--text);
+}
 /* (0.7.1) Show / hide switch per column; hidden columns read quieter. */
-.settings-page .col-order .switch { flex: none; margin-right: 4px; }
-.settings-page .col-order li:has(input[role="switch"]:not(:checked)) .col-name { color: var(--muted); }
+.settings-page .col-order .switch {
+  flex: none;
+  margin-right: 4px;
+}
+.settings-page .col-order li:has(input[role='switch']:not(:checked)) .col-name {
+  color: var(--muted);
+}
 
 /* (0.8.3) Tabs instead of sidebar entries; the settings page has one title. */
-.settings-page > .set-tabs { margin-top: -6px; }
+.settings-page > .set-tabs {
+  margin-top: -6px;
+}
 /* Paged lists (Log, Abrufe): filter, search and page size in the head, the pager below the table. */
-.settings-page .paged-title { border-bottom: 1px solid var(--line); }
-.settings-page .paged-tools { gap: 10px; border-bottom: 1px solid var(--line); }
-.settings-page .paged-q { width: 240px; }
-.settings-page .log-table td { white-space: nowrap; vertical-align: top; }
-.settings-page .log-table td.log-msg { white-space: normal; min-width: 240px; color: var(--text-2); overflow-wrap: anywhere; }
-.settings-page .log-table tr.lv-error td.log-msg { color: var(--text); }
-.settings-page .set-runs td.set-run-game { white-space: normal; min-width: 160px; }
-.settings-page .set-runs td.set-run-game b { font-weight: 500; }
+.settings-page .paged-title {
+  border-bottom: 1px solid var(--line);
+}
+.settings-page .paged-tools {
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.settings-page .paged-q {
+  width: 240px;
+}
+.settings-page .log-table td {
+  white-space: nowrap;
+  vertical-align: top;
+}
+.settings-page .log-table td.log-msg {
+  white-space: normal;
+  min-width: 240px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.settings-page .log-table tr.lv-error td.log-msg {
+  color: var(--text);
+}
+.settings-page .set-runs td.set-run-game {
+  white-space: normal;
+  min-width: 160px;
+}
+.settings-page .set-runs td.set-run-game b {
+  font-weight: 500;
+}
 @media (max-width: 720px) {
-  .settings-page .paged-q { flex: 1 1 160px; width: auto; }
+  .settings-page .paged-q {
+    flex: 1 1 160px;
+    width: auto;
+  }
 }
 /* (0.8.3) Tabellenspalten: one panel, a tab per table; tools (open mode, help, reset) above the list. */
-.settings-page .col-panel { display: grid; gap: 14px; }
-.settings-page .col-tabs { margin: -4px -4px 0; }
-.settings-page .col-tools { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 10px; max-width: 420px; }
+.settings-page .col-panel {
+  display: grid;
+  gap: 14px;
+}
+.settings-page .col-tabs {
+  margin: -4px -4px 0;
+}
+.settings-page .col-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 10px;
+  max-width: 420px;
+}
 /* Key-Shops (0.8.3): one tab per shop. */
-.settings-page .shop-tabs { margin-bottom: -4px; }
-.settings-page .shop-tabs .dot { margin-right: 2px; }
+.settings-page .shop-tabs {
+  margin-bottom: -4px;
+}
+.settings-page .shop-tabs .dot {
+  margin-right: 2px;
+}
 /* (0.9.0) The HTTPS notice can be closed; it then stays closed in this browser. */
-.note .note-close { margin-left: auto; flex: none; width: 28px; height: 28px; align-self: flex-start; }
-.note.warn .note-close svg { color: var(--text-2); }
+.note .note-close {
+  margin-left: auto;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  align-self: flex-start;
+}
+.note.warn .note-close svg {
+  color: var(--text-2);
+}

@@ -1,0 +1,18 @@
+# Typprüfung außerhalb von src/ (frontend/tsconfig.json: include ["src"])
+npx tsc --noEmit -p tsconfig.json                       -> Exit 0 (src typfehlerfrei)
+npx tsc --noEmit -p <scratch>/tsconfig.json (extends frontend/tsconfig.json, include tests/*.ts, e2e/**/*.ts, playwright.config.ts, types: [])
+-> Exit 1, 53 Fehler:
+     41 error TS2591
+      9 error TS2554
+      3 error TS7006
+   TS2591 = fehlende @types/node (nicht installiert), TS7006 = implizites any in e2e/release090-notifications.spec.ts:17-19
+   TS2554 (echte API-Drift, Testcode ruft rowFacts mit 1 statt 2-3 Argumenten):
+   tests/wishlist-model.test.ts(20,16): error TS2554: Expected 2-3 arguments, but got 1.
+   tests/wishlist-model.test.ts(21,16): error TS2554: Expected 2-3 arguments, but got 1.
+   tests/wishlist-model.test.ts(22,20): error TS2554: Expected 2-3 arguments, but got 1.
+   tests/wishlist-model.test.ts(54,16): error TS2554: Expected 2-3 arguments, but got 1.
+   tests/wishlist-model.test.ts(55,16): error TS2554: Expected 2-3 arguments, but got 1.
+   tests/wishlist-model.test.ts(56,16): error TS2554: Expected 2-3 arguments, but got 1.
+   tests/wishlist-model.test.ts(60,17): error TS2554: Expected 2-3 arguments, but got 1.
+   tests/wishlist-model.test.ts(61,20): error TS2554: Expected 2-3 arguments, but got 1.
+   tests/wishlist-model.test.ts(62,16): error TS2554: Expected 2-3 arguments, but got 1.

@@ -20,14 +20,31 @@ export function useFetchStatus(poll: boolean) {
     let cancel = () => {};
     const load = () => {
       api<FetchStatusResponse>('/status/fetch', 'GET', undefined, undefined, controller.signal)
-        .then(next => { if (!controller.signal.aborted) { setData(next); setFailed(false); setLoadedAt(Date.now()); } })
-        .catch(() => { if (!controller.signal.aborted) setFailed(true); })
-        .finally(() => { if (!controller.signal.aborted && poll) cancel = whenVisible(load, FETCH_REFRESH_MS); });
+        .then(next => {
+          if (!controller.signal.aborted) {
+            setData(next);
+            setFailed(false);
+            setLoadedAt(Date.now());
+          }
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setFailed(true);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted && poll) cancel = whenVisible(load, FETCH_REFRESH_MS);
+        });
     };
     load();
-    const reload = () => { cancel(); load(); };
+    const reload = () => {
+      cancel();
+      load();
+    };
     window.addEventListener(FETCH_STATUS_CHANGED, reload);
-    return () => { controller.abort(); cancel(); window.removeEventListener(FETCH_STATUS_CHANGED, reload); };
+    return () => {
+      controller.abort();
+      cancel();
+      window.removeEventListener(FETCH_STATUS_CHANGED, reload);
+    };
   }, [poll, tick]);
   const reload = useCallback(() => setTick(n => n + 1), []);
   return { data, failed, loadedAt, reload };

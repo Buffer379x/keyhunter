@@ -4,7 +4,11 @@
  * in the app shell shows them. An empty message is ignored, so `notify` can replace a `setMessage` that also clears.
  */
 export type NotifyTone = 'success' | 'error' | 'info';
-export interface Notification { id: number; message: string; tone: NotifyTone }
+export interface Notification {
+  id: number;
+  message: string;
+  tone: NotifyTone;
+}
 export const NOTIFY = 'keyhunter:notify';
 let next = 0;
 export function notify(message: string, tone: NotifyTone = 'success') {

@@ -1,0 +1,37 @@
+sqlite 3.53.4
+### wishlist_items (offer_count/review_count je Zeile): median 5.9 ms
+### scheduler_claimable_exists (alle 3 s je Shop): median 0.0 ms
+### badges_job_summary: median 4.7 ms
+### badges_links_of_items: median 8.2 ms
+### badges_trend_samples (Cache-Miss, alle Links): median 19.6 ms
+### status_backlog: median 0.2 ms
+### status_next_job: median 1.2 ms
+### status_demand: median 1.7 ms
+### status_upcoming_candidates: median 236.0 ms
+    SCAN j
+    SEARCH l USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+    SEARCH t USING INDEX sqlite_autoindex_wishlist_item_1 (id=?) LEFT-JOIN
+    CORRELATED SCALAR SUBQUERY 1
+    SEARCH aw USING INDEX wishlist_item_state (state=?)
+    SEARCH ew USING COVERING INDEX sqlite_autoindex_edition_watch_1 (wish_id=? AND track_id=?)
+    SEARCH g USING INDEX sqlite_autoindex_game_1 (id=?) LEFT-JOIN
+    SEARCH c USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+    SEARCH w EXISTS USING COVERING INDEX wishlist_item_state (state=?)
+    USE TEMP B-TREE FOR ORDER BY
+### status_recent_runs: median 0.1 ms
+### status_errors_24h: median 0.2 ms
+### status_by_hour: median 0.4 ms
+### runs_count_q=Perf Halo (LIKE): median 34.6 ms
+    SCAN r
+    SEARCH l USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+    SEARCH w USING INDEX sqlite_autoindex_wishlist_item_1 (id=?) LEFT-JOIN
+    SEARCH g USING INDEX sqlite_autoindex_game_1 (id=?) LEFT-JOIN
+    SEARCH c USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+### runs_page_q=Perf Halo (LIKE): median 2.1 ms
+### runs_count_ohne_filter: median 27.4 ms
+    SCAN r
+    SEARCH l USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+    SEARCH w USING INDEX sqlite_autoindex_wishlist_item_1 (id=?) LEFT-JOIN
+    SEARCH g USING INDEX sqlite_autoindex_game_1 (id=?) LEFT-JOIN
+    SEARCH c USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+### log_count_q (LIKE): median 0.1 ms

@@ -4,9 +4,16 @@ import { whenVisible } from '../src/poll.ts';
 
 // Minimal document stand-in: a visibility state and visibilitychange listeners.
 const listeners = new Set<() => void>();
-const doc = { visibilityState: 'visible', addEventListener: (_: string, f: () => void) => listeners.add(f), removeEventListener: (_: string, f: () => void) => listeners.delete(f) };
+const doc = {
+  visibilityState: 'visible',
+  addEventListener: (_: string, f: () => void) => listeners.add(f),
+  removeEventListener: (_: string, f: () => void) => listeners.delete(f),
+};
 Object.assign(globalThis, { document: doc, window: globalThis });
-const show = (state: string) => { doc.visibilityState = state; for (const f of [...listeners]) f(); };
+const show = (state: string) => {
+  doc.visibilityState = state;
+  for (const f of [...listeners]) f();
+};
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 test('a visible tab polls on time', async () => {

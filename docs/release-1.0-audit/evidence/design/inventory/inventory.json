@@ -1,0 +1,3737 @@
+{
+  "files": [
+    {
+      "file": "src/styles/alerts.css",
+      "bytes": 2811,
+      "rules": 32,
+      "decls": 56
+    },
+    {
+      "file": "src/styles/app.css",
+      "bytes": 2312,
+      "rules": 21,
+      "decls": 75
+    },
+    {
+      "file": "src/styles/base.css",
+      "bytes": 2909,
+      "rules": 33,
+      "decls": 77
+    },
+    {
+      "file": "src/styles/cart.css",
+      "bytes": 5241,
+      "rules": 52,
+      "decls": 128
+    },
+    {
+      "file": "src/styles/catalog.css",
+      "bytes": 3246,
+      "rules": 34,
+      "decls": 98
+    },
+    {
+      "file": "src/styles/detail.css",
+      "bytes": 15360,
+      "rules": 167,
+      "decls": 465
+    },
+    {
+      "file": "src/styles/fonts.css",
+      "bytes": 1180,
+      "rules": 0,
+      "decls": 0
+    },
+    {
+      "file": "src/styles/library.css",
+      "bytes": 4719,
+      "rules": 43,
+      "decls": 113
+    },
+    {
+      "file": "src/styles/offers.css",
+      "bytes": 2170,
+      "rules": 18,
+      "decls": 55
+    },
+    {
+      "file": "src/styles/pages.css",
+      "bytes": 1245,
+      "rules": 14,
+      "decls": 32
+    },
+    {
+      "file": "src/styles/settings.css",
+      "bytes": 8549,
+      "rules": 81,
+      "decls": 201
+    },
+    {
+      "file": "src/styles/shell.css",
+      "bytes": 9613,
+      "rules": 93,
+      "decls": 313
+    },
+    {
+      "file": "src/styles/tokens.css",
+      "bytes": 4641,
+      "rules": 1,
+      "decls": 119
+    },
+    {
+      "file": "src/styles/ui.css",
+      "bytes": 15458,
+      "rules": 153,
+      "decls": 533
+    },
+    {
+      "file": "src/styles/wishlist.css",
+      "bytes": 6459,
+      "rules": 63,
+      "decls": 160
+    }
+  ],
+  "totals": {
+    "rules": 805,
+    "decls": 2425,
+    "classes": 369
+  },
+  "colorLiteralsOutsideTokens": [
+    {
+      "at": "src/styles/catalog.css:9",
+      "selector": ".cover-initials",
+      "prop": "color",
+      "value": "rgb(255 255 255 / .85)"
+    },
+    {
+      "at": "src/styles/library.css:20",
+      "selector": ".library-page .lib-tools .icon-btn",
+      "prop": "box-shadow",
+      "value": "0 1px 3px rgb(0 0 0 / .35)"
+    },
+    {
+      "at": "src/styles/offers.css:22",
+      "selector": "table.offers .score.lo",
+      "prop": "--score-color",
+      "value": "color-mix(in oklab, var(--warn) calc(var(--score) * 2%), var(--danger))"
+    },
+    {
+      "at": "src/styles/offers.css:23",
+      "selector": "table.offers .score.hi",
+      "prop": "--score-color",
+      "value": "color-mix(in oklab, var(--ok) calc((var(--score) - 50) * 2%), var(--warn))"
+    },
+    {
+      "at": "src/styles/settings.css:30",
+      "selector": ".note.warn",
+      "prop": "border-color",
+      "value": "color-mix(in srgb, var(--warn) 35%, transparent)"
+    }
+  ],
+  "colorLiteralsInTs": [],
+  "fontSize": {
+    "usage": {
+      "token": 122,
+      "literal": 6
+    },
+    "values": [
+      [
+        "var(--t-xs)",
+        58
+      ],
+      [
+        "var(--t-label)",
+        10
+      ],
+      [
+        "var(--t-xs) (font)",
+        8
+      ],
+      [
+        "var(--t-sm)",
+        8
+      ],
+      [
+        "var(--t-md)",
+        5
+      ],
+      [
+        "10px (font)",
+        5
+      ],
+      [
+        "var(--t-label) (font)",
+        4
+      ],
+      [
+        "var(--t-lg)",
+        3
+      ],
+      [
+        "var(--t-sm) (font)",
+        3
+      ],
+      [
+        "var(--t-title)",
+        3
+      ],
+      [
+        "var(--t-md) (font)",
+        3
+      ],
+      [
+        "11px (font)",
+        2
+      ],
+      [
+        "22px",
+        2
+      ],
+      [
+        "var(--text-sm)",
+        2
+      ],
+      [
+        "var(--t-price) (font)",
+        2
+      ],
+      [
+        "var(--t-lg) (font)",
+        2
+      ],
+      [
+        ".92em",
+        1
+      ],
+      [
+        "var(--t-lg, 18px)",
+        1
+      ],
+      [
+        "18px (font)",
+        1
+      ],
+      [
+        "inherit",
+        1
+      ],
+      [
+        "var(--t-kpi)",
+        1
+      ],
+      [
+        "var(--t-kpi) (font)",
+        1
+      ],
+      [
+        ".55em",
+        1
+      ],
+      [
+        "20px",
+        1
+      ]
+    ]
+  },
+  "fontWeight": {
+    "usage": {
+      "token": 32,
+      "literal": 27
+    },
+    "values": [
+      [
+        "500",
+        24
+      ],
+      [
+        "500 (font)",
+        17
+      ],
+      [
+        "400 (font)",
+        10
+      ],
+      [
+        "600 (font)",
+        4
+      ],
+      [
+        "600",
+        3
+      ],
+      [
+        "var(--weight-semibold)",
+        1
+      ]
+    ]
+  },
+  "lineHeight": {
+    "values": [
+      [
+        "1 (font)",
+        10
+      ],
+      [
+        "1.2 (font)",
+        5
+      ],
+      [
+        "1.5 (font)",
+        4
+      ],
+      [
+        "1.3 (font)",
+        2
+      ],
+      [
+        "1.4",
+        1
+      ],
+      [
+        "1.2",
+        1
+      ],
+      [
+        "1.5",
+        1
+      ],
+      [
+        "1.3",
+        1
+      ],
+      [
+        "1.45",
+        1
+      ],
+      [
+        "1.4 (font)",
+        1
+      ]
+    ]
+  },
+  "fontFamily": {
+    "values": [
+      [
+        "var(--f-mono) (font)",
+        22
+      ],
+      [
+        "var(--f-sans) (font)",
+        9
+      ],
+      [
+        "var(--f-mono)",
+        3
+      ],
+      [
+        "var(--font-mono)",
+        1
+      ]
+    ]
+  },
+  "radius": {
+    "usage": {
+      "token": 42,
+      "literal": 41
+    },
+    "values": [
+      [
+        "var(--r-md)",
+        18
+      ],
+      [
+        "var(--r-sm)",
+        13
+      ],
+      [
+        "5px",
+        7
+      ],
+      [
+        "50%",
+        7
+      ],
+      [
+        "var(--r-lg)",
+        7
+      ],
+      [
+        "999px",
+        6
+      ],
+      [
+        "4px",
+        5
+      ],
+      [
+        "2px",
+        4
+      ],
+      [
+        "0",
+        3
+      ],
+      [
+        "3px",
+        3
+      ],
+      [
+        "8px",
+        2
+      ],
+      [
+        "1px",
+        2
+      ],
+      [
+        "var(--radius-md)",
+        1
+      ],
+      [
+        "var(--radius-sm)",
+        1
+      ],
+      [
+        "var(--r-md, 10px)",
+        1
+      ],
+      [
+        "10px",
+        1
+      ],
+      [
+        "inherit",
+        1
+      ],
+      [
+        "var(--r-lg) var(--r-lg) var(--r-md) var(--r-md)",
+        1
+      ]
+    ],
+    "literal": [
+      "src/styles/alerts.css:8 .alerts-page .game-cell .game-cover → 5px",
+      "src/styles/app.css:10 .status-dot → 50%",
+      "src/styles/cart.css:14 .cart-page .cart-table .gcover → 5px",
+      "src/styles/catalog.css:18 .catalog-result .game-cover → 5px",
+      "src/styles/detail.css:39 .game-head .game-cover → 8px",
+      "src/styles/detail.css:98 .gauge-track .line → 2px",
+      "src/styles/detail.css:103 .gauge-mark.now i → 50%",
+      "src/styles/detail.css:116 .legend i → 2px",
+      "src/styles/detail.css:118 .legend i.t → 0",
+      "src/styles/detail.css:133 .tip i → 2px",
+      "src/styles/library.css:8 .library-page .lib-item .game-cover → 8px",
+      "src/styles/library.css:36 .library-page .lib.rows .lib-item .game-cover → 5px",
+      "src/styles/library.css:44 .library-page .lib.rows.lib-skeleton .lib-ghost.cover → 5px",
+      "src/styles/library.css:49 .library-page .lib-ghost.cover → 10px",
+      "src/styles/offers.css:25 table.offers .score-bar → 999px",
+      "src/styles/offers.css:26 table.offers .score-bar i → inherit",
+      "src/styles/settings.css:21 .settings-page .set-save .dot → 50%",
+      "src/styles/shell.css:53 .fetch-open:focus-visible → 4px",
+      "src/styles/shell.css:102 .search-box input → 0",
+      "src/styles/shell.css:105 .kbd → 4px",
+      "src/styles/ui.css:32 .spinner → 50%",
+      "src/styles/ui.css:38 .chip → 999px",
+      "src/styles/ui.css:45 .pill → 999px",
+      "src/styles/ui.css:55 .reg → 4px",
+      "src/styles/ui.css:60 .reg.flag → 3px",
+      "src/styles/ui.css:62 .reg.area → 3px",
+      "src/styles/ui.css:67 .seg → 999px",
+      "src/styles/ui.css:68 .seg button → 999px",
+      "src/styles/ui.css:76 .field input, .field select → 0",
+      "src/styles/ui.css:83 .switch input → 999px",
+      "src/styles/ui.css:84 .switch input::after → 50%",
+      "src/styles/ui.css:120 .ticks i → 1px",
+      "src/styles/ui.css:149 .dot → 50%",
+      "src/styles/ui.css:153 .bar → 4px",
+      "src/styles/ui.css:154 .bar > i → 4px",
+      "src/styles/ui.css:188 .help-btn → 50%",
+      "src/styles/wishlist.css:24 table.wl th .th-sort:focus-visible → 2px",
+      "src/styles/wishlist.css:32 table.wl .gcover → 5px",
+      "src/styles/wishlist.css:46 .spark i → 1px",
+      "src/styles/wishlist.css:83 .game-cell .cover-open → 5px",
+      "src/styles/wishlist.css:87 .game-cell .title-open:focus-visible, .game-cell .cover-open:focus-visible → 3px"
+    ]
+  },
+  "shadow": {
+    "values": [
+      [
+        "var(--shadow-pop)",
+        4
+      ],
+      [
+        "none",
+        3
+      ],
+      [
+        "var(--shadow-tip)",
+        3
+      ],
+      [
+        "inset 0 0 0 1px var(--color-border-strong)",
+        1
+      ],
+      [
+        "0 0 0 3px var(--panel)",
+        1
+      ],
+      [
+        "0 1px 3px rgb(0 0 0 / .35)",
+        1
+      ],
+      [
+        "0 1px 0 var(--line)",
+        1
+      ],
+      [
+        "inset 2px 0 0 var(--accent)",
+        1
+      ],
+      [
+        "0 0 0 1px var(--accent)",
+        1
+      ],
+      [
+        "inset 0 0 0 1px var(--line-2)",
+        1
+      ]
+    ],
+    "at": [
+      "src/styles/app.css:15 dialog → var(--shadow-pop)",
+      "src/styles/cart.css:14 .cart-page .cart-table .gcover → none",
+      "src/styles/detail.css:8 .gcover → inset 0 0 0 1px var(--color-border-strong)",
+      "src/styles/detail.css:18 .popover-panel → var(--shadow-pop)",
+      "src/styles/detail.css:103 .gauge-mark.now i → 0 0 0 3px var(--panel)",
+      "src/styles/detail.css:126 .tip → var(--shadow-tip)",
+      "src/styles/library.css:20 .library-page .lib-tools .icon-btn → 0 1px 3px rgb(0 0 0 / .35)",
+      "src/styles/library.css:43 .library-page .lib.rows .lib-tools .icon-btn → none",
+      "src/styles/settings.css:26 .settings-page.unsaved > .page-head → 0 1px 0 var(--line)",
+      "src/styles/settings.css:92 .settings-page .col-order li.held → inset 2px 0 0 var(--accent)",
+      "src/styles/shell.css:111 .search-pop → var(--shadow-pop)",
+      "src/styles/ui.css:64 .reg.flag.home, .reg.area.home → 0 0 0 1px var(--accent)",
+      "src/styles/ui.css:70 .seg button[aria-checked='true'], .seg button[aria-pressed='true'] → inset 0 0 0 1px var(--line-2)",
+      "src/styles/ui.css:165 .toast → var(--shadow-tip)",
+      "src/styles/ui.css:194 .help-pop → var(--shadow-tip)",
+      "src/styles/ui.css:211 .toast-pop → var(--shadow-pop)",
+      "src/styles/wishlist.css:32 table.wl .gcover → none"
+    ]
+  },
+  "borders": {
+    "usage": {
+      "token": 95,
+      "literal": 36
+    },
+    "values": [
+      [
+        "1px solid var(--line)",
+        45
+      ],
+      [
+        "0",
+        25
+      ],
+      [
+        "1px solid var(--line-2)",
+        15
+      ],
+      [
+        "var(--accent)",
+        11
+      ],
+      [
+        "transparent",
+        9
+      ],
+      [
+        "var(--line-2)",
+        9
+      ],
+      [
+        "var(--danger)",
+        3
+      ],
+      [
+        "1px solid var(--cover-line)",
+        2
+      ],
+      [
+        "var(--accent-line)",
+        2
+      ],
+      [
+        "1px solid var(--accent)",
+        1
+      ],
+      [
+        "2px dashed var(--accent-2)",
+        1
+      ],
+      [
+        "var(--warn)",
+        1
+      ],
+      [
+        "color-mix(in srgb, var(--warn) 35%, transparent)",
+        1
+      ],
+      [
+        "var(--accent-2)",
+        1
+      ],
+      [
+        "1.5px solid currentColor",
+        1
+      ],
+      [
+        "var(--cover-line)",
+        1
+      ],
+      [
+        "2px solid transparent",
+        1
+      ],
+      [
+        "1px solid var(--accent-line)",
+        1
+      ],
+      [
+        "3px solid var(--ok)",
+        1
+      ]
+    ]
+  },
+  "spacing": {
+    "declarations": 389,
+    "usage": {
+      "token": 1,
+      "literal": 388
+    },
+    "values": [
+      [
+        "0",
+        121
+      ],
+      [
+        "8px",
+        73
+      ],
+      [
+        "10px",
+        62
+      ],
+      [
+        "12px",
+        57
+      ],
+      [
+        "6px",
+        43
+      ],
+      [
+        "16px",
+        39
+      ],
+      [
+        "14px",
+        33
+      ],
+      [
+        "4px",
+        30
+      ],
+      [
+        "2px",
+        26
+      ],
+      [
+        "0px))",
+        10
+      ],
+      [
+        "18px",
+        5
+      ],
+      [
+        "1px",
+        5
+      ],
+      [
+        "5px",
+        4
+      ],
+      [
+        "-1px",
+        3
+      ],
+      [
+        "-6px",
+        3
+      ],
+      [
+        "-4px",
+        3
+      ],
+      [
+        "7px",
+        2
+      ],
+      [
+        "9px",
+        2
+      ],
+      [
+        "22px",
+        2
+      ],
+      [
+        "40px",
+        2
+      ],
+      [
+        "3px",
+        2
+      ],
+      [
+        "13px",
+        1
+      ],
+      [
+        "-22px",
+        1
+      ],
+      [
+        "24px",
+        1
+      ],
+      [
+        "32px",
+        1
+      ],
+      [
+        "20px",
+        1
+      ],
+      [
+        "-3px",
+        1
+      ]
+    ]
+  },
+  "controlHeights": [
+    [
+      "28px",
+      13
+    ],
+    [
+      "16px",
+      9
+    ],
+    [
+      "15px",
+      8
+    ],
+    [
+      "14px",
+      7
+    ],
+    [
+      "12px",
+      7
+    ],
+    [
+      "6px",
+      6
+    ],
+    [
+      "var(--h-btn)",
+      6
+    ],
+    [
+      "22px",
+      5
+    ],
+    [
+      "44px",
+      3
+    ],
+    [
+      "30px",
+      3
+    ],
+    [
+      "34px",
+      3
+    ],
+    [
+      "1px",
+      2
+    ],
+    [
+      "40px",
+      2
+    ],
+    [
+      "24px",
+      2
+    ],
+    [
+      "13px",
+      2
+    ],
+    [
+      "2px",
+      2
+    ],
+    [
+      "32px",
+      2
+    ],
+    [
+      "18px",
+      2
+    ],
+    [
+      "26px",
+      2
+    ],
+    [
+      "64px",
+      1
+    ],
+    [
+      "96px",
+      1
+    ],
+    [
+      "7px",
+      1
+    ],
+    [
+      "11px",
+      1
+    ],
+    [
+      "48px",
+      1
+    ],
+    [
+      "33px",
+      1
+    ],
+    [
+      "56px",
+      1
+    ],
+    [
+      "38px",
+      1
+    ],
+    [
+      "4px",
+      1
+    ],
+    [
+      "20px",
+      1
+    ]
+  ],
+  "sizes": [
+    [
+      "height: 28px",
+      13
+    ],
+    [
+      "height: 16px",
+      9
+    ],
+    [
+      "width: 16px",
+      8
+    ],
+    [
+      "width: 15px",
+      8
+    ],
+    [
+      "height: 15px",
+      8
+    ],
+    [
+      "width: 28px",
+      8
+    ],
+    [
+      "height: 14px",
+      7
+    ],
+    [
+      "width: 12px",
+      7
+    ],
+    [
+      "height: 12px",
+      7
+    ],
+    [
+      "height: 6px",
+      6
+    ],
+    [
+      "height: 22px",
+      5
+    ],
+    [
+      "width: 14px",
+      5
+    ],
+    [
+      "min-width: 220px",
+      4
+    ],
+    [
+      "width: 6px",
+      4
+    ],
+    [
+      "width: 30px",
+      4
+    ],
+    [
+      "width: 22px",
+      4
+    ],
+    [
+      "width: 2px",
+      4
+    ],
+    [
+      "width: 34px",
+      3
+    ],
+    [
+      "height: 44px",
+      3
+    ],
+    [
+      "height: 30px",
+      3
+    ],
+    [
+      "min-height: 48px",
+      3
+    ],
+    [
+      "height: 34px",
+      3
+    ],
+    [
+      "width: 1px",
+      2
+    ],
+    [
+      "height: 1px",
+      2
+    ],
+    [
+      "min-width: 180px",
+      2
+    ],
+    [
+      "height: 40px",
+      2
+    ],
+    [
+      "height: 24px",
+      2
+    ],
+    [
+      "width: 48px",
+      2
+    ],
+    [
+      "width: 13px",
+      2
+    ],
+    [
+      "height: 13px",
+      2
+    ],
+    [
+      "height: 2px",
+      2
+    ],
+    [
+      "max-width: 200px",
+      2
+    ],
+    [
+      "width: 200px",
+      2
+    ],
+    [
+      "width: 36px",
+      2
+    ],
+    [
+      "height: 32px",
+      2
+    ],
+    [
+      "max-width: 420px",
+      2
+    ],
+    [
+      "width: 20px",
+      2
+    ],
+    [
+      "max-width: 1320px",
+      2
+    ],
+    [
+      "height: 18px",
+      2
+    ],
+    [
+      "height: 26px",
+      2
+    ],
+    [
+      "width: min(480px, calc(100% - 32px))",
+      1
+    ],
+    [
+      "max-height: calc(100dvh - 32px)",
+      1
+    ],
+    [
+      "min-height: 80px",
+      1
+    ],
+    [
+      "max-width: 640px",
+      1
+    ],
+    [
+      "min-width: 150px",
+      1
+    ],
+    [
+      "max-width: 220px",
+      1
+    ],
+    [
+      "height: 64px",
+      1
+    ],
+    [
+      "width: min(640px, calc(100% - 32px))",
+      1
+    ],
+    [
+      "width: 72px",
+      1
+    ],
+    [
+      "height: 96px",
+      1
+    ],
+    [
+      "min-height: 34px",
+      1
+    ],
+    [
+      "width: 7px",
+      1
+    ],
+    [
+      "height: 7px",
+      1
+    ],
+    [
+      "min-width: 170px",
+      1
+    ],
+    [
+      "max-width: 180px",
+      1
+    ],
+    [
+      "width: min(560px, calc(100% - 32px))",
+      1
+    ],
+    [
+      "min-width: 200px",
+      1
+    ],
+    [
+      "width: 32px",
+      1
+    ],
+    [
+      "width: 40px",
+      1
+    ],
+    [
+      "min-width: 2px",
+      1
+    ]
+  ],
+  "breakpointsCss": [
+    [
+      "@media (max-width: 720px)",
+      11
+    ],
+    [
+      "@media (max-width: 1180px)",
+      3
+    ],
+    [
+      "@media (prefers-reduced-motion: reduce)",
+      2
+    ],
+    [
+      "@media (max-width: 900px)",
+      2
+    ],
+    [
+      "@container (min-width: 1120px)",
+      1
+    ],
+    [
+      "@media (max-width: 560px)",
+      1
+    ],
+    [
+      "@media (max-width: 520px)",
+      1
+    ],
+    [
+      "@media (max-width: 359px)",
+      1
+    ],
+    [
+      "@media (pointer: coarse)",
+      1
+    ]
+  ],
+  "breakpointsCssAt": [
+    "src/styles/alerts.css:18 @media (max-width: 720px)",
+    "src/styles/base.css:51 @media (prefers-reduced-motion: reduce)",
+    "src/styles/cart.css:7 @container (min-width: 1120px)",
+    "src/styles/cart.css:50 @media (max-width: 720px)",
+    "src/styles/catalog.css:38 @media (max-width: 560px)",
+    "src/styles/detail.css:180 @media (max-width: 1180px)",
+    "src/styles/detail.css:183 @media (max-width: 720px)",
+    "src/styles/detail.css:209 @media (max-width: 520px)",
+    "src/styles/library.css:52 @media (max-width: 720px)",
+    "src/styles/library.css:56 @media (max-width: 359px)",
+    "src/styles/library.css:57 @media (max-width: 720px)",
+    "src/styles/settings.css:69 @media (max-width: 900px)",
+    "src/styles/settings.css:72 @media (max-width: 720px)",
+    "src/styles/settings.css:109 @media (max-width: 720px)",
+    "src/styles/shell.css:126 @media (max-width: 1180px)",
+    "src/styles/shell.css:131 @media (max-width: 900px)",
+    "src/styles/shell.css:142 @media (max-width: 720px)",
+    "src/styles/shell.css:152 @media (pointer: coarse)",
+    "src/styles/ui.css:175 @media (max-width: 1180px)",
+    "src/styles/ui.css:178 @media (max-width: 720px)",
+    "src/styles/ui.css:222 @media (prefers-reduced-motion: reduce)",
+    "src/styles/ui.css:231 @media (max-width: 720px)",
+    "src/styles/wishlist.css:55 @media (max-width: 720px)"
+  ],
+  "important": [
+    "src/styles/base.css:51 *, *::before, *::after { transition: none !important }",
+    "src/styles/base.css:51 *, *::before, *::after { animation-duration: .01ms !important }",
+    "src/styles/base.css:51 *, *::before, *::after { animation-iteration-count: 1 !important }",
+    "src/styles/base.css:51 *, *::before, *::after { scroll-behavior: auto !important }"
+  ],
+  "inlineStyle": [
+    {
+      "file": "src/features/PriceMatrix.tsx",
+      "line": 89,
+      "style": "left: tip.left, top: tip.top"
+    },
+    {
+      "file": "src/features/PriceTab.tsx",
+      "line": 133,
+      "style": "left: pos(stats90.low.cents)"
+    },
+    {
+      "file": "src/features/PriceTab.tsx",
+      "line": 134,
+      "style": "left: pos(stats90.average)"
+    },
+    {
+      "file": "src/features/PriceTab.tsx",
+      "line": 135,
+      "style": "left: pos(chartTarget)"
+    },
+    {
+      "file": "src/features/PriceTab.tsx",
+      "line": 136,
+      "style": "left: pos(now90)"
+    },
+    {
+      "file": "src/features/settings/FetchPanel.tsx",
+      "line": 36,
+      "style": "width: pct(budget.share)"
+    },
+    {
+      "file": "src/features/settings/FetchPanel.tsx",
+      "line": 37,
+      "style": "left: pct(budget.demandShare)"
+    },
+    {
+      "file": "src/ui/Form.tsx",
+      "line": 11,
+      "style": "style"
+    },
+    {
+      "file": "src/ui/Gallery.tsx",
+      "line": 27,
+      "style": "width: 200"
+    },
+    {
+      "file": "src/ui/Gallery.tsx",
+      "line": 30,
+      "style": "maxWidth: 180"
+    },
+    {
+      "file": "src/ui/Help.tsx",
+      "line": 53,
+      "style": "at ? { left: at.left, top: at.top"
+    }
+  ],
+  "duplicateSelectors": [
+    {
+      "selector": "@media (max-width: 720px)|.alerts-page :is(.alarm-table",
+      "at": [
+        "src/styles/alerts.css:20",
+        "src/styles/alerts.css:20",
+        "src/styles/alerts.css:21",
+        "src/styles/alerts.css:22",
+        "src/styles/alerts.css:23"
+      ]
+    },
+    {
+      "selector": "|.form-row > label",
+      "at": [
+        "src/styles/app.css:2",
+        "src/styles/ui.css:80"
+      ]
+    },
+    {
+      "selector": "|.dialog-heading",
+      "at": [
+        "src/styles/app.css:21",
+        "src/styles/app.css:22"
+      ]
+    },
+    {
+      "selector": "|.dialog-actions",
+      "at": [
+        "src/styles/app.css:21",
+        "src/styles/app.css:24"
+      ]
+    },
+    {
+      "selector": "|body",
+      "at": [
+        "src/styles/base.css:3",
+        "src/styles/base.css:4"
+      ]
+    },
+    {
+      "selector": "|button",
+      "at": [
+        "src/styles/base.css:10",
+        "src/styles/base.css:11"
+      ]
+    },
+    {
+      "selector": "|select",
+      "at": [
+        "src/styles/base.css:10",
+        "src/styles/base.css:26"
+      ]
+    },
+    {
+      "selector": "|h1",
+      "at": [
+        "src/styles/base.css:14",
+        "src/styles/base.css:15",
+        "src/styles/base.css:16"
+      ]
+    },
+    {
+      "selector": "|h2",
+      "at": [
+        "src/styles/base.css:14",
+        "src/styles/base.css:15",
+        "src/styles/base.css:17"
+      ]
+    },
+    {
+      "selector": "|h3",
+      "at": [
+        "src/styles/base.css:14",
+        "src/styles/base.css:15",
+        "src/styles/base.css:18"
+      ]
+    },
+    {
+      "selector": "|p",
+      "at": [
+        "src/styles/base.css:14",
+        "src/styles/base.css:19"
+      ]
+    },
+    {
+      "selector": "|.cart-page .cart-totals",
+      "at": [
+        "src/styles/cart.css:36",
+        "src/styles/cart.css:40"
+      ]
+    },
+    {
+      "selector": "|.cart-page .cart-split dd",
+      "at": [
+        "src/styles/cart.css:37",
+        "src/styles/cart.css:38",
+        "src/styles/cart.css:42"
+      ]
+    },
+    {
+      "selector": "|.cart-page .cart-totals dd",
+      "at": [
+        "src/styles/cart.css:38",
+        "src/styles/cart.css:41"
+      ]
+    },
+    {
+      "selector": "|.grid-2",
+      "at": [
+        "src/styles/detail.css:49",
+        "src/styles/shell.css:91"
+      ]
+    },
+    {
+      "selector": "|.stack",
+      "at": [
+        "src/styles/detail.css:50",
+        "src/styles/shell.css:92"
+      ]
+    },
+    {
+      "selector": "|.compare-mid",
+      "at": [
+        "src/styles/detail.css:62",
+        "src/styles/detail.css:65"
+      ]
+    },
+    {
+      "selector": "|.save",
+      "at": [
+        "src/styles/detail.css:90",
+        "src/styles/wishlist.css:40"
+      ]
+    },
+    {
+      "selector": "|.save.big",
+      "at": [
+        "src/styles/detail.css:91",
+        "src/styles/wishlist.css:41"
+      ]
+    },
+    {
+      "selector": "|.save.none",
+      "at": [
+        "src/styles/detail.css:92",
+        "src/styles/wishlist.css:42"
+      ]
+    },
+    {
+      "selector": "@media (max-width: 1180px)|.grid-2",
+      "at": [
+        "src/styles/detail.css:181",
+        "src/styles/shell.css:128"
+      ]
+    },
+    {
+      "selector": "@media (max-width: 720px)|.compare-mid",
+      "at": [
+        "src/styles/detail.css:185",
+        "src/styles/detail.css:186",
+        "src/styles/detail.css:187"
+      ]
+    },
+    {
+      "selector": "@media (max-width: 720px)|.delta-amount",
+      "at": [
+        "src/styles/detail.css:188",
+        "src/styles/detail.css:189"
+      ]
+    },
+    {
+      "selector": "|.library-page .lib.rows .lib-item .game-cover",
+      "at": [
+        "src/styles/library.css:36",
+        "src/styles/library.css:38"
+      ]
+    },
+    {
+      "selector": "|.world-cell",
+      "at": [
+        "src/styles/offers.css:2",
+        "src/styles/wishlist.css:37"
+      ]
+    },
+    {
+      "selector": "|.search-platform",
+      "at": [
+        "src/styles/shell.css:119",
+        "src/styles/shell.css:120"
+      ]
+    },
+    {
+      "selector": "@media (max-width: 720px)|table.wl thead",
+      "at": [
+        "src/styles/wishlist.css:59",
+        "src/styles/wishlist.css:60"
+      ]
+    },
+    {
+      "selector": "|.game-cell .title-open",
+      "at": [
+        "src/styles/wishlist.css:82",
+        "src/styles/wishlist.css:84"
+      ]
+    },
+    {
+      "selector": "|.game-cell .cover-open",
+      "at": [
+        "src/styles/wishlist.css:82",
+        "src/styles/wishlist.css:83"
+      ]
+    }
+  ],
+  "conflictingDeclarations": [
+    {
+      "key": "@media (max-width: 720px)|.alerts-page :is(.alarm-table|display",
+      "defs": [
+        {
+          "at": "src/styles/alerts.css:20",
+          "value": "block"
+        },
+        {
+          "at": "src/styles/alerts.css:20",
+          "value": "block"
+        },
+        {
+          "at": "src/styles/alerts.css:21",
+          "value": "grid"
+        }
+      ],
+      "differs": true
+    },
+    {
+      "key": "@media (max-width: 720px)|.alerts-page :is(.alarm-table|padding",
+      "defs": [
+        {
+          "at": "src/styles/alerts.css:21",
+          "value": "12px"
+        },
+        {
+          "at": "src/styles/alerts.css:23",
+          "value": "0"
+        }
+      ],
+      "differs": true
+    },
+    {
+      "key": "@media (max-width: 720px)|.alerts-page :is(.alarm-table|border-bottom",
+      "defs": [
+        {
+          "at": "src/styles/alerts.css:21",
+          "value": "1px solid var(--line)"
+        },
+        {
+          "at": "src/styles/alerts.css:22",
+          "value": "0"
+        }
+      ],
+      "differs": true
+    },
+    {
+      "key": "|.dialog-actions|justify-content",
+      "defs": [
+        {
+          "at": "src/styles/app.css:21",
+          "value": "space-between"
+        },
+        {
+          "at": "src/styles/app.css:24",
+          "value": "flex-end"
+        }
+      ],
+      "differs": true
+    },
+    {
+      "key": "|.dialog-actions|gap",
+      "defs": [
+        {
+          "at": "src/styles/app.css:21",
+          "value": "12px"
+        },
+        {
+          "at": "src/styles/app.css:24",
+          "value": "8px"
+        }
+      ],
+      "differs": true
+    },
+    {
+      "key": "|select|color",
+      "defs": [
+        {
+          "at": "src/styles/base.css:10",
+          "value": "inherit"
+        },
+        {
+          "at": "src/styles/base.css:28",
+          "value": "var(--text)"
+        }
+      ],
+      "differs": true
+    },
+    {
+      "key": "|.cart-page .cart-totals|margin",
+      "defs": [
+        {
+          "at": "src/styles/cart.css:36",
+          "value": "6px 0 0"
+        },
+        {
+          "at": "src/styles/cart.css:40",
+          "value": "0"
+        }
+      ],
+      "differs": true
+    }
+  ],
+  "repeatedIdenticalDeclarations": [
+    {
+      "key": "|.form-row > label|font-size",
+      "defs": [
+        {
+          "at": "src/styles/app.css:2",
+          "value": "var(--t-xs)"
+        },
+        {
+          "at": "src/styles/ui.css:80",
+          "value": "var(--t-xs)"
+        }
+      ],
+      "differs": false
+    },
+    {
+      "key": "|.form-row > label|color",
+      "defs": [
+        {
+          "at": "src/styles/app.css:2",
+          "value": "var(--text-2)"
+        },
+        {
+          "at": "src/styles/ui.css:80",
+          "value": "var(--text-2)"
+        }
+      ],
+      "differs": false
+    },
+    {
+      "key": "|.cart-page .cart-split dd|margin",
+      "defs": [
+        {
+          "at": "src/styles/cart.css:37",
+          "value": "0"
+        },
+        {
+          "at": "src/styles/cart.css:38",
+          "value": "0"
+        }
+      ],
+      "differs": false
+    },
+    {
+      "key": "|.grid-2|display",
+      "defs": [
+        {
+          "at": "src/styles/detail.css:49",
+          "value": "grid"
+        },
+        {
+          "at": "src/styles/shell.css:91",
+          "value": "grid"
+        }
+      ],
+      "differs": false
+    },
+    {
+      "key": "|.grid-2|grid-template-columns",
+      "defs": [
+        {
+          "at": "src/styles/detail.css:49",
+          "value": "minmax(0, 1.55fr) minmax(0, 1fr)"
+        },
+        {
+          "at": "src/styles/shell.css:91",
+          "value": "minmax(0, 1.55fr) minmax(0, 1fr)"
+        }
+      ],
+      "differs": false
+    },
+    {
+      "key": "|.grid-2|gap",
+      "defs": [
+        {
+          "at": "src/styles/detail.css:49",
+          "value": "16px"
+        },
+        {
+          "at": "src/styles/shell.css:91",
+          "value": "16px"
+        }
+      ],
+      "differs": false
+    },
+    {
+      "key": "|.grid-2|align-items",
+      "defs": [
+        {
+          "at": "src/styles/detail.css:49",
+          "value": "start"
+        },
+        {
+          "at": "src/styles/shell.css:91",
+          "value": "start"
+        }
+      ],
+      "differs": false
+    },
+    {
+      "key": "|.stack|display",
+      "defs": [
+        {
+          "at": "src/styles/detail.css:50",
+          "value": "grid"
+        },
+        {
+          "at": "src/styles/shell.css:92",
+          "value": "grid"
+        }
+      ],
+      "differs": false
+    },
+    {
+      "key": "|.stack|gap",
+      "defs": [
+        {
+          "at": "src/styles/detail.css:50",
+          "value": "16px"
+        },
+        {
+          "at": "src/styles/shell.css:92",
+          "value": "16px"
+        }
+      ],
+      "differs": false
+    },
+    {
+      "key": "|.stack|min-width",
+      "defs": [
+        {
+          "at": "src/styles/detail.css:50",
+          "value": "0"
+        },
+        {
+          "at": "src/styles/shell.css:92",
+          "value": "0"
+        }
+      ],
+      "differs": false
+    },
+    {
+      "key": "|.save|font",
+      "defs": [
+        {
+          "at": "src/styles/detail.css:90",
+          "value": "500 var(--t-xs)/1.2 var(--f-mono)"
+        },
+        {
+          "at": "src/styles/wishlist.css:40",
+          "value": "500 var(--t-xs)/1.2 var(--f-mono)"
+        }
+      ],
+      "differs": false
+    },
+    {
+      "key": "|.save|white-space",
+      "defs": [
+        {
+          "at": "src/styles/detail.css:90",
+          "value": "nowrap"
+        },
+        {
+          "at": "src/styles/wishlist.css:40",
+          "value": "nowrap"
+        }
+      ],
+      "differs": false
+    },
+    {
+      "key": "|.save.big|color",
+      "defs": [
+        {
+          "at": "src/styles/detail.css:91",
+          "value": "var(--accent-2)"
+        },
+        {
+          "at": "src/styles/wishlist.css:41",
+          "value": "var(--accent-2)"
+        }
+      ],
+      "differs": false
+    },
+    {
+      "key": "|.save.none|color",
+      "defs": [
+        {
+          "at": "src/styles/detail.css:92",
+          "value": "var(--faint)"
+        },
+        {
+          "at": "src/styles/wishlist.css:42",
+          "value": "var(--faint)"
+        }
+      ],
+      "differs": false
+    },
+    {
+      "key": "@media (max-width: 1180px)|.grid-2|grid-template-columns",
+      "defs": [
+        {
+          "at": "src/styles/detail.css:181",
+          "value": "minmax(0, 1fr)"
+        },
+        {
+          "at": "src/styles/shell.css:128",
+          "value": "minmax(0, 1fr)"
+        }
+      ],
+      "differs": false
+    },
+    {
+      "key": "|.world-cell|display",
+      "defs": [
+        {
+          "at": "src/styles/offers.css:2",
+          "value": "flex"
+        },
+        {
+          "at": "src/styles/wishlist.css:37",
+          "value": "flex"
+        }
+      ],
+      "differs": false
+    },
+    {
+      "key": "|.world-cell|align-items",
+      "defs": [
+        {
+          "at": "src/styles/offers.css:2",
+          "value": "center"
+        },
+        {
+          "at": "src/styles/wishlist.css:37",
+          "value": "center"
+        }
+      ],
+      "differs": false
+    },
+    {
+      "key": "|.world-cell|gap",
+      "defs": [
+        {
+          "at": "src/styles/offers.css:2",
+          "value": "8px"
+        },
+        {
+          "at": "src/styles/wishlist.css:37",
+          "value": "8px"
+        }
+      ],
+      "differs": false
+    },
+    {
+      "key": "|.world-cell|white-space",
+      "defs": [
+        {
+          "at": "src/styles/offers.css:2",
+          "value": "nowrap"
+        },
+        {
+          "at": "src/styles/wishlist.css:37",
+          "value": "nowrap"
+        }
+      ],
+      "differs": false
+    }
+  ],
+  "classesInSeveralFiles": [
+    {
+      "class": "head-actions",
+      "files": [
+        "src/styles/alerts.css",
+        "src/styles/library.css",
+        "src/styles/shell.css"
+      ]
+    },
+    {
+      "class": "game-cell",
+      "files": [
+        "src/styles/alerts.css",
+        "src/styles/cart.css",
+        "src/styles/wishlist.css"
+      ]
+    },
+    {
+      "class": "game-cover",
+      "files": [
+        "src/styles/alerts.css",
+        "src/styles/catalog.css",
+        "src/styles/detail.css",
+        "src/styles/library.css"
+      ]
+    },
+    {
+      "class": "cover-fallback",
+      "files": [
+        "src/styles/alerts.css",
+        "src/styles/catalog.css",
+        "src/styles/library.css"
+      ]
+    },
+    {
+      "class": "key-mark",
+      "files": [
+        "src/styles/alerts.css",
+        "src/styles/catalog.css",
+        "src/styles/library.css",
+        "src/styles/shell.css"
+      ]
+    },
+    {
+      "class": "save",
+      "files": [
+        "src/styles/alerts.css",
+        "src/styles/detail.css",
+        "src/styles/wishlist.css"
+      ]
+    },
+    {
+      "class": "reached",
+      "files": [
+        "src/styles/alerts.css",
+        "src/styles/detail.css"
+      ]
+    },
+    {
+      "class": "none",
+      "files": [
+        "src/styles/alerts.css",
+        "src/styles/detail.css",
+        "src/styles/wishlist.css"
+      ]
+    },
+    {
+      "class": "mono",
+      "files": [
+        "src/styles/alerts.css",
+        "src/styles/base.css",
+        "src/styles/cart.css",
+        "src/styles/offers.css",
+        "src/styles/shell.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "c-game",
+      "files": [
+        "src/styles/alerts.css",
+        "src/styles/cart.css",
+        "src/styles/wishlist.css"
+      ]
+    },
+    {
+      "class": "c-status",
+      "files": [
+        "src/styles/alerts.css",
+        "src/styles/wishlist.css"
+      ]
+    },
+    {
+      "class": "c-target",
+      "files": [
+        "src/styles/alerts.css",
+        "src/styles/wishlist.css"
+      ]
+    },
+    {
+      "class": "text-button",
+      "files": [
+        "src/styles/alerts.css",
+        "src/styles/app.css",
+        "src/styles/detail.css",
+        "src/styles/settings.css"
+      ]
+    },
+    {
+      "class": "form-row",
+      "files": [
+        "src/styles/app.css",
+        "src/styles/detail.css",
+        "src/styles/pages.css",
+        "src/styles/settings.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "notice",
+      "files": [
+        "src/styles/app.css",
+        "src/styles/catalog.css",
+        "src/styles/detail.css",
+        "src/styles/library.css",
+        "src/styles/pages.css",
+        "src/styles/shell.css"
+      ]
+    },
+    {
+      "class": "error",
+      "files": [
+        "src/styles/app.css",
+        "src/styles/settings.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "btn",
+      "files": [
+        "src/styles/app.css",
+        "src/styles/catalog.css",
+        "src/styles/pages.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "dialog-heading",
+      "files": [
+        "src/styles/app.css",
+        "src/styles/catalog.css"
+      ]
+    },
+    {
+      "class": "dialog-actions",
+      "files": [
+        "src/styles/app.css",
+        "src/styles/detail.css"
+      ]
+    },
+    {
+      "class": "num",
+      "files": [
+        "src/styles/base.css",
+        "src/styles/detail.css"
+      ]
+    },
+    {
+      "class": "label",
+      "files": [
+        "src/styles/base.css",
+        "src/styles/detail.css",
+        "src/styles/settings.css",
+        "src/styles/shell.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "faint",
+      "files": [
+        "src/styles/base.css",
+        "src/styles/cart.css"
+      ]
+    },
+    {
+      "class": "hint",
+      "files": [
+        "src/styles/base.css",
+        "src/styles/cart.css",
+        "src/styles/settings.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "gcover",
+      "files": [
+        "src/styles/cart.css",
+        "src/styles/detail.css",
+        "src/styles/wishlist.css"
+      ]
+    },
+    {
+      "class": "gcover-title",
+      "files": [
+        "src/styles/cart.css",
+        "src/styles/detail.css",
+        "src/styles/wishlist.css"
+      ]
+    },
+    {
+      "class": "seg",
+      "files": [
+        "src/styles/cart.css",
+        "src/styles/detail.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "icon-btn",
+      "files": [
+        "src/styles/cart.css",
+        "src/styles/library.css",
+        "src/styles/settings.css",
+        "src/styles/shell.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "inset",
+      "files": [
+        "src/styles/cart.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "with-help",
+      "files": [
+        "src/styles/cart.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "key-mark-fill",
+      "files": [
+        "src/styles/catalog.css",
+        "src/styles/shell.css"
+      ]
+    },
+    {
+      "class": "search-hint",
+      "files": [
+        "src/styles/catalog.css",
+        "src/styles/shell.css"
+      ]
+    },
+    {
+      "class": "field",
+      "files": [
+        "src/styles/catalog.css",
+        "src/styles/settings.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "small",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/shell.css"
+      ]
+    },
+    {
+      "class": "danger",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/library.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "note",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/settings.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "row",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "grid-2",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/shell.css"
+      ]
+    },
+    {
+      "class": "stack",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/shell.css"
+      ]
+    },
+    {
+      "class": "panel-head",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/settings.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "count",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/shell.css"
+      ]
+    },
+    {
+      "class": "pad",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "big-price",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "stale",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/offers.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "form-grid",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/settings.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "ok",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "warn",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/settings.css",
+        "src/styles/ui.css",
+        "src/styles/wishlist.css"
+      ]
+    },
+    {
+      "class": "r",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/ui.css",
+        "src/styles/wishlist.css"
+      ]
+    },
+    {
+      "class": "big",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/wishlist.css"
+      ]
+    },
+    {
+      "class": "line",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/library.css"
+      ]
+    },
+    {
+      "class": "spacer",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "world",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "on",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/ui.css",
+        "src/styles/wishlist.css"
+      ]
+    },
+    {
+      "class": "kpi",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "kpi-val",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "switch",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/settings.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "pill",
+      "files": [
+        "src/styles/detail.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "world-cell",
+      "files": [
+        "src/styles/offers.css",
+        "src/styles/wishlist.css"
+      ]
+    },
+    {
+      "class": "table-wrap",
+      "files": [
+        "src/styles/offers.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "brand",
+      "files": [
+        "src/styles/pages.css",
+        "src/styles/shell.css"
+      ]
+    },
+    {
+      "class": "dot",
+      "files": [
+        "src/styles/settings.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "spinner",
+      "files": [
+        "src/styles/settings.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "page-head",
+      "files": [
+        "src/styles/settings.css",
+        "src/styles/shell.css"
+      ]
+    },
+    {
+      "class": "bar",
+      "files": [
+        "src/styles/settings.css",
+        "src/styles/ui.css"
+      ]
+    },
+    {
+      "class": "kpi-foot",
+      "files": [
+        "src/styles/ui.css",
+        "src/styles/wishlist.css"
+      ]
+    }
+  ],
+  "unusedClasses": [
+    {
+      "class": "field-label",
+      "files": [
+        "src/styles/app.css"
+      ],
+      "at": [
+        "src/styles/app.css:2"
+      ]
+    },
+    {
+      "class": "field-help",
+      "files": [
+        "src/styles/app.css"
+      ],
+      "at": [
+        "src/styles/app.css:3"
+      ]
+    },
+    {
+      "class": "card-footnote",
+      "files": [
+        "src/styles/app.css"
+      ],
+      "at": [
+        "src/styles/app.css:7"
+      ]
+    },
+    {
+      "class": "source-link",
+      "files": [
+        "src/styles/app.css"
+      ],
+      "at": [
+        "src/styles/app.css:8"
+      ]
+    },
+    {
+      "class": "status-dot",
+      "files": [
+        "src/styles/app.css"
+      ],
+      "at": [
+        "src/styles/app.css:10",
+        "src/styles/app.css:11"
+      ]
+    },
+    {
+      "class": "chart-hint",
+      "files": [
+        "src/styles/detail.css"
+      ],
+      "at": [
+        "src/styles/detail.css:136"
+      ]
+    },
+    {
+      "class": "alert-form",
+      "files": [
+        "src/styles/pages.css"
+      ],
+      "at": [
+        "src/styles/pages.css:2",
+        "src/styles/pages.css:3"
+      ]
+    },
+    {
+      "class": "set-add",
+      "files": [
+        "src/styles/settings.css"
+      ],
+      "at": [
+        "src/styles/settings.css:47",
+        "src/styles/settings.css:48"
+      ]
+    },
+    {
+      "class": "col-order-hint",
+      "files": [
+        "src/styles/settings.css"
+      ],
+      "at": [
+        "src/styles/settings.css:77"
+      ]
+    },
+    {
+      "class": "lv-error",
+      "files": [
+        "src/styles/settings.css"
+      ],
+      "at": [
+        "src/styles/settings.css:106"
+      ]
+    }
+  ],
+  "tokens": {
+    "total": 118,
+    "v4": 48,
+    "legacy": 70,
+    "unused": [
+      "--bp-sm",
+      "--bp-md",
+      "--bp-lg",
+      "--color-bg",
+      "--color-surface",
+      "--color-overlay",
+      "--color-border",
+      "--color-track",
+      "--color-track-fill",
+      "--color-text",
+      "--color-text-disabled",
+      "--color-accent",
+      "--color-accent-text",
+      "--color-on-accent",
+      "--color-accent-ring",
+      "--color-best",
+      "--color-best-text",
+      "--color-best-bg",
+      "--color-best-ring",
+      "--color-glass",
+      "--color-backdrop",
+      "--color-warn",
+      "--color-warn-bg",
+      "--color-danger",
+      "--color-danger-text",
+      "--color-danger-bg",
+      "--color-neutral-bg",
+      "--color-neutral-ring",
+      "--color-dot-muted",
+      "--text-xs",
+      "--text-md",
+      "--text-lg",
+      "--text-xl",
+      "--text-2xl",
+      "--tracking-title",
+      "--tracking-mono",
+      "--weight-regular",
+      "--weight-medium",
+      "--weight-bold",
+      "--space-1",
+      "--space-3",
+      "--space-4",
+      "--space-5",
+      "--space-6",
+      "--space-page",
+      "--space-panel",
+      "--radius-lg",
+      "--radius-control",
+      "--radius-card",
+      "--radius-sheet",
+      "--radius-pill",
+      "--shadow-overlay",
+      "--motion-fast",
+      "--ease",
+      "--control-h",
+      "--control-h-sm",
+      "--control-h-touch",
+      "--focus-ring"
+    ],
+    "legacyStillUsed": [
+      {
+        "name": "--color-raised",
+        "where": [
+          "src/styles/detail.css×1"
+        ]
+      },
+      {
+        "name": "--color-overlay-hover",
+        "where": [
+          "src/styles/detail.css×1"
+        ]
+      },
+      {
+        "name": "--color-border-strong",
+        "where": [
+          "src/styles/detail.css×1"
+        ]
+      },
+      {
+        "name": "--color-text-soft",
+        "where": [
+          "src/styles/detail.css×1"
+        ]
+      },
+      {
+        "name": "--color-text-muted",
+        "where": [
+          "src/styles/detail.css×1"
+        ]
+      },
+      {
+        "name": "--color-accent-bg",
+        "where": [
+          "src/styles/detail.css×1"
+        ]
+      },
+      {
+        "name": "--font-mono",
+        "where": [
+          "src/styles/detail.css×1"
+        ]
+      },
+      {
+        "name": "--text-sm",
+        "where": [
+          "src/styles/detail.css×2"
+        ]
+      },
+      {
+        "name": "--weight-semibold",
+        "where": [
+          "src/styles/detail.css×1"
+        ]
+      },
+      {
+        "name": "--space-2",
+        "where": [
+          "src/styles/detail.css×1"
+        ]
+      },
+      {
+        "name": "--radius-sm",
+        "where": [
+          "src/styles/detail.css×1"
+        ]
+      },
+      {
+        "name": "--radius-md",
+        "where": [
+          "src/styles/detail.css×1"
+        ]
+      }
+    ],
+    "undefinedButReferenced": [],
+    "all": [
+      {
+        "name": "--ground",
+        "value": "#161514",
+        "refs": [
+          "src/styles/base.css×1",
+          "src/styles/pages.css×1",
+          "src/styles/settings.css×1",
+          "src/styles/tokens.css×1"
+        ]
+      },
+      {
+        "name": "--shell",
+        "value": "#1b1a19",
+        "refs": [
+          "src/styles/shell.css×2"
+        ]
+      },
+      {
+        "name": "--panel",
+        "value": "#211f1e",
+        "refs": [
+          "src/styles/catalog.css×1",
+          "src/styles/detail.css×3",
+          "src/styles/library.css×3",
+          "src/styles/shell.css×3",
+          "src/styles/tokens.css×1",
+          "src/styles/ui.css×2"
+        ]
+      },
+      {
+        "name": "--panel-2",
+        "value": "#272524",
+        "refs": [
+          "src/styles/app.css×2",
+          "src/styles/base.css×2",
+          "src/styles/cart.css×2",
+          "src/styles/detail.css×4",
+          "src/styles/shell.css×3",
+          "src/styles/tokens.css×1",
+          "src/styles/ui.css×9"
+        ]
+      },
+      {
+        "name": "--panel-3",
+        "value": "#2e2c2a",
+        "refs": [
+          "src/styles/catalog.css×2",
+          "src/styles/detail.css×2",
+          "src/styles/offers.css×1",
+          "src/styles/shell.css×1",
+          "src/styles/tokens.css×3",
+          "src/styles/ui.css×12"
+        ]
+      },
+      {
+        "name": "--cell",
+        "value": "#2b2927",
+        "refs": [
+          "ts×2"
+        ]
+      },
+      {
+        "name": "--line",
+        "value": "#322f2d",
+        "refs": [
+          "src/styles/alerts.css×1",
+          "src/styles/base.css×1",
+          "src/styles/cart.css×3",
+          "src/styles/catalog.css×1",
+          "src/styles/detail.css×10",
+          "src/styles/library.css×3",
+          "src/styles/offers.css×2",
+          "src/styles/settings.css×6",
+          "src/styles/shell.css×5",
+          "src/styles/tokens.css×1",
+          "src/styles/ui.css×12",
+          "src/styles/wishlist.css×3"
+        ]
+      },
+      {
+        "name": "--line-2",
+        "value": "#3d3a37",
+        "refs": [
+          "src/styles/app.css×2",
+          "src/styles/base.css×1",
+          "src/styles/cart.css×1",
+          "src/styles/catalog.css×2",
+          "src/styles/detail.css×4",
+          "src/styles/library.css×1",
+          "src/styles/shell.css×4",
+          "src/styles/tokens.css×3",
+          "src/styles/ui.css×12",
+          "src/styles/wishlist.css×1",
+          "ts×1"
+        ]
+      },
+      {
+        "name": "--text",
+        "value": "#edeae6",
+        "refs": [
+          "src/styles/alerts.css×1",
+          "src/styles/app.css×2",
+          "src/styles/base.css×2",
+          "src/styles/cart.css×2",
+          "src/styles/detail.css×7",
+          "src/styles/offers.css×1",
+          "src/styles/settings.css×2",
+          "src/styles/shell.css×5",
+          "src/styles/tokens.css×1",
+          "src/styles/ui.css×14"
+        ]
+      },
+      {
+        "name": "--text-2",
+        "value": "#bdb8b1",
+        "refs": [
+          "src/styles/alerts.css×1",
+          "src/styles/app.css×2",
+          "src/styles/base.css×2",
+          "src/styles/cart.css×2",
+          "src/styles/catalog.css×1",
+          "src/styles/detail.css×8",
+          "src/styles/offers.css×1",
+          "src/styles/settings.css×5",
+          "src/styles/shell.css×1",
+          "src/styles/tokens.css×1",
+          "src/styles/ui.css×13",
+          "src/styles/wishlist.css×1",
+          "ts×1"
+        ]
+      },
+      {
+        "name": "--muted",
+        "value": "#8d8780",
+        "refs": [
+          "src/styles/alerts.css×2",
+          "src/styles/app.css×2",
+          "src/styles/base.css×4",
+          "src/styles/cart.css×4",
+          "src/styles/catalog.css×3",
+          "src/styles/detail.css×11",
+          "src/styles/library.css×2",
+          "src/styles/settings.css×3",
+          "src/styles/shell.css×9",
+          "src/styles/tokens.css×2",
+          "src/styles/ui.css×15",
+          "src/styles/wishlist.css×5"
+        ]
+      },
+      {
+        "name": "--faint",
+        "value": "#625d58",
+        "refs": [
+          "src/styles/alerts.css×1",
+          "src/styles/base.css×2",
+          "src/styles/catalog.css×2",
+          "src/styles/detail.css×5",
+          "src/styles/settings.css×2",
+          "src/styles/shell.css×4",
+          "src/styles/tokens.css×2",
+          "src/styles/ui.css×6",
+          "src/styles/wishlist.css×1"
+        ]
+      },
+      {
+        "name": "--accent",
+        "value": "#ff7a1a",
+        "refs": [
+          "src/styles/app.css×1",
+          "src/styles/base.css×2",
+          "src/styles/cart.css×3",
+          "src/styles/detail.css×5",
+          "src/styles/library.css×2",
+          "src/styles/settings.css×1",
+          "src/styles/shell.css×8",
+          "src/styles/tokens.css×2",
+          "src/styles/ui.css×15",
+          "src/styles/wishlist.css×9",
+          "ts×1"
+        ]
+      },
+      {
+        "name": "--accent-2",
+        "value": "#ff9a4d",
+        "refs": [
+          "src/styles/app.css×2",
+          "src/styles/base.css×2",
+          "src/styles/detail.css×5",
+          "src/styles/settings.css×1",
+          "src/styles/shell.css×2",
+          "src/styles/tokens.css×1",
+          "src/styles/ui.css×6",
+          "src/styles/wishlist.css×1",
+          "ts×1"
+        ]
+      },
+      {
+        "name": "--accent-bg",
+        "value": "rgb(255 122 26 / .12)",
+        "refs": [
+          "src/styles/settings.css×1",
+          "src/styles/tokens.css×1",
+          "src/styles/ui.css×3"
+        ]
+      },
+      {
+        "name": "--accent-line",
+        "value": "rgb(255 122 26 / .35)",
+        "refs": [
+          "src/styles/shell.css×1",
+          "src/styles/tokens.css×1",
+          "src/styles/ui.css×2"
+        ]
+      },
+      {
+        "name": "--on-accent",
+        "value": "#1b1004",
+        "refs": [
+          "src/styles/app.css×1",
+          "src/styles/shell.css×1",
+          "src/styles/tokens.css×1",
+          "src/styles/ui.css×3"
+        ]
+      },
+      {
+        "name": "--world",
+        "value": "#d8d1c6",
+        "refs": [
+          "src/styles/detail.css×5",
+          "src/styles/settings.css×1",
+          "src/styles/ui.css×2",
+          "ts×1"
+        ]
+      },
+      {
+        "name": "--ok",
+        "value": "#4fd18b",
+        "refs": [
+          "src/styles/alerts.css×1",
+          "src/styles/app.css×1",
+          "src/styles/catalog.css×1",
+          "src/styles/detail.css×4",
+          "src/styles/offers.css×1",
+          "src/styles/tokens.css×2",
+          "src/styles/ui.css×5"
+        ]
+      },
+      {
+        "name": "--ok-bg",
+        "value": "rgb(79 209 139 / .12)",
+        "refs": [
+          "src/styles/tokens.css×1",
+          "src/styles/ui.css×1",
+          "src/styles/wishlist.css×1"
+        ]
+      },
+      {
+        "name": "--warn",
+        "value": "#f2c14e",
+        "refs": [
+          "src/styles/app.css×1",
+          "src/styles/catalog.css×1",
+          "src/styles/detail.css×5",
+          "src/styles/offers.css×3",
+          "src/styles/settings.css×4",
+          "src/styles/shell.css×1",
+          "src/styles/tokens.css×1",
+          "src/styles/ui.css×2",
+          "src/styles/wishlist.css×3"
+        ]
+      },
+      {
+        "name": "--warn-bg",
+        "value": "rgb(242 193 78 / .12)",
+        "refs": [
+          "src/styles/settings.css×1",
+          "src/styles/tokens.css×1",
+          "src/styles/ui.css×1"
+        ]
+      },
+      {
+        "name": "--danger",
+        "value": "#ff7b7b",
+        "refs": [
+          "src/styles/app.css×1",
+          "src/styles/detail.css×2",
+          "src/styles/library.css×3",
+          "src/styles/offers.css×1",
+          "src/styles/settings.css×2",
+          "src/styles/shell.css×1",
+          "src/styles/tokens.css×2",
+          "src/styles/ui.css×6"
+        ]
+      },
+      {
+        "name": "--danger-bg",
+        "value": "rgb(255 123 123 / .12)",
+        "refs": [
+          "src/styles/app.css×1",
+          "src/styles/library.css×1",
+          "src/styles/tokens.css×1",
+          "src/styles/ui.css×2"
+        ]
+      },
+      {
+        "name": "--scrim",
+        "value": "rgb(10 9 8 / .6)",
+        "refs": [
+          "src/styles/app.css×1",
+          "src/styles/shell.css×1",
+          "src/styles/tokens.css×1"
+        ]
+      },
+      {
+        "name": "--f-sans",
+        "value": "\"Inter\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+        "refs": [
+          "src/styles/base.css×1",
+          "src/styles/cart.css×1",
+          "src/styles/catalog.css×1",
+          "src/styles/detail.css×3",
+          "src/styles/ui.css×1",
+          "src/styles/wishlist.css×2"
+        ]
+      },
+      {
+        "name": "--f-mono",
+        "value": "\"JetBrains Mono\", ui-monospace, \"SFMono-Regular\", Menlo, Consolas, monospace",
+        "refs": [
+          "src/styles/alerts.css×1",
+          "src/styles/base.css×4",
+          "src/styles/cart.css×1",
+          "src/styles/detail.css×10",
+          "src/styles/settings.css×1",
+          "src/styles/shell.css×2",
+          "src/styles/tokens.css×1",
+          "src/styles/ui.css×5",
+          "src/styles/wishlist.css×1"
+        ]
+      },
+      {
+        "name": "--t-label",
+        "value": "11px",
+        "refs": [
+          "src/styles/base.css×1",
+          "src/styles/catalog.css×2",
+          "src/styles/detail.css×4",
+          "src/styles/shell.css×3",
+          "src/styles/ui.css×3",
+          "src/styles/wishlist.css×1"
+        ]
+      },
+      {
+        "name": "--t-xs",
+        "value": "12px",
+        "refs": [
+          "src/styles/alerts.css×3",
+          "src/styles/app.css×3",
+          "src/styles/base.css×1",
+          "src/styles/cart.css×7",
+          "src/styles/catalog.css×4",
+          "src/styles/detail.css×14",
+          "src/styles/library.css×2",
+          "src/styles/offers.css×2",
+          "src/styles/settings.css×5",
+          "src/styles/shell.css×5",
+          "src/styles/tokens.css×1",
+          "src/styles/ui.css×14",
+          "src/styles/wishlist.css×6"
+        ]
+      },
+      {
+        "name": "--t-sm",
+        "value": "13px",
+        "refs": [
+          "src/styles/app.css×1",
+          "src/styles/base.css×1",
+          "src/styles/catalog.css×2",
+          "src/styles/detail.css×2",
+          "src/styles/library.css×1",
+          "src/styles/settings.css×2",
+          "src/styles/tokens.css×1",
+          "src/styles/ui.css×2"
+        ]
+      },
+      {
+        "name": "--t-md",
+        "value": "14px",
+        "refs": [
+          "src/styles/base.css×1",
+          "src/styles/cart.css×1",
+          "src/styles/catalog.css×1",
+          "src/styles/detail.css×2",
+          "src/styles/shell.css×1",
+          "src/styles/tokens.css×1",
+          "src/styles/ui.css×2"
+        ]
+      },
+      {
+        "name": "--t-lg",
+        "value": "16px",
+        "refs": [
+          "src/styles/app.css×1",
+          "src/styles/base.css×1",
+          "src/styles/cart.css×1",
+          "src/styles/detail.css×2",
+          "src/styles/settings.css×1",
+          "src/styles/tokens.css×1"
+        ]
+      },
+      {
+        "name": "--t-title",
+        "value": "20px",
+        "refs": [
+          "src/styles/base.css×1",
+          "src/styles/pages.css×1",
+          "src/styles/shell.css×1",
+          "src/styles/tokens.css×1"
+        ]
+      },
+      {
+        "name": "--t-kpi",
+        "value": "24px",
+        "refs": [
+          "src/styles/detail.css×1",
+          "src/styles/ui.css×1"
+        ]
+      },
+      {
+        "name": "--t-price",
+        "value": "34px",
+        "refs": [
+          "src/styles/detail.css×1",
+          "src/styles/ui.css×1"
+        ]
+      },
+      {
+        "name": "--r-sm",
+        "value": "6px",
+        "refs": [
+          "src/styles/cart.css×3",
+          "src/styles/catalog.css×2",
+          "src/styles/detail.css×4",
+          "src/styles/library.css×1",
+          "src/styles/settings.css×1",
+          "src/styles/shell.css×1",
+          "src/styles/tokens.css×1",
+          "src/styles/wishlist.css×1"
+        ]
+      },
+      {
+        "name": "--r-md",
+        "value": "8px",
+        "refs": [
+          "src/styles/app.css×2",
+          "src/styles/base.css×1",
+          "src/styles/catalog.css×1",
+          "src/styles/detail.css×3",
+          "src/styles/library.css×1",
+          "src/styles/shell.css×3",
+          "src/styles/tokens.css×2",
+          "src/styles/ui.css×10"
+        ]
+      },
+      {
+        "name": "--r-lg",
+        "value": "12px",
+        "refs": [
+          "src/styles/app.css×1",
+          "src/styles/detail.css×2",
+          "src/styles/shell.css×3",
+          "src/styles/tokens.css×3",
+          "src/styles/ui.css×3"
+        ]
+      },
+      {
+        "name": "--h-btn",
+        "value": "32px",
+        "refs": [
+          "src/styles/app.css×1",
+          "src/styles/base.css×1",
+          "src/styles/shell.css×1",
+          "src/styles/tokens.css×2",
+          "src/styles/ui.css×5"
+        ]
+      },
+      {
+        "name": "--shadow-pop",
+        "value": "0 16px 40px rgb(0 0 0 / .45)",
+        "refs": [
+          "src/styles/app.css×1",
+          "src/styles/detail.css×1",
+          "src/styles/shell.css×1",
+          "src/styles/tokens.css×1",
+          "src/styles/ui.css×1"
+        ]
+      },
+      {
+        "name": "--shadow-tip",
+        "value": "0 12px 30px rgb(0 0 0 / .4)",
+        "refs": [
+          "src/styles/detail.css×1",
+          "src/styles/ui.css×2"
+        ]
+      },
+      {
+        "name": "--cover-line",
+        "value": "rgb(255 255 255 / .06)",
+        "refs": [
+          "src/styles/cart.css×1",
+          "src/styles/ui.css×1",
+          "src/styles/wishlist.css×1"
+        ]
+      },
+      {
+        "name": "--cover-text",
+        "value": "rgb(255 255 255 / .85)",
+        "refs": [
+          "src/styles/cart.css×1",
+          "src/styles/wishlist.css×1"
+        ]
+      },
+      {
+        "name": "--z-sticky",
+        "value": "10",
+        "refs": [
+          "src/styles/settings.css×1"
+        ]
+      },
+      {
+        "name": "--z-pop",
+        "value": "30",
+        "refs": [
+          "src/styles/detail.css×1",
+          "src/styles/shell.css×1"
+        ]
+      },
+      {
+        "name": "--z-scrim",
+        "value": "35",
+        "refs": [
+          "src/styles/shell.css×1"
+        ]
+      },
+      {
+        "name": "--z-drawer",
+        "value": "40",
+        "refs": [
+          "src/styles/shell.css×1"
+        ]
+      },
+      {
+        "name": "--z-toast",
+        "value": "50",
+        "refs": [
+          "src/styles/app.css×1",
+          "src/styles/ui.css×2"
+        ]
+      },
+      {
+        "name": "--bp-sm",
+        "value": "720px",
+        "refs": []
+      },
+      {
+        "name": "--bp-md",
+        "value": "900px",
+        "refs": []
+      },
+      {
+        "name": "--bp-lg",
+        "value": "1180px",
+        "refs": []
+      },
+      {
+        "name": "--color-bg",
+        "value": "var(--ground)",
+        "refs": []
+      },
+      {
+        "name": "--color-surface",
+        "value": "var(--panel)",
+        "refs": []
+      },
+      {
+        "name": "--color-raised",
+        "value": "var(--panel-2)",
+        "refs": [
+          "src/styles/detail.css×1"
+        ]
+      },
+      {
+        "name": "--color-overlay",
+        "value": "var(--panel-3)",
+        "refs": []
+      },
+      {
+        "name": "--color-overlay-hover",
+        "value": "var(--line-2)",
+        "refs": [
+          "src/styles/detail.css×1"
+        ]
+      },
+      {
+        "name": "--color-border",
+        "value": "var(--line)",
+        "refs": []
+      },
+      {
+        "name": "--color-border-strong",
+        "value": "var(--line-2)",
+        "refs": [
+          "src/styles/detail.css×1"
+        ]
+      },
+      {
+        "name": "--color-track",
+        "value": "var(--panel-3)",
+        "refs": []
+      },
+      {
+        "name": "--color-track-fill",
+        "value": "var(--muted)",
+        "refs": []
+      },
+      {
+        "name": "--color-text",
+        "value": "var(--text)",
+        "refs": []
+      },
+      {
+        "name": "--color-text-soft",
+        "value": "var(--text-2)",
+        "refs": [
+          "src/styles/detail.css×1"
+        ]
+      },
+      {
+        "name": "--color-text-muted",
+        "value": "var(--muted)",
+        "refs": [
+          "src/styles/detail.css×1"
+        ]
+      },
+      {
+        "name": "--color-text-disabled",
+        "value": "var(--faint)",
+        "refs": []
+      },
+      {
+        "name": "--color-accent",
+        "value": "var(--accent)",
+        "refs": []
+      },
+      {
+        "name": "--color-accent-text",
+        "value": "var(--accent-2)",
+        "refs": []
+      },
+      {
+        "name": "--color-on-accent",
+        "value": "var(--on-accent)",
+        "refs": []
+      },
+      {
+        "name": "--color-accent-bg",
+        "value": "var(--accent-bg)",
+        "refs": [
+          "src/styles/detail.css×1"
+        ]
+      },
+      {
+        "name": "--color-accent-ring",
+        "value": "var(--accent-line)",
+        "refs": []
+      },
+      {
+        "name": "--color-best",
+        "value": "var(--ok)",
+        "refs": []
+      },
+      {
+        "name": "--color-best-text",
+        "value": "var(--ok)",
+        "refs": []
+      },
+      {
+        "name": "--color-best-bg",
+        "value": "var(--ok-bg)",
+        "refs": []
+      },
+      {
+        "name": "--color-best-ring",
+        "value": "rgb(79 209 139 / .35)",
+        "refs": []
+      },
+      {
+        "name": "--color-glass",
+        "value": "rgb(33 31 30 / .86)",
+        "refs": []
+      },
+      {
+        "name": "--color-backdrop",
+        "value": "var(--scrim)",
+        "refs": []
+      },
+      {
+        "name": "--color-warn",
+        "value": "var(--warn)",
+        "refs": []
+      },
+      {
+        "name": "--color-warn-bg",
+        "value": "var(--warn-bg)",
+        "refs": []
+      },
+      {
+        "name": "--color-danger",
+        "value": "var(--danger)",
+        "refs": []
+      },
+      {
+        "name": "--color-danger-text",
+        "value": "var(--danger)",
+        "refs": []
+      },
+      {
+        "name": "--color-danger-bg",
+        "value": "var(--danger-bg)",
+        "refs": []
+      },
+      {
+        "name": "--color-neutral-bg",
+        "value": "var(--panel-3)",
+        "refs": []
+      },
+      {
+        "name": "--color-neutral-ring",
+        "value": "var(--line-2)",
+        "refs": []
+      },
+      {
+        "name": "--color-dot-muted",
+        "value": "var(--faint)",
+        "refs": []
+      },
+      {
+        "name": "--font-mono",
+        "value": "var(--f-mono)",
+        "refs": [
+          "src/styles/detail.css×1"
+        ]
+      },
+      {
+        "name": "--text-xs",
+        "value": "var(--t-xs)",
+        "refs": []
+      },
+      {
+        "name": "--text-sm",
+        "value": "var(--t-sm)",
+        "refs": [
+          "src/styles/detail.css×2"
+        ]
+      },
+      {
+        "name": "--text-md",
+        "value": "var(--t-md)",
+        "refs": []
+      },
+      {
+        "name": "--text-lg",
+        "value": "var(--t-lg)",
+        "refs": []
+      },
+      {
+        "name": "--text-xl",
+        "value": "18px",
+        "refs": []
+      },
+      {
+        "name": "--text-2xl",
+        "value": "var(--t-title)",
+        "refs": []
+      },
+      {
+        "name": "--tracking-title",
+        "value": "-.01em",
+        "refs": []
+      },
+      {
+        "name": "--tracking-mono",
+        "value": ".08em",
+        "refs": []
+      },
+      {
+        "name": "--weight-regular",
+        "value": "400",
+        "refs": []
+      },
+      {
+        "name": "--weight-medium",
+        "value": "500",
+        "refs": []
+      },
+      {
+        "name": "--weight-semibold",
+        "value": "500",
+        "refs": [
+          "src/styles/detail.css×1"
+        ]
+      },
+      {
+        "name": "--weight-bold",
+        "value": "600",
+        "refs": []
+      },
+      {
+        "name": "--space-1",
+        "value": "4px",
+        "refs": []
+      },
+      {
+        "name": "--space-2",
+        "value": "8px",
+        "refs": [
+          "src/styles/detail.css×1"
+        ]
+      },
+      {
+        "name": "--space-3",
+        "value": "12px",
+        "refs": []
+      },
+      {
+        "name": "--space-4",
+        "value": "16px",
+        "refs": []
+      },
+      {
+        "name": "--space-5",
+        "value": "24px",
+        "refs": []
+      },
+      {
+        "name": "--space-6",
+        "value": "32px",
+        "refs": []
+      },
+      {
+        "name": "--space-page",
+        "value": "20px",
+        "refs": []
+      },
+      {
+        "name": "--space-panel",
+        "value": "16px",
+        "refs": []
+      },
+      {
+        "name": "--radius-sm",
+        "value": "var(--r-sm)",
+        "refs": [
+          "src/styles/detail.css×1"
+        ]
+      },
+      {
+        "name": "--radius-md",
+        "value": "var(--r-md)",
+        "refs": [
+          "src/styles/detail.css×1"
+        ]
+      },
+      {
+        "name": "--radius-lg",
+        "value": "var(--r-lg)",
+        "refs": []
+      },
+      {
+        "name": "--radius-control",
+        "value": "var(--r-md)",
+        "refs": []
+      },
+      {
+        "name": "--radius-card",
+        "value": "var(--r-lg)",
+        "refs": []
+      },
+      {
+        "name": "--radius-sheet",
+        "value": "var(--r-lg)",
+        "refs": []
+      },
+      {
+        "name": "--radius-pill",
+        "value": "999px",
+        "refs": []
+      },
+      {
+        "name": "--shadow-overlay",
+        "value": "var(--shadow-pop)",
+        "refs": []
+      },
+      {
+        "name": "--motion-fast",
+        "value": "120ms",
+        "refs": []
+      },
+      {
+        "name": "--ease",
+        "value": "cubic-bezier(.2, .8, .2, 1)",
+        "refs": []
+      },
+      {
+        "name": "--control-h",
+        "value": "var(--h-btn)",
+        "refs": []
+      },
+      {
+        "name": "--control-h-sm",
+        "value": "28px",
+        "refs": []
+      },
+      {
+        "name": "--control-h-touch",
+        "value": "var(--h-btn)",
+        "refs": []
+      },
+      {
+        "name": "--focus-ring",
+        "value": "2px solid var(--accent)",
+        "refs": []
+      }
+    ]
+  },
+  "icons": {
+    "sizeProps": [
+      [
+        "14",
+        9
+      ],
+      [
+        "15",
+        5
+      ],
+      [
+        "12",
+        2
+      ],
+      [
+        "20",
+        1
+      ]
+    ],
+    "defaultSize16": 82,
+    "cssSvgSizes": [
+      [
+        "15px",
+        16
+      ],
+      [
+        "14px",
+        10
+      ],
+      [
+        "16px",
+        8
+      ],
+      [
+        "12px",
+        6
+      ],
+      [
+        "13px",
+        4
+      ],
+      [
+        "100%",
+        1
+      ],
+      [
+        "auto",
+        1
+      ]
+    ],
+    "cssSvgAt": [
+      "src/styles/cart.css:28 .cart-page .cart-table .icon-btn svg width:15px",
+      "src/styles/cart.css:28 .cart-page .cart-table .icon-btn svg height:15px",
+      "src/styles/detail.css:26 .popover-panel [role='menuitem'] svg width:15px",
+      "src/styles/detail.css:26 .popover-panel [role='menuitem'] svg height:15px",
+      "src/styles/detail.css:83 .facts li > svg width:15px",
+      "src/styles/detail.css:83 .facts li > svg height:15px",
+      "src/styles/detail.css:88 .facts a.r svg width:13px",
+      "src/styles/detail.css:88 .facts a.r svg height:13px",
+      "src/styles/detail.css:120 .matrix svg width:100%",
+      "src/styles/detail.css:120 .matrix svg height:auto",
+      "src/styles/detail.css:151 table.contents td svg width:15px",
+      "src/styles/detail.css:151 table.contents td svg height:15px",
+      "src/styles/detail.css:214 .matches .match-delete svg width:14px",
+      "src/styles/detail.css:214 .matches .match-delete svg height:14px",
+      "src/styles/library.css:21 .library-page .lib-tools .icon-btn svg width:15px",
+      "src/styles/library.css:21 .library-page .lib-tools .icon-btn svg height:15px",
+      "src/styles/offers.css:18 table.offers .offer-cart svg width:14px",
+      "src/styles/offers.css:18 table.offers .offer-cart svg height:14px",
+      "src/styles/settings.css:89 .settings-page .col-order .col-grip svg width:16px",
+      "src/styles/settings.css:89 .settings-page .col-order .col-grip svg height:16px",
+      "src/styles/shell.css:35 .nav-item svg width:16px",
+      "src/styles/shell.css:35 .nav-item svg height:16px",
+      "src/styles/shell.css:50 .fetch-toggle.icon-btn svg width:13px",
+      "src/styles/shell.css:50 .fetch-toggle.icon-btn svg height:13px",
+      "src/styles/shell.css:71 .crumbs svg width:14px",
+      "src/styles/shell.css:71 .crumbs svg height:14px",
+      "src/styles/shell.css:101 .search-box svg width:15px",
+      "src/styles/shell.css:101 .search-box svg height:15px",
+      "src/styles/ui.css:12 .btn svg width:15px",
+      "src/styles/ui.css:12 .btn svg height:15px",
+      "src/styles/ui.css:21 .btn.sm svg width:14px",
+      "src/styles/ui.css:21 .btn.sm svg height:14px",
+      "src/styles/ui.css:27 .icon-btn svg width:16px",
+      "src/styles/ui.css:27 .icon-btn svg height:16px",
+      "src/styles/ui.css:48 .pill svg width:12px",
+      "src/styles/ui.css:48 .pill svg height:12px",
+      "src/styles/ui.css:63 .reg.area svg width:12px",
+      "src/styles/ui.css:63 .reg.area svg height:12px",
+      "src/styles/ui.css:75 .field svg width:14px",
+      "src/styles/ui.css:75 .field svg height:14px",
+      "src/styles/ui.css:156 .note svg width:15px",
+      "src/styles/ui.css:156 .note svg height:15px",
+      "src/styles/ui.css:214 .toast-pop > svg width:16px",
+      "src/styles/ui.css:214 .toast-pop > svg height:16px",
+      "src/styles/wishlist.css:19 table.wl th .th-sort svg width:12px",
+      "src/styles/wishlist.css:19 table.wl th .th-sort svg height:12px"
+    ],
+    "rawSvg": [
+      {
+        "file": "src/brand.tsx",
+        "tag": "<svg className={small ? 'key-mark small' : 'key-mark'} viewBox=\"0 0 32 32\" aria-hidden=\"true\">"
+      },
+      {
+        "file": "src/brand.tsx",
+        "tag": "<svg className=\"brand\" viewBox=\"0 0 191 32\" role=\"img\" aria-label={label}>"
+      },
+      {
+        "file": "src/features/PriceMatrix.tsx",
+        "tag": "<svg viewBox={`0 0 ${width} ${H + 26}`} role=\"img\" tabIndex={0} aria-label={label} onKeyDown={keys} "
+      },
+      {
+        "file": "src/ui/Icon.tsx",
+        "tag": "<svg className={className} width={size} height={size} viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"curren"
+      }
+    ],
+    "glyphs": [
+      {
+        "file": "src/features/EditionComparison.tsx",
+        "line": 76,
+        "glyphs": "✓",
+        "text": "<p className=\"panel-foot\"><span>✓ in der offiziellen Bundle-Liste · — dort nicht enthalten · ? nicht belegt. H"
+      },
+      {
+        "file": "src/features/InfosTab.tsx",
+        "line": 79,
+        "glyphs": "→",
+        "text": "{link.renamed && <span className=\"rename-note\">Shop-Titel geändert: „{link.renamed.from}“ → „{link.renamed.to}"
+      },
+      {
+        "file": "src/features/LinkReview.tsx",
+        "line": 62,
+        "glyphs": "→",
+        "text": "{renamed && <p>Der Shop hat den Titel geändert: „{link.renamed!.from}“ → „{link.renamed!.to}“.</p>}"
+      },
+      {
+        "file": "src/features/wishlist-model.ts",
+        "line": 38,
+        "glyphs": "→",
+        "text": "/** Daily target-country best price, oldest → newest (the badge trend), null when the badge has none. */"
+      },
+      {
+        "file": "src/features/wishlist-model.ts",
+        "line": 144,
+        "glyphs": "→",
+        "text": "/** First two words of a title for the KPI foot (\"Indiana Jones und der Große Kreis\" → \"Indiana Jones\"). */"
+      }
+    ]
+  },
+  "variants": {
+    "Button component (<Button)": 55,
+    "IconButton component (<IconButton)": 25,
+    "raw <button className=\"btn": [
+      "src/ui/Help.tsx:46"
+    ],
+    "raw <button className=\"icon-btn": [],
+    "raw <a className=\"btn": [
+      "src/features/InfosTab.tsx:86",
+      "src/features/LinkReview.tsx:57",
+      "src/features/Offers.tsx:94",
+      "src/features/PriceTab.tsx:108",
+      "src/features/PriceTab.tsx:109"
+    ],
+    ".text-button usages": [
+      "src/features/Offers.tsx:104",
+      "src/features/PriceAlerts.tsx:25",
+      "src/features/settings/FetchPanel.tsx:60"
+    ],
+    "Button variant=\"primary\"": 12,
+    "Button variant=\"ghost\"": 18,
+    "Button variant=\"danger\"": 6,
+    "size=\"sm\"": 19,
+    "Chip component": 2,
+    "Pill component": 41,
+    "raw className=\"pill": [
+      "src/features/GameDetail.tsx:107"
+    ],
+    "Seg component": 10,
+    "Tabs component": 7,
+    "Field component": 8,
+    "FormRow component": 1,
+    "raw className=\"form-row\"": [
+      "src/features/AlarmTab.tsx:75",
+      "src/features/AlarmTab.tsx:76",
+      "src/features/AlarmTab.tsx:77",
+      "src/features/AuthScreen.tsx:62",
+      "src/features/AuthScreen.tsx:63",
+      "src/features/AuthScreen.tsx:64",
+      "src/features/AuthScreen.tsx:65",
+      "src/features/CatalogSearch.tsx:104",
+      "src/features/CatalogSearch.tsx:124",
+      "src/features/CatalogSearch.tsx:147",
+      "src/features/IgdbAccess.tsx:70",
+      "src/features/IgdbAccess.tsx:73",
+      "src/features/InfosTab.tsx:96",
+      "src/features/settings/General.tsx:46",
+      "src/features/settings/Notifications.tsx:76",
+      "src/features/settings/Shops.tsx:29",
+      "src/features/settings/Shops.tsx:61",
+      "src/features/settings/Shops.tsx:69",
+      "src/features/settings/WishlistColumns.tsx:30"
+    ],
+    "Switch component": 8,
+    "<dialog": [
+      "src/components.tsx:18",
+      "src/features/CatalogSearch.tsx:143",
+      "src/features/LinkReview.tsx:40",
+      "src/features/settings/UnsavedDialog.tsx:16"
+    ],
+    "<table": [
+      "src/features/Cart.tsx:99",
+      "src/features/EditionComparison.tsx:62",
+      "src/features/Offers.tsx:70",
+      "src/features/PriceAlerts.tsx:128",
+      "src/features/PriceAlerts.tsx:150",
+      "src/features/PriceMatrix.tsx:95",
+      "src/features/Wishlist.tsx:440",
+      "src/features/settings/FetchPanel.tsx:87",
+      "src/features/settings/FetchPanel.tsx:112",
+      "src/features/settings/Log.tsx:27",
+      "src/ui/Gallery.tsx:34"
+    ],
+    "Panel component": 28,
+    "raw className=\"panel": [
+      "src/features/AuthScreen.tsx:17",
+      "src/features/EditionComparison.tsx:76",
+      "src/features/Offers.tsx:101",
+      "src/features/SettingsPage.tsx:73"
+    ],
+    "Toast (old, bottom centre)": [
+      "src/ui/Gallery.tsx:38",
+      "src/ui/Toaster.tsx:37",
+      "src/ui/Toaster.tsx:38"
+    ],
+    "notify() popups": 12,
+    ".notice usages": [
+      "src/components.tsx:12",
+      "src/features/SettingsPage.tsx:18",
+      "src/notify.ts:3"
+    ],
+    ".note usages": [
+      "src/features/Cart.tsx:119",
+      "src/features/Cart.tsx:121",
+      "src/features/CatalogSearch.tsx:122",
+      "src/features/EditionComparison.tsx:45",
+      "src/features/EditionComparison.tsx:59",
+      "src/features/GameDetail.tsx:134",
+      "src/features/GameDetail.tsx:135",
+      "src/features/InfosTab.tsx:79",
+      "src/features/LinkReview.tsx:59",
+      "src/features/SettingsPage.tsx:66",
+      "src/features/SettingsPage.tsx:70",
+      "src/features/Wishlist.tsx:439",
+      "src/features/WishlistRow.tsx:137",
+      "src/features/WishlistRow.tsx:146",
+      "src/features/settings/FetchPanel.tsx:51",
+      "src/features/settings/General.tsx:56"
+    ],
+    "EmptyState component": 8,
+    "raw className=\"empty": [
+      "src/features/Library.tsx:128",
+      "src/features/Library.tsx:130",
+      "src/features/Wishlist.tsx:435",
+      "src/features/Wishlist.tsx:438",
+      "src/ui/Layout.tsx:60"
+    ],
+    "Help component": 23,
+    "Popover component": 2,
+    ".gcover (GameCover old)": [
+      "src/features/GameCover.tsx:9",
+      "src/features/GameCover.tsx:10"
+    ],
+    ".game-cover": [
+      "src/features/GameDetail.tsx:98",
+      "src/features/catalog-ui.tsx:32"
+    ],
+    "select elements": 12,
+    "input elements": 18
+  }
+}

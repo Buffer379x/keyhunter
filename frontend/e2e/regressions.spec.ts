@@ -56,7 +56,12 @@ test('settings use the content width up to a readable maximum and share the app 
     const rect = el.getBoundingClientRect();
     const styles = getComputedStyle(el);
     const layout = el.querySelector('.settings-page')!.getBoundingClientRect();
-    return { main: rect.width, available: innerWidth - rect.left, layout: layout.width, content: rect.width - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight) };
+    return {
+      main: rect.width,
+      available: innerWidth - rect.left,
+      layout: layout.width,
+      content: rect.width - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight),
+    };
   });
   // The settings use the content width up to the page maximum of the prototype (1320 px) and never overflow it.
   expect(dimensions.main).toBeCloseTo(dimensions.available, 0);

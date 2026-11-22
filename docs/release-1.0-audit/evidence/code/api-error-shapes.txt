@@ -1,0 +1,25 @@
+# Fehlerformen der API, gemessen gegen den Fixture-Server (work/check/target/debug/examples/catalog_fixture,
+# eigener Port 127.0.0.1:38786, eigenes Datenverzeichnis, danach gestoppt und gelöscht). curl -w '%{http_code} %{content_type}'.
+# Erwartet laut lib.rs:57-88: JSON {"error": <deutsch>, "code": <stabil>}.
+
+GET  /api/v1/wishlist (ohne Sitzung)                 401 application/json  {"code":"unauthenticated","error":"Bitte anmelden."}
+PUT  /api/v1/settings  Body '{bad' (ohne Sitzung)     400 text/plain        Failed to parse the request body as JSON: key must be a string at line 1 column 2
+PUT  /api/v1/settings  Body '{}'   (ohne Sitzung)     422 text/plain        Failed to deserialize the JSON body into the target type: missing field `currency` …
+PUT  /api/v1/settings  ohne Content-Type (ohne Sitz.) 415 text/plain        Expected request with `Content-Type: application/json`
+GET  /api/v1/catalog/games/abc (ohne Sitzung)         400 text/plain        Invalid URL: Cannot parse `abc` to a `i64`
+POST /api/v1/session   Body '{bad'                    400 text/plain        Failed to parse the request body as JSON: …
+GET  /api/v1/catalog/search (ohne q)                  400 text/plain        Failed to deserialize query string: missing field `q`
+POST /api/v1/session   Body 20 KB                     413 text/plain        Failed to buffer the request body: length limit exceeded
+PUT  /api/v1/alerts/channels/ntfy '{bad' (ohne Sitz.) 401 application/json  {"code":"unauthenticated",…}   <- Handler mappt Rejection selbst (notify.rs:1067)
+GET  /api/v1/status/fetch/runs?page=x (ohne Sitzung)  401 application/json  {"code":"unauthenticated",…}   <- jobs.rs:1153
+GET  /api/v2/x                                        404 application/json  {"code":"not_found","error":"Endpunkt nicht gefunden."}
+
+Befund: Extraktor-Fehler (Json/Query/Path, Body-Limit) liefern englischen Klartext ohne `code` und werden VOR der
+Anmeldeprüfung im Handler ausgewertet (422 mit Feldnamen statt 401). Nur 3 von 49 Routen fangen die Rejection ab
+(eventlog.rs:217, notify.rs:1067, jobs.rs:1153). Das Frontend (api.ts:121-122) zeigt dann die Ersatzmeldung
+„Die Anfrage konnte nicht abgeschlossen werden.“
+
+# Cache-Header der Weboberfläche (gleicher Lauf)
+GET /                 -> kein Cache-Control (nur ETag/Last-Modified)
+GET /assets/index-*.js -> kein Cache-Control (gehashter Name, aber kein immutable)
+GET /api/v1/me        -> cache-control: no-store

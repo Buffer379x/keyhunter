@@ -1,0 +1,25 @@
+// TEMPORARY audit spec (agent "ds"): focus rings of the first keyboard stops, as one contact sheet. Delete after the audit.
+import { test, expect } from '@playwright/test';
+import { signInToFixture } from '../helpers';
+import { mockAll } from './mocks';
+const OUT = process.env.DS_OUT ?? '/tmp/ds-focus';
+test.use({ viewport: { width: 1440, height: 900 }, locale: 'de-DE', colorScheme: 'dark' });
+test('focus rings', async ({ page }) => {
+  const forza = await mockAll(page);
+  await signInToFixture(page);
+  const rows: string[] = [];
+  for (const url of ['/', `/?item=${forza()}`]) {
+    await page.goto(url.includes('item') ? `/?item=${forza()}` : url);
+    await page.waitForTimeout(1200);
+    await page.locator('body').click({ position: { x: 700, y: 880 } });
+    for (let i = 0; i < 26; i++) {
+      await page.keyboard.press('Tab');
+      const info = await page.evaluate(() => { const el = document.activeElement as HTMLElement; const cs = getComputedStyle(el); const r = el.getBoundingClientRect();
+        return { tag: el.tagName.toLowerCase(), cls: String(el.className).slice(0, 40), name: (el.getAttribute('aria-label') ?? el.textContent ?? '').trim().slice(0, 24), outline: `${cs.outlineStyle} ${cs.outlineWidth} ${cs.outlineColor} off ${cs.outlineOffset}`, box: cs.boxShadow !== 'none', border: cs.borderColor, r: [r.x, r.y, r.width, r.height] }; });
+      rows.push(`${url === '/' ? 'wishlist' : 'detail'} | ${info.tag}.${info.cls} | ${info.name} | ${info.outline}`);
+      if (i < 14 && info.r[2] > 0) await page.screenshot({ path: `${OUT}/focus-${url === '/' ? 'w' : 'd'}-${String(i).padStart(2, '0')}.png`, clip: { x: Math.max(0, info.r[0] - 8), y: Math.max(0, info.r[1] - 8), width: Math.min(360, info.r[2] + 16), height: Math.min(120, info.r[3] + 16) } });
+    }
+  }
+  console.log(rows.join('\n'));
+  expect(rows.length).toBeGreaterThan(0);
+});

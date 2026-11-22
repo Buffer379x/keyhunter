@@ -1,0 +1,36 @@
+{
+ "wishlist_api": [
+  "/api/v1/setup",
+  "/api/v1/me",
+  "/api/v1/settings",
+  "/api/v1/sources/status",
+  "/api/v1/status/fetch",
+  "/api/v1/alerts",
+  "/api/v1/status/fetch",
+  "/api/v1/wishlist",
+  "/api/v1/library",
+  "/api/v1/alerts",
+  "/api/v1/cart",
+  "/api/v1/wishlist/price-badges",
+  "/api/v1/library",
+  "/api/v1/alerts",
+  "/api/v1/cart"
+ ],
+ "detail_api": [],
+ "status_api": [
+  "/api/v1/sources/status",
+  "/api/v1/status/fetch",
+  "/api/v1/library",
+  "/api/v1/alerts",
+  "/api/v1/cart",
+  "/api/v1/sources/status",
+  "/api/v1/status/fetch",
+  "/api/v1/status/fetch/runs"
+ ],
+ "status_dom_nodes": 939,
+ "status_polling_31s": [
+  "/api/v1/status/fetch",
+  "/api/v1/status/fetch/runs"
+ ],
+ "console": []
+}

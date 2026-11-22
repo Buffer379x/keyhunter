@@ -1,0 +1,10 @@
+# npx vite build --outDir <scratch> (Vite 8.3.8, identische Hashes wie frontend/dist)
+index.html                                1,00 kB  gzip 0,46 kB
+assets/index-DF720CWj.js                461,44 kB  gzip 140,08 kB   (1 Chunk, kein Code-Splitting)
+assets/index-DO5rtt6x.css                63,15 kB  gzip  12,89 kB
+fonts: inter-latin-wght-normal 48,25 kB, jetbrains-mono-latin-400 21,16 kB, jetbrains-mono-latin-500 21,83 kB (woff2, gesamt 91 kB)
+Flaggen: 271 SVG-Dateien (2,7 MB auf Platte), einzeln per URL referenziert, nur benutzte werden geladen
+Quelltextanteile laut Sourcemap (unminifiziert): react-dom 58,7 %, src/features 30,1 %, src/ui 2,6 %, react 1,8 %, App.tsx 1,7 %
+Server liefert ohne Content-Encoding und ohne Cache-Control (nur ETag/Last-Modified):
+  JS 461 440 B (gzip -9 137 972 B), CSS 63 153 B (gzip 12 806 B)
+  /api/v1/wishlist 441 793 B (gzip -6 53 741 B), /api/v1/wishlist/price-badges 301 546 B (gzip 37 884 B), /api/v1/status/fetch 7 041 B (gzip 1 467 B)

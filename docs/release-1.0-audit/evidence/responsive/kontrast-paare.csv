@@ -1,0 +1,6 @@
+farbpaar,kontrast,schrift,knoten,ansichten,beispiele
+#8d8780 on #272524,4.29,8.3pt (11px)/normal,71,wishlist detail-preis detail-angebote cart settings-status settings-allgemein,".kpi.panel:nth-child(1) > .kpi-body > div > .label ""Wünsche"" | .kpi.panel:nth-child(1) > .kpi-body > div > .kpi-val > span ""Spiele"" | .kpi.panel:nth-child(2) > .kpi-body > div > .label ""Ziel erreicht"""
+#625d58 on #272524,2.34,9.0pt (12px)/normal,38,wishlist detail-preis detail-angebote cart settings-status,".nav-item[aria-current=""page""] > .count[aria-hidden=""true""] ""20"" | .chip:nth-child(4) > .mono ""16"" | button[title=""Nach Spiel sortieren""] ""Spiel"""
+#625d58 on #1b1a19,2.66,8.3pt (11px)/normal,9,wishlist detail-preis detail-angebote cart settings-status settings-allgemein,"#nav-overview ""Übersicht"" | #nav-overview ""Übersicht"" | #nav-overview ""Übersicht"""
+#625d58 on #211f1e,2.52,8.3pt (11px)/normal,2,detail-preis detail-angebote,".faint ""Stand 22. Nov · 14:55"" | .faint ""9 von 9"""
+#625d58 on #2e2c2a,2.13,8.3pt (11px)/normal,1,wishlist,".chip:nth-child(1) > .mono ""20"""

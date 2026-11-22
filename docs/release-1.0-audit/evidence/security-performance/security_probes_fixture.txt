@@ -1,0 +1,80 @@
+# Sicherheitsproben gegen die eigene Fixture-Instanz (127.0.0.1:38784, Debug-Build, synthetische Daten)
+# Datum: 2026-11-22T17:05:10+00:00. Session-/CSRF-Token werden nicht ausgegeben.
+
+## Antwort-Header GET / und GET /api/v1/me (ohne Anmeldung)
+HTTP/1.1 200 OK
+content-type: text/html
+accept-ranges: bytes
+last-modified: Sun, 22 Nov 2026 15:00:59 GMT
+etag: "6b0303ab.2103f0c5-3ee"
+content-length: 1006
+content-security-policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://images.igdb.com; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'
+x-content-type-options: nosniff
+x-frame-options: DENY
+referrer-policy: same-origin
+permissions-policy: camera=(), microphone=(), geolocation=()
+
+HTTP/1.1 401 Unauthorized
+content-type: application/json
+content-security-policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://images.igdb.com; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'
+x-content-type-options: nosniff
+x-frame-options: DENY
+referrer-policy: same-origin
+permissions-policy: camera=(), microphone=(), geolocation=()
+cache-control: no-store
+content-length: 52
+
+{"code":"unauthenticated","error":"Bitte anmelden."}
+
+
+## Header GET /assets/<hash>.js mit Accept-Encoding gzip, br (Caching/Kompression)
+HTTP/1.1 200 OK
+content-type: text/javascript
+accept-ranges: bytes
+last-modified: Sun, 22 Nov 2026 15:00:59 GMT
+etag: "6b0303ab.20373b74-70a80"
+content-length: 461440
+x-content-type-options: nosniff
+
+
+## Origin-/CSRF-Matrix (PUT /api/v1/wishlist/{id}/pause, gültige Sitzung)
+Origin ok, ohne X-CSRF-Token                                   403
+Origin ok, falsches X-CSRF-Token                               403
+X-CSRF-Token ok, ohne Origin                                   403
+X-CSRF-Token ok, Origin http://evil.example                    403
+X-CSRF-Token ok, Origin ok, Sec-Fetch-Site: same-site          403
+X-CSRF-Token ok, zwei Origin-Header                            403
+X-CSRF-Token ok, Origin evil + X-Forwarded-Host evil           403
+Host+Origin http://evil.example (öffentlicher Name, http)     403
+Host+Origin http://8.8.8.8:38784 (öffentliche IP, http)       403
+Host+Origin http://tower:38784 (einteiliger LAN-Name)          200
+Host+Origin http://192.168.1.10:38784 (private IP)             200
+Host+Origin https://kh.example.org (HTTPS via Proxy)           200
+Origin ok, X-CSRF-Token ok (Referenz)                          200
+
+## CORS: Preflight und fremde Origin
+HTTP/1.1 405 Method Not Allowed
+Access-Control-Header in Antwort: 0
+
+## Pfad-Traversal statischer Dateien (--path-as-is)
+/../../../../etc/passwd                       404 text/html 1006B
+/%2e%2e/%2e%2e/%2e%2e/etc/passwd              404 text/html 1006B
+/..%2f..%2f..%2fetc%2fpasswd                  404 text/html 1006B
+/assets/..%2f..%2f..%2f..%2fetc%2fpasswd      404 text/html 1006B
+/keyhunter.db                                 404 text/html 1006B
+/bootstrap-token                              404 text/html 1006B
+/notification-secrets.json                    404 text/html 1006B
+/assets/gibt-es-nicht.js                      404 text/html 1006B
+
+## Eingabevalidierung und Fehlermeldungen
+POST /wishlist ohne Sitzung, ungültiger Body    Failed to deserialize the JSON body into the target type: missing field `platform_id` at line 1 column 7 [422]
+POST /wishlist 20-KB-Body                        Failed to buffer the request body: length limit exceeded [413]
+POST /wishlist kaputtes JSON                     Failed to parse the request body as JSON: manual_title: EOF while parsing a value at line 1 column 16 [400]
+POST /wishlist text/plain                        Expected request with `Content-Type: application/json` [415]
+POST /wishlist Steuerzeichen im Titel            {"code":"invalid_request","error":"Manuellen Titel mit 2 bis 200 Zeichen eingeben."} [400]
+POST /wishlist Plattform PC (6)                  {"code":"invalid_request","error":"Nicht unterstützte Plattform."} [400]
+GET /log?level=debug                             {"code":"invalid_request","error":"Ungültiger Filter. Stufe, Suchtext (höchstens 200 Zeichen) und Seite prüfen."} [400]
+GET /log?page=999999999999&per_page=1 (Seite gekappt) {"entries":[],"page":1000000,"per_page":10,"total":2014} [200]
+GET /status/fetch/runs?per_page=999999 (gekappt)  [200]
+GET /wishlist/'%20OR%201=1--/offers              {"code":"not_found","error":"Wunsch oder Angebot nicht gefunden."} [404]
+GET /catalog/search?q=a                          {"code":"invalid_request","error":"Suche mit 2 bis 100 Zeichen und einer unterstützten Xbox-Plattform eingeben."} [400]

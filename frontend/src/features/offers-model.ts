@@ -2,9 +2,21 @@
 // region worldwide, the validity of each offer and the verdict on the detour. No React, no DOM, so it can be unit-tested.
 export type Quote = { id: string; seller: string | null; base_cents: number; estimated_total_cents: number | null };
 export type Link = {
-  id: number; source: string; url: string; review: string; can_confirm: boolean; eligible: boolean; queued: boolean; enabled: boolean;
-  stale: boolean; observed_at: number | null; attempted_at: number | null; last_error: string | null; retry_at: number;
-  reasons?: string[]; renamed?: { from: string; to: string } | null;
+  id: number;
+  source: string;
+  url: string;
+  review: string;
+  can_confirm: boolean;
+  eligible: boolean;
+  queued: boolean;
+  enabled: boolean;
+  stale: boolean;
+  observed_at: number | null;
+  attempted_at: number | null;
+  last_error: string | null;
+  retry_at: number;
+  reasons?: string[];
+  renamed?: { from: string; to: string } | null;
   /** Confirmed by hand although the shop data does not match the game automatically (0.6.4). */
   manual_match?: boolean;
   /** Price trend within the game (0.6.5): 0 = mostly the cheapest, 1 = mostly the most expensive, 0.5 = no comparison yet. */
@@ -17,12 +29,26 @@ export type Link = {
   quotes: Quote[];
 };
 export type HistoryPoint = { observed_at: number; base_cents: number | null; link_id: number | null; region?: string | null; source?: string | null };
-export type PriceBadgeLike = { cents: number | null; state: string; observed_at: number | null; checked_at: number | null; stale: boolean; pending: boolean; world?: { cents: number; region: string | null; observed_at: number | null } | null };
+export type PriceBadgeLike = {
+  cents: number | null;
+  state: string;
+  observed_at: number | null;
+  checked_at: number | null;
+  stale: boolean;
+  pending: boolean;
+  refreshing?: boolean;
+  world?: { cents: number; region: string | null; observed_at: number | null } | null;
+};
 export type OffersView = {
-  price_badge?: PriceBadgeLike; links: Link[]; history: HistoryPoint[];
+  price_badge?: PriceBadgeLike;
+  links: Link[];
+  history: HistoryPoint[];
   histories?: { preferred: HistoryPoint[]; all: HistoryPoint[] };
-  best_base: number | null; best_estimate: number | null; last_known?: { cents: number; observed_at: number } | null;
-  target_country: string; discovery_running: boolean;
+  best_base: number | null;
+  best_estimate: number | null;
+  last_known?: { cents: number; observed_at: number } | null;
+  target_country: string;
+  discovery_running: boolean;
   sources: { source: string; status: { enabled: boolean; state: string; last_error: string | null } }[];
   searches: { source: string; status: string; checked_at: number | null; last_error: string | null; result_count: number | null }[];
 };
@@ -40,7 +66,7 @@ export function trendText(link: Link): string | null {
 /** The confirmed, active product whose region has been the cheapest most steadily, or null without a clear trend. */
 export function trendLeader(links: Link[]): Link | null {
   const candidates = links.filter(link => link.review === 'confirmed' && link.enabled && link.product && (link.cheap_score ?? 0.5) <= CHEAP_TREND);
-  return candidates.reduce<Link | null>((best, link) => !best || link.cheap_score! < best.cheap_score! ? link : best, null);
+  return candidates.reduce<Link | null>((best, link) => (!best || link.cheap_score! < best.cheap_score! ? link : best), null);
 }
 /** "alle 12 h", "alle 2 Tage", "alle 45 min". */
 export function everyText(seconds: number): string {
@@ -51,9 +77,14 @@ export function everyText(seconds: number): string {
 
 /** Reasons why a confirmed offer does not count as a current price in the target country, most important first. */
 const reasonLabels: [string, string][] = [
-  ['activation_blocked', 'In {c} nicht aktivierbar'], ['activation_unknown', 'Aktivierung in {c} ungeklärt'],
-  ['purchase_context_mismatch', 'Anderer Kaufkontext'], ['sold_out', 'Ausverkauft'], ['availability_unknown', 'Verfügbarkeit unbekannt'],
-  ['source_error', 'Abruffehler'], ['stale', 'Veraltet'], ['no_target_country', 'Kein Zielland gewählt'],
+  ['activation_blocked', 'In {c} nicht aktivierbar'],
+  ['activation_unknown', 'Aktivierung in {c} ungeklärt'],
+  ['purchase_context_mismatch', 'Anderer Kaufkontext'],
+  ['sold_out', 'Ausverkauft'],
+  ['availability_unknown', 'Verfügbarkeit unbekannt'],
+  ['source_error', 'Abruffehler'],
+  ['stale', 'Veraltet'],
+  ['no_target_country', 'Kein Zielland gewählt'],
 ];
 /** All reasons of a link in a fixed order, with the target country filled in ("DE"). */
 export function reasonList(link: Link, country: string): string[] {
@@ -61,10 +92,13 @@ export function reasonList(link: Link, country: string): string[] {
 }
 
 export type OfferRow = {
-  key: string; link: Link; quote: Quote | null;
+  key: string;
+  link: Link;
+  quote: Quote | null;
   /** Price in cents on the chosen basis; null when there is none (sold out, to be reviewed, fees unknown). */
   price: number | null;
-  eligible: boolean; current: boolean;
+  eligible: boolean;
+  current: boolean;
   status: 'priced' | 'fees_unknown' | 'sold_out' | 'review' | 'none';
 };
 
@@ -77,7 +111,15 @@ export function offerRows(view: OffersView | null, basis: Basis): OfferRow[] {
     if (link.review === 'confirmed' && link.quotes.length) {
       for (const quote of link.quotes) {
         const price = basis === 'estimate' ? quote.estimated_total_cents : quote.base_cents;
-        rows.push({ key: `${link.id}-${quote.id}`, link, quote, price, eligible: link.eligible, current: !dead && price !== null, status: price === null ? 'fees_unknown' : 'priced' });
+        rows.push({
+          key: `${link.id}-${quote.id}`,
+          link,
+          quote,
+          price,
+          eligible: link.eligible,
+          current: !dead && price !== null,
+          status: price === null ? 'fees_unknown' : 'priced',
+        });
       }
     } else {
       const status = link.review !== 'confirmed' ? 'review' : link.product.availability === 'sold_out' ? 'sold_out' : 'none';
@@ -91,13 +133,16 @@ export function offerRows(view: OffersView | null, basis: Basis): OfferRow[] {
 export type Excluded = { count: number; reasons: string[]; example: OfferRow | null };
 export type Summary = {
   /** Best price that counts in the target country (null: none), and the offer behind it. */
-  targetCents: number | null; targetRow: OfferRow | null;
+  targetCents: number | null;
+  targetRow: OfferRow | null;
   /** Cheapest current offer of any region. */
   world: OfferRow | null;
-  saving: number; savingPercent: number;
+  saving: number;
+  savingPercent: number;
   /** Cheaper offers that do not count for the target country. */
   excluded: Excluded;
-  validCount: number; pricedCount: number;
+  validCount: number;
+  pricedCount: number;
 };
 export function summarize(view: OffersView | null, rows: OfferRow[], basis: Basis, country: string): Summary {
   const targetCents = (basis === 'estimate' ? view?.best_estimate : view?.best_base) ?? null;
@@ -108,14 +153,22 @@ export function summarize(view: OffersView | null, rows: OfferRow[], basis: Basi
   const cheaper = live.filter(row => !row.eligible && (targetCents === null || row.price! < targetCents));
   const reasons = [...new Set(cheaper.map(row => reasonList(row.link, country)[0]).filter(Boolean))];
   return {
-    targetCents, targetRow, world, saving, savingPercent: saving > 0 ? Math.round(saving / targetCents! * 100) : 0,
+    targetCents,
+    targetRow,
+    world,
+    saving,
+    savingPercent: saving > 0 ? Math.round((saving / targetCents!) * 100) : 0,
     excluded: { count: cheaper.length, reasons, example: cheaper[0] ?? null },
-    validCount: live.filter(row => row.eligible).length, pricedCount: rows.filter(row => row.price !== null).length,
+    validCount: live.filter(row => row.eligible).length,
+    pricedCount: rows.filter(row => row.price !== null).length,
   };
 }
 
 /** A reason label inside a sentence: "In DE nicht aktivierbar" becomes "in DE nicht aktivierbar", nouns keep their capital. */
-export const inSentence = (label: string) => /^(In|Anderer|Ausverkauft|Veraltet|Kein) /.test(label) || label === 'Ausverkauft' || label === 'Veraltet' ? label.charAt(0).toLowerCase() + label.slice(1) : label;
+export const inSentence = (label: string) =>
+  /^(In|Anderer|Ausverkauft|Veraltet|Kein) /.test(label) || label === 'Ausverkauft' || label === 'Veraltet'
+    ? label.charAt(0).toLowerCase() + label.slice(1)
+    : label;
 
 export type Validity = { tone: 'ok' | 'warn' | 'dim' | 'danger'; icon: 'check' | 'alert' | 'x'; text: string };
 /** Whether an offer works in the target country, as pill text: valid, unclear (warn) or the main reason why not. */
@@ -136,9 +189,18 @@ export function validity(row: OfferRow, code: string): Validity {
  */
 export type Verdict =
   | { kind: 'same' }
-  | { kind: 'cheaper'; region: string; saving: number; percent: number; access: 'ok' | 'unclear' | 'blocked' | 'other'; reasons: string[]; effort: 'small' | 'noticeable' | 'large' }
+  | {
+      kind: 'cheaper';
+      region: string;
+      saving: number;
+      percent: number;
+      access: 'ok' | 'unclear' | 'blocked' | 'other';
+      reasons: string[];
+      effort: 'small' | 'noticeable' | 'large';
+    }
   | { kind: 'only_world'; region: string; price: number; access: 'ok' | 'unclear' | 'blocked' | 'other'; reasons: string[] };
-const access = (row: OfferRow) => row.eligible ? 'ok' : row.link.reasons?.includes('activation_unknown') ? 'unclear' : row.link.reasons?.includes('activation_blocked') ? 'blocked' : 'other';
+const access = (row: OfferRow) =>
+  row.eligible ? 'ok' : row.link.reasons?.includes('activation_unknown') ? 'unclear' : row.link.reasons?.includes('activation_blocked') ? 'blocked' : 'other';
 export function verdict(summary: Summary, regionName: (row: OfferRow) => string, country: string): Verdict | null {
   const { world, targetCents } = summary;
   if (!world) return null;
@@ -146,17 +208,35 @@ export function verdict(summary: Summary, regionName: (row: OfferRow) => string,
   if (targetCents === null) return { kind: 'only_world', region: regionName(world), price: world.price!, access: access(world), reasons };
   if (summary.saving <= 0) return { kind: 'same' };
   const rel = summary.saving / targetCents;
-  return { kind: 'cheaper', region: regionName(world), saving: summary.saving, percent: summary.savingPercent, access: access(world), reasons, effort: rel < .15 ? 'small' : rel < .3 ? 'noticeable' : 'large' };
+  return {
+    kind: 'cheaper',
+    region: regionName(world),
+    saving: summary.saving,
+    percent: summary.savingPercent,
+    access: access(world),
+    reasons,
+    effort: rel < 0.15 ? 'small' : rel < 0.3 ? 'noticeable' : 'large',
+  };
 }
 
 /** The verdict as two sentences: `lead` is set in bold, `rest` follows (wording of the design v4 prototype). */
 export function verdictText(v: Verdict, land: string, money: (cents: number) => string): { lead: string; rest: string } {
-  const works = (a: Exclude<Verdict, { kind: 'same' }>) => a.access === 'ok' ? `Das Angebot gilt auch in ${land}.`
-    : a.access === 'unclear' ? `Ob der Key in ${land} funktioniert, ist ungeklärt; meist braucht es eine Regionsumstellung im Konto.`
-    : a.access === 'blocked' ? `Laut Shop lässt sich der Key in ${land} nicht aktivieren.`
-    : `Für ${land} zählt das Angebot nicht: ${a.reasons.map(inSentence).join(', ') || 'nicht gültig'}.`;
+  const works = (a: Exclude<Verdict, { kind: 'same' }>) =>
+    a.access === 'ok'
+      ? `Das Angebot gilt auch in ${land}.`
+      : a.access === 'unclear'
+        ? `Ob der Key in ${land} funktioniert, ist ungeklärt; meist braucht es eine Regionsumstellung im Konto.`
+        : a.access === 'blocked'
+          ? `Laut Shop lässt sich der Key in ${land} nicht aktivieren.`
+          : `Für ${land} zählt das Angebot nicht: ${a.reasons.map(inSentence).join(', ') || 'nicht gültig'}.`;
   if (v.kind === 'same') return { lead: `${land} ist gerade weltweit am günstigsten.`, rest: `Kein Umweg nötig: Der beste Preis gilt direkt in ${land}.` };
-  if (v.kind === 'only_world') return { lead: `Für ${land} gibt es gerade kein gültiges Angebot.`, rest: `Am günstigsten ist ${v.region} mit ${money(v.price)}. ${works(v)}` };
-  const effort = v.effort === 'small' ? 'Bei so wenig Unterschied lohnt sich der Aufwand kaum.' : v.effort === 'noticeable' ? 'Der Umweg spart spürbar, ist aber mit Aufwand verbunden.' : 'Der Unterschied ist groß.';
+  if (v.kind === 'only_world')
+    return { lead: `Für ${land} gibt es gerade kein gültiges Angebot.`, rest: `Am günstigsten ist ${v.region} mit ${money(v.price)}. ${works(v)}` };
+  const effort =
+    v.effort === 'small'
+      ? 'Bei so wenig Unterschied lohnt sich der Aufwand kaum.'
+      : v.effort === 'noticeable'
+        ? 'Der Umweg spart spürbar, ist aber mit Aufwand verbunden.'
+        : 'Der Unterschied ist groß.';
   return { lead: `${v.region} spart ${money(v.saving)} (${v.percent} %).`, rest: `${works(v)} ${effort}` };
 }

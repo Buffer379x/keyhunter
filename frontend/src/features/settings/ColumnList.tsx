@@ -9,10 +9,26 @@ import { moveColumn, moveColumnTo } from '../wishlist-columns';
  * "nach oben" and "nach unten"; with the buttons the focus stays on the moved column, so it can be moved several places with
  * the keyboard.
  */
-export default function ColumnList<T extends string>({ order: saved, label, name, note, shown, disabled, lockedTitle, onToggle, onOrder }: {
-  order: T[]; label: string; name: (column: T) => string; note?: (column: T) => ReactNode;
-  shown: (column: T) => boolean; disabled: (column: T) => boolean; lockedTitle?: (column: T) => string | undefined;
-  onToggle: (column: T, on: boolean) => void; onOrder: (next: T[]) => void;
+export default function ColumnList<T extends string>({
+  order: saved,
+  label,
+  name,
+  note,
+  shown,
+  disabled,
+  lockedTitle,
+  onToggle,
+  onOrder,
+}: {
+  order: T[];
+  label: string;
+  name: (column: T) => string;
+  note?: (column: T) => ReactNode;
+  shown: (column: T) => boolean;
+  disabled: (column: T) => boolean;
+  lockedTitle?: (column: T) => string | undefined;
+  onToggle: (column: T, on: boolean) => void;
+  onOrder: (next: T[]) => void;
 }) {
   /** While dragging: the column held and the order shown so far. */
   const [drag, setDrag] = useState<{ column: T; order: T[] } | null>(null);
@@ -33,7 +49,9 @@ export default function ColumnList<T extends string>({ order: saved, label, name
   const dragging = drag !== null;
   useEffect(() => {
     if (!dragging) return;
-    const cancel = (event: KeyboardEvent) => { if (event.key === 'Escape') setDrag(null); };
+    const cancel = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDrag(null);
+    };
     window.addEventListener('keydown', cancel);
     return () => window.removeEventListener('keydown', cancel);
   }, [dragging]);
@@ -62,20 +80,62 @@ export default function ColumnList<T extends string>({ order: saved, label, name
     if (drag && drag.order.some((column, index) => column !== saved[index])) onOrder(drag.order);
     setDrag(null);
   }
-  return <ol ref={list} className={`col-order${drag ? ' dragging' : ''}`} aria-label={label}
-    onPointerMove={follow} onPointerUp={drop} onPointerCancel={() => setDrag(null)} onLostPointerCapture={() => setDrag(null)}>
-    {order.map((column, index) => <li key={column} className={drag?.column === column ? 'held' : undefined}
-      ref={element => { if (element) rows.current.set(column, element); else rows.current.delete(column); }}>
-      <span className="col-grip" aria-hidden="true" title="Ziehen zum Verschieben"
-        onPointerDown={event => grab(event, column)}><Icon name="grip" /></span>
-      <span className="col-pos mono" aria-hidden="true">{index + 1}</span>
-      <span className="col-name">{name(column)}{note?.(column)}</span>
-      <Switch checked={shown(column)} disabled={disabled(column)} onChange={on => onToggle(column, on)}
-        title={lockedTitle?.(column)}><span className="sr-only">{name(column)} anzeigen</span></Switch>
-      <IconButton ref={element => { if (element) buttons.current.set(`${column}:-1`, element); else buttons.current.delete(`${column}:-1`); }}
-        label={`${name(column)} nach oben`} disabled={index === 0} onClick={() => move(index, -1)}><Icon name="up" /></IconButton>
-      <IconButton ref={element => { if (element) buttons.current.set(`${column}:1`, element); else buttons.current.delete(`${column}:1`); }}
-        label={`${name(column)} nach unten`} disabled={index === order.length - 1} onClick={() => move(index, 1)}><Icon name="down" /></IconButton>
-    </li>)}
-  </ol>;
+  return (
+    <ol
+      ref={list}
+      className={`col-order${drag ? ' dragging' : ''}`}
+      aria-label={label}
+      onPointerMove={follow}
+      onPointerUp={drop}
+      onPointerCancel={() => setDrag(null)}
+      onLostPointerCapture={() => setDrag(null)}
+    >
+      {order.map((column, index) => (
+        <li
+          key={column}
+          className={drag?.column === column ? 'held' : undefined}
+          ref={element => {
+            if (element) rows.current.set(column, element);
+            else rows.current.delete(column);
+          }}
+        >
+          <span className="col-grip" aria-hidden="true" title="Ziehen zum Verschieben" onPointerDown={event => grab(event, column)}>
+            <Icon name="grip" />
+          </span>
+          <span className="col-pos mono" aria-hidden="true">
+            {index + 1}
+          </span>
+          <span className="col-name">
+            {name(column)}
+            {note?.(column)}
+          </span>
+          <Switch checked={shown(column)} disabled={disabled(column)} onChange={on => onToggle(column, on)} title={lockedTitle?.(column)}>
+            <span className="sr-only">{name(column)} anzeigen</span>
+          </Switch>
+          <IconButton
+            ref={element => {
+              if (element) buttons.current.set(`${column}:-1`, element);
+              else buttons.current.delete(`${column}:-1`);
+            }}
+            label={`${name(column)} nach oben`}
+            disabled={index === 0}
+            onClick={() => move(index, -1)}
+          >
+            <Icon name="up" />
+          </IconButton>
+          <IconButton
+            ref={element => {
+              if (element) buttons.current.set(`${column}:1`, element);
+              else buttons.current.delete(`${column}:1`);
+            }}
+            label={`${name(column)} nach unten`}
+            disabled={index === order.length - 1}
+            onClick={() => move(index, 1)}
+          >
+            <Icon name="down" />
+          </IconButton>
+        </li>
+      ))}
+    </ol>
+  );
 }

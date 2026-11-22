@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" role="img" aria-label="KeyHunter">
+  <!-- Variant B "Loch und Keil" (16 px): tag edges on whole pixels (y 3..13), the key hole as a 6 px disc with a short wedge; reads as a hole, not a stroke. -->
+  <rect width="16" height="16" rx="3.5" fill="#FF7A1A"/>
+  <path fill="#1B1004" fill-rule="evenodd" d="M0.5 8L4.5 3H15V13H4.5Z M10 4A3 3 0 0 1 11.2 9.75L12.2 12H7.8L8.8 9.75A3 3 0 0 1 10 4Z"/>
+</svg>

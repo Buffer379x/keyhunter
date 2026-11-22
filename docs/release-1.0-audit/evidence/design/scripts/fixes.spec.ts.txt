@@ -1,0 +1,27 @@
+// TEMPORARY audit spec (agent "ds"): before/after of the proposed contrast tokens, injected at runtime only. Delete after the audit.
+import { test, expect } from '@playwright/test';
+import { mkdirSync } from 'node:fs';
+import { signInToFixture } from '../helpers';
+import { mockAll } from './mocks';
+const OUT = process.env.DS_OUT ?? '/tmp/ds-fixes';
+mkdirSync(OUT, { recursive: true });
+test.use({ viewport: { width: 1440, height: 900 }, locale: 'de-DE', timezoneId: 'Europe/Berlin', colorScheme: 'dark' });
+test('contrast tokens before and after', async ({ page }) => {
+  const forza = await mockAll(page);
+  await signInToFixture(page);
+  const views: [string, string, { x: number; y: number; width: number; height: number }][] = [
+    ['wishlist', '/', { x: 0, y: 0, width: 1440, height: 560 }],
+    ['detail-preis', `/?item=${forza()}`, { x: 236, y: 260, width: 1204, height: 640 }],
+    ['settings-status', '/?view=settings&section=status', { x: 236, y: 300, width: 1204, height: 600 }],
+  ];
+  for (const [name, url, clip] of views) {
+    await page.goto(url.includes('item=') ? `/?item=${forza()}` : url);
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => document.fonts.ready);
+    await page.screenshot({ path: `${OUT}/contrast-${name}-before.png`, clip, animations: 'disabled', caret: 'hide' });
+    await page.evaluate(() => { const s = document.documentElement.style; s.setProperty('--muted', '#99938c'); s.setProperty('--faint', '#7d7770'); });
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: `${OUT}/contrast-${name}-after.png`, clip, animations: 'disabled', caret: 'hide' });
+  }
+  expect(true).toBe(true);
+});

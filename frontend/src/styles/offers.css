@@ -1,26 +1,97 @@
 /* Angebote tab of the game detail (design v4 prototype, tabOffers): the price-ordered offer table. Tokens only. */
-.world-cell { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
-table.offers td { white-space: nowrap; }
-table.offers .shop { font-weight: 500; }
-table.offers small { display: block; font-size: var(--t-xs); }
-table.offers .seen.stale { color: var(--warn); }
-.table-wrap:focus-visible { outline-offset: -2px; }
-.hidden-strip { /* (added) what the "Nur in … aktivierbar" filter hides, with a way back */
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
-  padding: 10px 12px; border: 0; border-top: 1px solid var(--line); background: none; color: var(--text-2); font-size: var(--t-xs); text-align: left;
+.world-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
 }
-.hidden-strip:hover { background: var(--panel-3); }
-.hidden-strip b { color: var(--text); font-weight: 500; }
+table.offers td {
+  white-space: nowrap;
+}
+table.offers .shop {
+  font-weight: 500;
+}
+table.offers small {
+  display: block;
+  font-size: var(--t-xs);
+}
+table.offers .seen.stale {
+  color: var(--warn);
+}
+.table-wrap:focus-visible {
+  outline-offset: -2px;
+}
+.hidden-strip {
+  /* (added) what the "Nur in … aktivierbar" filter hides, with a way back */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: none;
+  color: var(--text-2);
+  font-size: var(--t-xs);
+  text-align: left;
+}
+.hidden-strip:hover {
+  background: var(--panel-3);
+}
+.hidden-strip b {
+  color: var(--text);
+  font-weight: 500;
+}
 
 /* An offer into the cart (0.8.1): a small cart button before "Zum Shop". */
-table.offers .offer-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; }
-table.offers .offer-cart { width: 28px; height: 28px; }
-table.offers .offer-cart svg { width: 14px; height: 14px; }
+table.offers .offer-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+table.offers .offer-cart {
+  width: 28px;
+  height: 28px;
+}
+table.offers .offer-cart svg {
+  width: 14px;
+  height: 14px;
+}
 /* Score (0.8.2): 0 red (rarely checked, steadily too expensive or sold out) via yellow (50) to 100 green (checked twice
    as often). The colour is mixed from the tokens along the score; the bar shows the same value. */
-table.offers .score { display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end; }
-table.offers .score.lo { --score-color: color-mix(in oklab, var(--warn) calc(var(--score) * 2%), var(--danger)); }
-table.offers .score.hi { --score-color: color-mix(in oklab, var(--ok) calc((var(--score) - 50) * 2%), var(--warn)); }
-table.offers .score .mono { color: var(--score-color); font-weight: 600; min-width: 2.2em; text-align: right; }
-table.offers .score-bar { width: 40px; height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; }
-table.offers .score-bar i { display: block; height: 100%; width: calc(var(--score) * 1%); min-width: 2px; border-radius: inherit; background: var(--score-color); }
+table.offers .score {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+table.offers .score.lo {
+  --score-color: color-mix(in oklab, var(--warn) calc(var(--score) * 2%), var(--danger));
+}
+table.offers .score.hi {
+  --score-color: color-mix(in oklab, var(--ok) calc((var(--score) - 50) * 2%), var(--warn));
+}
+table.offers .score .mono {
+  color: var(--score-color);
+  font-weight: 600;
+  min-width: 2.2em;
+  text-align: right;
+}
+table.offers .score-bar {
+  width: 40px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+table.offers .score-bar i {
+  display: block;
+  height: 100%;
+  width: calc(var(--score) * 1%);
+  min-width: 2px;
+  border-radius: inherit;
+  background: var(--score-color);
+}

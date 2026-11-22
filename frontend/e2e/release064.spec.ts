@@ -5,13 +5,35 @@ import { openTab, removeCurrent } from './detail-helpers';
 
 const now = () => Math.floor(Date.now() / 1000);
 const link = (id: number, region: string, cents: number, extra: object = {}) => ({
-  id, source: 'eneba', url: `https://www.eneba.com/de/xbox-forza-horizon-5-${region.toLowerCase()}-key`, review: 'confirmed', can_confirm: true,
-  eligible: region === 'Global', queued: false, enabled: true, stale: false, observed_at: now() - 3600, attempted_at: now() - 3600, last_error: null, retry_at: 0,
+  id,
+  source: 'eneba',
+  url: `https://www.eneba.com/de/xbox-forza-horizon-5-${region.toLowerCase()}-key`,
+  review: 'confirmed',
+  can_confirm: true,
+  eligible: region === 'Global',
+  queued: false,
+  enabled: true,
+  stale: false,
+  observed_at: now() - 3600,
+  attempted_at: now() - 3600,
+  last_error: null,
+  retry_at: 0,
   reasons: region === 'Global' ? [] : ['activation_unknown'],
   product: { name: 'Forza Horizon 5 Xbox Key', region, market: 'DE', activation: region === 'Global' ? 'confirmed' : 'unknown', availability: 'in_stock' },
-  quotes: [{ id: String(id), seller: null, base_cents: cents, estimated_total_cents: null }], ...extra,
+  quotes: [{ id: String(id), seller: null, base_cents: cents, estimated_total_cents: null }],
+  ...extra,
 });
-const view = (links: object[]) => ({ links, histories: { preferred: [], all: [] }, history: [], best_base: 2890, best_estimate: null, target_country: 'DE', searches: [], sources: [], discovery_running: false });
+const view = (links: object[]) => ({
+  links,
+  histories: { preferred: [], all: [] },
+  history: [],
+  best_base: 2890,
+  best_estimate: null,
+  target_country: 'DE',
+  searches: [],
+  sources: [],
+  discovery_running: false,
+});
 
 async function openForza(page: Page) {
   await signInToFixture(page);
@@ -23,13 +45,16 @@ async function openForza(page: Page) {
 test('the three amounts of the price comparison stand on one line', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openForza(page);
-  await page.route('**/api/v1/wishlist/*/offers', route => route.request().method() === 'GET'
-    ? route.fulfill({ json: view([link(1, 'Global', 2890), link(2, 'India', 1290)]) }) : route.continue());
+  await page.route('**/api/v1/wishlist/*/offers', route =>
+    route.request().method() === 'GET' ? route.fulfill({ json: view([link(1, 'Global', 2890), link(2, 'India', 1290)]) }) : route.continue(),
+  );
   await page.reload();
   const compare = page.getByRole('group', { name: 'Preisvergleich', exact: true });
   await expect(compare.locator('.delta-amount')).toContainText('−16,00');
   const box = async (selector: string) => (await compare.locator(selector).boundingBox())!;
-  const home = await box('.compare-side.home .big-price'), delta = await box('.delta-amount'), world = await box('.compare-side.world .big-price');
+  const home = await box('.compare-side.home .big-price'),
+    delta = await box('.delta-amount'),
+    world = await box('.compare-side.world .big-price');
   // Same line box (font of the big price) in all three columns: same top and height, so the same baseline.
   for (const other of [delta, world]) {
     expect(Math.abs(other.y - home.y)).toBeLessThanOrEqual(1);
@@ -41,12 +66,21 @@ test('the three amounts of the price comparison stand on one line', async ({ pag
 
 test('an automatically found product that does not match can be checked in a popup and confirmed by hand', async ({ page }) => {
   await openForza(page);
-  const found = link(7, 'Global', 2490, { review: 'pending', can_confirm: false, eligible: false, reasons: [], url: 'https://www.eneba.com/de/xbox-forza-horizon-5-deluxe-bundle-xbox-live-key-global',
-    product: { name: 'Forza Horizon 5 Deluxe Bundle Xbox Live Key GLOBAL', region: 'Global', market: 'DE', activation: 'confirmed', availability: 'in_stock' } });
+  const found = link(7, 'Global', 2490, {
+    review: 'pending',
+    can_confirm: false,
+    eligible: false,
+    reasons: [],
+    url: 'https://www.eneba.com/de/xbox-forza-horizon-5-deluxe-bundle-xbox-live-key-global',
+    product: { name: 'Forza Horizon 5 Deluxe Bundle Xbox Live Key GLOBAL', region: 'Global', market: 'DE', activation: 'confirmed', availability: 'in_stock' },
+  });
   let confirmed = false;
   const bodies: unknown[] = [];
-  await page.route('**/api/v1/wishlist/*/offers', route => route.request().method() === 'GET'
-    ? route.fulfill({ json: view([confirmed ? { ...found, review: 'confirmed', eligible: true, manual_match: true } : found]) }) : route.continue());
+  await page.route('**/api/v1/wishlist/*/offers', route =>
+    route.request().method() === 'GET'
+      ? route.fulfill({ json: view([confirmed ? { ...found, review: 'confirmed', eligible: true, manual_match: true } : found]) })
+      : route.continue(),
+  );
   await page.route('**/api/v1/wishlist/*/offers/7', async route => {
     bodies.push(route.request().postDataJSON());
     confirmed = true;

@@ -5,148 +5,529 @@
  *   <= 720 px  no breadcrumbs, the search fills the top bar
  * Tokens only.
  */
-.brand { display: block; height: 32px; aspect-ratio: 191 / 32; width: auto; }
-.key-mark { width: 48px; height: 48px; color: var(--accent); }
-.key-mark.small { width: 33px; height: 33px; }
-.key-mark-fill { fill: var(--accent); }
-.brand-tile { fill: var(--accent); }
-.brand-tag { fill: var(--on-accent); }
-.brand-word { fill: var(--text); }
+.brand {
+  display: block;
+  height: 32px;
+  aspect-ratio: 191 / 32;
+  width: auto;
+}
+.key-mark {
+  width: 48px;
+  height: 48px;
+  color: var(--accent);
+}
+.key-mark.small {
+  width: 33px;
+  height: 33px;
+}
+.key-mark-fill {
+  fill: var(--accent);
+}
+.brand-tile {
+  fill: var(--accent);
+}
+.brand-tag {
+  fill: var(--on-accent);
+}
+.brand-word {
+  fill: var(--text);
+}
 
-.app { display: grid; grid-template-columns: 236px minmax(0, 1fr); height: 100%; }
+.app {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
+  height: 100%;
+}
 .side {
-  background: var(--shell); border-right: 1px solid var(--line);
-  display: flex; flex-direction: column; gap: 18px; padding: 14px 12px; overflow-y: auto;
+  background: var(--shell);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 14px 12px;
+  overflow-y: auto;
 }
 /* The logo fills the box (the one approved deviation from the prototype, which draws it at 26 px).
    9 px side padding leaves exactly 191 px in the 236 px sidebar, so the 191 x 32 logo renders at 1:1 on whole pixels. */
 .brand-box {
-  display: flex; align-items: center; gap: 10px; padding: 10px 9px;
-  border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel); color: var(--text); text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--panel);
+  color: var(--text);
+  text-decoration: none;
 }
-.brand-box .brand { width: 100%; height: auto; }
-.side-nav { display: flex; flex-direction: column; gap: 18px; }
-.nav-group { display: flex; flex-direction: column; gap: 2px; }
-.nav-group > .label { padding: 0 10px 6px; color: var(--faint); }
+.brand-box .brand {
+  width: 100%;
+  height: auto;
+}
+.side-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nav-group > .label {
+  padding: 0 10px 6px;
+  color: var(--faint);
+}
 .nav-item {
-  display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; flex: none;
-  border: 0; border-radius: var(--r-md); background: none; color: var(--text-2); text-align: left; width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 10px;
+  flex: none;
+  border: 0;
+  border-radius: var(--r-md);
+  background: none;
+  color: var(--text-2);
+  text-align: left;
+  width: 100%;
 }
-.nav-item svg { width: 16px; height: 16px; color: var(--muted); flex: none; }
-.nav-item:hover:not(:disabled) { background: var(--panel-2); color: var(--text); }
-.nav-item[aria-current='page'] { background: var(--panel-2); color: var(--accent-2); }
-.nav-item[aria-current='page'] svg { color: var(--accent); }
-.nav-item .count { margin-left: auto; font: 400 var(--t-xs) var(--f-mono); color: var(--faint); }
-.side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
+.nav-item svg {
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+  flex: none;
+}
+.nav-item:hover:not(:disabled) {
+  background: var(--panel-2);
+  color: var(--text);
+}
+.nav-item[aria-current='page'] {
+  background: var(--panel-2);
+  color: var(--accent-2);
+}
+.nav-item[aria-current='page'] svg {
+  color: var(--accent);
+}
+.nav-item .count {
+  margin-left: auto;
+  font: 400 var(--t-xs) var(--f-mono);
+  color: var(--faint);
+}
+.side-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 /* (0.8.3) Einstellungen and Abmelden as two symbol buttons below the fetch status, each half the width. */
-.side-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.side-actions .icon-btn { width: 100%; height: 34px; border-radius: var(--r-md); }
-.side-actions .icon-btn[aria-current="page"] { border-color: var(--accent); color: var(--accent); }
-.fetch-mini { border: 1px solid var(--line); border-radius: var(--r-lg); padding: 10px; background: var(--panel); display: grid; gap: 6px; color: var(--text); }
-.fetch-mini:has(.fetch-open:hover) { border-color: var(--line-2); }
-/* (0.7.1) Head with the play / pause button; the status below is the button that opens Abrufstatus. */
-.fetch-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; }
-.fetch-toggle.icon-btn { width: 24px; height: 24px; border-radius: var(--r-sm); }
-.fetch-toggle.icon-btn svg { width: 13px; height: 13px; }
-.fetch-mini.paused .fetch-toggle { color: var(--accent); border-color: var(--accent-line); }
-.fetch-open { display: grid; gap: 8px; padding: 0; margin: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.fetch-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
-.fetch-paused { color: var(--warn); font-size: var(--t-xs); }
-.fetch-error { color: var(--danger); font-size: var(--t-label); }
-.fetch-row { display: flex; align-items: center; gap: 8px; font-size: var(--t-xs); min-width: 0; }
-.fetch-row .mono { margin-left: auto; color: var(--muted); font-size: var(--t-label); white-space: nowrap; }
-.fetch-budget { color: var(--muted); font-size: var(--t-label); }
-
-.main { display: flex; flex-direction: column; min-width: 0; height: 100%; overflow: hidden; }
-.top {
-  display: flex; align-items: center; gap: 12px; height: 56px; flex: none;
-  padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px));
-  border-bottom: 1px solid var(--line); background: var(--shell);
+.side-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
 }
-.crumbs { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: var(--t-md); color: var(--muted); }
-.crumbs > span { white-space: nowrap; }
-.crumbs button { background: none; border: 0; padding: 0; color: var(--muted); white-space: nowrap; }
-.crumbs button:hover { color: var(--text); }
-.crumbs .here { color: var(--accent-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.crumbs svg { width: 14px; height: 14px; color: var(--faint); flex: none; }
-.top-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-.menu-btn { display: none; }
+.side-actions .icon-btn {
+  width: 100%;
+  height: 34px;
+  border-radius: var(--r-md);
+}
+.side-actions .icon-btn[aria-current='page'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.fetch-mini {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 10px;
+  background: var(--panel);
+  display: grid;
+  gap: 6px;
+  color: var(--text);
+}
+.fetch-mini:has(.fetch-open:hover) {
+  border-color: var(--line-2);
+}
+/* (0.7.1) Head with the play / pause button; the status below is the button that opens Abrufstatus. */
+.fetch-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+}
+.fetch-toggle.icon-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-sm);
+}
+.fetch-toggle.icon-btn svg {
+  width: 13px;
+  height: 13px;
+}
+.fetch-mini.paused .fetch-toggle {
+  color: var(--accent);
+  border-color: var(--accent-line);
+}
+.fetch-open {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.fetch-open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.fetch-paused {
+  color: var(--warn);
+  font-size: var(--t-xs);
+}
+.fetch-error {
+  color: var(--danger);
+  font-size: var(--t-label);
+}
+.fetch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--t-xs);
+  min-width: 0;
+}
+.fetch-row .mono {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: var(--t-label);
+  white-space: nowrap;
+}
+.fetch-budget {
+  color: var(--muted);
+  font-size: var(--t-label);
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
+.top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 56px;
+  flex: none;
+  padding-left: max(20px, env(safe-area-inset-left, 0px));
+  padding-right: max(20px, env(safe-area-inset-right, 0px));
+  border-bottom: 1px solid var(--line);
+  background: var(--shell);
+}
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--t-md);
+  color: var(--muted);
+}
+.crumbs > span {
+  white-space: nowrap;
+}
+.crumbs button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.crumbs button:hover {
+  color: var(--text);
+}
+.crumbs .here {
+  color: var(--accent-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.crumbs svg {
+  width: 14px;
+  height: 14px;
+  color: var(--faint);
+  flex: none;
+}
+.top-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.menu-btn {
+  display: none;
+}
 
 .content {
   position: relative; /* containing block for absolutely positioned descendants, so they scroll and clip with the page */
-  flex: 1; overflow-y: auto;
+  flex: 1;
+  overflow-y: auto;
   padding-block: 22px 40px;
-  padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px));
+  padding-left: max(20px, env(safe-area-inset-left, 0px));
+  padding-right: max(20px, env(safe-area-inset-right, 0px));
 }
-.content:focus { outline: none; }
-.content > .notice { max-width: 1320px; margin: 0 auto 16px; }
+.content:focus {
+  outline: none;
+}
+.content > .notice {
+  max-width: 1320px;
+  margin: 0 auto 16px;
+}
 
 /* Page layout helpers for the content area */
-.page { max-width: 1320px; margin: 0 auto; display: grid; gap: 16px; }
-.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.page-head .page-title { display: flex; align-items: center; gap: 6px; }
-.page-head h1 { margin: 0; font-size: var(--t-title); font-weight: 500; letter-spacing: -.01em; }
-.page-head p { margin: 2px 0 0; color: var(--muted); }
-.head-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.grid-2 { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-.stack { display: grid; gap: 16px; min-width: 0; }
+.page {
+  max-width: 1320px;
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+}
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.page-head .page-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.page-head h1 {
+  margin: 0;
+  font-size: var(--t-title);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.page-head p {
+  margin: 2px 0 0;
+  color: var(--muted);
+}
+.head-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.grid-2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.stack {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
 
 /* Header search (src/features/CatalogSearch.tsx, inline mode) */
-.search { position: relative; }
-.search-box {
-  display: flex; align-items: center; gap: 8px; width: 300px; height: var(--h-btn); padding: 0 8px 0 10px;
-  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel);
+.search {
+  position: relative;
 }
-.search-box:focus-within { border-color: var(--line-2); }
-.search-box svg { width: 15px; height: 15px; color: var(--muted); flex: none; }
-.search-box input { height: auto; padding: 1px 2px; border: 0; border-radius: 0; background: none; outline: none; flex: 1; min-width: 0; }
-.search-box input::placeholder { color: var(--faint); }
-.search-box input::-webkit-search-cancel-button { display: none; }
-.kbd { font: 400 10px/1 var(--f-mono); color: var(--muted); border: 1px solid var(--line-2); border-radius: 4px; padding: 3px 5px; white-space: nowrap; }
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 300px;
+  height: var(--h-btn);
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel);
+}
+.search-box:focus-within {
+  border-color: var(--line-2);
+}
+.search-box svg {
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+  flex: none;
+}
+.search-box input {
+  height: auto;
+  padding: 1px 2px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  outline: none;
+  flex: 1;
+  min-width: 0;
+}
+.search-box input::placeholder {
+  color: var(--faint);
+}
+.search-box input::-webkit-search-cancel-button {
+  display: none;
+}
+.kbd {
+  font: 400 10px/1 var(--f-mono);
+  color: var(--muted);
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  padding: 3px 5px;
+  white-space: nowrap;
+}
 /* The popover holds catalog results with actions, so it is wider than the 300 px box (prototype: min 280 px). */
 .search-pop {
-  position: absolute; right: 0; top: calc(100% + 6px); width: 100%; min-width: 420px; z-index: var(--z-pop);
-  max-height: min(640px, calc(100dvh - 80px)); overflow-y: auto;
-  background: var(--panel-2); border: 1px solid var(--line-2); border-radius: var(--r-lg); padding: 6px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  width: 100%;
+  min-width: 420px;
+  z-index: var(--z-pop);
+  max-height: min(640px, calc(100dvh - 80px));
+  overflow-y: auto;
+  background: var(--panel-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-lg);
+  padding: 6px;
   box-shadow: var(--shadow-pop);
 }
-.search-pop .label { padding: 6px 8px 4px; }
+.search-pop .label {
+  padding: 6px 8px 4px;
+}
 /* (0.9.1) One line with a platform choice of fixed width: the systems arrive after the first open and used to widen it,
  * so the head re-laid itself out and the close button jumped to a line of its own. */
-.search-pop-head { display: flex; align-items: center; gap: 4px 8px; padding-right: 2px; flex-wrap: nowrap; min-width: 0; }
-.search-pop-head .label { white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.search-pop-head .icon-btn { width: 28px; height: 28px; }
-.search-platform { height: 28px; padding: 0 8px; font-size: var(--t-xs); background: var(--panel-3); }
-.search-platform { flex: none; }
-.search-platform select { flex: none; width: 132px; padding-right: 2px; text-overflow: ellipsis; }
-.search-pop .search-hint { margin: 0; padding: 6px 8px; color: var(--muted); font-size: var(--t-xs); }
-.search-pop .notice { margin: 4px; }
+.search-pop-head {
+  display: flex;
+  align-items: center;
+  gap: 4px 8px;
+  padding-right: 2px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.search-pop-head .label {
+  white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.search-pop-head .icon-btn {
+  width: 28px;
+  height: 28px;
+}
+.search-platform {
+  height: 28px;
+  padding: 0 8px;
+  font-size: var(--t-xs);
+  background: var(--panel-3);
+}
+.search-platform {
+  flex: none;
+}
+.search-platform select {
+  flex: none;
+  width: 132px;
+  padding-right: 2px;
+  text-overflow: ellipsis;
+}
+.search-pop .search-hint {
+  margin: 0;
+  padding: 6px 8px;
+  color: var(--muted);
+  font-size: var(--t-xs);
+}
+.search-pop .notice {
+  margin: 4px;
+}
 
 /* Shell responsive (prototype breakpoints) */
 @media (max-width: 1180px) {
-  .search-box { width: 220px; }
-  .grid-2 { grid-template-columns: minmax(0, 1fr); }
-}
-.scrim { display: none; }
-@media (max-width: 900px) {
-  .app { grid-template-columns: minmax(0, 1fr); }
-  .side {
-    position: fixed; inset: 0 auto 0 0; width: 260px; z-index: var(--z-drawer); transform: translateX(-100%); transition: transform .2s, visibility 0s .2s;
-    visibility: hidden;
-    padding-top: calc(14px + env(safe-area-inset-top, 0px)); padding-left: max(12px, env(safe-area-inset-left, 0px));
+  .search-box {
+    width: 220px;
   }
-  .app.nav-open .side { transform: none; visibility: visible; transition: transform .2s; }
-  .app.nav-open .scrim { display: block; position: fixed; inset: 0; background: var(--scrim); z-index: var(--z-scrim); }
-  .menu-btn { display: grid; }
+  .grid-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.scrim {
+  display: none;
+}
+@media (max-width: 900px) {
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .side {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: 260px;
+    z-index: var(--z-drawer);
+    transform: translateX(-100%);
+    transition:
+      transform 0.2s,
+      visibility 0s 0.2s;
+    visibility: hidden;
+    padding-top: calc(14px + env(safe-area-inset-top, 0px));
+    padding-left: max(12px, env(safe-area-inset-left, 0px));
+  }
+  .app.nav-open .side {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.2s;
+  }
+  .app.nav-open .scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: var(--scrim);
+    z-index: var(--z-scrim);
+  }
+  .menu-btn {
+    display: grid;
+  }
 }
 @media (max-width: 720px) {
-  .top { gap: 8px; position: relative; }
-  .search-box { width: 100%; }
-  .search { position: static; flex: 1; min-width: 0; }
-  .search-pop { left: 12px; right: 12px; width: auto; min-width: 0; }
-  .search-pop-head .search-platform { order: 1; flex: 1 0 100%; }
-  .top-right { flex: 1; min-width: 0; }
-  .crumbs { display: none; }
-  .hide-sm, .kbd { display: none; }
+  .top {
+    gap: 8px;
+    position: relative;
+  }
+  .search-box {
+    width: 100%;
+  }
+  .search {
+    position: static;
+    flex: 1;
+    min-width: 0;
+  }
+  .search-pop {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    min-width: 0;
+  }
+  .search-pop-head .search-platform {
+    order: 1;
+    flex: 1 0 100%;
+  }
+  .top-right {
+    flex: 1;
+    min-width: 0;
+  }
+  .crumbs {
+    display: none;
+  }
+  .hide-sm,
+  .kbd {
+    display: none;
+  }
 }
-@media (pointer: coarse) { .kbd { display: none; } }
+@media (pointer: coarse) {
+  .kbd {
+    display: none;
+  }
+}

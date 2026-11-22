@@ -12,7 +12,11 @@ async function addThree(page: Page): Promise<Item[]> {
   const search = page.getByRole('searchbox', { name: 'Nach Spielen suchen', exact: true });
   const results = page.getByRole('region', { name: 'Suchergebnisse' });
   // Under "Alle" (0.8.1) a game on two systems is listed once per system; Neuer Treffer is on one only.
-  for (const [query, name, label] of [['forza', 'Forza Horizon 5', 'Forza Horizon 5 (Xbox Series X|S)'], ['forza', 'Forza Horizon 5: Premium Edition', 'Forza Horizon 5: Premium Edition (Xbox Series X|S)'], ['neu', 'Neuer Treffer', 'Neuer Treffer']]) {
+  for (const [query, name, label] of [
+    ['forza', 'Forza Horizon 5', 'Forza Horizon 5 (Xbox Series X|S)'],
+    ['forza', 'Forza Horizon 5: Premium Edition', 'Forza Horizon 5: Premium Edition (Xbox Series X|S)'],
+    ['neu', 'Neuer Treffer', 'Neuer Treffer'],
+  ]) {
     await search.fill(query);
     await results.getByRole('button', { name: `${label} vormerken`, exact: true }).click();
     await expect(page.getByRole('heading', { name, exact: true, level: 1 })).toBeVisible();
@@ -37,27 +41,97 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
   const items = await addThree(page);
   const now = Math.floor(Date.now() / 1000);
   // "Alarm gesendet" means sent today (local day): ten minutes ago, but never before midnight, so the test also passes at 00:05.
-  const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+  const midnight = new Date();
+  midnight.setHours(0, 0, 0, 0);
   const sentAt = Math.max(now - 590, Math.floor(midnight.getTime() / 1000) + 1);
   const byName = (name: string) => items.find(item => item.game.name === name)!;
-  const forza = byName('Forza Horizon 5'), premium = byName('Forza Horizon 5: Premium Edition'), fresh = byName('Neuer Treffer');
+  const forza = byName('Forza Horizon 5'),
+    premium = byName('Forza Horizon 5: Premium Edition'),
+    fresh = byName('Neuer Treffer');
   const trend = (yesterday: number, today: number) => [...Array(12).fill(3200), yesterday, today];
   const badges = {
     // 28,90 € in the target country, India 12,90 € (−55 %), reached the target of 29,00 € only today.
-    [forza.id]: { state: 'price', cents: 2890, observed_at: now - 3600, checked_at: now - 3600, stale: false, pending: false, world: { cents: 1290, region: 'India', observed_at: now - 3600 }, trend: trend(3100, 2890) },
+    [forza.id]: {
+      state: 'price',
+      cents: 2890,
+      observed_at: now - 3600,
+      checked_at: now - 3600,
+      stale: false,
+      pending: false,
+      world: { cents: 1290, region: 'India', observed_at: now - 3600 },
+      trend: trend(3100, 2890),
+    },
     // 40,00 €, the cheapest region only 5 % below, a stale price, no trend from this (older) server.
-    [premium.id]: { state: 'price', cents: 4000, observed_at: now - 3 * day, checked_at: now - 3600, stale: true, pending: false, world: { cents: 3800, region: 'Turkey', observed_at: now - 3600 } },
-    [fresh.id]: { state: 'no_offer', cents: null, observed_at: null, checked_at: now - 3600, stale: false, pending: false, world: null, trend: Array(14).fill(null) },
+    [premium.id]: {
+      state: 'price',
+      cents: 4000,
+      observed_at: now - 3 * day,
+      checked_at: now - 3600,
+      stale: true,
+      pending: false,
+      world: { cents: 3800, region: 'Turkey', observed_at: now - 3600 },
+    },
+    [fresh.id]: {
+      state: 'no_offer',
+      cents: null,
+      observed_at: null,
+      checked_at: now - 3600,
+      stale: false,
+      pending: false,
+      world: null,
+      trend: Array(14).fill(null),
+    },
   };
   await page.route(/\/api\/v1\/wishlist\/price-badges(?:\?.*)?$/, route => route.fulfill({ json: badges }));
-  await page.route('**/api/v1/alerts', route => route.request().method() === 'GET' ? route.fulfill({ json: { configured: true,
-    rules: [{ wish_id: forza.id, mode: 'target', basis: 'base', target_cents: 2900, enabled: true }, { wish_id: premium.id, mode: 'target', basis: 'base', target_cents: 3500, enabled: true }],
-    events: [{ id: 1, wish_id: forza.id, state: 'sent', observed_at: sentAt - 10, sent_at: sentAt, cents: 2890, attempts: 1 }] } }) : route.continue());
-  const hours = Array.from({ length: 24 }, (_, hour) => hour < 2 ? 10 : 0);
-  await page.route('**/api/v1/status/fetch', route => route.fulfill({ json: { errors_24h: 0, recent_runs: [], shops: [
-    { source: 'eneba', enabled: true, last_success_at: now, last_error: null, paused_until: null, budget: { used: 300, limit: 400, demand_per_day: 450, by_hour: hours }, backlog: { due: 0, requested: 0, products: 0, searches: 0 }, oldest_due_at: null, next_due_at: null, worker_seen_at: now },
-    { source: 'driffle', enabled: true, last_success_at: now, last_error: null, paused_until: null, budget: { used: 12, limit: 100 }, backlog: { due: 0, requested: 0, products: 0, searches: 0 }, oldest_due_at: null, next_due_at: null, worker_seen_at: now },
-  ] } }));
+  await page.route('**/api/v1/alerts', route =>
+    route.request().method() === 'GET'
+      ? route.fulfill({
+          json: {
+            configured: true,
+            rules: [
+              { wish_id: forza.id, mode: 'target', basis: 'base', target_cents: 2900, enabled: true },
+              { wish_id: premium.id, mode: 'target', basis: 'base', target_cents: 3500, enabled: true },
+            ],
+            events: [{ id: 1, wish_id: forza.id, state: 'sent', observed_at: sentAt - 10, sent_at: sentAt, cents: 2890, attempts: 1 }],
+          },
+        })
+      : route.continue(),
+  );
+  const hours = Array.from({ length: 24 }, (_, hour) => (hour < 2 ? 10 : 0));
+  await page.route('**/api/v1/status/fetch', route =>
+    route.fulfill({
+      json: {
+        errors_24h: 0,
+        recent_runs: [],
+        shops: [
+          {
+            source: 'eneba',
+            enabled: true,
+            last_success_at: now,
+            last_error: null,
+            paused_until: null,
+            budget: { used: 300, limit: 400, demand_per_day: 450, by_hour: hours },
+            backlog: { due: 0, requested: 0, products: 0, searches: 0 },
+            oldest_due_at: null,
+            next_due_at: null,
+            worker_seen_at: now,
+          },
+          {
+            source: 'driffle',
+            enabled: true,
+            last_success_at: now,
+            last_error: null,
+            paused_until: null,
+            budget: { used: 12, limit: 100 },
+            backlog: { due: 0, requested: 0, products: 0, searches: 0 },
+            oldest_due_at: null,
+            next_due_at: null,
+            worker_seen_at: now,
+          },
+        ],
+      },
+    }),
+  );
   // The game view reports the real (unpriced) badges of the fixture; keep the mocked ones so the list does not change meanwhile.
   await page.route('**/api/v1/wishlist/*/offers', async route => {
     if (route.request().method() !== 'GET') return route.continue();
@@ -68,7 +142,9 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
   await page.route('**/api/v1/wishlist/*/alert', route => {
     const id = new URL(route.request().url()).pathname.split('/').at(-2)!;
     if (route.request().method() !== 'GET') return route.continue();
-    return route.fulfill({ json: { configured: true, rule: targets[id] ? { mode: 'target', basis: 'base', target_cents: targets[id], enabled: true } : null } });
+    return route.fulfill({
+      json: { configured: true, rule: targets[id] ? { mode: 'target', basis: 'base', target_cents: targets[id], enabled: true } : null },
+    });
   });
   await page.route('**/api/v1/wishlist/*/editions', async route => {
     const data = await (await route.fetch()).json();
@@ -133,7 +209,9 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
 
   // Row → game → back: filter, sort and scroll position are kept, the row gets the focus again
   await page.getByLabel('Liste filtern').fill('Forza');
-  const priceHeader = wishlistTable(page).locator('thead').getByRole('button', { name: /^Preis [A-Z]{2}$/ });
+  const priceHeader = wishlistTable(page)
+    .locator('thead')
+    .getByRole('button', { name: /^Preis [A-Z]{2}$/ });
   await priceHeader.click();
   await expect(wishlistRows(page)).toHaveCount(2);
   await expect(wishlistRows(page).first()).toContainText('Forza Horizon 5');
@@ -181,7 +259,8 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
   await navTo(page, 'Wunschliste');
   await expect(wishlistTable(page)).toBeVisible();
   await page.getByLabel('Liste filtern').fill('');
-  await priceHeader.click(); await priceHeader.click(); // descending, then back to newest first
+  await priceHeader.click();
+  await priceHeader.click(); // descending, then back to newest first
   await expect(wishlistTable(page).locator('thead th[aria-sort="none"]')).toHaveCount(6);
   await removeAll(page);
   await expect(wishlistHeading(page)).toBeFocused();
@@ -195,9 +274,14 @@ test('KPI tiles leave out what an older server or a failed read does not provide
   const items = await addThree(page);
   const now = Math.floor(Date.now() / 1000);
   // 0.6.0 badges: no trend, no world price; no alarm rules; the fetch status cannot be read.
-  await page.route(/\/api\/v1\/wishlist\/price-badges(?:\?.*)?$/, route => route.fulfill({ json: Object.fromEntries(items.map(item =>
-    [item.id, { state: 'price', cents: 1999, observed_at: now, checked_at: now, stale: false, pending: false }])) }));
-  await page.route('**/api/v1/alerts', route => route.request().method() === 'GET' ? route.fulfill({ json: { configured: false, rules: [], events: [] } }) : route.continue());
+  await page.route(/\/api\/v1\/wishlist\/price-badges(?:\?.*)?$/, route =>
+    route.fulfill({
+      json: Object.fromEntries(items.map(item => [item.id, { state: 'price', cents: 1999, observed_at: now, checked_at: now, stale: false, pending: false }])),
+    }),
+  );
+  await page.route('**/api/v1/alerts', route =>
+    route.request().method() === 'GET' ? route.fulfill({ json: { configured: false, rules: [], events: [] } }) : route.continue(),
+  );
   await page.route('**/api/v1/status/fetch', route => route.fulfill({ status: 500, json: { error: 'Test' } }));
   await navTo(page, 'Wunschliste');
   await page.reload();

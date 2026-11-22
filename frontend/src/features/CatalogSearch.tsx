@@ -9,7 +9,17 @@ import { ALL_PLATFORMS, Cover, PLATFORMS, kindName, platformName, releaseYear, s
  * Catalog search: inline in the top bar or as the add dialog. `target` decides where a pick goes: the wishlist
  * (default) or, in the library's dialog, straight into the library as owned (0.7.2).
  */
-interface Props { csrf: string; open: boolean; inline?: boolean; target?: 'wishlist' | 'library'; items?: WishlistItem[]; onOpen?: () => void; onClose: () => void; onAdded: (item: WishlistItem, created: boolean) => void; onError: (error: unknown) => void }
+interface Props {
+  csrf: string;
+  open: boolean;
+  inline?: boolean;
+  target?: 'wishlist' | 'library';
+  items?: WishlistItem[];
+  onOpen?: () => void;
+  onClose: () => void;
+  onAdded: (item: WishlistItem, created: boolean) => void;
+  onError: (error: unknown) => void;
+}
 export default function CatalogSearch({ csrf, open, inline = false, target = 'wishlist', items, onOpen, onClose, onAdded, onError }: Props) {
   const library = target === 'library';
   const dialog = useRef<HTMLDialogElement>(null);
@@ -22,7 +32,7 @@ export default function CatalogSearch({ csrf, open, inline = false, target = 'wi
   const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [error, setError] = useState('');
   const [addError, setAddError] = useState('');
-  const [ownedWarning,setOwnedWarning]=useState<{game:CatalogGame|null;message:string}|null>(null);
+  const [ownedWarning, setOwnedWarning] = useState<{ game: CatalogGame | null; message: string } | null>(null);
   /** Library: the picked game is on the wishlist and moves over only after confirmation. */
   const [wishedWarning, setWishedWarning] = useState<{ game: CatalogGame | null; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -37,117 +47,357 @@ export default function CatalogSearch({ csrf, open, inline = false, target = 'wi
 
   useEffect(() => {
     if (inline) return;
-    if (open) { dialog.current?.showModal(); input.current?.focus(); }
-    else dialog.current?.close();
+    if (open) {
+      dialog.current?.showModal();
+      input.current?.focus();
+    } else dialog.current?.close();
   }, [open, inline]);
   useEffect(() => {
     if (!inline || !open) return;
     const controller = new AbortController();
     void api<WishlistItem[]>('/wishlist', 'GET', undefined, undefined, controller.signal)
-      .then(rows => { if (!controller.signal.aborted) setSavedItems(rows); })
-      .catch(e => { if (!controller.signal.aborted) onError(e); });
+      .then(rows => {
+        if (!controller.signal.aborted) setSavedItems(rows);
+      })
+      .catch(e => {
+        if (!controller.signal.aborted) onError(e);
+      });
     function outside(event: PointerEvent) {
       if (!busy && !ownedWarning && event.target instanceof Node && !container.current?.contains(event.target)) onClose();
     }
     document.addEventListener('pointerdown', outside);
-    return () => { controller.abort(); document.removeEventListener('pointerdown', outside); };
+    return () => {
+      controller.abort();
+      document.removeEventListener('pointerdown', outside);
+    };
   }, [inline, open, busy, ownedWarning, onClose, onError]);
   useEffect(() => {
     if (!open) return;
     const controller = new AbortController();
     const text = query.trim();
-    setResults([]); setError(''); setAddError('');
-    if (text.length < 2) { setState('idle'); return () => controller.abort(); }
+    setResults([]);
+    setError('');
+    setAddError('');
+    if (text.length < 2) {
+      setState('idle');
+      return () => controller.abort();
+    }
     setState('loading');
     const timer = window.setTimeout(() => {
-      void api<{ games: CatalogGame[]; cached: boolean }>(`/catalog/search?q=${encodeURIComponent(text)}&platform=${platform}`, 'GET', undefined, undefined, controller.signal)
-        .then(data => { if (!controller.signal.aborted) { setResults(data.games); setCached(data.cached); setState('ready'); } })
+      void api<{ games: CatalogGame[]; cached: boolean }>(
+        `/catalog/search?q=${encodeURIComponent(text)}&platform=${platform}`,
+        'GET',
+        undefined,
+        undefined,
+        controller.signal,
+      )
+        .then(data => {
+          if (!controller.signal.aborted) {
+            setResults(data.games);
+            setCached(data.cached);
+            setState('ready');
+          }
+        })
         .catch(e => {
           if (controller.signal.aborted) return;
-          if (e instanceof HttpError && e.status === 401) { onError(e); onClose(); return; }
-          setError(e instanceof Error ? e.message : 'Katalogsuche fehlgeschlagen.'); setState('error');
+          if (e instanceof HttpError && e.status === 401) {
+            onError(e);
+            onClose();
+            return;
+          }
+          setError(e instanceof Error ? e.message : 'Katalogsuche fehlgeschlagen.');
+          setState('error');
         });
     }, 350);
-    return () => { clearTimeout(timer); controller.abort(); };
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [query, platform, open, onError, onClose]);
 
   /** The system a pick is for: the hit's own one, or for a title without catalog hit the filter (Series X|S under "Alle"). */
   async function add(game: CatalogGame | null, confirmed = false, system = platform === ALL_PLATFORMS ? manualSystem : platform) {
     if (busy) return;
     const saved = inline && game ? savedItems.find(item => item.game?.igdb_id === game.igdb_id && item.platform_id === system) : undefined;
-    if (saved) { onAdded(saved, false); onClose(); setQuery(''); return; }
-    setBusy(true); setAddError('');
+    if (saved) {
+      onAdded(saved, false);
+      onClose();
+      setQuery('');
+      return;
+    }
+    setBusy(true);
+    setAddError('');
     const pick = game ? { igdb_id: game.igdb_id, platform_id: system } : { manual_title: query.trim(), platform_id: system };
     setPending({ game, system });
     try {
-      const result = await api<{ item: WishlistItem; created: boolean }>(library ? '/library' : '/wishlist', 'POST',
-        library ? { ...pick, confirm_wished: confirmed } : { ...pick, confirm_owned: confirmed }, csrf);
-      setOwnedWarning(null); setWishedWarning(null); onAdded(result.item, result.created); onClose(); setQuery('');
+      const result = await api<{ item: WishlistItem; created: boolean }>(
+        library ? '/library' : '/wishlist',
+        'POST',
+        library ? { ...pick, confirm_wished: confirmed } : { ...pick, confirm_owned: confirmed },
+        csrf,
+      );
+      setOwnedWarning(null);
+      setWishedWarning(null);
+      onAdded(result.item, result.created);
+      onClose();
+      setQuery('');
     } catch (e) {
-      if (e instanceof HttpError && e.code === 'owned_game') setOwnedWarning({game,message:e.message});
+      if (e instanceof HttpError && e.code === 'owned_game') setOwnedWarning({ game, message: e.message });
       else if (e instanceof HttpError && e.code === 'wished_game') setWishedWarning({ game, message: e.message });
-      else if (e instanceof HttpError && e.status === 401) { onError(e); onClose(); }
-      else setAddError(e instanceof Error ? e.message : 'Speichern fehlgeschlagen.');
-    } finally { setBusy(false); }
+      else if (e instanceof HttpError && e.status === 401) {
+        onError(e);
+        onClose();
+      } else setAddError(e instanceof Error ? e.message : 'Speichern fehlgeschlagen.');
+    } finally {
+      setBusy(false);
+    }
   }
-  function submit(event: FormEvent) { event.preventDefault(); }
+  function submit(event: FormEvent) {
+    event.preventDefault();
+  }
 
   // "Alle" plus the systems of the games already in the list (0.8.1): a system shows up once a game for it is added and
   // goes away with the last one.
   const known = new Set((items ?? savedItems).map(item => item.platform_id));
   const systems = PLATFORMS.filter(id => known.has(id) || id === platform);
-  const platformSelect = <select id={platformId} value={platform} onChange={event => setPlatform(Number(event.target.value))} disabled={busy} aria-label={inline ? 'Plattform wählen' : undefined}>
-    <option value={ALL_PLATFORMS}>Alle</option>{systems.map(id => <option key={id} value={id}>{platformName(id)}</option>)}</select>;
+  const platformSelect = (
+    <select
+      id={platformId}
+      value={platform}
+      onChange={event => setPlatform(Number(event.target.value))}
+      disabled={busy}
+      aria-label={inline ? 'Plattform wählen' : undefined}
+    >
+      <option value={ALL_PLATFORMS}>Alle</option>
+      {systems.map(id => (
+        <option key={id} value={id}>
+          {platformName(id)}
+        </option>
+      ))}
+    </select>
+  );
   // Under "Alle" every hit once per Xbox system it is on, each with that system.
-  const hits = results.flatMap(game => (platform === ALL_PLATFORMS ? PLATFORMS.filter(id => game.platforms.some(p => p.id === id)) : [platform]).map(system => ({ game, system })));
-  const platformField = inline ? <Field className="search-platform"><span className="muted">Plattform</span>{platformSelect}</Field>
-    : <div className="form-row"><label htmlFor={platformId}>Plattform wählen</label>{platformSelect}</div>;
-  const searchInput = <input ref={input} id={queryId} type={inline ? 'search' : 'text'} aria-label={inline ? 'Nach Spielen suchen' : undefined} aria-controls={inline && open ? 'global-results' : undefined} autoComplete="off" maxLength={100} placeholder={inline ? 'Spiele suchen …' : 'Titel oder IGDB-ID, z. B. Forza Horizon'} value={query} onFocus={inline ? onOpen : undefined} onChange={event => { setQuery(event.target.value); if (inline) onOpen?.(); }} disabled={busy} />;
-  const resultsPanel = <>
-    <ConfirmDialog open={wishedWarning !== null} title="Steht auf der Wunschliste" confirmLabel="Als gekauft verschieben" busy={busy} onCancel={() => { setWishedWarning(null); setAddError(''); }} onConfirm={() => void add(wishedWarning?.game ?? null, true, pending?.system)}>
-      <p>{wishedWarning?.message}</p><p>Der Eintrag wandert mit seinem Preisverlauf in die Bibliothek; Preisalarme dafür enden.</p>{addError && <Notice error>{addError}</Notice>}
-    </ConfirmDialog>
-    <ConfirmDialog open={ownedWarning!==null} title="Bereits in der Bibliothek" confirmLabel="Trotzdem vormerken" busy={busy} onCancel={()=>{setOwnedWarning(null);setAddError('');}} onConfirm={()=>void add(ownedWarning?.game??null,true,pending?.system)}>
-      <p>{ownedWarning?.message}</p><p>Die gleiche Edition wird in die Wunschliste zurückverschoben. Bei einer anderen Edition bleibt dein vorhandenes Spiel in der Bibliothek.</p>{addError&&<Notice error>{addError}</Notice>}
-    </ConfirmDialog>
-    {addError && <Notice error>{addError}</Notice>}
-    {state === 'idle' && <p className="search-hint">Mindestens zwei Zeichen eingeben. Quelle: IGDB.</p>}
-    {state === 'loading' && <p className="search-hint" role="status">Katalog wird durchsucht …</p>}
-    {state === 'error' && <Notice error>{error}</Notice>}
-    {state === 'ready' && <p className="search-hint" role="status">{results.length ? `${results.length === 20 ? 'Bis zu 20' : results.length} Treffer ${platform === ALL_PLATFORMS ? 'für alle Xbox-Systeme' : `für ${platformName(platform)}`}` : 'Keine passenden Katalogtreffer.'}{cached && results.length > 0 ? ' · aus dem Zwischenspeicher' : ''}</p>}
-    {hits.length > 0 && <ul className="catalog-results" aria-label="Katalogtreffer">{hits.map(({ game, system }) => {
-      const saved = (items ?? savedItems).some(item => item.game?.igdb_id === game.igdb_id && item.platform_id === system);
-      const several = platform === ALL_PLATFORMS && hits.filter(hit => hit.game.igdb_id === game.igdb_id).length > 1;
-      const label = several ? `${game.name} (${platformName(system)})` : game.name;
-      return <li className="catalog-result" key={`${game.igdb_id}-${system}`}><Cover src={game.cover_url} /><div className="result-info"><h3>{game.name}</h3><p><span title="Jahr der Erstveröffentlichung">{releaseYear(game.first_release_date)}</span> · <span className="result-system">{platformName(system)}</span></p><span className={`kind-badge ${selectionAllowed(game) ? '' : 'unverified'}`}>{kindName(game)}</span>{game.kind === 'edition' && !library && <p className="edition-note">Edition separat erfasst · Händlerinhalt noch ungeprüft</p>}{!selectionAllowed(game) && <p className="edition-note">Kein belegtes eigenständiges Spiel bzw. keine zuordenbare Edition.</p>}</div><Button size="sm" disabled={busy || (saved && !inline) || !selectionAllowed(game)} onClick={() => void add(game, false, system)} aria-label={`${label} ${saved && inline ? 'öffnen' : library ? 'zur Bibliothek hinzufügen' : 'vormerken'}`}>{busy ? '…' : saved ? inline ? 'Öffnen' : library ? 'In der Bibliothek' : 'Vorgemerkt' : library ? 'Hinzufügen' : 'Vormerken'}</Button></li>;
-    })}</ul>}
-    {(state === 'error' || (state === 'ready' && results.length === 0)) && query.trim().length >= 2 && <div className="manual-fallback">{platform === ALL_PLATFORMS && <div className="form-row manual-system">
-      <label htmlFor={`${platformId}-manual`}>System</label>
-      <select id={`${platformId}-manual`} value={manualSystem} onChange={event => setManualSystem(Number(event.target.value))} disabled={busy}>
-        {PLATFORMS.map(id => <option key={id} value={id}>{platformName(id)}</option>)}</select></div>}{library
-      ? <><h3>Manuell hinzufügen</h3><p>„{query.trim()}“ wird ohne Katalogtreffer in der Bibliothek gespeichert.</p><Button disabled={busy} onClick={() => void add(null)}>{busy ? 'Wird gespeichert …' : 'Ohne Katalog hinzufügen'}</Button></>
-      : <><h3>Manuell vormerken</h3><p>„{query.trim()}“ wird manuell gespeichert. Plattform, Edition und Inhalte bleiben ungeprüft; daraus entstehen keine bestätigten Angebote.</p><Button disabled={busy} onClick={() => void add(null)}>{busy ? 'Wird gespeichert …' : 'Ungeprüft vormerken'}</Button></>}</div>}
-    <div className="catalog-attribution">Spieledaten von IGDB · Erstveröffentlichung ist nicht zwingend das Xbox-Veröffentlichungsdatum.</div>
-  </>;
-  if (inline) return <div className="search" ref={container} onKeyDown={event => {
-    if (event.key === 'Escape' && !busy) { event.preventDefault(); input.current?.focus(); onClose(); }
-    if (event.key === 'ArrowDown' && event.target === input.current) { event.preventDefault(); container.current?.querySelector<HTMLButtonElement>('.catalog-result button:not(:disabled)')?.focus(); }
-  }} onBlur={event => { if (!busy && !ownedWarning && event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) onClose(); }}>
-    <div className="search-box" role="search"><Icon name="search" size={15} />{searchInput}<span className="kbd" aria-hidden="true">Ctrl K</span></div>
-    {open && <section className="search-pop" id="global-results" aria-label="Suchergebnisse">
-      <div className="search-pop-head"><span className="label">Suche · IGDB</span><span className="spacer" />{platformField}<IconButton variant="ghost" label="Suche schließen" disabled={busy} onClick={onClose}><Icon name="x" /></IconButton></div>
-      {resultsPanel}
-    </section>}
-  </div>;
-  // The add dialog: a panel with the title in the head and search, platform and results in the inset.
-  return <dialog ref={dialog} className="catalog-dialog" aria-labelledby="catalog-title" onCancel={event => { if (busy) event.preventDefault(); else onClose(); }}>
-    <div className="dialog-heading"><h2 id="catalog-title">{library ? 'Zur Bibliothek hinzufügen' : 'Spiel hinzufügen'}</h2><IconButton variant="ghost" label="Suche schließen" onClick={onClose} disabled={busy}><Icon name="x" /></IconButton></div>
-    <div className="inset catalog-body">
-      <form className="catalog-form" onSubmit={submit}>
-        <div className="form-row"><label htmlFor={queryId}>Spiel im Katalog suchen</label><span className="field"><Icon name="search" size={14} />{searchInput}</span></div>
-        {platformField}
-      </form>
-      {resultsPanel}
+  const hits = results.flatMap(game =>
+    (platform === ALL_PLATFORMS ? PLATFORMS.filter(id => game.platforms.some(p => p.id === id)) : [platform]).map(system => ({ game, system })),
+  );
+  const platformField = inline ? (
+    <Field className="search-platform">
+      <span className="muted">Plattform</span>
+      {platformSelect}
+    </Field>
+  ) : (
+    <div className="form-row">
+      <label htmlFor={platformId}>Plattform wählen</label>
+      {platformSelect}
     </div>
-  </dialog>;
+  );
+  const searchInput = (
+    <input
+      ref={input}
+      id={queryId}
+      type={inline ? 'search' : 'text'}
+      aria-label={inline ? 'Nach Spielen suchen' : undefined}
+      aria-controls={inline && open ? 'global-results' : undefined}
+      autoComplete="off"
+      maxLength={100}
+      placeholder={inline ? 'Spiele suchen …' : 'Titel oder IGDB-ID, z. B. Forza Horizon'}
+      value={query}
+      onFocus={inline ? onOpen : undefined}
+      onChange={event => {
+        setQuery(event.target.value);
+        if (inline) onOpen?.();
+      }}
+      disabled={busy}
+    />
+  );
+  const resultsPanel = (
+    <>
+      <ConfirmDialog
+        open={wishedWarning !== null}
+        title="Steht auf der Wunschliste"
+        confirmLabel="Als gekauft verschieben"
+        busy={busy}
+        onCancel={() => {
+          setWishedWarning(null);
+          setAddError('');
+        }}
+        onConfirm={() => void add(wishedWarning?.game ?? null, true, pending?.system)}
+      >
+        <p>{wishedWarning?.message}</p>
+        <p>Der Eintrag wandert mit seinem Preisverlauf in die Bibliothek; Preisalarme dafür enden.</p>
+        {addError && <Notice error>{addError}</Notice>}
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={ownedWarning !== null}
+        title="Bereits in der Bibliothek"
+        confirmLabel="Trotzdem vormerken"
+        busy={busy}
+        onCancel={() => {
+          setOwnedWarning(null);
+          setAddError('');
+        }}
+        onConfirm={() => void add(ownedWarning?.game ?? null, true, pending?.system)}
+      >
+        <p>{ownedWarning?.message}</p>
+        <p>Die gleiche Edition wird in die Wunschliste zurückverschoben. Bei einer anderen Edition bleibt dein vorhandenes Spiel in der Bibliothek.</p>
+        {addError && <Notice error>{addError}</Notice>}
+      </ConfirmDialog>
+      {addError && <Notice error>{addError}</Notice>}
+      {state === 'idle' && <p className="search-hint">Mindestens zwei Zeichen eingeben. Quelle: IGDB.</p>}
+      {state === 'loading' && (
+        <p className="search-hint" role="status">
+          Katalog wird durchsucht …
+        </p>
+      )}
+      {state === 'error' && <Notice error>{error}</Notice>}
+      {state === 'ready' && (
+        <p className="search-hint" role="status">
+          {results.length
+            ? `${results.length === 20 ? 'Bis zu 20' : results.length} Treffer ${platform === ALL_PLATFORMS ? 'für alle Xbox-Systeme' : `für ${platformName(platform)}`}`
+            : 'Keine passenden Katalogtreffer.'}
+          {cached && results.length > 0 ? ' · aus dem Zwischenspeicher' : ''}
+        </p>
+      )}
+      {hits.length > 0 && (
+        <ul className="catalog-results" aria-label="Katalogtreffer">
+          {hits.map(({ game, system }) => {
+            const saved = (items ?? savedItems).some(item => item.game?.igdb_id === game.igdb_id && item.platform_id === system);
+            const several = platform === ALL_PLATFORMS && hits.filter(hit => hit.game.igdb_id === game.igdb_id).length > 1;
+            const label = several ? `${game.name} (${platformName(system)})` : game.name;
+            return (
+              <li className="catalog-result" key={`${game.igdb_id}-${system}`}>
+                <Cover src={game.cover_url} />
+                <div className="result-info">
+                  <h3>{game.name}</h3>
+                  <p>
+                    <span title="Jahr der Erstveröffentlichung">{releaseYear(game.first_release_date)}</span> ·{' '}
+                    <span className="result-system">{platformName(system)}</span>
+                  </p>
+                  <span className={`kind-badge ${selectionAllowed(game) ? '' : 'unverified'}`}>{kindName(game)}</span>
+                  {game.kind === 'edition' && !library && <p className="edition-note">Edition separat erfasst · Händlerinhalt noch ungeprüft</p>}
+                  {!selectionAllowed(game) && <p className="edition-note">Kein belegtes eigenständiges Spiel bzw. keine zuordenbare Edition.</p>}
+                </div>
+                <Button
+                  size="sm"
+                  disabled={busy || (saved && !inline) || !selectionAllowed(game)}
+                  onClick={() => void add(game, false, system)}
+                  aria-label={`${label} ${saved && inline ? 'öffnen' : library ? 'zur Bibliothek hinzufügen' : 'vormerken'}`}
+                >
+                  {busy ? '…' : saved ? (inline ? 'Öffnen' : library ? 'In der Bibliothek' : 'Vorgemerkt') : library ? 'Hinzufügen' : 'Vormerken'}
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {(state === 'error' || (state === 'ready' && results.length === 0)) && query.trim().length >= 2 && (
+        <div className="manual-fallback">
+          {platform === ALL_PLATFORMS && (
+            <div className="form-row manual-system">
+              <label htmlFor={`${platformId}-manual`}>System</label>
+              <select id={`${platformId}-manual`} value={manualSystem} onChange={event => setManualSystem(Number(event.target.value))} disabled={busy}>
+                {PLATFORMS.map(id => (
+                  <option key={id} value={id}>
+                    {platformName(id)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {library ? (
+            <>
+              <h3>Manuell hinzufügen</h3>
+              <p>„{query.trim()}“ wird ohne Katalogtreffer in der Bibliothek gespeichert.</p>
+              <Button disabled={busy} onClick={() => void add(null)}>
+                {busy ? 'Wird gespeichert …' : 'Ohne Katalog hinzufügen'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <h3>Manuell vormerken</h3>
+              <p>„{query.trim()}“ wird manuell gespeichert. Plattform, Edition und Inhalte bleiben ungeprüft; daraus entstehen keine bestätigten Angebote.</p>
+              <Button disabled={busy} onClick={() => void add(null)}>
+                {busy ? 'Wird gespeichert …' : 'Ungeprüft vormerken'}
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+      <div className="catalog-attribution">Spieledaten von IGDB · Erstveröffentlichung ist nicht zwingend das Xbox-Veröffentlichungsdatum.</div>
+    </>
+  );
+  if (inline)
+    return (
+      <div
+        className="search"
+        ref={container}
+        onKeyDown={event => {
+          if (event.key === 'Escape' && !busy) {
+            event.preventDefault();
+            input.current?.focus();
+            onClose();
+          }
+          if (event.key === 'ArrowDown' && event.target === input.current) {
+            event.preventDefault();
+            container.current?.querySelector<HTMLButtonElement>('.catalog-result button:not(:disabled)')?.focus();
+          }
+        }}
+        onBlur={event => {
+          if (!busy && !ownedWarning && event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) onClose();
+        }}
+      >
+        <div className="search-box" role="search">
+          <Icon name="search" size={15} />
+          {searchInput}
+          <span className="kbd" aria-hidden="true">
+            Ctrl K
+          </span>
+        </div>
+        {open && (
+          <section className="search-pop" id="global-results" aria-label="Suchergebnisse">
+            <div className="search-pop-head">
+              <span className="label">Suche · IGDB</span>
+              <span className="spacer" />
+              {platformField}
+              <IconButton variant="ghost" label="Suche schließen" disabled={busy} onClick={onClose}>
+                <Icon name="x" />
+              </IconButton>
+            </div>
+            {resultsPanel}
+          </section>
+        )}
+      </div>
+    );
+  // The add dialog: a panel with the title in the head and search, platform and results in the inset.
+  return (
+    <dialog
+      ref={dialog}
+      className="catalog-dialog"
+      aria-labelledby="catalog-title"
+      onCancel={event => {
+        if (busy) event.preventDefault();
+        else onClose();
+      }}
+    >
+      <div className="dialog-heading">
+        <h2 id="catalog-title">{library ? 'Zur Bibliothek hinzufügen' : 'Spiel hinzufügen'}</h2>
+        <IconButton variant="ghost" label="Suche schließen" onClick={onClose} disabled={busy}>
+          <Icon name="x" />
+        </IconButton>
+      </div>
+      <div className="inset catalog-body">
+        <form className="catalog-form" onSubmit={submit}>
+          <div className="form-row">
+            <label htmlFor={queryId}>Spiel im Katalog suchen</label>
+            <span className="field">
+              <Icon name="search" size={14} />
+              {searchInput}
+            </span>
+          </div>
+          {platformField}
+        </form>
+        {resultsPanel}
+      </div>
+    </dialog>
+  );
 }

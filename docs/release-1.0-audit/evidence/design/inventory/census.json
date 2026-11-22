@@ -1,0 +1,1962 @@
+{
+  "total": {
+    "fontSize": {
+      "13px": 550,
+      "11px": 292,
+      "12px": 423,
+      "14px": 71,
+      "10px": 18,
+      "20px": 11,
+      "24px": 9,
+      "22px": 8,
+      "34px": 4,
+      "18.7px": 2,
+      "16px": 8,
+      "10.8333px": 3,
+      "11.96px": 1
+    },
+    "family+weight": {
+      "Inter 500": 265,
+      "JetBrains Mono 500": 317,
+      "Inter 400": 620,
+      "JetBrains Mono 400": 191,
+      "Inter 600": 4,
+      "Inter 700": 2,
+      "JetBrains Mono 600": 1
+    },
+    "lineHeight": {
+      "13px/19.5px": 540,
+      "11px/14.3px": 95,
+      "12px/normal": 68,
+      "12px/18px": 328,
+      "11px/16.5px": 75,
+      "14px/21px": 34,
+      "10px/10px": 18,
+      "20px/30px": 11,
+      "24px/24px": 8,
+      "11px/13.2px": 115,
+      "14px/16.8px": 29,
+      "12px/14.4px": 27,
+      "22px/33px": 6,
+      "34px/34px": 4,
+      "18.7px/18.7px": 2,
+      "16px/16px": 1,
+      "11px/normal": 7,
+      "14px/normal": 4,
+      "24px/36px": 1,
+      "14px/18.2px": 4,
+      "16px/20.8px": 1,
+      "13px/16.9px": 10,
+      "22px/22px": 2,
+      "10.8333px/16.25px": 3,
+      "16px/normal": 6,
+      "11.96px/17.94px": 1
+    },
+    "textColor": {
+      "--on-accent": 40,
+      "--faint": 272,
+      "--accent-2": 58,
+      "--text-2": 175,
+      "--muted": 366,
+      "--text": 431,
+      "--ok": 29,
+      "--world": 11,
+      "--warn": 9,
+      "--danger": 3,
+      "--cover-text": 3,
+      "--accent": 3
+    },
+    "letterSpacing": {
+      "Inter 13px normal": 509,
+      "JetBrains Mono 11px 0.88px UPPER": 216,
+      "JetBrains Mono 12px normal": 116,
+      "Inter 12px normal": 307,
+      "JetBrains Mono 11px normal": 57,
+      "Inter 11px normal": 17,
+      "Inter 14px normal": 34,
+      "JetBrains Mono 10px normal": 17,
+      "Inter 20px -0.2px": 11,
+      "JetBrains Mono 24px -0.48px": 8,
+      "JetBrains Mono 14px normal": 37,
+      "JetBrains Mono 13px normal": 39,
+      "Inter 22px -0.33px": 6,
+      "JetBrains Mono 11px normal UPPER": 2,
+      "JetBrains Mono 34px -1.02px": 4,
+      "JetBrains Mono 18.7px -1.02px": 2,
+      "JetBrains Mono 16px normal": 8,
+      "JetBrains Mono 24px -0.24px": 1,
+      "JetBrains Mono 13px -0.13px": 1,
+      "Inter 10px 0.2px": 1,
+      "Inter 22px 0.44px": 2,
+      "Inter 10.8333px normal": 3,
+      "Inter 13px -0.13px": 1,
+      "JetBrains Mono 11.96px normal": 1
+    },
+    "background": {
+      "--accent": 83,
+      "--shell": 34,
+      "--panel": 223,
+      "--panel-2": 149,
+      "--ok": 18,
+      "--warn": 18,
+      "--panel-3": 73,
+      "--line-2": 107,
+      "--ok-bg": 26,
+      "--warn-bg": 15,
+      "--danger-bg": 3,
+      "--accent-bg": 3,
+      "--world": 5,
+      "--muted": 2,
+      "--text": 1
+    },
+    "radius": {
+      "8px": 322,
+      "12px": 87,
+      "6px": 23,
+      "50%": 37,
+      "4px": 55,
+      "1px": 116,
+      "999px": 97,
+      "5px": 17,
+      "3px": 22,
+      "2px": 5
+    },
+    "borderColor": {
+      "1px --line": 824,
+      "1px --line-2": 68,
+      "1px --accent": 46,
+      "1px --cover-line": 31,
+      "1px LITERAL rgba(0, 0, 0, 0)": 61,
+      "2px --accent": 16,
+      "2px LITERAL rgba(0, 0, 0, 0)": 80,
+      "2px --accent-2": 2,
+      "1px LITERAL color(srgb 0.94902 0.756863 0.305882 / 0.35)": 8
+    },
+    "buttonHeight": {
+      "34px nav-item": 68,
+      "24px icon-btn": 17,
+      "81px other": 17,
+      "34px icon-btn": 34,
+      "32px icon-btn": 24,
+      "32px btn": 57,
+      "22px help-btn": 18,
+      "28px chip": 5,
+      "26px seg": 28,
+      "13px other": 6,
+      "28px icon-btn": 44,
+      "30px icon-btn": 15,
+      "21px other": 6,
+      "38px tab": 96,
+      "28px btn": 21,
+      "20px help-btn": 6,
+      "20px other": 3,
+      "24px seg": 6,
+      "18px other": 1
+    },
+    "iconSize": {
+      "16x16": 172,
+      "13x13": 17,
+      "14x14": 49,
+      "15x15": 178,
+      "12x12": 47
+    },
+    "controlHeight": {
+      "22px input": 22,
+      "32px label.field": 4,
+      "32px select": 6,
+      "28px select": 6,
+      "18px input": 14,
+      "32px span.field": 2,
+      "32px input": 6,
+      "30px select": 3,
+      "20px input": 1
+    },
+    "shadow": {
+      "rgb(61, 58, 55) 0px 0px 0px 1px inset": 20,
+      "rgb(255, 122, 26) 0px 0px 0px 1px": 2,
+      "rgb(33, 31, 30) 0px 0px 0px 3px": 1
+    }
+  },
+  "views": {
+    "wishlist": {
+      "fontSize": {
+        "13px": 32,
+        "11px": 27,
+        "12px": 72,
+        "14px": 14,
+        "10px": 1,
+        "20px": 1,
+        "24px": 4
+      },
+      "family+weight": {
+        "Inter 500": 13,
+        "JetBrains Mono 500": 41,
+        "Inter 400": 75,
+        "JetBrains Mono 400": 22
+      },
+      "lineHeight": {
+        "13px/19.5px": 32,
+        "11px/14.3px": 6,
+        "12px/normal": 4,
+        "12px/18px": 58,
+        "11px/16.5px": 13,
+        "14px/21px": 2,
+        "10px/10px": 1,
+        "20px/30px": 1,
+        "24px/24px": 4,
+        "11px/13.2px": 8,
+        "14px/16.8px": 12,
+        "12px/14.4px": 10
+      },
+      "textColor": {
+        "--on-accent": 2,
+        "--faint": 44,
+        "--accent-2": 8,
+        "--text-2": 7,
+        "--muted": 51,
+        "--text": 28,
+        "--ok": 3,
+        "--world": 6,
+        "--warn": 1,
+        "--danger": 1
+      },
+      "letterSpacing": {
+        "Inter 13px normal": 29,
+        "JetBrains Mono 11px 0.88px UPPER": 14,
+        "JetBrains Mono 12px normal": 17,
+        "Inter 12px normal": 55,
+        "JetBrains Mono 11px normal": 12,
+        "Inter 11px normal": 1,
+        "Inter 14px normal": 2,
+        "JetBrains Mono 10px normal": 1,
+        "Inter 20px -0.2px": 1,
+        "JetBrains Mono 24px -0.48px": 4,
+        "JetBrains Mono 14px normal": 12,
+        "JetBrains Mono 13px normal": 3
+      },
+      "background": {
+        "--accent": 13,
+        "--shell": 2,
+        "--panel": 26,
+        "--panel-2": 16,
+        "--ok": 1,
+        "--warn": 1,
+        "--panel-3": 9,
+        "--line-2": 106,
+        "--ok-bg": 2,
+        "--warn-bg": 1,
+        "--danger-bg": 1
+      },
+      "radius": {
+        "8px": 24,
+        "12px": 11,
+        "6px": 2,
+        "50%": 2,
+        "4px": 3,
+        "1px": 116,
+        "999px": 13,
+        "5px": 10,
+        "3px": 6
+      },
+      "borderColor": {
+        "1px --line": 123,
+        "1px --line-2": 2,
+        "1px --accent": 2,
+        "1px --cover-line": 15,
+        "1px LITERAL rgba(0, 0, 0, 0)": 3
+      },
+      "buttonHeight": {
+        "34px nav-item": 4,
+        "24px icon-btn": 1,
+        "81px other": 1,
+        "34px icon-btn": 2,
+        "32px icon-btn": 1,
+        "32px btn": 1,
+        "22px help-btn": 1,
+        "28px chip": 5,
+        "26px seg": 2,
+        "13px other": 6,
+        "28px icon-btn": 10,
+        "30px icon-btn": 4
+      },
+      "iconSize": {
+        "16x16": 21,
+        "13x13": 1,
+        "14x14": 6,
+        "15x15": 3,
+        "12x12": 5
+      },
+      "controlHeight": {
+        "22px input": 2,
+        "32px label.field": 1,
+        "32px select": 1
+      },
+      "shadow": {
+        "rgb(61, 58, 55) 0px 0px 0px 1px inset": 1,
+        "rgb(255, 122, 26) 0px 0px 0px 1px": 1
+      }
+    },
+    "detail-preis": {
+      "fontSize": {
+        "13px": 90,
+        "11px": 56,
+        "12px": 16,
+        "14px": 6,
+        "10px": 1,
+        "22px": 1,
+        "34px": 4,
+        "18.7px": 2,
+        "16px": 1
+      },
+      "family+weight": {
+        "Inter 500": 18,
+        "JetBrains Mono 500": 63,
+        "Inter 400": 83,
+        "JetBrains Mono 400": 13
+      },
+      "lineHeight": {
+        "13px/19.5px": 90,
+        "11px/14.3px": 13,
+        "12px/normal": 4,
+        "12px/18px": 11,
+        "11px/16.5px": 6,
+        "14px/21px": 2,
+        "10px/10px": 1,
+        "22px/33px": 1,
+        "34px/34px": 4,
+        "18.7px/18.7px": 2,
+        "16px/16px": 1,
+        "11px/normal": 4,
+        "11px/13.2px": 33,
+        "12px/14.4px": 1,
+        "14px/normal": 4
+      },
+      "textColor": {
+        "--on-accent": 3,
+        "--faint": 41,
+        "--accent-2": 5,
+        "--text-2": 15,
+        "--muted": 25,
+        "--text": 82,
+        "--ok": 3,
+        "--world": 2,
+        "--warn": 1
+      },
+      "letterSpacing": {
+        "Inter 13px normal": 86,
+        "JetBrains Mono 11px 0.88px UPPER": 49,
+        "JetBrains Mono 12px normal": 5,
+        "Inter 12px normal": 11,
+        "JetBrains Mono 11px normal": 5,
+        "Inter 11px normal": 1,
+        "Inter 14px normal": 2,
+        "JetBrains Mono 10px normal": 1,
+        "Inter 22px -0.33px": 1,
+        "JetBrains Mono 11px normal UPPER": 1,
+        "JetBrains Mono 34px -1.02px": 4,
+        "JetBrains Mono 18.7px -1.02px": 2,
+        "JetBrains Mono 16px normal": 1,
+        "JetBrains Mono 14px normal": 4,
+        "JetBrains Mono 13px normal": 4
+      },
+      "background": {
+        "--accent": 6,
+        "--shell": 2,
+        "--panel": 13,
+        "--panel-2": 12,
+        "--ok": 1,
+        "--warn": 1,
+        "--panel-3": 3,
+        "--ok-bg": 2,
+        "--accent-bg": 1,
+        "--warn-bg": 1,
+        "--world": 2,
+        "--line-2": 1,
+        "--muted": 2,
+        "--text": 1
+      },
+      "radius": {
+        "8px": 22,
+        "12px": 7,
+        "6px": 1,
+        "50%": 3,
+        "4px": 3,
+        "999px": 6,
+        "3px": 1,
+        "2px": 3
+      },
+      "borderColor": {
+        "1px --line": 117,
+        "1px --line-2": 7,
+        "1px --accent": 2,
+        "1px LITERAL rgba(0, 0, 0, 0)": 6,
+        "2px --accent": 1,
+        "2px LITERAL rgba(0, 0, 0, 0)": 5,
+        "1px --cover-line": 1,
+        "2px --accent-2": 1
+      },
+      "buttonHeight": {
+        "34px nav-item": 4,
+        "24px icon-btn": 1,
+        "81px other": 1,
+        "34px icon-btn": 2,
+        "21px other": 1,
+        "32px icon-btn": 2,
+        "32px btn": 8,
+        "38px tab": 6,
+        "26px seg": 2,
+        "28px btn": 1
+      },
+      "iconSize": {
+        "16x16": 8,
+        "13x13": 1,
+        "14x14": 2,
+        "15x15": 12,
+        "12x12": 4
+      },
+      "controlHeight": {
+        "22px input": 1,
+        "28px select": 1
+      },
+      "shadow": {
+        "rgb(61, 58, 55) 0px 0px 0px 1px inset": 2,
+        "rgb(33, 31, 30) 0px 0px 0px 3px": 1
+      }
+    },
+    "detail-angebote": {
+      "fontSize": {
+        "13px": 34,
+        "11px": 18,
+        "12px": 37,
+        "14px": 7,
+        "10px": 1,
+        "22px": 1
+      },
+      "family+weight": {
+        "Inter 500": 25,
+        "JetBrains Mono 500": 31,
+        "Inter 400": 34,
+        "JetBrains Mono 400": 8
+      },
+      "lineHeight": {
+        "13px/19.5px": 34,
+        "11px/14.3px": 4,
+        "12px/normal": 4,
+        "12px/18px": 21,
+        "11px/16.5px": 6,
+        "14px/21px": 2,
+        "10px/10px": 1,
+        "22px/33px": 1,
+        "11px/13.2px": 8,
+        "14px/16.8px": 5,
+        "12px/14.4px": 12
+      },
+      "textColor": {
+        "--on-accent": 2,
+        "--faint": 25,
+        "--accent-2": 6,
+        "--text-2": 5,
+        "--muted": 23,
+        "--text": 31,
+        "--ok": 4,
+        "--warn": 2
+      },
+      "letterSpacing": {
+        "Inter 13px normal": 34,
+        "JetBrains Mono 11px 0.88px UPPER": 12,
+        "JetBrains Mono 12px normal": 16,
+        "Inter 12px normal": 21,
+        "JetBrains Mono 11px normal": 4,
+        "Inter 11px normal": 1,
+        "Inter 14px normal": 2,
+        "JetBrains Mono 10px normal": 1,
+        "Inter 22px -0.33px": 1,
+        "JetBrains Mono 11px normal UPPER": 1,
+        "JetBrains Mono 14px normal": 5
+      },
+      "background": {
+        "--accent": 3,
+        "--shell": 2,
+        "--panel": 15,
+        "--panel-2": 16,
+        "--ok": 1,
+        "--warn": 1,
+        "--panel-3": 9,
+        "--ok-bg": 4,
+        "--warn-bg": 1
+      },
+      "radius": {
+        "8px": 26,
+        "12px": 4,
+        "6px": 1,
+        "50%": 2,
+        "4px": 3,
+        "999px": 10,
+        "3px": 6
+      },
+      "borderColor": {
+        "1px --line": 70,
+        "1px --line-2": 14,
+        "1px --accent": 2,
+        "1px LITERAL rgba(0, 0, 0, 0)": 5,
+        "2px LITERAL rgba(0, 0, 0, 0)": 5,
+        "2px --accent": 1,
+        "1px --cover-line": 4
+      },
+      "buttonHeight": {
+        "34px nav-item": 4,
+        "24px icon-btn": 1,
+        "81px other": 1,
+        "34px icon-btn": 2,
+        "21px other": 1,
+        "32px icon-btn": 2,
+        "32px btn": 5,
+        "38px tab": 6,
+        "26px seg": 2,
+        "28px icon-btn": 5,
+        "28px btn": 6
+      },
+      "iconSize": {
+        "16x16": 8,
+        "13x13": 1,
+        "14x14": 12,
+        "15x15": 6,
+        "12x12": 8
+      },
+      "controlHeight": {
+        "22px input": 1,
+        "28px select": 1,
+        "18px input": 1
+      },
+      "shadow": {
+        "rgb(61, 58, 55) 0px 0px 0px 1px inset": 2,
+        "rgb(255, 122, 26) 0px 0px 0px 1px": 1
+      }
+    },
+    "detail-verlauf": {
+      "fontSize": {
+        "13px": 79,
+        "11px": 49,
+        "12px": 14,
+        "14px": 2,
+        "10px": 1,
+        "22px": 1,
+        "24px": 5
+      },
+      "family+weight": {
+        "Inter 500": 13,
+        "JetBrains Mono 500": 51,
+        "Inter 400": 79,
+        "JetBrains Mono 400": 8
+      },
+      "lineHeight": {
+        "13px/19.5px": 79,
+        "11px/14.3px": 8,
+        "12px/normal": 4,
+        "12px/18px": 10,
+        "11px/16.5px": 5,
+        "14px/21px": 2,
+        "10px/10px": 1,
+        "22px/33px": 1,
+        "24px/24px": 4,
+        "24px/36px": 1,
+        "11px/normal": 3,
+        "11px/13.2px": 33
+      },
+      "textColor": {
+        "--on-accent": 2,
+        "--faint": 40,
+        "--accent-2": 2,
+        "--text-2": 7,
+        "--muted": 23,
+        "--text": 74,
+        "--ok": 1,
+        "--world": 2
+      },
+      "letterSpacing": {
+        "Inter 13px normal": 78,
+        "JetBrains Mono 11px 0.88px UPPER": 44,
+        "JetBrains Mono 12px normal": 4,
+        "Inter 12px normal": 10,
+        "JetBrains Mono 11px normal": 4,
+        "Inter 11px normal": 1,
+        "Inter 14px normal": 2,
+        "JetBrains Mono 10px normal": 1,
+        "Inter 22px -0.33px": 1,
+        "JetBrains Mono 24px -0.48px": 4,
+        "JetBrains Mono 24px -0.24px": 1,
+        "JetBrains Mono 13px -0.13px": 1
+      },
+      "background": {
+        "--accent": 4,
+        "--shell": 2,
+        "--panel": 14,
+        "--panel-2": 12,
+        "--ok": 1,
+        "--warn": 1,
+        "--panel-3": 2,
+        "--ok-bg": 1,
+        "--world": 1
+      },
+      "radius": {
+        "8px": 15,
+        "12px": 12,
+        "6px": 1,
+        "50%": 2,
+        "4px": 3,
+        "999px": 3,
+        "2px": 2
+      },
+      "borderColor": {
+        "1px --line": 114,
+        "1px --line-2": 6,
+        "1px --accent": 1,
+        "1px LITERAL rgba(0, 0, 0, 0)": 1,
+        "2px LITERAL rgba(0, 0, 0, 0)": 5,
+        "2px --accent": 1,
+        "2px --accent-2": 1
+      },
+      "buttonHeight": {
+        "34px nav-item": 4,
+        "24px icon-btn": 1,
+        "81px other": 1,
+        "34px icon-btn": 2,
+        "21px other": 1,
+        "32px icon-btn": 2,
+        "32px btn": 5,
+        "38px tab": 6,
+        "26px seg": 3,
+        "22px help-btn": 1
+      },
+      "iconSize": {
+        "16x16": 8,
+        "13x13": 1,
+        "14x14": 1,
+        "15x15": 7,
+        "12x12": 1
+      },
+      "controlHeight": {
+        "22px input": 1,
+        "28px select": 1
+      },
+      "shadow": {
+        "rgb(61, 58, 55) 0px 0px 0px 1px inset": 2
+      }
+    },
+    "detail-editionen": {
+      "fontSize": {
+        "13px": 23,
+        "11px": 17,
+        "12px": 24,
+        "14px": 4,
+        "10px": 1,
+        "22px": 1
+      },
+      "family+weight": {
+        "Inter 500": 16,
+        "JetBrains Mono 500": 16,
+        "Inter 400": 31,
+        "JetBrains Mono 400": 7
+      },
+      "lineHeight": {
+        "13px/19.5px": 23,
+        "11px/14.3px": 9,
+        "12px/normal": 4,
+        "12px/18px": 20,
+        "11px/16.5px": 5,
+        "14px/21px": 2,
+        "10px/10px": 1,
+        "22px/33px": 1,
+        "14px/16.8px": 2,
+        "11px/13.2px": 3
+      },
+      "textColor": {
+        "--on-accent": 2,
+        "--faint": 9,
+        "--accent-2": 4,
+        "--text-2": 11,
+        "--muted": 30,
+        "--text": 12,
+        "--ok": 1,
+        "--world": 1
+      },
+      "letterSpacing": {
+        "Inter 13px normal": 23,
+        "JetBrains Mono 11px 0.88px UPPER": 12,
+        "JetBrains Mono 12px normal": 4,
+        "Inter 12px normal": 20,
+        "JetBrains Mono 11px normal": 4,
+        "Inter 11px normal": 1,
+        "Inter 14px normal": 2,
+        "JetBrains Mono 10px normal": 1,
+        "Inter 22px -0.33px": 1,
+        "JetBrains Mono 14px normal": 2
+      },
+      "background": {
+        "--accent": 3,
+        "--shell": 2,
+        "--panel": 11,
+        "--panel-2": 9,
+        "--ok": 1,
+        "--warn": 1,
+        "--panel-3": 1,
+        "--ok-bg": 1,
+        "--accent-bg": 1
+      },
+      "radius": {
+        "8px": 17,
+        "12px": 5,
+        "6px": 1,
+        "50%": 2,
+        "4px": 3,
+        "999px": 2
+      },
+      "borderColor": {
+        "1px --line": 30,
+        "1px --line-2": 7,
+        "1px --accent": 1,
+        "1px LITERAL rgba(0, 0, 0, 0)": 2,
+        "2px LITERAL rgba(0, 0, 0, 0)": 5,
+        "2px --accent": 1
+      },
+      "buttonHeight": {
+        "34px nav-item": 4,
+        "24px icon-btn": 1,
+        "81px other": 1,
+        "34px icon-btn": 2,
+        "21px other": 1,
+        "32px icon-btn": 2,
+        "32px btn": 5,
+        "38px tab": 6,
+        "28px btn": 1
+      },
+      "iconSize": {
+        "16x16": 8,
+        "13x13": 1,
+        "14x14": 1,
+        "15x15": 9,
+        "12x12": 2
+      },
+      "controlHeight": {
+        "22px input": 1,
+        "28px select": 1
+      },
+      "shadow": {
+        "rgb(61, 58, 55) 0px 0px 0px 1px inset": 1
+      }
+    },
+    "detail-alarm": {
+      "fontSize": {
+        "13px": 21,
+        "11px": 10,
+        "12px": 16,
+        "14px": 2,
+        "10px": 1,
+        "22px": 1
+      },
+      "family+weight": {
+        "Inter 500": 15,
+        "JetBrains Mono 500": 7,
+        "Inter 400": 21,
+        "JetBrains Mono 400": 8
+      },
+      "lineHeight": {
+        "13px/19.5px": 21,
+        "11px/14.3px": 5,
+        "12px/normal": 4,
+        "12px/18px": 12,
+        "11px/16.5px": 5,
+        "14px/21px": 2,
+        "10px/10px": 1,
+        "22px/33px": 1
+      },
+      "textColor": {
+        "--on-accent": 3,
+        "--faint": 7,
+        "--accent-2": 2,
+        "--text-2": 10,
+        "--muted": 17,
+        "--text": 11,
+        "--ok": 1
+      },
+      "letterSpacing": {
+        "Inter 13px normal": 20,
+        "JetBrains Mono 11px 0.88px UPPER": 5,
+        "JetBrains Mono 12px normal": 4,
+        "Inter 12px normal": 12,
+        "JetBrains Mono 11px normal": 4,
+        "Inter 11px normal": 1,
+        "Inter 14px normal": 2,
+        "JetBrains Mono 10px normal": 1,
+        "Inter 22px -0.33px": 1,
+        "JetBrains Mono 13px normal": 1
+      },
+      "background": {
+        "--accent": 5,
+        "--shell": 2,
+        "--panel": 11,
+        "--panel-2": 11,
+        "--ok": 1,
+        "--warn": 1,
+        "--panel-3": 3,
+        "--ok-bg": 1
+      },
+      "radius": {
+        "8px": 19,
+        "12px": 5,
+        "6px": 1,
+        "50%": 2,
+        "4px": 3,
+        "999px": 6
+      },
+      "borderColor": {
+        "1px --line": 19,
+        "1px --line-2": 6,
+        "1px --accent": 3,
+        "1px LITERAL rgba(0, 0, 0, 0)": 2,
+        "2px LITERAL rgba(0, 0, 0, 0)": 5,
+        "2px --accent": 1
+      },
+      "buttonHeight": {
+        "34px nav-item": 4,
+        "24px icon-btn": 1,
+        "81px other": 1,
+        "34px icon-btn": 2,
+        "21px other": 1,
+        "32px icon-btn": 2,
+        "32px btn": 7,
+        "38px tab": 6,
+        "26px seg": 4,
+        "22px help-btn": 1
+      },
+      "iconSize": {
+        "16x16": 8,
+        "13x13": 1,
+        "14x14": 1,
+        "15x15": 8,
+        "12x12": 1
+      },
+      "controlHeight": {
+        "22px input": 2,
+        "28px select": 1,
+        "32px span.field": 1,
+        "18px input": 1
+      },
+      "shadow": {
+        "rgb(61, 58, 55) 0px 0px 0px 1px inset": 3
+      }
+    },
+    "detail-infos": {
+      "fontSize": {
+        "13px": 38,
+        "11px": 11,
+        "12px": 32,
+        "14px": 2,
+        "10px": 1,
+        "22px": 1
+      },
+      "family+weight": {
+        "Inter 500": 32,
+        "JetBrains Mono 500": 8,
+        "Inter 400": 34,
+        "JetBrains Mono 400": 11
+      },
+      "lineHeight": {
+        "13px/19.5px": 38,
+        "11px/14.3px": 6,
+        "12px/normal": 4,
+        "12px/18px": 28,
+        "11px/16.5px": 5,
+        "14px/21px": 2,
+        "10px/10px": 1,
+        "22px/33px": 1
+      },
+      "textColor": {
+        "--on-accent": 2,
+        "--faint": 7,
+        "--accent-2": 2,
+        "--text-2": 19,
+        "--muted": 19,
+        "--text": 29,
+        "--ok": 7
+      },
+      "letterSpacing": {
+        "Inter 13px normal": 34,
+        "JetBrains Mono 11px 0.88px UPPER": 6,
+        "JetBrains Mono 12px normal": 4,
+        "Inter 12px normal": 28,
+        "JetBrains Mono 11px normal": 4,
+        "Inter 11px normal": 1,
+        "Inter 14px normal": 2,
+        "JetBrains Mono 10px normal": 1,
+        "Inter 22px -0.33px": 1,
+        "JetBrains Mono 13px normal": 4
+      },
+      "background": {
+        "--accent": 3,
+        "--shell": 2,
+        "--panel": 17,
+        "--panel-2": 11,
+        "--ok": 1,
+        "--warn": 1,
+        "--panel-3": 7,
+        "--ok-bg": 7
+      },
+      "radius": {
+        "8px": 37,
+        "12px": 5,
+        "6px": 1,
+        "50%": 2,
+        "4px": 3,
+        "999px": 7,
+        "3px": 6
+      },
+      "borderColor": {
+        "1px --line": 36,
+        "1px --line-2": 8,
+        "1px --accent": 1,
+        "1px LITERAL rgba(0, 0, 0, 0)": 19,
+        "2px LITERAL rgba(0, 0, 0, 0)": 5,
+        "2px --accent": 1,
+        "1px --cover-line": 5
+      },
+      "buttonHeight": {
+        "34px nav-item": 4,
+        "24px icon-btn": 1,
+        "81px other": 1,
+        "34px icon-btn": 2,
+        "21px other": 1,
+        "32px icon-btn": 2,
+        "32px btn": 6,
+        "38px tab": 6,
+        "28px btn": 12,
+        "28px icon-btn": 6,
+        "20px help-btn": 1
+      },
+      "iconSize": {
+        "16x16": 8,
+        "13x13": 1,
+        "14x14": 13,
+        "15x15": 20,
+        "12x12": 8
+      },
+      "controlHeight": {
+        "22px input": 1,
+        "28px select": 1,
+        "32px input": 1
+      },
+      "shadow": {
+        "rgb(61, 58, 55) 0px 0px 0px 1px inset": 1
+      }
+    },
+    "cart": {
+      "fontSize": {
+        "13px": 21,
+        "11px": 13,
+        "12px": 27,
+        "14px": 12,
+        "10px": 2,
+        "20px": 1,
+        "16px": 1
+      },
+      "family+weight": {
+        "Inter 500": 6,
+        "JetBrains Mono 500": 20,
+        "Inter 400": 30,
+        "JetBrains Mono 400": 16,
+        "Inter 600": 2,
+        "Inter 700": 2,
+        "JetBrains Mono 600": 1
+      },
+      "lineHeight": {
+        "13px/19.5px": 21,
+        "11px/14.3px": 4,
+        "12px/normal": 4,
+        "12px/18px": 23,
+        "11px/16.5px": 3,
+        "14px/21px": 2,
+        "10px/10px": 2,
+        "20px/30px": 1,
+        "11px/13.2px": 6,
+        "14px/16.8px": 6,
+        "14px/18.2px": 4,
+        "16px/20.8px": 1
+      },
+      "textColor": {
+        "--on-accent": 2,
+        "--faint": 13,
+        "--text-2": 8,
+        "--accent-2": 2,
+        "--muted": 23,
+        "--text": 25,
+        "--cover-text": 1,
+        "--accent": 3
+      },
+      "letterSpacing": {
+        "Inter 13px normal": 16,
+        "JetBrains Mono 11px 0.88px UPPER": 10,
+        "JetBrains Mono 12px normal": 8,
+        "Inter 12px normal": 19,
+        "JetBrains Mono 11px normal": 2,
+        "Inter 11px normal": 1,
+        "Inter 14px normal": 2,
+        "JetBrains Mono 10px normal": 1,
+        "Inter 20px -0.2px": 1,
+        "Inter 10px 0.2px": 1,
+        "JetBrains Mono 14px normal": 10,
+        "JetBrains Mono 13px normal": 5,
+        "JetBrains Mono 16px normal": 1
+      },
+      "background": {
+        "--accent": 3,
+        "--shell": 2,
+        "--panel": 12,
+        "--panel-2": 12,
+        "--ok": 1,
+        "--warn": 1,
+        "--panel-3": 7
+      },
+      "radius": {
+        "8px": 15,
+        "12px": 4,
+        "6px": 5,
+        "50%": 2,
+        "4px": 3,
+        "5px": 3,
+        "999px": 6,
+        "3px": 3
+      },
+      "borderColor": {
+        "1px --line": 41,
+        "1px --line-2": 2,
+        "1px --accent": 4,
+        "1px --cover-line": 6
+      },
+      "buttonHeight": {
+        "34px nav-item": 4,
+        "24px icon-btn": 1,
+        "81px other": 1,
+        "34px icon-btn": 2,
+        "32px icon-btn": 1,
+        "32px btn": 1,
+        "22px help-btn": 2,
+        "20px other": 3,
+        "24px seg": 6,
+        "30px icon-btn": 3
+      },
+      "iconSize": {
+        "16x16": 7,
+        "13x13": 1,
+        "14x14": 1,
+        "15x15": 7
+      },
+      "controlHeight": {
+        "22px input": 1,
+        "30px select": 3
+      },
+      "shadow": {
+        "rgb(61, 58, 55) 0px 0px 0px 1px inset": 3
+      }
+    },
+    "library": {
+      "fontSize": {
+        "13px": 17,
+        "11px": 5,
+        "12px": 18,
+        "14px": 2,
+        "10px": 1,
+        "20px": 1,
+        "22px": 2
+      },
+      "family+weight": {
+        "Inter 500": 13,
+        "JetBrains Mono 500": 2,
+        "Inter 400": 22,
+        "JetBrains Mono 400": 7,
+        "Inter 600": 2
+      },
+      "lineHeight": {
+        "13px/19.5px": 7,
+        "11px/14.3px": 2,
+        "12px/normal": 4,
+        "12px/18px": 14,
+        "11px/16.5px": 3,
+        "14px/21px": 2,
+        "10px/10px": 1,
+        "20px/30px": 1,
+        "13px/16.9px": 10,
+        "22px/22px": 2
+      },
+      "textColor": {
+        "--on-accent": 2,
+        "--faint": 5,
+        "--text-2": 3,
+        "--accent-2": 2,
+        "--muted": 18,
+        "--text": 14,
+        "--cover-text": 2
+      },
+      "letterSpacing": {
+        "Inter 13px normal": 17,
+        "JetBrains Mono 11px 0.88px UPPER": 2,
+        "JetBrains Mono 12px normal": 4,
+        "Inter 12px normal": 14,
+        "JetBrains Mono 11px normal": 2,
+        "Inter 11px normal": 1,
+        "Inter 14px normal": 2,
+        "JetBrains Mono 10px normal": 1,
+        "Inter 20px -0.2px": 1,
+        "Inter 22px 0.44px": 2
+      },
+      "background": {
+        "--accent": 3,
+        "--shell": 2,
+        "--panel": 8,
+        "--panel-2": 5,
+        "--ok": 1,
+        "--warn": 1,
+        "--panel-3": 13
+      },
+      "radius": {
+        "8px": 20,
+        "12px": 2,
+        "6px": 1,
+        "50%": 2,
+        "4px": 3,
+        "999px": 4
+      },
+      "borderColor": {
+        "1px --line": 23,
+        "1px --line-2": 1,
+        "1px --accent": 1
+      },
+      "buttonHeight": {
+        "34px nav-item": 4,
+        "24px icon-btn": 1,
+        "81px other": 1,
+        "34px icon-btn": 2,
+        "32px icon-btn": 2,
+        "32px btn": 1,
+        "22px help-btn": 1,
+        "26px seg": 4
+      },
+      "iconSize": {
+        "16x16": 8,
+        "13x13": 1,
+        "14x14": 2,
+        "15x15": 5
+      },
+      "controlHeight": {
+        "22px input": 2,
+        "32px label.field": 1,
+        "32px select": 1
+      },
+      "shadow": {
+        "rgb(61, 58, 55) 0px 0px 0px 1px inset": 2
+      }
+    },
+    "alerts": {
+      "fontSize": {
+        "13px": 24,
+        "11px": 16,
+        "12px": 19,
+        "14px": 6,
+        "10px": 1,
+        "20px": 1,
+        "10.8333px": 3
+      },
+      "family+weight": {
+        "Inter 500": 8,
+        "JetBrains Mono 500": 21,
+        "Inter 400": 24,
+        "JetBrains Mono 400": 17
+      },
+      "lineHeight": {
+        "13px/19.5px": 24,
+        "11px/14.3px": 4,
+        "12px/normal": 4,
+        "12px/18px": 11,
+        "11px/16.5px": 3,
+        "14px/21px": 2,
+        "10px/10px": 1,
+        "20px/30px": 1,
+        "11px/13.2px": 9,
+        "14px/16.8px": 4,
+        "12px/14.4px": 4,
+        "10.8333px/16.25px": 3
+      },
+      "textColor": {
+        "--on-accent": 2,
+        "--faint": 18,
+        "--text-2": 8,
+        "--accent-2": 2,
+        "--muted": 10,
+        "--text": 24,
+        "--ok": 5,
+        "--warn": 1
+      },
+      "letterSpacing": {
+        "Inter 13px normal": 14,
+        "JetBrains Mono 11px 0.88px UPPER": 13,
+        "JetBrains Mono 12px normal": 8,
+        "Inter 12px normal": 11,
+        "JetBrains Mono 11px normal": 2,
+        "Inter 11px normal": 1,
+        "Inter 14px normal": 2,
+        "JetBrains Mono 10px normal": 1,
+        "Inter 20px -0.2px": 1,
+        "JetBrains Mono 13px normal": 10,
+        "JetBrains Mono 14px normal": 4,
+        "Inter 10.8333px normal": 3
+      },
+      "background": {
+        "--accent": 3,
+        "--shell": 2,
+        "--panel": 9,
+        "--panel-2": 7,
+        "--ok": 1,
+        "--warn": 1,
+        "--panel-3": 5,
+        "--ok-bg": 4,
+        "--warn-bg": 1
+      },
+      "radius": {
+        "8px": 10,
+        "12px": 4,
+        "6px": 1,
+        "50%": 2,
+        "4px": 3,
+        "999px": 8,
+        "5px": 4
+      },
+      "borderColor": {
+        "1px --line": 51,
+        "1px --line-2": 2,
+        "1px --accent": 1,
+        "1px LITERAL rgba(0, 0, 0, 0)": 5
+      },
+      "buttonHeight": {
+        "34px nav-item": 4,
+        "24px icon-btn": 1,
+        "81px other": 1,
+        "34px icon-btn": 2,
+        "32px icon-btn": 1,
+        "32px btn": 2,
+        "22px help-btn": 1
+      },
+      "iconSize": {
+        "16x16": 7,
+        "13x13": 1,
+        "14x14": 1,
+        "15x15": 4,
+        "12x12": 7
+      },
+      "controlHeight": {
+        "22px input": 1
+      }
+    },
+    "settings-general": {
+      "fontSize": {
+        "13px": 26,
+        "11px": 8,
+        "12px": 32,
+        "14px": 2,
+        "10px": 1,
+        "20px": 1
+      },
+      "family+weight": {
+        "Inter 500": 17,
+        "JetBrains Mono 500": 5,
+        "Inter 400": 33,
+        "JetBrains Mono 400": 15
+      },
+      "lineHeight": {
+        "13px/19.5px": 26,
+        "11px/14.3px": 5,
+        "12px/normal": 4,
+        "12px/18px": 28,
+        "11px/16.5px": 3,
+        "14px/21px": 2,
+        "10px/10px": 1,
+        "20px/30px": 1
+      },
+      "textColor": {
+        "--on-accent": 3,
+        "--faint": 14,
+        "--text-2": 18,
+        "--muted": 15,
+        "--text": 17,
+        "--accent-2": 3
+      },
+      "letterSpacing": {
+        "Inter 13px normal": 25,
+        "JetBrains Mono 11px 0.88px UPPER": 5,
+        "JetBrains Mono 12px normal": 12,
+        "Inter 12px normal": 20,
+        "JetBrains Mono 11px normal": 2,
+        "Inter 11px normal": 1,
+        "Inter 14px normal": 2,
+        "JetBrains Mono 10px normal": 1,
+        "Inter 20px -0.2px": 1,
+        "Inter 13px -0.13px": 1
+      },
+      "background": {
+        "--accent": 12,
+        "--shell": 2,
+        "--panel": 26,
+        "--ok": 1,
+        "--warn": 1,
+        "--panel-3": 2,
+        "--warn-bg": 1,
+        "--panel-2": 6
+      },
+      "radius": {
+        "8px": 31,
+        "12px": 5,
+        "6px": 2,
+        "50%": 2,
+        "4px": 3,
+        "999px": 10
+      },
+      "borderColor": {
+        "1px --line": 41,
+        "1px --accent": 11,
+        "1px --line-2": 2,
+        "2px --accent": 2,
+        "2px LITERAL rgba(0, 0, 0, 0)": 7,
+        "1px LITERAL color(srgb 0.94902 0.756863 0.305882 / 0.35)": 1,
+        "1px LITERAL rgba(0, 0, 0, 0)": 2
+      },
+      "buttonHeight": {
+        "34px nav-item": 4,
+        "24px icon-btn": 1,
+        "81px other": 1,
+        "34px icon-btn": 2,
+        "32px icon-btn": 1,
+        "32px btn": 3,
+        "38px tab": 9,
+        "28px icon-btn": 17,
+        "20px help-btn": 2,
+        "26px seg": 3,
+        "22px help-btn": 2,
+        "28px btn": 1
+      },
+      "iconSize": {
+        "16x16": 31,
+        "13x13": 1,
+        "14x14": 1,
+        "15x15": 16
+      },
+      "controlHeight": {
+        "22px input": 1,
+        "32px select": 1,
+        "18px input": 8
+      },
+      "shadow": {
+        "rgb(61, 58, 55) 0px 0px 0px 1px inset": 1
+      }
+    },
+    "settings-shops": {
+      "fontSize": {
+        "13px": 17,
+        "11px": 6,
+        "12px": 17,
+        "14px": 2,
+        "10px": 1,
+        "20px": 1
+      },
+      "family+weight": {
+        "Inter 500": 14,
+        "JetBrains Mono 500": 3,
+        "Inter 400": 20,
+        "JetBrains Mono 400": 7
+      },
+      "lineHeight": {
+        "13px/19.5px": 17,
+        "11px/14.3px": 3,
+        "12px/normal": 4,
+        "12px/18px": 13,
+        "11px/16.5px": 3,
+        "14px/21px": 2,
+        "10px/10px": 1,
+        "20px/30px": 1
+      },
+      "textColor": {
+        "--on-accent": 3,
+        "--faint": 5,
+        "--text-2": 13,
+        "--muted": 14,
+        "--text": 6,
+        "--accent-2": 3
+      },
+      "letterSpacing": {
+        "Inter 13px normal": 17,
+        "JetBrains Mono 11px 0.88px UPPER": 3,
+        "JetBrains Mono 12px normal": 4,
+        "Inter 12px normal": 13,
+        "JetBrains Mono 11px normal": 2,
+        "Inter 11px normal": 1,
+        "Inter 14px normal": 2,
+        "JetBrains Mono 10px normal": 1,
+        "Inter 20px -0.2px": 1
+      },
+      "background": {
+        "--accent": 5,
+        "--shell": 2,
+        "--panel": 8,
+        "--ok": 1,
+        "--warn": 1,
+        "--panel-3": 2,
+        "--warn-bg": 1,
+        "--panel-2": 4
+      },
+      "radius": {
+        "8px": 13,
+        "12px": 3,
+        "6px": 1,
+        "50%": 2,
+        "4px": 3,
+        "999px": 2
+      },
+      "borderColor": {
+        "1px --line": 14,
+        "1px --accent": 4,
+        "1px --line-2": 2,
+        "2px LITERAL rgba(0, 0, 0, 0)": 7,
+        "2px --accent": 2,
+        "1px LITERAL color(srgb 0.94902 0.756863 0.305882 / 0.35)": 1,
+        "1px LITERAL rgba(0, 0, 0, 0)": 1
+      },
+      "buttonHeight": {
+        "34px nav-item": 4,
+        "24px icon-btn": 1,
+        "81px other": 1,
+        "34px icon-btn": 2,
+        "32px icon-btn": 1,
+        "32px btn": 2,
+        "38px tab": 9,
+        "28px icon-btn": 1,
+        "20px help-btn": 3
+      },
+      "iconSize": {
+        "16x16": 7,
+        "13x13": 1,
+        "14x14": 1,
+        "15x15": 14
+      },
+      "controlHeight": {
+        "22px input": 1,
+        "18px input": 2,
+        "32px select": 1,
+        "32px input": 1,
+        "32px span.field": 1,
+        "20px input": 1
+      }
+    },
+    "settings-index": {
+      "fontSize": {
+        "13px": 16,
+        "11px": 7,
+        "12px": 15,
+        "14px": 2,
+        "10px": 1,
+        "20px": 1
+      },
+      "family+weight": {
+        "Inter 500": 14,
+        "JetBrains Mono 500": 4,
+        "Inter 400": 17,
+        "JetBrains Mono 400": 7
+      },
+      "lineHeight": {
+        "13px/19.5px": 16,
+        "11px/14.3px": 4,
+        "12px/normal": 4,
+        "12px/18px": 11,
+        "11px/16.5px": 3,
+        "14px/21px": 2,
+        "10px/10px": 1,
+        "20px/30px": 1
+      },
+      "textColor": {
+        "--on-accent": 3,
+        "--faint": 5,
+        "--text-2": 10,
+        "--muted": 13,
+        "--text": 6,
+        "--accent-2": 3,
+        "--ok": 1,
+        "--danger": 1
+      },
+      "letterSpacing": {
+        "Inter 13px normal": 16,
+        "JetBrains Mono 11px 0.88px UPPER": 4,
+        "JetBrains Mono 12px normal": 4,
+        "Inter 12px normal": 11,
+        "JetBrains Mono 11px normal": 2,
+        "Inter 11px normal": 1,
+        "Inter 14px normal": 2,
+        "JetBrains Mono 10px normal": 1,
+        "Inter 20px -0.2px": 1
+      },
+      "background": {
+        "--accent": 5,
+        "--shell": 2,
+        "--panel": 9,
+        "--ok": 1,
+        "--warn": 1,
+        "--panel-3": 1,
+        "--warn-bg": 1,
+        "--ok-bg": 1,
+        "--panel-2": 5,
+        "--danger-bg": 1
+      },
+      "radius": {
+        "8px": 15,
+        "12px": 4,
+        "6px": 1,
+        "50%": 2,
+        "4px": 3,
+        "999px": 2
+      },
+      "borderColor": {
+        "1px --line": 14,
+        "1px --accent": 4,
+        "1px --line-2": 2,
+        "2px LITERAL rgba(0, 0, 0, 0)": 6,
+        "2px --accent": 1,
+        "1px LITERAL color(srgb 0.94902 0.756863 0.305882 / 0.35)": 1,
+        "1px LITERAL rgba(0, 0, 0, 0)": 3
+      },
+      "buttonHeight": {
+        "34px nav-item": 4,
+        "24px icon-btn": 1,
+        "81px other": 1,
+        "34px icon-btn": 2,
+        "32px icon-btn": 1,
+        "32px btn": 4,
+        "38px tab": 7,
+        "28px icon-btn": 1,
+        "22px help-btn": 2
+      },
+      "iconSize": {
+        "16x16": 7,
+        "13x13": 1,
+        "14x14": 1,
+        "15x15": 13,
+        "12x12": 1
+      },
+      "controlHeight": {
+        "22px input": 1,
+        "32px input": 2,
+        "18px input": 1
+      }
+    },
+    "settings-notifications": {
+      "fontSize": {
+        "13px": 22,
+        "11px": 6,
+        "12px": 16,
+        "14px": 2,
+        "10px": 1,
+        "20px": 1
+      },
+      "family+weight": {
+        "Inter 500": 20,
+        "JetBrains Mono 500": 3,
+        "Inter 400": 18,
+        "JetBrains Mono 400": 7
+      },
+      "lineHeight": {
+        "13px/19.5px": 22,
+        "11px/14.3px": 3,
+        "12px/normal": 4,
+        "12px/18px": 12,
+        "11px/16.5px": 3,
+        "14px/21px": 2,
+        "10px/10px": 1,
+        "20px/30px": 1
+      },
+      "textColor": {
+        "--on-accent": 3,
+        "--faint": 7,
+        "--text-2": 8,
+        "--muted": 20,
+        "--text": 7,
+        "--accent-2": 3
+      },
+      "letterSpacing": {
+        "Inter 13px normal": 22,
+        "JetBrains Mono 11px 0.88px UPPER": 3,
+        "JetBrains Mono 12px normal": 4,
+        "Inter 12px normal": 12,
+        "JetBrains Mono 11px normal": 2,
+        "Inter 11px normal": 1,
+        "Inter 14px normal": 2,
+        "JetBrains Mono 10px normal": 1,
+        "Inter 20px -0.2px": 1
+      },
+      "background": {
+        "--accent": 4,
+        "--shell": 2,
+        "--panel": 8,
+        "--ok": 1,
+        "--warn": 1,
+        "--panel-3": 2,
+        "--warn-bg": 1,
+        "--panel-2": 6
+      },
+      "radius": {
+        "8px": 13,
+        "12px": 3,
+        "6px": 1,
+        "50%": 2,
+        "4px": 3,
+        "999px": 3
+      },
+      "borderColor": {
+        "1px --line": 15,
+        "1px --accent": 3,
+        "1px --line-2": 3,
+        "2px LITERAL rgba(0, 0, 0, 0)": 12,
+        "2px --accent": 2,
+        "1px LITERAL color(srgb 0.94902 0.756863 0.305882 / 0.35)": 1,
+        "1px LITERAL rgba(0, 0, 0, 0)": 1
+      },
+      "buttonHeight": {
+        "34px nav-item": 4,
+        "24px icon-btn": 1,
+        "81px other": 1,
+        "34px icon-btn": 2,
+        "32px icon-btn": 1,
+        "32px btn": 3,
+        "38px tab": 14,
+        "28px icon-btn": 1,
+        "22px help-btn": 2
+      },
+      "iconSize": {
+        "16x16": 7,
+        "13x13": 1,
+        "14x14": 1,
+        "15x15": 14,
+        "12x12": 2
+      },
+      "controlHeight": {
+        "22px input": 1,
+        "18px input": 1,
+        "32px input": 2
+      }
+    },
+    "settings-status": {
+      "fontSize": {
+        "13px": 44,
+        "11px": 26,
+        "12px": 34,
+        "14px": 2,
+        "10px": 1,
+        "20px": 1,
+        "16px": 6
+      },
+      "family+weight": {
+        "Inter 500": 18,
+        "JetBrains Mono 500": 30,
+        "Inter 400": 51,
+        "JetBrains Mono 400": 15
+      },
+      "lineHeight": {
+        "13px/19.5px": 44,
+        "11px/14.3px": 12,
+        "12px/normal": 4,
+        "12px/18px": 30,
+        "11px/16.5px": 3,
+        "14px/21px": 2,
+        "10px/10px": 1,
+        "20px/30px": 1,
+        "16px/normal": 6,
+        "11px/13.2px": 11
+      },
+      "textColor": {
+        "--on-accent": 2,
+        "--faint": 18,
+        "--text-2": 16,
+        "--muted": 29,
+        "--text": 38,
+        "--accent-2": 5,
+        "--ok": 3,
+        "--warn": 3
+      },
+      "letterSpacing": {
+        "Inter 13px normal": 38,
+        "JetBrains Mono 11px 0.88px UPPER": 23,
+        "JetBrains Mono 12px normal": 7,
+        "Inter 12px normal": 27,
+        "JetBrains Mono 11px normal": 2,
+        "Inter 11px normal": 1,
+        "Inter 14px normal": 2,
+        "JetBrains Mono 10px normal": 1,
+        "Inter 20px -0.2px": 1,
+        "JetBrains Mono 16px normal": 6,
+        "JetBrains Mono 13px normal": 6
+      },
+      "background": {
+        "--accent": 5,
+        "--shell": 2,
+        "--panel": 15,
+        "--ok": 2,
+        "--warn": 2,
+        "--panel-3": 4,
+        "--warn-bg": 4,
+        "--ok-bg": 3,
+        "--panel-2": 7,
+        "--world": 2,
+        "--accent-bg": 1
+      },
+      "radius": {
+        "8px": 19,
+        "12px": 6,
+        "6px": 1,
+        "50%": 4,
+        "4px": 7,
+        "999px": 8
+      },
+      "borderColor": {
+        "1px --line": 59,
+        "1px --accent": 2,
+        "1px --line-2": 1,
+        "2px LITERAL rgba(0, 0, 0, 0)": 6,
+        "2px --accent": 1,
+        "1px LITERAL color(srgb 0.94902 0.756863 0.305882 / 0.35)": 2,
+        "1px LITERAL rgba(0, 0, 0, 0)": 7
+      },
+      "buttonHeight": {
+        "34px nav-item": 4,
+        "24px icon-btn": 1,
+        "81px other": 1,
+        "34px icon-btn": 2,
+        "32px icon-btn": 1,
+        "32px btn": 1,
+        "38px tab": 7,
+        "28px icon-btn": 1,
+        "18px other": 1,
+        "22px help-btn": 2,
+        "26px seg": 4,
+        "30px icon-btn": 4
+      },
+      "iconSize": {
+        "16x16": 11,
+        "13x13": 1,
+        "14x14": 2,
+        "15x15": 14,
+        "12x12": 3
+      },
+      "controlHeight": {
+        "22px input": 2,
+        "32px label.field": 1,
+        "32px select": 1
+      },
+      "shadow": {
+        "rgb(61, 58, 55) 0px 0px 0px 1px inset": 1
+      }
+    },
+    "settings-log": {
+      "fontSize": {
+        "13px": 28,
+        "11px": 10,
+        "12px": 24,
+        "14px": 2,
+        "10px": 1,
+        "20px": 1
+      },
+      "family+weight": {
+        "Inter 500": 11,
+        "JetBrains Mono 500": 8,
+        "Inter 400": 33,
+        "JetBrains Mono 400": 14
+      },
+      "lineHeight": {
+        "13px/19.5px": 28,
+        "11px/14.3px": 3,
+        "12px/normal": 4,
+        "12px/18px": 20,
+        "11px/16.5px": 3,
+        "14px/21px": 2,
+        "10px/10px": 1,
+        "20px/30px": 1,
+        "11px/13.2px": 4
+      },
+      "textColor": {
+        "--on-accent": 2,
+        "--faint": 9,
+        "--text-2": 10,
+        "--muted": 22,
+        "--text": 18,
+        "--accent-2": 3,
+        "--warn": 1,
+        "--danger": 1
+      },
+      "letterSpacing": {
+        "Inter 13px normal": 23,
+        "JetBrains Mono 11px 0.88px UPPER": 7,
+        "JetBrains Mono 12px normal": 7,
+        "Inter 12px normal": 17,
+        "JetBrains Mono 11px normal": 2,
+        "Inter 11px normal": 1,
+        "Inter 14px normal": 2,
+        "JetBrains Mono 10px normal": 1,
+        "Inter 20px -0.2px": 1,
+        "JetBrains Mono 13px normal": 5
+      },
+      "background": {
+        "--accent": 3,
+        "--shell": 2,
+        "--panel": 12,
+        "--ok": 1,
+        "--warn": 1,
+        "--panel-3": 2,
+        "--warn-bg": 2,
+        "--panel-2": 7,
+        "--danger-bg": 1
+      },
+      "radius": {
+        "8px": 15,
+        "12px": 3,
+        "6px": 1,
+        "50%": 2,
+        "4px": 3,
+        "999px": 7
+      },
+      "borderColor": {
+        "1px --line": 43,
+        "1px --accent": 2,
+        "1px --line-2": 1,
+        "2px LITERAL rgba(0, 0, 0, 0)": 6,
+        "2px --accent": 1,
+        "1px LITERAL color(srgb 0.94902 0.756863 0.305882 / 0.35)": 1,
+        "1px LITERAL rgba(0, 0, 0, 0)": 3
+      },
+      "buttonHeight": {
+        "34px nav-item": 4,
+        "24px icon-btn": 1,
+        "81px other": 1,
+        "34px icon-btn": 2,
+        "32px icon-btn": 1,
+        "32px btn": 1,
+        "38px tab": 7,
+        "28px icon-btn": 1,
+        "22px help-btn": 1,
+        "26px seg": 4,
+        "30px icon-btn": 4
+      },
+      "iconSize": {
+        "16x16": 11,
+        "13x13": 1,
+        "14x14": 2,
+        "15x15": 12,
+        "12x12": 5
+      },
+      "controlHeight": {
+        "22px input": 2,
+        "32px label.field": 1,
+        "32px select": 1
+      },
+      "shadow": {
+        "rgb(61, 58, 55) 0px 0px 0px 1px inset": 1
+      }
+    },
+    "settings-system": {
+      "fontSize": {
+        "13px": 18,
+        "11px": 7,
+        "12px": 10,
+        "14px": 2,
+        "10px": 1,
+        "20px": 1,
+        "11.96px": 1
+      },
+      "family+weight": {
+        "Inter 500": 12,
+        "JetBrains Mono 500": 4,
+        "Inter 400": 15,
+        "JetBrains Mono 400": 9
+      },
+      "lineHeight": {
+        "13px/19.5px": 18,
+        "11px/14.3px": 4,
+        "12px/normal": 4,
+        "12px/18px": 6,
+        "11px/16.5px": 3,
+        "14px/21px": 2,
+        "10px/10px": 1,
+        "20px/30px": 1,
+        "11.96px/17.94px": 1
+      },
+      "textColor": {
+        "--on-accent": 2,
+        "--faint": 5,
+        "--text-2": 7,
+        "--muted": 14,
+        "--text": 9,
+        "--accent-2": 3
+      },
+      "letterSpacing": {
+        "Inter 13px normal": 17,
+        "JetBrains Mono 11px 0.88px UPPER": 4,
+        "JetBrains Mono 12px normal": 4,
+        "Inter 12px normal": 6,
+        "JetBrains Mono 11px normal": 2,
+        "Inter 11px normal": 1,
+        "Inter 14px normal": 2,
+        "JetBrains Mono 10px normal": 1,
+        "Inter 20px -0.2px": 1,
+        "JetBrains Mono 11.96px normal": 1,
+        "JetBrains Mono 13px normal": 1
+      },
+      "background": {
+        "--accent": 3,
+        "--shell": 2,
+        "--panel": 9,
+        "--ok": 1,
+        "--warn": 1,
+        "--panel-3": 1,
+        "--warn-bg": 1,
+        "--panel-2": 3
+      },
+      "radius": {
+        "8px": 11,
+        "12px": 4,
+        "6px": 1,
+        "50%": 2,
+        "4px": 3
+      },
+      "borderColor": {
+        "1px --line": 14,
+        "1px --accent": 2,
+        "1px --line-2": 2,
+        "2px LITERAL rgba(0, 0, 0, 0)": 6,
+        "2px --accent": 1,
+        "1px LITERAL color(srgb 0.94902 0.756863 0.305882 / 0.35)": 1,
+        "1px LITERAL rgba(0, 0, 0, 0)": 1
+      },
+      "buttonHeight": {
+        "34px nav-item": 4,
+        "24px icon-btn": 1,
+        "81px other": 1,
+        "34px icon-btn": 2,
+        "32px icon-btn": 1,
+        "32px btn": 2,
+        "38px tab": 7,
+        "28px icon-btn": 1,
+        "22px help-btn": 2
+      },
+      "iconSize": {
+        "16x16": 7,
+        "13x13": 1,
+        "14x14": 1,
+        "15x15": 14
+      },
+      "controlHeight": {
+        "22px input": 1
+      }
+    }
+  }
+}

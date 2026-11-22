@@ -4,9 +4,23 @@ import { everyText, trendLeader, trendText } from '../src/features/offers-model.
 import type { Link } from '../src/features/offers-model.ts';
 
 const link = (id: number, score: number | undefined, extra: Partial<Link> = {}): Link => ({
-  id, source: 'eneba', url: '', review: 'confirmed', can_confirm: true, eligible: false, queued: false, enabled: true, stale: false,
-  observed_at: 1, attempted_at: 1, last_error: null, retry_at: 0, cheap_score: score,
-  product: { name: 'Game', region: 'Argentina', market: 'DE', activation: 'unknown', availability: 'in_stock' }, quotes: [], ...extra,
+  id,
+  source: 'eneba',
+  url: '',
+  review: 'confirmed',
+  can_confirm: true,
+  eligible: false,
+  queued: false,
+  enabled: true,
+  stale: false,
+  observed_at: 1,
+  attempted_at: 1,
+  last_error: null,
+  retry_at: 0,
+  cheap_score: score,
+  product: { name: 'Game', region: 'Argentina', market: 'DE', activation: 'unknown', availability: 'in_stock' },
+  quotes: [],
+  ...extra,
 });
 
 test('the trend names a region only once it is clearly the cheapest or the most expensive', () => {

@@ -1,0 +1,246 @@
+{
+ "wishlist_50": {
+  "per_page": 50,
+  "ready_ms": 1124,
+  "requests_total": 23,
+  "dialogs": [],
+  "domContentLoaded_ms": 75,
+  "load_ms": 75,
+  "fcp_ms": 96,
+  "lcp_ms": 280,
+  "cls": 0.4194,
+  "shifts_at_ms": [
+   266,
+   395
+  ],
+  "dom_nodes": 2850,
+  "rows": 50,
+  "js_heap_mb": 10,
+  "resources": 22,
+  "by_type": {
+   "script": {
+    "n": 1,
+    "bytes": 461740
+   },
+   "link": {
+    "n": 1,
+    "bytes": 63453
+   },
+   "fetch": {
+    "n": 15,
+    "bytes": 764834
+   },
+   "css": {
+    "n": 3,
+    "bytes": 92156
+   },
+   "img": {
+    "n": 2,
+    "bytes": 2444
+   }
+  },
+  "api": [
+   {
+    "path": "/api/v1/setup",
+    "ms": 1,
+    "bytes": 18
+   },
+   {
+    "path": "/api/v1/me",
+    "ms": 2,
+    "bytes": 81
+   },
+   {
+    "path": "/api/v1/settings",
+    "ms": 2,
+    "bytes": 2310
+   },
+   {
+    "path": "/api/v1/sources/status",
+    "ms": 1,
+    "bytes": 325
+   },
+   {
+    "path": "/api/v1/status/fetch",
+    "ms": 253,
+    "bytes": 7041
+   },
+   {
+    "path": "/api/v1/alerts",
+    "ms": 4,
+    "bytes": 57
+   },
+   {
+    "path": "/api/v1/status/fetch",
+    "ms": 477,
+    "bytes": 7041
+   },
+   {
+    "path": "/api/v1/wishlist",
+    "ms": 63,
+    "bytes": 441793
+   },
+   {
+    "path": "/api/v1/library",
+    "ms": 4,
+    "bytes": 2
+   },
+   {
+    "path": "/api/v1/alerts",
+    "ms": 10,
+    "bytes": 57
+   },
+   {
+    "path": "/api/v1/cart",
+    "ms": 12,
+    "bytes": 2
+   },
+   {
+    "path": "/api/v1/wishlist/price-badges?anchor=",
+    "ms": 47,
+    "bytes": 301546
+   },
+   {
+    "path": "/api/v1/library",
+    "ms": 3,
+    "bytes": 2
+   },
+   {
+    "path": "/api/v1/alerts",
+    "ms": 4,
+    "bytes": 57
+   },
+   {
+    "path": "/api/v1/cart",
+    "ms": 7,
+    "bytes": 2
+   }
+  ]
+ },
+ "xss_text_visible": 0,
+ "polling_60s": {
+  "requests": {
+   "/api/v1/wishlist/price-badges": 2,
+   "/api/v1/status/fetch": 2
+  },
+  "bytes": 617174
+ },
+ "wishlist_200": {
+  "per_page": 200,
+  "ready_ms": 1184,
+  "requests_total": 23,
+  "dialogs": [],
+  "domContentLoaded_ms": 89,
+  "load_ms": 91,
+  "fcp_ms": 128,
+  "lcp_ms": 488,
+  "cls": 0.4194,
+  "shifts_at_ms": [
+   459,
+   505
+  ],
+  "dom_nodes": 10458,
+  "rows": 200,
+  "js_heap_mb": 14,
+  "resources": 22,
+  "by_type": {
+   "script": {
+    "n": 1,
+    "bytes": 461740
+   },
+   "link": {
+    "n": 1,
+    "bytes": 63453
+   },
+   "fetch": {
+    "n": 15,
+    "bytes": 764834
+   },
+   "css": {
+    "n": 3,
+    "bytes": 92156
+   },
+   "img": {
+    "n": 2,
+    "bytes": 2444
+   }
+  },
+  "api": [
+   {
+    "path": "/api/v1/setup",
+    "ms": 1,
+    "bytes": 18
+   },
+   {
+    "path": "/api/v1/me",
+    "ms": 4,
+    "bytes": 81
+   },
+   {
+    "path": "/api/v1/settings",
+    "ms": 5,
+    "bytes": 2310
+   },
+   {
+    "path": "/api/v1/sources/status",
+    "ms": 2,
+    "bytes": 325
+   },
+   {
+    "path": "/api/v1/status/fetch",
+    "ms": 237,
+    "bytes": 7041
+   },
+   {
+    "path": "/api/v1/alerts",
+    "ms": 4,
+    "bytes": 57
+   },
+   {
+    "path": "/api/v1/status/fetch",
+    "ms": 492,
+    "bytes": 7041
+   },
+   {
+    "path": "/api/v1/wishlist",
+    "ms": 67,
+    "bytes": 441793
+   },
+   {
+    "path": "/api/v1/library",
+    "ms": 10,
+    "bytes": 2
+   },
+   {
+    "path": "/api/v1/alerts",
+    "ms": 10,
+    "bytes": 57
+   },
+   {
+    "path": "/api/v1/cart",
+    "ms": 15,
+    "bytes": 2
+   },
+   {
+    "path": "/api/v1/wishlist/price-badges?anchor=",
+    "ms": 64,
+    "bytes": 301546
+   },
+   {
+    "path": "/api/v1/library",
+    "ms": 2,
+    "bytes": 2
+   },
+   {
+    "path": "/api/v1/alerts",
+    "ms": 6,
+    "bytes": 57
+   },
+   {
+    "path": "/api/v1/cart",
+    "ms": 8,
+    "bytes": 2
+   }
+  ]
+ }
+}

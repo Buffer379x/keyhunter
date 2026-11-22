@@ -1,0 +1,62 @@
+# jscpd@4 (npx, aus Scratch-Ordner). Exakte Token-Klone.
+
+## Frontend frontend/src (TS/TSX/CSS)
+# Parameter: --min-lines 2 --min-tokens 50
+Dateien 148, Zeilen 9308, Klone 6, duplizierte Zeilen 23 (0.25 %)
+    8 Z. frontend/src/FetchStatus.tsx:47-54  <->  frontend/src/features/Wishlist.tsx:181-188
+    6 Z. frontend/src/ui/Toaster.tsx:38-43  <->  frontend/src/ui/Toaster.tsx:37-38
+    6 Z. frontend/src/FetchStatus.tsx:40-45  <->  frontend/src/features/Wishlist.tsx:176-180
+    3 Z. frontend/src/styles/detail.css:49-51  <->  frontend/src/styles/shell.css:91-94
+    3 Z. frontend/src/features/LinkReview.tsx:33-35  <->  frontend/src/features/settings/UnsavedDialog.tsx:13-15
+    3 Z. frontend/src/components.tsx:16-18  <->  frontend/src/features/settings/UnsavedDialog.tsx:13-15
+
+## Backend backend/src + tests + examples (Rust)
+# Parameter: --max-size 2mb --max-lines 20000 --min-lines 5 --min-tokens 50 (ohne --max-lines ignoriert jscpd Dateien >1000 Zeilen, u. a. jobs.rs)
+Dateien 26, Zeilen 19854, Klone 73, duplizierte Zeilen 725 (3.65 %)
+Anteil je Datei (Top 12):
+  backend/tests/catalog_wishlist.rs  Zeilen= 3067 dupliziert= 765 (24.9 %)
+  backend/src/jobs.rs                Zeilen= 2972 dupliziert= 178 (6.0 %)
+  backend/src/shops/mod.rs           Zeilen=  351 dupliziert= 108 (30.8 %)
+  backend/src/notify.rs              Zeilen= 2024 dupliziert=  86 (4.2 %)
+  backend/src/offers.rs              Zeilen=  875 dupliziert=  63 (7.2 %)
+  backend/src/wishlist.rs            Zeilen=  817 dupliziert=  51 (6.2 %)
+  backend/src/alerts.rs              Zeilen=  869 dupliziert=  42 (4.8 %)
+  backend/tests/api.rs               Zeilen= 1141 dupliziert=  41 (3.6 %)
+  backend/src/shops/eneba.rs         Zeilen= 1047 dupliziert=  21 (2.0 %)
+  backend/src/shops/driffle.rs       Zeilen= 1037 dupliziert=  21 (2.0 %)
+  backend/src/catalog/mod.rs         Zeilen=  377 dupliziert=  18 (4.8 %)
+  backend/src/pricing.rs             Zeilen=  402 dupliziert=  15 (3.7 %)
+   26 Z. backend/tests/catalog_wishlist.rs:1960-1985  <->  backend/tests/catalog_wishlist.rs:206-265
+   26 Z. backend/tests/catalog_wishlist.rs:2072-2097  <->  backend/tests/catalog_wishlist.rs:206-265
+   26 Z. backend/tests/catalog_wishlist.rs:2221-2246  <->  backend/tests/catalog_wishlist.rs:206-265
+   26 Z. backend/tests/catalog_wishlist.rs:2516-2541  <->  backend/tests/catalog_wishlist.rs:206-265
+   22 Z. backend/tests/catalog_wishlist.rs:2751-2772  <->  backend/tests/catalog_wishlist.rs:206-261
+   19 Z. backend/tests/catalog_wishlist.rs:2773-2791  <->  backend/tests/catalog_wishlist.rs:2534-2552
+   17 Z. backend/tests/catalog_wishlist.rs:1884-1900  <->  backend/tests/catalog_wishlist.rs:249-1683
+   16 Z. backend/src/offers.rs:806-821  <->  backend/src/pricing.rs:248-264
+   16 Z. backend/src/alerts.rs:626-641  <->  backend/src/jobs.rs:1783-1796
+   15 Z. backend/src/jobs.rs:1702-1716  <->  backend/src/shops/mod.rs:294-1673
+   15 Z. backend/src/jobs.rs:1777-1791  <->  backend/src/shops/mod.rs:294-1325
+   14 Z. backend/tests/catalog_wishlist.rs:2545-2558  <->  backend/tests/catalog_wishlist.rs:2250-2262
+   14 Z. backend/src/jobs.rs:1348-1361  <->  backend/src/shops/mod.rs:294-1325
+   14 Z. backend/src/jobs.rs:1470-1483  <->  backend/src/shops/mod.rs:294-1325
+   14 Z. backend/src/jobs.rs:1505-1518  <->  backend/src/shops/mod.rs:294-1325
+
+## Frontend frontend/e2e + frontend/tests (ohne tmp-audit-*)
+# Parameter: --max-size 2mb --min-lines 5 --min-tokens 50
+Dateien 46, Zeilen 3956, Klone 22, duplizierte Zeilen 145 (3.67 %)
+   17 Z. frontend/e2e/release080.spec.ts:4-20  <->  frontend/e2e/release081.spec.ts:4-20
+    9 Z. frontend/e2e/release090.spec.ts:4-12  <->  frontend/e2e/release091.spec.ts:4-12
+    9 Z. frontend/e2e/release090.spec.ts:68-76  <->  frontend/e2e/release091.spec.ts:90-98
+    9 Z. frontend/e2e/release082.spec.ts:4-12  <->  frontend/e2e/release091.spec.ts:4-12
+    9 Z. frontend/e2e/release081.spec.ts:4-12  <->  frontend/e2e/release083.spec.ts:3-12
+    9 Z. frontend/e2e/release070.spec.ts:4-12  <->  frontend/e2e/release071.spec.ts:4-11
+    8 Z. frontend/e2e/release072.spec.ts:6-13  <->  frontend/e2e/release083.spec.ts:3-11
+    8 Z. frontend/e2e/release064.spec.ts:7-14  <->  frontend/e2e/release082.spec.ts:21-28
+    8 Z. frontend/e2e/release064.spec.ts:16-23  <->  frontend/e2e/release073.spec.ts:15-12
+    7 Z. frontend/e2e/wishlist.spec.ts:191-197  <->  frontend/e2e/wishlist.spec.ts:33-39
+    7 Z. frontend/e2e/release042.spec.ts:69-75  <->  frontend/e2e/release065.spec.ts:8-69
+    7 Z. frontend/e2e/release040.spec.ts:33-39  <->  frontend/e2e/release065.spec.ts:8-42
+    6 Z. frontend/e2e/release090.spec.ts:76-81  <->  frontend/e2e/release091.spec.ts:98-103
+    6 Z. frontend/e2e/release083.spec.ts:6-11  <->  frontend/e2e/release091.spec.ts:7-12
+    6 Z. frontend/e2e/release083.spec.ts:154-159  <->  frontend/e2e/settings-sections.spec.ts:62-67

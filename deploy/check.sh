@@ -9,5 +9,8 @@ docker run --rm --user "$(id -u):$(id -g)" \
   sh -c 'cargo fmt --check && cargo clippy --all-targets --locked -- -D warnings && cargo test --locked && cargo build --locked --examples'
 cd frontend
 npm ci --no-audit --no-fund
+npm run lint
+npm run format:check
+npm run typecheck:tests
 npm run build
 npm test

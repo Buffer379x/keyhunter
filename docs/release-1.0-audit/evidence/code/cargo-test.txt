@@ -1,0 +1,19 @@
+# Docker keyhunter-build-tools:local, CARGO_TARGET_DIR=work/check/target-code
+# sh -c 'cargo fmt --check; cargo clippy --all-targets --locked -- -D warnings; cargo test --locked'
+FMT_EXIT=0
+CLIPPY_DEFAULT_EXIT=0
+running 119 tests
+test result: ok. 119 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.58s
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 14 tests
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.38s
+running 40 tests
+test result: ok. 40 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.85s
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+TEST_EXIT=0
+# Summe: 173 Tests bestanden (119 lib inkl. Inline-Module, 14 tests/api.rs, 40 tests/catalog_wishlist.rs), 0 fehlgeschlagen
+
+# Frontend: cd frontend && npm test  (node --test tests/*.test.ts)
+tests 71, pass 71, fail 0

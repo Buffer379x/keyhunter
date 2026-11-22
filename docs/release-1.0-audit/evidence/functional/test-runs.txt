@@ -1,0 +1,11 @@
+Testläufe Audit 2026-11-22 (Stand Commit 490a8fb, Branch audit/release-1.0)
+
+Backend  docker keyhunter-build-tools:local, CARGO_TARGET_DIR=work/check/target-func, cargo test --locked
+  lib unittests 119 passed | main 0 | tests/api.rs 14 passed | tests/catalog_wishlist.rs 40 passed | doctests 0
+  gesamt 173 passed, 0 failed, 0 ignored; Laufzeit 1:29 min inkl. Erstkompilierung (Testausführung ca. 25 s); 0 Compiler-Warnungen
+Frontend npm test (node --test tests/*.test.ts, 17 Dateien): 71 passed, 0 failed, 0 skipped, 0.35 s
+E2E      KEYHUNTER_TEST_PORT=38781 sh deploy/browser-check.sh --reporter=line
+  Lauf 1: 73 passed (3.0 min, real 3:05) | Lauf 2 (nur die 26 Repo-Specs): 73 passed (2.8 min) | retries=0, keine Flakes, keine skips
+Visual   KEYHUNTER_TEST_PORT=38791 sh deploy/visual-check.sh: 22 passed (40.2 s, real 0:43), 24 Baselines unverändert (git status sauber)
+Audit-Specs frontend/e2e/tmp-audit-func (5 Tests, danach gelöscht): 5 passed (26 s)
+Matching-Proben (Scratch-Kopie des Backends, cargo test --lib audit_probe): 2 passed, Ausgabe matching-probes.txt

@@ -1,0 +1,34 @@
+# cargo tree --locked -e normal -d  (Duplikate echter Versionen; build/normal-Doppelungen gleicher Version weggelassen)
+base64      0.22.1 (sqlx-core) | 0.23.1 (lettre/email-encoding, hyper-util)
+hashbrown   0.16.1 (hashlink/sqlx-core) | 0.17.1 (indexmap)
+syn         2.0.119 (cssparser-macros, sqlx-macros, tracing-attributes …) | 3.0.10 (async-trait, displaydoc …) – nur Build-Zeit
+tower-http  0.6.11 (reqwest) | 0.7.1 (direkt, nur ServeDir/ServeFile in lib.rs)
+Eindeutige Crates im normalen Abhängigkeitsbaum: 270 (docs/dependencies.md nennt noch 296, Stand v0.2.0)
+
+# Direkte Abhängigkeiten backend/Cargo.toml – Nutzung (Dateien mit Verweis in src/examples/tests)
+  anyhow               8
+  async_trait          3
+  argon2               1
+  axum                 18
+  getrandom            1
+  hex                  6
+  lettre               1
+  httpdate             2
+  reqwest              4
+  scraper              2
+  serde                17
+  serde_json           18
+  sha2                 2
+  sqlx                 17
+  subtle               1
+  tokio                14
+  tower                4
+  tower_http           1
+  tracing              7
+  tracing_subscriber   1
+  url                  18
+  -> alle 21 genutzt; async-trait nötig für dyn CatalogProvider
+
+# frontend/package.json
+  dependencies: react, react-dom (Importe), @fontsource-variable/inter, @fontsource/jetbrains-mono (CSS), flag-icons (import.meta.glob) – alle genutzt
+  devDependencies: @playwright/test, @types/react(-dom), @vitejs/plugin-react, typescript, vite – alle genutzt; KEIN @types/node, KEIN Linter/Formatter

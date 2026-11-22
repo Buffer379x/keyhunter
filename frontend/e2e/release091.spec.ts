@@ -13,7 +13,10 @@ async function write(page: Page, method: 'POST' | 'PUT' | 'DELETE', path: string
 test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' });
   for (const item of await (await page.request.get('/api/v1/wishlist')).json()) await write(page, 'DELETE', `/api/v1/wishlist/${item.id}`);
-  await page.evaluate(() => { for (const key of Object.keys(localStorage)) if (key.startsWith('keyhunter.list.')) localStorage.removeItem(key); sessionStorage.clear(); });
+  await page.evaluate(() => {
+    for (const key of Object.keys(localStorage)) if (key.startsWith('keyhunter.list.')) localStorage.removeItem(key);
+    sessionStorage.clear();
+  });
 });
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -80,21 +83,44 @@ test('log and fetch runs keep their filter, search and page size across pages', 
   await page.getByRole('radiogroup', { name: 'Abrufe nach Stufe filtern', exact: true }).getByRole('radio', { name: 'Fehler', exact: true }).click();
   await navTo(page, 'Wunschliste');
   await navTo(page, 'Log');
-  await expect(page.getByRole('radiogroup', { name: 'Log nach Stufe filtern', exact: true }).getByRole('radio', { name: 'Warnung', exact: true })).toHaveAttribute('aria-checked', 'true');
+  await expect(
+    page.getByRole('radiogroup', { name: 'Log nach Stufe filtern', exact: true }).getByRole('radio', { name: 'Warnung', exact: true }),
+  ).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByRole('searchbox', { name: 'Log durchsuchen', exact: true })).toHaveValue('anmeldung');
   await expect(page.getByLabel('Pro Seite', { exact: true })).toHaveValue('100');
   await navTo(page, 'Abrufstatus');
-  await expect(page.getByRole('radiogroup', { name: 'Abrufe nach Stufe filtern', exact: true }).getByRole('radio', { name: 'Fehler', exact: true })).toHaveAttribute('aria-checked', 'true');
+  await expect(
+    page.getByRole('radiogroup', { name: 'Abrufe nach Stufe filtern', exact: true }).getByRole('radio', { name: 'Fehler', exact: true }),
+  ).toHaveAttribute('aria-checked', 'true');
 });
 
 test('the cart shows the games left and the totals right again, with every remove button in view', async ({ page }) => {
   await signInToFixture(page);
   const offer = (cents: number) => ({ cents, estimate_cents: Math.round(cents * 1.05), region: 'Global', observed_at: now() - 60, stale: false });
-  const entry = (n: number, name: string, source: string | null) => ({ id: String(n).repeat(32), game_id: String(n), platform_id: 169, created_at: 1, verification: 'manual_unverified', game: null,
-    manual_title: name, added_at: 1, source, scope: 'home', offers: { eneba: { home: offer(2890), world: offer(1290) }, driffle: { home: offer(3100), world: offer(1500) } } });
-  await page.route('**/api/v1/cart', route => route.request().method() === 'GET'
-    ? route.fulfill({ json: [entry(1, 'Microsoft Flight Simulator 2024: Premium Deluxe Edition', 'driffle'), entry(2, 'Forza Horizon 5', null), entry(3, "Baldur's Gate 3", 'eneba')] })
-    : route.continue());
+  const entry = (n: number, name: string, source: string | null) => ({
+    id: String(n).repeat(32),
+    game_id: String(n),
+    platform_id: 169,
+    created_at: 1,
+    verification: 'manual_unverified',
+    game: null,
+    manual_title: name,
+    added_at: 1,
+    source,
+    scope: 'home',
+    offers: { eneba: { home: offer(2890), world: offer(1290) }, driffle: { home: offer(3100), world: offer(1500) } },
+  });
+  await page.route('**/api/v1/cart', route =>
+    route.request().method() === 'GET'
+      ? route.fulfill({
+          json: [
+            entry(1, 'Microsoft Flight Simulator 2024: Premium Deluxe Edition', 'driffle'),
+            entry(2, 'Forza Horizon 5', null),
+            entry(3, "Baldur's Gate 3", 'eneba'),
+          ],
+        })
+      : route.continue(),
+  );
   for (const width of [1500, 1680, 1920]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.goto('/?view=cart');
@@ -123,7 +149,9 @@ test('the list counts the offers after the year and marks mappings to review wit
   await page.route(/\/api\/v1\/wishlist$/, async route => {
     if (route.request().method() !== 'GET') return route.continue();
     const rows = await (await route.fetch()).json();
-    await route.fulfill({ json: rows.map((row: { game: { edition_name: string | null } }, n: number) => ({ ...row, offer_count: n === 0 ? 38 : 1, review_count: n === 0 ? 2 : 0 })) });
+    await route.fulfill({
+      json: rows.map((row: { game: { edition_name: string | null } }, n: number) => ({ ...row, offer_count: n === 0 ? 38 : 1, review_count: n === 0 ? 2 : 0 })),
+    });
   });
   await page.reload();
   const rows = wishlistRows(page);
@@ -138,7 +166,10 @@ test('the search popup keeps its layout when the systems arrive on the first ope
   await signInToFixture(page);
   await write(page, 'POST', '/api/v1/wishlist', { igdb_id: 1001, platform_id: 169 });
   await write(page, 'POST', '/api/v1/wishlist', { manual_title: 'Altes Spiel', platform_id: 12 });
-  await page.route(/\/api\/v1\/wishlist$/, async route => { await new Promise(done => setTimeout(done, 400)); await route.continue(); });
+  await page.route(/\/api\/v1\/wishlist$/, async route => {
+    await new Promise(done => setTimeout(done, 400));
+    await route.continue();
+  });
   await page.reload();
   await expect(wishlistRows(page)).toHaveCount(2);
   await page.getByRole('searchbox', { name: 'Nach Spielen suchen', exact: true }).click();

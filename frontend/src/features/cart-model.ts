@@ -9,8 +9,17 @@ import type { WishlistItem } from '../api.ts';
  */
 
 export type CartScope = 'home' | 'world';
-export interface CartOffer { cents: number; estimate_cents: number | null; region: string | null; observed_at: number; stale: boolean }
-export interface ShopOffers { home: CartOffer | null; world: CartOffer | null }
+export interface CartOffer {
+  cents: number;
+  estimate_cents: number | null;
+  region: string | null;
+  observed_at: number;
+  stale: boolean;
+}
+export interface ShopOffers {
+  home: CartOffer | null;
+  world: CartOffer | null;
+}
 export interface CartEntry extends WishlistItem {
   added_at: number;
   /** The shop chosen in the cart; null: the cheapest one. */
@@ -34,7 +43,13 @@ export interface CartLine {
   cheapest: { source: string; base: number; fee: number | null } | null;
 }
 
-export interface ShopSum { source: string; count: number; keys: number; fees: number | null; total: number }
+export interface ShopSum {
+  source: string;
+  count: number;
+  keys: number;
+  fees: number | null;
+  total: number;
+}
 
 export interface CartSums {
   lines: CartLine[];
@@ -53,7 +68,7 @@ export interface CartSums {
   extra: { keys: number; total: number } | null;
 }
 
-const fee = (offer: CartOffer) => offer.estimate_cents !== null && offer.estimate_cents >= offer.cents ? offer.estimate_cents - offer.cents : null;
+const fee = (offer: CartOffer) => (offer.estimate_cents !== null && offer.estimate_cents >= offer.cents ? offer.estimate_cents - offer.cents : null);
 /** The shop with the lowest key price in a scope; ties keep the alphabetical first. */
 function cheapestShop(offers: Record<string, ShopOffers>, scope: CartScope): string | null {
   let best: [string, number] | null = null;
@@ -79,15 +94,15 @@ function cheapestVariant(offers: Record<string, ShopOffers>): { source: string; 
 const automatic = (entry: CartEntry) => entry.source === null && entry.scope === 'world';
 
 /** The shop an entry counts with: its own, or the cheapest one (in its scope). */
-export const entryShop = (entry: CartEntry) => automatic(entry) ? cheapestVariant(entry.offers ?? {})?.source ?? null
-  : entry.source ?? cheapestShop(entry.offers ?? {}, entry.scope);
+export const entryShop = (entry: CartEntry) =>
+  automatic(entry) ? (cheapestVariant(entry.offers ?? {})?.source ?? null) : (entry.source ?? cheapestShop(entry.offers ?? {}, entry.scope));
 
 export function cartLine(item: CartEntry): CartLine {
   const offers = item.offers ?? {};
   const variant = cheapestVariant(offers);
   const cheapest = variant && { source: variant.source, base: variant.offer.cents, fee: fee(variant.offer) };
   const source = entryShop(item);
-  const offer = automatic(item) ? variant?.offer ?? null : source ? offers[source]?.[item.scope] ?? null : null;
+  const offer = automatic(item) ? (variant?.offer ?? null) : source ? (offers[source]?.[item.scope] ?? null) : null;
   if (!offer || offer.cents <= 0) return { item, source, region: null, base: null, fee: null, stale: false, cheapest };
   return { item, source, region: offer.region, base: offer.cents, fee: fee(offer), stale: offer.stale, cheapest };
 }
@@ -104,7 +119,9 @@ export function cartSums(entries: CartEntry[]): CartSums {
     sum.fees = sum.fees === null || line.fee === null ? null : sum.fees + line.fee;
     shops.set(source, sum);
   }
-  const shopSums = [...shops.values()].map(sum => ({ ...sum, total: sum.keys + (sum.fees ?? 0) })).sort((a, b) => b.total - a.total || a.source.localeCompare(b.source));
+  const shopSums = [...shops.values()]
+    .map(sum => ({ ...sum, total: sum.keys + (sum.fees ?? 0) }))
+    .sort((a, b) => b.total - a.total || a.source.localeCompare(b.source));
   const keys = priced.reduce((total, line) => total + line.base!, 0);
   const fees = priced.reduce((total, line) => total + (line.fee ?? 0), 0);
   // Against the cheapest composition: only games that have a price in both, so a missing price is no "saving".
@@ -113,7 +130,11 @@ export function cartSums(entries: CartEntry[]): CartSums {
   const extraKeys = compared.reduce((total, line) => total + line.base! - line.cheapest!.base, 0);
   const extraTotal = compared.reduce((total, line) => total + line.base! + (line.fee ?? 0) - line.cheapest!.base - (line.cheapest!.fee ?? 0), 0);
   return {
-    lines, shops: shopSums, keys, fees, total: keys + fees,
+    lines,
+    shops: shopSums,
+    keys,
+    fees,
+    total: keys + fees,
     unknownFees: shopSums.filter(sum => sum.fees === null).map(sum => sum.source),
     missing: lines.filter(line => line.base === null).map(line => line.item),
     extra: chosen && (extraKeys !== 0 || extraTotal !== 0) ? { keys: extraKeys, total: extraTotal } : null,

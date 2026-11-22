@@ -1,0 +1,96 @@
+{
+ "wishes": 500,
+ "max_offer_count": 9,
+ "results": {
+  "/api/v1/wishlist": {
+   "median_ms": 280.7,
+   "p95_ms": 355.0,
+   "max_ms": 372.7,
+   "bytes": 441293
+  },
+  "/api/v1/wishlist/price-badges": {
+   "median_ms": 222.1,
+   "p95_ms": 273.4,
+   "max_ms": 290.2,
+   "bytes": 301046
+  },
+  "/api/v1/cart": {
+   "median_ms": 5.0,
+   "p95_ms": 5.4,
+   "max_ms": 6.2,
+   "bytes": 2
+  },
+  "/api/v1/status/fetch": {
+   "median_ms": 378.2,
+   "p95_ms": 419.2,
+   "max_ms": 420.9,
+   "bytes": 6975
+  },
+  "/api/v1/log?page=1&per_page=50": {
+   "median_ms": 3.0,
+   "p95_ms": 5.2,
+   "max_ms": 6.3,
+   "bytes": 5988
+  },
+  "/api/v1/log?q=Perf&page=1&per_page=50": {
+   "median_ms": 4.5,
+   "p95_ms": 5.4,
+   "max_ms": 6.1,
+   "bytes": 6007
+  },
+  "/api/v1/status/fetch/runs?page=1&per_page=50": {
+   "median_ms": 62.4,
+   "p95_ms": 87.8,
+   "max_ms": 92.2,
+   "bytes": 10103
+  },
+  "/api/v1/status/fetch/runs?q=Perf%20Halo&page=1&per_page=50": {
+   "median_ms": 82.8,
+   "p95_ms": 98.2,
+   "max_ms": 111.8,
+   "bytes": 10044
+  },
+  "/api/v1/status/fetch/runs?tone=error&page=1&per_page=50": {
+   "median_ms": 14.1,
+   "p95_ms": 28.0,
+   "max_ms": 29.4,
+   "bytes": 10346
+  },
+  "/api/v1/library": {
+   "median_ms": 0.9,
+   "p95_ms": 1.0,
+   "max_ms": 1.0,
+   "bytes": 2
+  },
+  "/api/v1/alerts": {
+   "median_ms": 1.7,
+   "p95_ms": 2.0,
+   "max_ms": 2.1,
+   "bytes": 57
+  },
+  "/api/v1/settings": {
+   "median_ms": 1.4,
+   "p95_ms": 1.5,
+   "max_ms": 2.0,
+   "bytes": 2310
+  },
+  "/api/v1/sources/status": {
+   "median_ms": 1.2,
+   "p95_ms": 1.4,
+   "max_ms": 1.6,
+   "bytes": 298
+  },
+  "/api/v1/me": {
+   "median_ms": 0.7,
+   "p95_ms": 0.7,
+   "max_ms": 0.8,
+   "bytes": 81
+  },
+  "/api/v1/wishlist/{id}/offers (meiste Angebote)": {
+   "median_ms": 16.5,
+   "p95_ms": 18.6,
+   "max_ms": 21.6,
+   "bytes": 31008
+  }
+ }
+}

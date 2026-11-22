@@ -49,3 +49,20 @@ jobs:
         run: |
           python3 -c "import xml.etree.ElementTree as ET; ET.parse('deploy/unraid/keyhunter.xml')"
           docker compose config --quiet
+
+  rust-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - name: Check out code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Audit Rust dependencies (RustSec)
+        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: backend

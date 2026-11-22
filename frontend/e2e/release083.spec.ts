@@ -20,15 +20,27 @@ test('the settings are tabs behind the symbol button below the fetch status; bot
   await signInToFixture(page);
   const sidebar = page.getByRole('complementary', { name: 'Seitenleiste' });
   // The main navigation keeps only the pages; Einstellungen and Abmelden are symbol buttons in the footer.
-  await expect(page.getByRole('navigation', { name: 'Hauptnavigation' }).getByRole('button')).toHaveText([/Wunschliste/, /Warenkorb/, /Bibliothek/, /Preisalarme/]);
+  await expect(page.getByRole('navigation', { name: 'Hauptnavigation' }).getByRole('button')).toHaveText([
+    /Wunschliste/,
+    /Warenkorb/,
+    /Bibliothek/,
+    /Preisalarme/,
+  ]);
   await expect(sidebar.getByRole('button', { name: 'Abmelden', exact: true })).toBeVisible();
   const settings = settingsButton(page);
   await settings.click();
   await expect(page).toHaveURL(/view=settings/);
   await expect(settings).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('heading', { name: 'Einstellungen', level: 1 })).toBeVisible();
-  await expect(page.getByRole('tablist', { name: 'Einstellungen', exact: true }).getByRole('tab'))
-    .toHaveText(['Allgemein', 'Key-Shops', 'Spieleindex', 'Benachrichtigungen', 'Abrufstatus', 'Log', 'System']);
+  await expect(page.getByRole('tablist', { name: 'Einstellungen', exact: true }).getByRole('tab')).toHaveText([
+    'Allgemein',
+    'Key-Shops',
+    'Spieleindex',
+    'Benachrichtigungen',
+    'Abrufstatus',
+    'Log',
+    'System',
+  ]);
   // Below the fetch status: the fetch box first, then the two buttons side by side.
   const fetchBox = await sidebar.locator('.fetch-mini').boundingBox();
   const settingsBox = await settings.boundingBox();
@@ -81,7 +93,9 @@ test('the log lists the events of the last days by level and full text, page by 
   await signInToFixture(page);
   await write(page, 'POST', '/api/v1/wishlist', { igdb_id: 1001, platform_id: 169 });
   const requests: URL[] = [];
-  page.on('request', request => { if (request.url().includes('/api/v1/log')) requests.push(new URL(request.url())); });
+  page.on('request', request => {
+    if (request.url().includes('/api/v1/log')) requests.push(new URL(request.url()));
+  });
   await navTo(page, 'Log');
   await expect(page).toHaveURL(/section=log/);
   const table = page.getByRole('table', { name: 'Ereignisse', exact: true });
@@ -109,19 +123,54 @@ test('the log lists the events of the last days by level and full text, page by 
 
 test('Abrufstatus pages through the runs with their game and shows the next five fetches', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  const run = (id: number) => ({ id, source: id % 2 ? 'eneba' : 'driffle', kind: 'product', wish_id: null, link_id: id, game: id % 3 ? 'Forza Horizon 5' : 'Starfield', region: 'Global',
-    started_at: now() - id * 60, duration_ms: 400, outcome: id % 5 ? 'ok' : 'network', detail: '2890 ct' });
+  const run = (id: number) => ({
+    id,
+    source: id % 2 ? 'eneba' : 'driffle',
+    kind: 'product',
+    wish_id: null,
+    link_id: id,
+    game: id % 3 ? 'Forza Horizon 5' : 'Starfield',
+    region: 'Global',
+    started_at: now() - id * 60,
+    duration_ms: 400,
+    outcome: id % 5 ? 'ok' : 'network',
+    detail: '2890 ct',
+  });
   const requests: URL[] = [];
   await page.route('**/api/v1/status/fetch/runs?*', route => {
-    const url = new URL(route.request().url()); requests.push(url);
-    const page = Number(url.searchParams.get('page')); const per = Number(url.searchParams.get('per_page'));
-    return route.fulfill({ json: { runs: Array.from({ length: Math.min(per, 120 - (page - 1) * per) }, (_, i) => run((page - 1) * per + i + 1)), total: 120, page, per_page: per } });
+    const url = new URL(route.request().url());
+    requests.push(url);
+    const page = Number(url.searchParams.get('page'));
+    const per = Number(url.searchParams.get('per_page'));
+    return route.fulfill({
+      json: { runs: Array.from({ length: Math.min(per, 120 - (page - 1) * per) }, (_, i) => run((page - 1) * per + i + 1)), total: 120, page, per_page: per },
+    });
   });
   await page.route('**/api/v1/status/fetch', async route => {
     const json = await (await route.fetch()).json();
     json.upcoming = [
-      { source: 'eneba', kind: 'product', wish_id: null, link_id: 7, game: 'Forza Horizon 5', region: 'India', search_page: null, due_at: now() + 30, requested: true },
-      { source: 'eneba', kind: 'search', wish_id: 'a'.repeat(32), link_id: null, game: 'Starfield', region: null, search_page: 2, due_at: now() + 400, requested: false },
+      {
+        source: 'eneba',
+        kind: 'product',
+        wish_id: null,
+        link_id: 7,
+        game: 'Forza Horizon 5',
+        region: 'India',
+        search_page: null,
+        due_at: now() + 30,
+        requested: true,
+      },
+      {
+        source: 'eneba',
+        kind: 'search',
+        wish_id: 'a'.repeat(32),
+        link_id: null,
+        game: 'Starfield',
+        region: null,
+        search_page: 2,
+        due_at: now() + 400,
+        requested: false,
+      },
       { source: 'eneba', kind: 'discovery', wish_id: null, link_id: null, game: null, region: null, search_page: null, due_at: now() + 4000, requested: false },
     ];
     await route.fulfill({ json });
@@ -162,8 +211,19 @@ test('the cart totals stand in a box of their own, every amount in one column', 
   const offer = (cents: number) => ({ cents, estimate_cents: Math.round(cents * 1.05), region: 'Global', observed_at: now() - 60, stale: false });
   await page.route('**/api/v1/cart', async route => {
     if (route.request().method() !== 'GET') return route.continue();
-    const entry = (id: string, name: string, eneba: number, driffle: number) => ({ id, game_id: id, platform_id: 169, created_at: 1, verification: 'manual_unverified', game: null, manual_title: name,
-      added_at: 1, source: null, scope: 'world', offers: { eneba: { home: offer(eneba), world: offer(eneba) }, driffle: { home: offer(driffle), world: offer(driffle) } } });
+    const entry = (id: string, name: string, eneba: number, driffle: number) => ({
+      id,
+      game_id: id,
+      platform_id: 169,
+      created_at: 1,
+      verification: 'manual_unverified',
+      game: null,
+      manual_title: name,
+      added_at: 1,
+      source: null,
+      scope: 'world',
+      offers: { eneba: { home: offer(eneba), world: offer(eneba) }, driffle: { home: offer(driffle), world: offer(driffle) } },
+    });
     await route.fulfill({ json: [entry('a'.repeat(32), 'Forza Horizon 5', 2890, 3100), entry('b'.repeat(32), 'Starfield', 4200, 3900)] });
   });
   await page.goto('/?view=cart');
@@ -174,7 +234,7 @@ test('the cart totals stand in a box of their own, every amount in one column', 
   // The totals have a border like each shop, and all amounts end at the same right edge.
   expect(await sum.locator('.cart-totals').evaluate(el => getComputedStyle(el).borderTopStyle)).toBe('solid');
   const right = async (selector: string) => sum.locator(selector).evaluateAll(els => els.map(el => Math.round(el.getBoundingClientRect().right)));
-  const edges = new Set([...await right('.cart-shop-head .mono'), ...await right('.cart-totals dd')]);
+  const edges = new Set([...(await right('.cart-shop-head .mono')), ...(await right('.cart-totals dd'))]);
   expect(edges.size, `right edges ${[...edges].join(', ')}`).toBe(1);
   await expect(totals).toHaveCount(3);
   await expect(page.getByText('Gesamt ohne Gebühren')).toHaveCount(0);
