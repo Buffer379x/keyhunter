@@ -1,5 +1,9 @@
 use anyhow::{Context, Result, bail};
-use std::{env, net::SocketAddr, path::PathBuf};
+use std::{
+    env,
+    net::{IpAddr, SocketAddr},
+    path::PathBuf,
+};
 use url::{Host, Url};
 
 #[derive(Clone)]
@@ -10,6 +14,9 @@ pub struct Config {
     pub frontend_dir: PathBuf,
     pub bootstrap_file: Option<PathBuf>,
     pub allow_insecure_http: bool,
+    /// Reverse proxies whose `X-Forwarded-For` names the client for the sign-in throttle
+    /// (`KEYHUNTER_TRUSTED_PROXY`: IP addresses or CIDR ranges, comma-separated). Empty: the peer counts.
+    pub trusted_proxies: Vec<Network>,
 }
 
 impl Config {
@@ -35,6 +42,17 @@ impl Config {
                 Ok("false") => false,
                 _ => bail!("KEYHUNTER_ALLOW_INSECURE_HTTP must be true or false"),
             },
+            trusted_proxies: env::var("KEYHUNTER_TRUSTED_PROXY")
+                .unwrap_or_default()
+                .split(',')
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(|value| {
+                    Network::parse(value).with_context(|| {
+                        format!("KEYHUNTER_TRUSTED_PROXY: {value:?} is no IP address or CIDR range")
+                    })
+                })
+                .collect::<Result<_>>()?,
         };
         config.validate()?;
         Ok(config)
@@ -79,5 +97,74 @@ pub(crate) fn is_local_http_origin(origin: &Url) -> bool {
         Some(Host::Ipv4(ip)) => ip.is_private() || ip.is_loopback(),
         Some(Host::Ipv6(ip)) => ip.is_unique_local() || ip.is_loopback(),
         _ => false,
+    }
+}
+
+/// An IP address or CIDR range, e.g. `172.18.0.0/16` or `fd00::/8`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Network {
+    addr: IpAddr,
+    prefix: u8,
+}
+
+impl Network {
+    pub fn parse(value: &str) -> Option<Self> {
+        let (addr, prefix) = match value.split_once('/') {
+            Some((addr, prefix)) => (
+                addr.parse::<IpAddr>().ok()?,
+                Some(prefix.parse::<u8>().ok()?),
+            ),
+            None => (value.parse::<IpAddr>().ok()?, None),
+        };
+        let addr = addr.to_canonical();
+        let bits = if addr.is_ipv4() { 32 } else { 128 };
+        let prefix = prefix.unwrap_or(bits);
+        (prefix <= bits).then_some(Self { addr, prefix })
+    }
+
+    pub fn contains(&self, ip: IpAddr) -> bool {
+        // Compare the network bits; a shift by the full width (prefix 0) is None on both sides.
+        let host_bits = |width: u32| width - u32::from(self.prefix);
+        match (self.addr, ip.to_canonical()) {
+            (IpAddr::V4(net), IpAddr::V4(ip)) => {
+                u32::from(net).checked_shr(host_bits(32))
+                    == u32::from(ip).checked_shr(host_bits(32))
+            }
+            (IpAddr::V6(net), IpAddr::V6(ip)) => {
+                u128::from(net).checked_shr(host_bits(128))
+                    == u128::from(ip).checked_shr(host_bits(128))
+            }
+            _ => false,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Network;
+
+    #[test]
+    fn trusted_proxy_ranges_match_addresses_of_their_family() {
+        let net = Network::parse("172.18.0.0/16").unwrap();
+        assert!(net.contains("172.18.4.2".parse().unwrap()));
+        assert!(net.contains("::ffff:172.18.4.2".parse().unwrap()));
+        assert!(!net.contains("172.19.0.1".parse().unwrap()));
+        assert!(!net.contains("::1".parse().unwrap()));
+        let single = Network::parse("192.168.1.2").unwrap();
+        assert!(single.contains("192.168.1.2".parse().unwrap()));
+        assert!(!single.contains("192.168.1.3".parse().unwrap()));
+        assert!(
+            Network::parse("0.0.0.0/0")
+                .unwrap()
+                .contains("8.8.8.8".parse().unwrap())
+        );
+        assert!(
+            Network::parse("fd00::/8")
+                .unwrap()
+                .contains("fd12::1".parse().unwrap())
+        );
+        for invalid in ["", "proxy", "10.0.0.0/33", "::/129", "10.0.0.0/x"] {
+            assert_eq!(Network::parse(invalid), None, "{invalid}");
+        }
     }
 }

@@ -118,6 +118,7 @@ impl Fixture {
             frontend_dir: frontend,
             bootstrap_file: None,
             allow_insecure_http: true,
+            trusted_proxies: vec![],
         };
         let provider = Arc::new(Provider {
             offline: AtomicBool::new(false),

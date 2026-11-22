@@ -2,6 +2,7 @@ use crate::{
     ApiError, ApiResult, Shared, digest,
     eventlog::{self, Area, Level},
     internal, now, random_token,
+    throttle::{self, Limit, Peer},
 };
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier, password_hash::SaltString};
 use axum::{
@@ -12,6 +13,7 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
+use std::net::IpAddr;
 use subtle::ConstantTimeEq;
 
 pub(crate) struct Session {
@@ -110,25 +112,100 @@ pub(crate) fn require_csrf(
     Ok(secure)
 }
 
-async fn reserve_attempt(state: &Shared) -> ApiResult<()> {
-    let result = sqlx::query("UPDATE auth_throttle SET attempts = CASE WHEN window_started_at <= ? THEN 1 ELSE attempts + 1 END, window_started_at = CASE WHEN window_started_at <= ? THEN ? ELSE window_started_at END WHERE id = 1 AND (attempts < 5 OR window_started_at <= ?)")
-        .bind(now() - 900).bind(now() - 900).bind(now()).bind(now() - 900).execute(&state.pool).await?;
-    if result.rows_affected() == 0 {
-        // Once per throttle window, so a flood of attempts cannot flood the log.
-        eventlog::record_once(
-            &state.pool,
-            Level::Warn,
-            Area::Login,
-            "Zu viele Anmeldeversuche",
-            900,
-        )
-        .await;
-        return Err(ApiError(
-            StatusCode::TOO_MANY_REQUESTS,
-            "Zu viele Anmeldeversuche. Bitte nach 15 Minuten erneut versuchen.",
-        ));
+/// The address the sign-in throttle counts for this request ([`throttle::client`]).
+fn source(state: &Shared, peer: Option<IpAddr>, headers: &HeaderMap) -> Option<IpAddr> {
+    throttle::client(&state.config.trusted_proxies, peer, headers)
+}
+
+/// Counts a sign-in attempt (login, setup code, current passphrase) of `source` before it is checked.
+async fn reserve_attempt(state: &Shared, source: Option<IpAddr>) -> ApiResult<()> {
+    let Err(limit) = state.login_throttle.reserve(source, now()) else {
+        return Ok(());
+    };
+    // Once per throttle window, so a flood of attempts cannot flood the log.
+    let message = match limit {
+        Limit::Source => "Zu viele Anmeldeversuche",
+        Limit::Total => {
+            "Zu viele Anmeldeversuche von verschiedenen Adressen, Anmeldung vorübergehend gesperrt"
+        }
+    };
+    eventlog::record_once(
+        &state.pool,
+        Level::Warn,
+        Area::Login,
+        message,
+        throttle::WINDOW,
+    )
+    .await;
+    Err(ApiError(
+        StatusCode::TOO_MANY_REQUESTS,
+        "Zu viele Anmeldeversuche. Bitte nach 15 Minuten erneut versuchen.",
+    ))
+}
+
+/// Passphrase rule of the setup and of a change.
+fn check_strength(password: &str) -> ApiResult<()> {
+    if (12..=128).contains(&password.chars().count()) {
+        Ok(())
+    } else {
+        Err(ApiError(
+            StatusCode::BAD_REQUEST,
+            "Die Passphrase muss 12 bis 128 Zeichen enthalten.",
+        ))
     }
-    Ok(())
+}
+
+/// Argon2id hash of a new passphrase, in one of the limited password slots.
+async fn hash_passphrase(state: &Shared, password: String) -> ApiResult<String> {
+    let permit = state
+        .password_slots
+        .clone()
+        .acquire_owned()
+        .await
+        .map_err(|_| internal())?;
+    tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        let random = random_token().map_err(|_| ())?;
+        let salt = SaltString::encode_b64(&random.as_bytes()[..32]).map_err(|_| ())?;
+        Argon2::default()
+            .hash_password(password.as_bytes(), &salt)
+            .map(|h| h.to_string())
+            .map_err(|_| ())
+    })
+    .await
+    .map_err(|_| internal())?
+    .map_err(|_| internal())
+}
+
+/// Checks `password` against the owner's passphrase, in one of the limited password slots. At most four
+/// verifications run at once; the throttle keeps the queue short (≤ 100 attempts per window).
+async fn verify_passphrase(state: &Shared, password: String) -> ApiResult<bool> {
+    if password.chars().count() > 128 {
+        return Ok(false);
+    }
+    let hash: Option<String> = sqlx::query_scalar("SELECT password_hash FROM owner WHERE id = 1")
+        .fetch_optional(&state.pool)
+        .await?;
+    let hash = hash.ok_or(ApiError(
+        StatusCode::UNAUTHORIZED,
+        "Bitte zuerst die Einrichtung abschließen.",
+    ))?;
+    let permit = state
+        .password_slots
+        .clone()
+        .acquire_owned()
+        .await
+        .map_err(|_| internal())?;
+    tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        PasswordHash::new(&hash).is_ok_and(|parsed| {
+            Argon2::default()
+                .verify_password(password.as_bytes(), &parsed)
+                .is_ok()
+        })
+    })
+    .await
+    .map_err(|_| internal())
 }
 
 async fn issue_session(state: &Shared, status: StatusCode, secure: bool) -> ApiResult<Response> {
@@ -141,10 +218,6 @@ async fn issue_session(state: &Shared, status: StatusCode, secure: bool) -> ApiR
         .await?;
     sqlx::query("INSERT INTO session (token_hash, owner_id, csrf_token, created_at, expires_at) VALUES (?, 1, ?, ?, ?)")
         .bind(hex::encode(digest(&token))).bind(&csrf).bind(now()).bind(now() + 43200).execute(&mut *tx).await?;
-    sqlx::query("UPDATE auth_throttle SET attempts = 0, window_started_at = ? WHERE id = 1")
-        .bind(now())
-        .execute(&mut *tx)
-        .await?;
     tx.commit().await?;
     let cookie = format!(
         "keyhunter_session={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200{}",
@@ -174,6 +247,7 @@ pub(crate) struct SetupInput {
 }
 pub(crate) async fn setup(
     State(state): State<Shared>,
+    Peer(peer): Peer,
     headers: HeaderMap,
     Json(input): Json<SetupInput>,
 ) -> ApiResult<Response> {
@@ -197,7 +271,8 @@ pub(crate) async fn setup(
             "Das gewählte Zielland ist ungültig.",
         ));
     }
-    reserve_attempt(&state).await?;
+    let source = source(&state, peer, &headers);
+    reserve_attempt(&state, source).await?;
     let expected = state.bootstrap_hash.ok_or(ApiError(
         StatusCode::CONFLICT,
         "Einrichtung bereits abgeschlossen.",
@@ -215,30 +290,9 @@ pub(crate) async fn setup(
             "Einrichtungscode ungültig.",
         ));
     }
-    if !(12..=128).contains(&input.password.chars().count()) {
-        return Err(ApiError(
-            StatusCode::BAD_REQUEST,
-            "Die Passphrase muss 12 bis 128 Zeichen enthalten.",
-        ));
-    }
-    let permit = state
-        .password_slots
-        .clone()
-        .acquire_owned()
-        .await
-        .map_err(|_| internal())?;
-    let hash = tokio::task::spawn_blocking(move || {
-        let _permit = permit;
-        let random = random_token().map_err(|_| ())?;
-        let salt = SaltString::encode_b64(&random.as_bytes()[..32]).map_err(|_| ())?;
-        Argon2::default()
-            .hash_password(input.password.as_bytes(), &salt)
-            .map(|h| h.to_string())
-            .map_err(|_| ())
-    })
-    .await
-    .map_err(|_| internal())?
-    .map_err(|_| internal())?;
+    state.login_throttle.succeeded(source, now());
+    check_strength(&input.password)?;
+    let hash = hash_passphrase(&state, input.password).await?;
     let inserted = sqlx::query("INSERT INTO owner (id, password_hash, created_at) VALUES (1, ?, ?) ON CONFLICT(id) DO NOTHING")
         .bind(hash).bind(now()).execute(&state.pool).await?;
     if inserted.rows_affected() == 0 {
@@ -270,40 +324,17 @@ pub(crate) struct LoginInput {
 }
 pub(crate) async fn login(
     State(state): State<Shared>,
+    Peer(peer): Peer,
     headers: HeaderMap,
     Json(input): Json<LoginInput>,
 ) -> ApiResult<Response> {
     let secure = require_origin(&state, &headers)?;
-    reserve_attempt(&state).await?;
-    if input.password.chars().count() > 128 {
+    let source = source(&state, peer, &headers);
+    reserve_attempt(&state, source).await?;
+    if !verify_passphrase(&state, input.password).await? {
         return Err(login_failed(&state).await);
     }
-    let hash: Option<String> = sqlx::query_scalar("SELECT password_hash FROM owner WHERE id = 1")
-        .fetch_optional(&state.pool)
-        .await?;
-    let hash = hash.ok_or(ApiError(
-        StatusCode::UNAUTHORIZED,
-        "Bitte zuerst die Einrichtung abschließen.",
-    ))?;
-    let permit = state
-        .password_slots
-        .clone()
-        .acquire_owned()
-        .await
-        .map_err(|_| internal())?;
-    let valid = tokio::task::spawn_blocking(move || {
-        let _permit = permit;
-        PasswordHash::new(&hash).is_ok_and(|parsed| {
-            Argon2::default()
-                .verify_password(input.password.as_bytes(), &parsed)
-                .is_ok()
-        })
-    })
-    .await
-    .map_err(|_| internal())?;
-    if !valid {
-        return Err(login_failed(&state).await);
-    }
+    state.login_throttle.succeeded(source, now());
     let response = issue_session(&state, StatusCode::OK, secure).await?;
     eventlog::record(&state.pool, Level::Info, Area::Login, "Angemeldet").await;
     Ok(response)
@@ -326,14 +357,8 @@ pub(crate) async fn me(State(state): State<Shared>, headers: HeaderMap) -> ApiRe
     Ok(Json(json!({"csrf_token":session.csrf_token})))
 }
 
-pub(crate) async fn logout(State(state): State<Shared>, headers: HeaderMap) -> ApiResult<Response> {
-    let session = authenticate(&state, &headers).await?;
-    let secure = require_csrf(&state, &headers, &session)?;
-    sqlx::query("DELETE FROM session WHERE token_hash = ?")
-        .bind(session.token_hash)
-        .execute(&state.pool)
-        .await?;
-    eventlog::record(&state.pool, Level::Info, Area::Login, "Abgemeldet").await;
+/// The response that ends the session in this browser.
+fn signed_out(secure: bool) -> ApiResult<Response> {
     let mut response = StatusCode::NO_CONTENT.into_response();
     response.headers_mut().insert(
         header::SET_COOKIE,
@@ -344,4 +369,110 @@ pub(crate) async fn logout(State(state): State<Shared>, headers: HeaderMap) -> A
         .map_err(|_| internal())?,
     );
     Ok(response)
+}
+
+/// "1 Sitzung", "2 Sitzungen".
+fn sessions(count: usize) -> String {
+    format!(
+        "{count} {}",
+        if count == 1 { "Sitzung" } else { "Sitzungen" }
+    )
+}
+
+pub(crate) async fn logout(State(state): State<Shared>, headers: HeaderMap) -> ApiResult<Response> {
+    let session = authenticate(&state, &headers).await?;
+    let secure = require_csrf(&state, &headers, &session)?;
+    sqlx::query("DELETE FROM session WHERE token_hash = ?")
+        .bind(session.token_hash)
+        .execute(&state.pool)
+        .await?;
+    eventlog::record(&state.pool, Level::Info, Area::Login, "Abgemeldet").await;
+    signed_out(secure)
+}
+
+/// DELETE /api/v1/sessions: ends every session, this one included (SEC-03).
+pub(crate) async fn logout_everywhere(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> ApiResult<Response> {
+    let session = authenticate(&state, &headers).await?;
+    let secure = require_csrf(&state, &headers, &session)?;
+    let active: Vec<bool> = sqlx::query_scalar("DELETE FROM session RETURNING expires_at > ?")
+        .bind(now())
+        .fetch_all(&state.pool)
+        .await?;
+    let ended = active.into_iter().filter(|active| *active).count();
+    eventlog::record(
+        &state.pool,
+        Level::Info,
+        Area::Login,
+        format!("Überall abgemeldet, {} beendet", sessions(ended)),
+    )
+    .await;
+    signed_out(secure)
+}
+
+#[derive(Deserialize)]
+pub(crate) struct PassphraseInput {
+    current: String,
+    new: String,
+}
+/// PUT /api/v1/session/passphrase `{"current","new"}`: changes the passphrase (rules of the setup). This
+/// session stays, every other one ends (SEC-03). A wrong current passphrase counts like a failed sign-in.
+pub(crate) async fn change_passphrase(
+    State(state): State<Shared>,
+    Peer(peer): Peer,
+    headers: HeaderMap,
+    Json(input): Json<PassphraseInput>,
+) -> ApiResult<Json<Value>> {
+    let session = authenticate(&state, &headers).await?;
+    require_csrf(&state, &headers, &session)?;
+    check_strength(&input.new)?;
+    let source = source(&state, peer, &headers);
+    reserve_attempt(&state, source).await?;
+    if !verify_passphrase(&state, input.current.clone()).await? {
+        eventlog::record(
+            &state.pool,
+            Level::Warn,
+            Area::Login,
+            "Passphrase nicht geändert: aktuelle Passphrase falsch",
+        )
+        .await;
+        return Err(ApiError(
+            StatusCode::FORBIDDEN,
+            "Die aktuelle Passphrase stimmt nicht.",
+        ));
+    }
+    state.login_throttle.succeeded(source, now());
+    if input.new == input.current {
+        return Err(ApiError(
+            StatusCode::BAD_REQUEST,
+            "Die neue Passphrase muss sich von der aktuellen unterscheiden.",
+        ));
+    }
+    let hash = hash_passphrase(&state, input.new).await?;
+    let mut tx = state.pool.begin().await?;
+    sqlx::query("UPDATE owner SET password_hash = ? WHERE id = 1")
+        .bind(hash)
+        .execute(&mut *tx)
+        .await?;
+    let others: Vec<bool> =
+        sqlx::query_scalar("DELETE FROM session WHERE token_hash != ? RETURNING expires_at > ?")
+            .bind(&session.token_hash)
+            .bind(now())
+            .fetch_all(&mut *tx)
+            .await?;
+    tx.commit().await?;
+    let ended = others.into_iter().filter(|active| *active).count();
+    eventlog::record(
+        &state.pool,
+        Level::Info,
+        Area::Login,
+        format!(
+            "Passphrase geändert, {} auf anderen Geräten beendet",
+            sessions(ended)
+        ),
+    )
+    .await;
+    Ok(Json(json!({ "ended_sessions": ended })))
 }

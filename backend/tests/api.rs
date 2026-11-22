@@ -32,6 +32,7 @@ impl Fixture {
             frontend_dir: frontend,
             bootstrap_file: None,
             allow_insecure_http: true,
+            trusted_proxies: vec![],
         };
         let app = create_app(config.clone()).await.unwrap();
         let token = std::fs::read_to_string(config.data_dir.join("bootstrap-token")).unwrap();
@@ -1138,4 +1139,403 @@ async fn notification_channels_are_write_only_validated_and_testable() {
     let (_, alerts) = get(&f, &cookie, "/api/v1/alerts").await;
     assert_eq!(alerts["configured"], false);
     assert!(!std::fs::read_to_string(&file).unwrap().contains(token));
+}
+
+const PASSPHRASE: &str = "correct horse battery staple";
+
+/// A sign-in from the TCP peer `peer` (as `into_make_service_with_connect_info` provides it), optionally
+/// with an `X-Forwarded-For` header.
+async fn login_from(
+    app: &Router,
+    peer: &str,
+    forwarded: Option<&str>,
+    password: &str,
+) -> StatusCode {
+    let mut req = Request::builder()
+        .method("POST")
+        .uri("/api/v1/session")
+        .header("Content-Type", "application/json")
+        .header("Origin", "http://localhost:3000");
+    if let Some(value) = forwarded {
+        req = req.header("X-Forwarded-For", value);
+    }
+    let mut req = req
+        .body(Body::from(json!({ "password": password }).to_string()))
+        .unwrap();
+    let addr: std::net::SocketAddr = format!("{peer}:50000").parse().unwrap();
+    req.extensions_mut()
+        .insert(axum::extract::ConnectInfo(addr));
+    app.clone().oneshot(req).await.unwrap().status()
+}
+
+/// SEC-01: a source that guesses wrong is throttled on its own; the owner still signs in from elsewhere. Behind
+/// a trusted proxy the forwarded client counts, without that option the proxy is one source.
+#[tokio::test]
+async fn a_guessing_source_cannot_lock_out_the_owner_sec01() {
+    let f = Fixture::new().await;
+    let _ = setup(&f).await;
+    for _ in 0..5 {
+        assert_eq!(
+            login_from(&f.app, "192.168.1.66", None, "wrong guess").await,
+            StatusCode::UNAUTHORIZED
+        );
+    }
+    assert_eq!(
+        login_from(&f.app, "192.168.1.66", None, PASSPHRASE).await,
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    assert_eq!(
+        login_from(&f.app, "192.168.1.10", None, PASSPHRASE).await,
+        StatusCode::OK
+    );
+    // A forwarded header from an untrusted peer changes nothing.
+    assert_eq!(
+        login_from(&f.app, "192.168.1.66", Some("192.168.1.10"), PASSPHRASE).await,
+        StatusCode::TOO_MANY_REQUESTS
+    );
+
+    let mut config = f.config.clone();
+    config.trusted_proxies = vec![keyhunter::config::Network::parse("172.18.0.0/16").unwrap()];
+    let proxied = create_app(config).await.unwrap();
+    for _ in 0..5 {
+        login_from(&proxied, "172.18.0.2", Some("203.0.113.9"), "wrong guess").await;
+    }
+    assert_eq!(
+        login_from(&proxied, "172.18.0.2", Some("203.0.113.9"), PASSPHRASE).await,
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    // An address the client put in front of its own does not count.
+    assert_eq!(
+        login_from(
+            &proxied,
+            "172.18.0.2",
+            Some("198.51.100.7, 203.0.113.9"),
+            PASSPHRASE
+        )
+        .await,
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    assert_eq!(
+        login_from(&proxied, "172.18.0.2", Some("198.51.100.7"), PASSPHRASE).await,
+        StatusCode::OK
+    );
+
+    // Without the option every request through the proxy is one source, as before.
+    let unconfigured = create_app(f.config.clone()).await.unwrap();
+    for _ in 0..5 {
+        login_from(
+            &unconfigured,
+            "172.18.0.2",
+            Some("203.0.113.9"),
+            "wrong guess",
+        )
+        .await;
+    }
+    assert_eq!(
+        login_from(
+            &unconfigured,
+            "172.18.0.2",
+            Some("198.51.100.7"),
+            PASSPHRASE
+        )
+        .await,
+        StatusCode::TOO_MANY_REQUESTS
+    );
+}
+
+/// SEC-02: clients that send the headers of a sign-in and then stay silent hold nothing the owner's sign-in
+/// needs, and are cut off after the body timeout. Before, 16 of them blocked every further sign-in.
+#[tokio::test]
+async fn silent_request_bodies_cannot_block_the_sign_in_sec02() {
+    use std::time::{Duration, Instant};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let f = Fixture::new().await;
+    let _ = setup(&f).await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let app = f.app.clone();
+    tokio::spawn(async move {
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        )
+        .await
+    });
+    let head = |length: usize| {
+        format!(
+            "POST /api/v1/session HTTP/1.1\r\nHost: localhost:3000\r\nOrigin: http://localhost:3000\r\n\
+            Content-Type: application/json\r\nContent-Length: {length}\r\nConnection: close\r\n\r\n"
+        )
+    };
+    let mut silent = Vec::new();
+    for _ in 0..24 {
+        let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+        stream
+            .write_all(format!("{}{{", head(15000)).as_bytes())
+            .await
+            .unwrap();
+        silent.push(stream);
+    }
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let body = json!({ "password": PASSPHRASE }).to_string();
+    let started = Instant::now();
+    let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+    stream
+        .write_all(format!("{}{body}", head(body.len())).as_bytes())
+        .await
+        .unwrap();
+    let mut response = String::new();
+    tokio::time::timeout(
+        Duration::from_secs(10),
+        stream.read_to_string(&mut response),
+    )
+    .await
+    .expect("the sign-in waits behind the silent requests")
+    .unwrap();
+    assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+    assert!(started.elapsed() < Duration::from_secs(5));
+    let mut first = String::new();
+    tokio::time::timeout(
+        Duration::from_secs(25),
+        silent[0].read_to_string(&mut first),
+    )
+    .await
+    .expect("a silent request is cut off")
+    .unwrap();
+    assert!(first.starts_with("HTTP/1.1 408"), "{first}");
+    assert!(first.contains(r#""code":"timeout""#), "{first}");
+}
+
+/// SEC-03: the passphrase can be changed with the current one and the rules of the setup; this session stays,
+/// every other one ends. "Überall abmelden" ends every session. Both need the CSRF token and the origin.
+#[tokio::test]
+async fn the_passphrase_can_be_changed_and_every_session_ended_sec03() {
+    const NEW: &str = "a brand new passphrase here";
+    let f = Fixture::new().await;
+    let (cookie, csrf) = setup(&f).await;
+    let origin = Some("http://localhost:3000");
+    let sign_in = |password: &'static str| {
+        call(
+            &f.app,
+            "POST",
+            "/api/v1/session",
+            json!({ "password": password }),
+            None,
+            None,
+            origin,
+        )
+    };
+    let (_, _, other) = sign_in(PASSPHRASE).await;
+    let other = other.unwrap().split(';').next().unwrap().to_string();
+    let change = |current: &'static str,
+                  new: &'static str,
+                  csrf: Option<String>,
+                  origin: Option<&'static str>| {
+        let app = f.app.clone();
+        let cookie = cookie.clone();
+        async move {
+            call(
+                &app,
+                "PUT",
+                "/api/v1/session/passphrase",
+                json!({ "current": current, "new": new }),
+                Some(&cookie),
+                csrf.as_deref(),
+                origin,
+            )
+            .await
+        }
+    };
+    let token = || Some(csrf.clone());
+    assert_eq!(
+        change(PASSPHRASE, NEW, None, origin).await.0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        change(PASSPHRASE, NEW, token(), None).await.0,
+        StatusCode::FORBIDDEN
+    );
+    let (status, error, _) = change(PASSPHRASE, "too short", token(), origin).await;
+    assert_eq!(
+        (status, error["code"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("invalid_request"))
+    );
+    let (status, error, _) = change("not the passphrase", NEW, token(), origin).await;
+    assert_eq!(
+        (status, error["code"].as_str()),
+        (StatusCode::FORBIDDEN, Some("forbidden"))
+    );
+    assert_eq!(
+        change(PASSPHRASE, PASSPHRASE, token(), origin).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    let (status, data, _) = change(PASSPHRASE, NEW, token(), origin).await;
+    assert_eq!(status, StatusCode::OK, "{data}");
+    assert_eq!(data["ended_sessions"], 1);
+    assert_eq!(get(&f, &cookie, "/api/v1/me").await.0, StatusCode::OK);
+    assert_eq!(
+        get(&f, &other, "/api/v1/me").await.0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(sign_in(PASSPHRASE).await.0, StatusCode::UNAUTHORIZED);
+    let (status, _, second) = sign_in(NEW).await;
+    assert_eq!(status, StatusCode::OK);
+    let second = second.unwrap().split(';').next().unwrap().to_string();
+
+    let everywhere = |csrf: Option<String>| {
+        let app = f.app.clone();
+        let cookie = cookie.clone();
+        async move {
+            call(
+                &app,
+                "DELETE",
+                "/api/v1/sessions",
+                Value::Null,
+                Some(&cookie),
+                csrf.as_deref(),
+                origin,
+            )
+            .await
+        }
+    };
+    assert_eq!(everywhere(None).await.0, StatusCode::FORBIDDEN);
+    let (status, _, cleared) = everywhere(token()).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert!(cleared.unwrap().contains("Max-Age=0"));
+    for session in [&cookie, &second] {
+        assert_eq!(
+            get(&f, session, "/api/v1/me").await.0,
+            StatusCode::UNAUTHORIZED
+        );
+    }
+    let (_, _, third) = sign_in(NEW).await;
+    let third = third.unwrap().split(';').next().unwrap().to_string();
+    let (_, log) = get(&f, &third, "/api/v1/log?q=Sitzung").await;
+    let messages: Vec<&str> = log["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["message"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        messages,
+        [
+            "Überall abgemeldet, 2 Sitzungen beendet",
+            "Passphrase geändert, 1 Sitzung auf anderen Geräten beendet"
+        ]
+    );
+    let (_, all) = get(&f, &third, "/api/v1/log?per_page=200").await;
+    let text = all.to_string();
+    assert!(text.contains("Passphrase nicht geändert: aktuelle Passphrase falsch"));
+    for secret in [PASSPHRASE, NEW, "not the passphrase"] {
+        assert!(!text.contains(secret), "the log contains a passphrase");
+    }
+}
+
+/// PERF-03/04: compressed responses; `index.html` and the SPA fallback revalidate, hashed assets are immutable
+/// (also when revalidated), icons are kept for an hour, API answers are never stored.
+#[tokio::test]
+async fn responses_are_compressed_and_static_files_carry_cache_rules_perf03_perf04() {
+    let f = Fixture::new().await;
+    let (cookie, _) = setup(&f).await;
+    let dist = &f.config.frontend_dir;
+    std::fs::create_dir(dist.join("assets")).unwrap();
+    std::fs::write(
+        dist.join("assets/index-B4xY9zQ1.js"),
+        "console.log('KeyHunter');\n".repeat(400),
+    )
+    .unwrap();
+    std::fs::write(
+        dist.join("favicon.svg"),
+        "<svg xmlns=\"http://www.w3.org/2000/svg\"/>",
+    )
+    .unwrap();
+    std::fs::write(dist.join("manifest.webmanifest"), "{}").unwrap();
+    let fetch = |path: &'static str, headers: Vec<(&'static str, String)>| {
+        let app = f.app.clone();
+        async move {
+            let mut req = Request::builder().uri(path);
+            for (name, value) in headers {
+                req = req.header(name, value);
+            }
+            app.oneshot(req.body(Body::empty()).unwrap()).await.unwrap()
+        }
+    };
+    let header = |response: &axum::response::Response, name: &str| {
+        response
+            .headers()
+            .get(name)
+            .map(|v| v.to_str().unwrap().to_string())
+    };
+    for (path, cache) in [
+        ("/", "no-cache"),
+        ("/index.html", "no-cache"),
+        ("/einstellungen", "no-cache"),
+        ("/manifest.webmanifest", "no-cache"),
+        (
+            "/assets/index-B4xY9zQ1.js",
+            "public, max-age=31536000, immutable",
+        ),
+        ("/assets/index-Removed1.js", "no-cache"),
+        ("/favicon.svg", "public, max-age=3600"),
+        ("/api/v1/setup", "no-store"),
+        ("/health/ready", "no-store"),
+    ] {
+        let response = fetch(path, vec![]).await;
+        assert_eq!(
+            header(&response, "cache-control").as_deref(),
+            Some(cache),
+            "{path}"
+        );
+    }
+    // A revalidated asset keeps its rule.
+    let response = fetch("/assets/index-B4xY9zQ1.js", vec![]).await;
+    let modified = header(&response, "last-modified").unwrap();
+    let response = fetch(
+        "/assets/index-B4xY9zQ1.js",
+        vec![("If-Modified-Since", modified)],
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::NOT_MODIFIED);
+    assert_eq!(
+        header(&response, "cache-control").as_deref(),
+        Some("public, max-age=31536000, immutable")
+    );
+    for encoding in ["br", "gzip"] {
+        let response = fetch(
+            "/assets/index-B4xY9zQ1.js",
+            vec![("Accept-Encoding", encoding.into())],
+        )
+        .await;
+        assert_eq!(
+            header(&response, "content-encoding").as_deref(),
+            Some(encoding)
+        );
+        let bytes = to_bytes(response.into_body(), 1 << 20).await.unwrap();
+        assert!(bytes.len() < 1000, "{encoding}: {} bytes", bytes.len());
+        let response = fetch(
+            "/api/v1/settings",
+            vec![
+                ("Accept-Encoding", encoding.into()),
+                ("Cookie", cookie.clone()),
+            ],
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            header(&response, "content-encoding").as_deref(),
+            Some(encoding)
+        );
+        assert_eq!(
+            header(&response, "cache-control").as_deref(),
+            Some("no-store")
+        );
+    }
+    assert!(
+        header(
+            &fetch("/assets/index-B4xY9zQ1.js", vec![]).await,
+            "content-encoding"
+        )
+        .is_none()
+    );
 }

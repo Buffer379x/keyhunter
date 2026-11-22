@@ -13,6 +13,7 @@ mod price_badges;
 mod pricing;
 mod settings;
 mod shops;
+mod throttle;
 mod wishlist;
 
 use anyhow::{Context, Result, bail};
@@ -38,13 +39,25 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tower::limit::ConcurrencyLimitLayer;
-use tower_http::services::{ServeDir, ServeFile};
+use tower_http::{
+    compression::{CompressionLayer, CompressionLevel},
+    services::{ServeDir, ServeFile},
+    timeout::TimeoutLayer,
+};
+
+/// Largest request body (all bodies are small JSON documents).
+const BODY_LIMIT: usize = 16 * 1024;
+/// A request body must arrive completely within this time (SEC-02).
+const BODY_TIMEOUT: Duration = Duration::from_secs(15);
+/// Longest time for a whole request, above the slowest handlers (IGDB: 10 s per call and token refresh).
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 
 pub(crate) struct AppState {
     config: config::Config,
     pool: SqlitePool,
     bootstrap_hash: Option<[u8; 32]>,
     password_slots: Arc<tokio::sync::Semaphore>,
+    login_throttle: throttle::LoginThrottle,
     catalog: Arc<dyn catalog::provider::CatalogProvider>,
     notifier: Arc<notify::Notifier>,
     heartbeat: Arc<jobs::Heartbeat>,
@@ -63,6 +76,7 @@ impl ApiError {
             StatusCode::UNAUTHORIZED => "unauthenticated",
             StatusCode::FORBIDDEN => "forbidden",
             StatusCode::NOT_FOUND => "not_found",
+            StatusCode::REQUEST_TIMEOUT => "timeout",
             StatusCode::CONFLICT => "conflict",
             StatusCode::PAYLOAD_TOO_LARGE => "too_large",
             StatusCode::UNPROCESSABLE_ENTITY => "unprocessable",
@@ -79,9 +93,10 @@ impl IntoResponse for ApiError {
         let mut response =
             (self.0, Json(json!({"error": self.1, "code": self.code()}))).into_response();
         if self.0 == StatusCode::TOO_MANY_REQUESTS {
+            // The sign-in throttle window.
             response
                 .headers_mut()
-                .insert(header::RETRY_AFTER, HeaderValue::from_static("900"));
+                .insert(header::RETRY_AFTER, HeaderValue::from(throttle::WINDOW));
         }
         response
     }
@@ -247,6 +262,7 @@ async fn create_app_inner(
         pool,
         bootstrap_hash,
         password_slots: Arc::new(tokio::sync::Semaphore::new(4)),
+        login_throttle: Default::default(),
         catalog,
         notifier: Arc::clone(&notifier),
         heartbeat: Arc::default(),
@@ -261,6 +277,11 @@ async fn create_app_inner(
     let api = Router::new()
         .route("/setup", get(auth::setup_status).post(auth::setup))
         .route("/session", post(auth::login).delete(auth::logout))
+        .route(
+            "/session/passphrase",
+            axum::routing::put(auth::change_passphrase),
+        )
+        .route("/sessions", axum::routing::delete(auth::logout_everywhere))
         .route("/me", get(auth::me))
         .route("/catalog/search", get(catalog::search))
         .route("/catalog/games/{id}", get(catalog::game_detail))
@@ -338,8 +359,16 @@ async fn create_app_inner(
             ServeDir::new(&config.frontend_dir)
                 .not_found_service(ServeFile::new(config.frontend_dir.join("index.html"))),
         )
-        .layer(DefaultBodyLimit::max(16 * 1024))
+        // Innermost first: the body is read in full before the request takes a concurrency slot.
+        .layer(DefaultBodyLimit::max(BODY_LIMIT))
         .layer(ConcurrencyLimitLayer::new(16))
+        .layer(middleware::from_fn(read_body))
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::SERVICE_UNAVAILABLE,
+            REQUEST_TIMEOUT,
+        ))
+        // JSON and static files (PERF-03); brotli at quality 4 stays cheap for the 460 KB script.
+        .layer(CompressionLayer::new().quality(CompressionLevel::Precise(4)))
         .layer(middleware::from_fn(security_headers))
         .with_state(state))
 }
@@ -359,9 +388,73 @@ async fn ready(State(state): State<Shared>) -> ApiResult<Json<serde_json::Value>
 async fn api_not_found() -> ApiError {
     ApiError(StatusCode::NOT_FOUND, "Endpunkt nicht gefunden.")
 }
+/// Reads the whole request body (at most [`BODY_LIMIT`]) within [`BODY_TIMEOUT`] before the request reaches the
+/// concurrency limit and the handler, so a client that sends its body slowly or never holds nothing that a
+/// sign-in or any other request needs (SEC-02).
+async fn read_body(req: Request<Body>, next: Next) -> Response {
+    use axum::body::HttpBody;
+    let (parts, mut body) = req.into_parts();
+    let read = async {
+        let mut bytes = Vec::new();
+        while let Some(frame) =
+            std::future::poll_fn(|cx| std::pin::Pin::new(&mut body).poll_frame(cx)).await
+        {
+            let frame = frame.map_err(|_| {
+                ApiError(
+                    StatusCode::BAD_REQUEST,
+                    "Die Anfrage konnte nicht gelesen werden.",
+                )
+            })?;
+            if let Ok(data) = frame.into_data() {
+                if bytes.len() + data.len() > BODY_LIMIT {
+                    return Err(ApiError(
+                        StatusCode::PAYLOAD_TOO_LARGE,
+                        "Die Anfrage ist zu groß.",
+                    ));
+                }
+                bytes.extend_from_slice(&data);
+            }
+        }
+        Ok(bytes)
+    };
+    match tokio::time::timeout(BODY_TIMEOUT, read).await {
+        Ok(Ok(bytes)) => {
+            next.run(Request::from_parts(parts, Body::from(bytes)))
+                .await
+        }
+        Ok(Err(error)) => error.into_response(),
+        Err(_) => ApiError(
+            StatusCode::REQUEST_TIMEOUT,
+            "Die Anfrage kam nicht rechtzeitig vollständig an.",
+        )
+        .into_response(),
+    }
+}
+
+/// Caching (PERF-04): API and health never; `index.html`, the SPA fallback, the manifest and errors revalidate on
+/// every load, so an update never leaves a page that points to removed scripts; the hashed `/assets/*` files
+/// never change; the icons may be reused for an hour.
+fn cache_control(path: &str, status: StatusCode) -> &'static str {
+    let stored = status.is_success() || status == StatusCode::NOT_MODIFIED;
+    if path.starts_with("/api/") || path.starts_with("/health/") {
+        "no-store"
+    } else if stored && path.starts_with("/assets/") {
+        "public, max-age=31536000, immutable"
+    } else if stored
+        && [".png", ".svg", ".ico"]
+            .iter()
+            .any(|ext| path.ends_with(ext))
+    {
+        "public, max-age=3600"
+    } else {
+        "no-cache"
+    }
+}
+
 async fn security_headers(req: Request<Body>, next: Next) -> Response {
-    let private = req.uri().path().starts_with("/api/") || req.uri().path().starts_with("/health/");
+    let path = req.uri().path().to_owned();
     let mut response = next.run(req).await;
+    let cache = cache_control(&path, response.status());
     let headers = response.headers_mut();
     headers.insert(header::CONTENT_SECURITY_POLICY, HeaderValue::from_static("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://images.igdb.com; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"));
     headers.insert(
@@ -377,9 +470,7 @@ async fn security_headers(req: Request<Body>, next: Next) -> Response {
         "permissions-policy",
         HeaderValue::from_static("camera=(), microphone=(), geolocation=()"),
     );
-    if private {
-        headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    }
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static(cache));
     response
 }
 

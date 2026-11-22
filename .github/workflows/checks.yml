@@ -66,6 +66,3 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           working-directory: backend
-          # Known advisories, added 2026-11-22 and fixed in Phase A of the 1.0 roadmap (SEC-04):
-          # url (RUSTSEC-2026-0592) and libsqlite3-sys (RUSTSEC-2026-0459). Remove this line once they are fixed.
-          ignore: RUSTSEC-2026-0592,RUSTSEC-2026-0459
