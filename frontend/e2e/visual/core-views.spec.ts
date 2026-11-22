@@ -59,7 +59,6 @@ const offers = {
     preferred: [pt(21, 3499, 'DE'), pt(14, 3299, 'DE', 'driffle'), pt(8, 3099, 'Global'), pt(1, 2890, 'Global')],
     all: [pt(21, 1590, 'India'), pt(14, 1490, 'Argentina', 'driffle'), pt(8, 1390, 'India'), pt(1, 1290, 'India')],
   },
-  history: [],
   best_base: 2890,
   best_estimate: 2948,
   last_known: null,

@@ -41,7 +41,6 @@ const link = (...args: Parameters<typeof rawLink>) => withState(rawLink(...args)
 const view = {
   links: [link(1, 'Global', 2890), link(2, 'India', 1290)],
   histories: { preferred: [], all: [] },
-  history: [],
   best_base: 2890,
   offer_count: 2,
   best_estimate: null,

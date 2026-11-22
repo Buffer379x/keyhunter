@@ -54,7 +54,6 @@ const link = (id: number, region: string, cents: number, state: State, extra: ob
 const view = (links: object[], extra: object = {}) => ({
   links,
   histories: { preferred: [], all: [] },
-  history: [],
   best_base: 2890,
   best_estimate: null,
   offer_count: links.length,

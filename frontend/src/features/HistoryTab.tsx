@@ -25,8 +25,8 @@ export default function HistoryTab({
   target: number | null;
 }) {
   const now = Date.now() / 1000;
-  const preferred = view.histories?.preferred ?? view.history ?? [];
-  const all = view.histories?.all ?? [];
+  const preferred = view.histories.preferred;
+  const all = view.histories.all;
   const [chosen, setChosen] = useState<Range | null>(null);
   const days = chosen ?? defaultRange([...preferred, ...all], now);
   const home = dailyStats(preferred, days, now),

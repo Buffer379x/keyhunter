@@ -35,8 +35,6 @@ type Props = {
   targetCountry: string | null;
   targetLabel: string;
   tab: TabId;
-  /** Kept for compatibility: the way back is the breadcrumb of the top bar (design v4 has no back button in the detail). */
-  onBack?: () => void;
   purchasing: boolean;
   onTab: (tab: TabId) => void;
   onPurchase: () => void;

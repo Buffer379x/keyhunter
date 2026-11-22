@@ -29,6 +29,8 @@ const link = (id: number, region: string, cents: number, reasons: string[] = [],
   last_error: null,
   retry_at: 0,
   reasons,
+  data_state: 'current',
+  current: true,
   product: {
     name: 'p',
     region,
@@ -43,7 +45,7 @@ const link = (id: number, region: string, cents: number, reasons: string[] = [],
 });
 const view = (links: Link[], best: number | null, estimate: number | null = null): OffersView => ({
   links,
-  history: [],
+  histories: { preferred: [], all: [] },
   best_base: best,
   best_estimate: estimate,
   offer_count: links.reduce((n, l) => n + (l.review === 'confirmed' ? l.quotes.length : 0), 0),
@@ -86,7 +88,7 @@ test('summary compares the best target-country price with the cheapest region an
 });
 
 test('stale and failed offers never count as the cheapest current region', () => {
-  const v = view([link(1, 'DE', 3000), link(2, 'India', 500, ['stale'], { stale: true })], 3000);
+  const v = view([link(1, 'DE', 3000), link(2, 'India', 500, ['stale'], { stale: true, data_state: 'stale', current: false })], 3000);
   const s = summarize(v, offerRows(v, 'base'), 'base', 'DE');
   assert.equal(s.world?.link.id, 1);
   assert.equal(s.saving, 0);
@@ -246,17 +248,4 @@ test('SCORE-03: the Prüftempo buckets are häufig from 70, selten up to 30, nor
   assert.deepEqual([100, 70, 69, 50, 31, 30, 0].map(tempo), ['häufig', 'häufig', 'normal', 'normal', 'normal', 'selten', 'selten']);
   assert.equal(tempo(null), null);
   assert.equal(tempo(undefined), null);
-});
-
-test('FUNC-03: without server fields, unknown availability and a never observed link are no current price either', () => {
-  const unknown = link(1, 'Brazil', 700, ['availability_unknown']);
-  const unseen = link(2, 'Peru', 800, [], { observed_at: null });
-  assert.deepEqual(
-    offerRows(view([unknown, unseen, link(3, 'DE', 3000)], 3000), 'base').map(r => [r.link.id, r.current]),
-    [
-      [1, false],
-      [2, false],
-      [3, true],
-    ],
-  );
 });

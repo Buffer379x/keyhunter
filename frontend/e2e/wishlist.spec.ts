@@ -267,18 +267,14 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
   expect(errors).toEqual([]);
 });
 
-test('KPI tiles leave out what an older server or a failed read does not provide', async ({ page }) => {
+// Frontend and backend ship in the same image, so the tiles never meet an older server (0.9.3, CODE-05); a failed read
+// of the fetch status still leaves its tile empty.
+test('KPI tiles leave out what a failed read does not provide', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await signInToFixture(page);
-  const items = await addThree(page);
-  const now = Math.floor(Date.now() / 1000);
-  // 0.6.0 badges: no trend, no world price; no alarm rules; the fetch status cannot be read.
-  await page.route(/\/api\/v1\/wishlist\/price-badges(?:\?.*)?$/, route =>
-    route.fulfill({
-      json: Object.fromEntries(items.map(item => [item.id, { state: 'price', cents: 1999, observed_at: now, checked_at: now, stale: false, pending: false }])),
-    }),
-  );
+  await addThree(page);
+  // No alarm rules; the fetch status cannot be read. The fixture has no shop prices.
   await page.route('**/api/v1/alerts', route =>
     route.request().method() === 'GET' ? route.fulfill({ json: { configured: false, rules: [], events: [] } }) : route.continue(),
   );
@@ -296,7 +292,6 @@ test('KPI tiles leave out what an older server or a failed read does not provide
   await expect(kpi(page, 'Abrufe heute').locator('.kpi-val')).toHaveText('–');
   await expect(kpi(page, 'Abrufe heute').locator('.kpi-foot')).toHaveText(/^\s*$/); // an empty row keeps the tiles level
   await expect(wishlistTable(page).locator('.spark')).toHaveCount(0);
-  await expect(wishlistRows(page).first().locator('.c-world')).toHaveText('–');
   await expect(wishlistRows(page).first().locator('.c-target')).toHaveText('–');
   await removeAll(page);
   expect(errors).toEqual([]);

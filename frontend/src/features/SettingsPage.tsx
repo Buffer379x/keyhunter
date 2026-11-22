@@ -7,7 +7,7 @@ import Index from './settings/Index';
 import Notifications from './settings/Notifications';
 import FetchPanel from './settings/FetchPanel';
 import System from './settings/System';
-import { useFetchStatus } from './settings/data';
+import { useFetchStatus } from '../fetch-status';
 import type { SettingsDraft } from './settings/draft';
 import Log from './settings/Log';
 import { sections } from './settings/sections';

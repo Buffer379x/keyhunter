@@ -52,8 +52,8 @@ export default function PriceTab({ view, rows, summary, basis, onBasis, hasEstim
   const now = Date.now() / 1000;
   const { targetCents, targetRow, world, saving } = summary;
   const same = !!world && targetCents !== null && saving <= 0;
-  const preferred = view?.histories?.preferred ?? view?.history ?? [];
-  const all = view?.histories?.all ?? [];
+  const preferred = view?.histories.preferred ?? [];
+  const all = view?.histories.all ?? [];
   const target = ruleTarget(rule);
   const chartTarget = rule?.basis === 'base' ? target : null;
   const ruleCents = rule?.basis === 'estimate' ? (view?.best_estimate ?? null) : (view?.best_base ?? null);

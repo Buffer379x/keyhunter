@@ -72,7 +72,6 @@ test('edition previews keep the saved version, offers keep price order and histo
               link(5, 'North America', 1400),
               { ...link(6, 'USA', 1), can_confirm: false, review: 'pending' },
             ],
-            history: [],
             histories: {
               preferred: [point(now - 8 * day, 1400, 'Global'), point(now - day, 1200, 'Global')],
               all: [point(now - 8 * day, 1000, 'India'), point(now - day, 900, 'Global')],

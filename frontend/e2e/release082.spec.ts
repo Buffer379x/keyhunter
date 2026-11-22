@@ -52,7 +52,6 @@ const view = {
     link(3, 'Turkey', 3100, { score: null, review: 'pending' }),
   ],
   histories: { preferred: [], all: [] },
-  history: [],
   best_base: 2890,
   offer_count: 2,
   best_estimate: null,

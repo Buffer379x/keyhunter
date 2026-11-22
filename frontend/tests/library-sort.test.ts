@@ -11,6 +11,7 @@ const item = (id: string, title: string, system: number, created_at: number, acq
   game: null,
   manual_title: title,
   verification: 'manual_unverified',
+  in_cart: false,
 });
 test('library filters actual systems and sorts acquisition independently from original wishlist dates', () => {
   const data = [item('a', 'Zelda', 169, 500, 10), item('b', 'Älterer Titel', 49, 1, 30), item('c', 'Forza', 169, 300, 20)];

@@ -24,6 +24,7 @@ const item = (id: string, created_at = 1000, title = id): WishlistItem => ({
   verification: 'catalog',
   game: null,
   manual_title: title,
+  in_cart: false,
 });
 const badge = (cents: number | null, world: number | null = null, extra: Partial<PriceBadgeData> = {}): PriceBadgeData => ({
   state: cents === null ? 'unknown' : 'price',
@@ -33,6 +34,7 @@ const badge = (cents: number | null, world: number | null = null, extra: Partial
   stale: false,
   pending: false,
   world: world === null ? null : { cents: world, region: 'IN', observed_at: 1 },
+  trend: [],
   ...extra,
 });
 const rule = (target: number, extra: Partial<TargetRule> = {}): TargetRule => ({

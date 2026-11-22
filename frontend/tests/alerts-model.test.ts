@@ -18,6 +18,7 @@ const badge = (cents: number | null, stale = false): PriceBadgeData => ({
   checked_at: 1,
   stale,
   pending: false,
+  trend: [],
 });
 
 test('alarm rows are sorted by distance to the target, missing prices and low-price rules last', () => {

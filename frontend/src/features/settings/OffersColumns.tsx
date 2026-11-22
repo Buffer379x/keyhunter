@@ -8,10 +8,10 @@ import type { OffersColumn } from '../offers-columns';
 /** Order and visibility of the offers table on the game page (tab Angebote, 0.8.2), part of the settings draft; a tab of "Tabellenspalten" since 0.8.3. */
 export default function OffersColumns({ settings, edit }: { settings: Settings; edit: SettingsDraft['edit'] }) {
   const order = offersOrder(settings.offers_columns);
-  const hidden = settings.offers_hidden ?? [];
+  const hidden = settings.offers_hidden;
   const toggle = (column: OffersColumn, on: boolean) =>
     edit(current => {
-      const rest = (current.offers_hidden ?? []).filter(key => key !== column);
+      const rest = current.offers_hidden.filter(key => key !== column);
       return { ...current, offers_hidden: on ? rest : [...rest, column] };
     });
   const standard =

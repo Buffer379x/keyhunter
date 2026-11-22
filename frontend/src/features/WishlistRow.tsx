@@ -30,7 +30,7 @@ export function regCode(region: string | null | undefined): { code: string; name
 }
 
 /** "Standard Edition · 2021" (manual entries: "Manuell · Xbox Series X|S"). */
-/** "38 Angebote" after the year (0.9.1); nothing from an older server. */
+/** "38 Angebote" after the year (0.9.1); nothing for an item without a price badge. */
 const offerText = (item: WishlistItem) => (item.offer_count === undefined ? '' : ` (${item.offer_count} ${item.offer_count === 1 ? 'Angebot' : 'Angebote'})`);
 function subline(item: WishlistItem) {
   const game = item.game;

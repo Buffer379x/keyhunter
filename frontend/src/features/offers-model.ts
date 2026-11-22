@@ -32,9 +32,9 @@ export type Link = {
   /** The owner may confirm it by hand: an Xbox key for the wish's system (accounts and PC-only products never). */
   manual_allowed?: boolean;
   /** State of the link's data (0.9.3): only `current` prices may be offered as a saving or a cart action. */
-  data_state?: 'current' | 'stale' | 'failed' | 'unknown';
+  data_state: 'current' | 'stale' | 'failed' | 'unknown';
   /** A current price of its region (confirmed, fresh, in stock), whatever the target country. */
-  current?: boolean;
+  current: boolean;
   /** Can be bought for the target country: activation confirmed there and the same market (RESP-14). */
   fits_target?: boolean;
   /** End of the freshness limit of the last observation: twice the check interval, at least 24 h (FUNC-05). */
@@ -63,8 +63,7 @@ export type PriceBadgeLike = {
 export type OffersView = {
   price_badge?: PriceBadgeLike;
   links: Link[];
-  history: HistoryPoint[];
-  histories?: { preferred: HistoryPoint[]; all: HistoryPoint[] };
+  histories: { preferred: HistoryPoint[]; all: HistoryPoint[] };
   best_base: number | null;
   best_estimate: number | null;
   last_known?: { cents: number; observed_at: number } | null;
@@ -129,13 +128,11 @@ export type OfferRow = {
 
 /**
  * Whether the data of a link is a current price (FUNC-03): only then it may show a saving or a cart action. The server
- * decides (`data_state`, and `current` for a key that counts at all); an older payload without them falls back to the
- * flags it has.
+ * decides (`data_state`, and `current` for a key that counts at all). Frontend and backend ship in the same image, so
+ * this page never meets an older payload without these fields (0.9.3, CODE-05).
  */
 export function isCurrent(link: Link): boolean {
-  if (link.data_state !== undefined) return link.data_state === 'current' && link.current !== false;
-  // Legacy branch (Phase C removes it): a link never observed or with unknown availability is no price either.
-  return !link.stale && link.observed_at !== null && !link.reasons?.some(r => r === 'stale' || r === 'source_error' || r === 'availability_unknown');
+  return link.data_state === 'current' && link.current;
 }
 
 /** One row per observed price, plus one status row per product without a price. Ordered by price only. */
@@ -210,9 +207,7 @@ export function summarize(view: OffersView | null, rows: OfferRow[], basis: Basi
  */
 export function fetchFailed(view: OffersView | null, rows: OfferRow[]): boolean {
   if (!view || rows.some(row => row.current)) return false;
-  const links = view.links.some(
-    link => link.enabled && link.review !== 'rejected' && (link.data_state === 'failed' || (link.data_state === undefined && !!link.last_error)),
-  );
+  const links = view.links.some(link => link.enabled && link.review !== 'rejected' && link.data_state === 'failed');
   const searches =
     view.searches.some(search => search.status === 'error') && view.searches.every(search => search.status === 'error' || search.status === 'paused');
   return links || searches;
@@ -273,8 +268,7 @@ export function validity(row: OfferRow, code: string): Validity {
   if (row.status === 'sold_out') return { tone: 'dim', icon: 'x', text: 'Ausverkauft' };
   if (link.reasons?.includes('not_a_key')) return { tone: 'dim', icon: 'x', text: inSentence('Kein Xbox-Key') };
   // Without a current price (FUNC-03, FUNC-12) the pill says what is true about the data, not that the key is invalid.
-  if (link.data_state === 'failed' || (link.data_state === undefined && link.last_error && !row.quote))
-    return { tone: 'danger', icon: 'alert', text: 'Abruffehler' };
+  if (link.data_state === 'failed') return { tone: 'danger', icon: 'alert', text: 'Abruffehler' };
   if (link.data_state === 'stale') return { tone: 'dim', icon: 'clock', text: inSentence('Veraltet') };
   if (link.data_state === 'unknown') return { tone: 'dim', icon: 'alert', text: link.observed_at ? 'Verfügbarkeit unbekannt' : 'Noch nicht abgefragt' };
   if (row.eligible) return { tone: 'ok', icon: 'check', text: `in ${country} aktivierbar` };

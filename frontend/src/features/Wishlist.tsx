@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { AlertEvent, CatalogGame, FetchStatusResponse, PriceBadgeData, WishlistItem } from '../api';
-import { api, CART_CHANGED, FETCH_STATUS_CHANGED } from '../api';
+import type { AlertEvent, CatalogGame, PriceBadgeData, WishlistItem } from '../api';
+import { api, CART_CHANGED } from '../api';
+import { useFetchStatus } from '../fetch-status';
 import { Button, Chip, ConfirmDialog, EmptyState, Field, Help, Icon, Inset, Kpi, Notice, Panel, PanelHead, Seg, formatPrice } from '../components';
 import CatalogSearch from './CatalogSearch';
 import GameDetail, { isTab } from './GameDetail';
@@ -79,7 +80,6 @@ const SORT_KEY = 'keyhunter.wishlist.sort';
 const BASIS_KEY = 'keyhunter.wishlist.basis';
 /** Key-shops the list filter knows by name (IGDB is a catalog, not a shop). */
 const SHOP_NAMES = Object.fromEntries(Object.entries(shopNames).filter(([id]) => id !== 'igdb'));
-const FETCH_REFRESH_MS = 60_000;
 /**
  * History state of a game opened from the list: the number of history entries since the list (opening the game plus
  * every tab change). "Zur Wunschliste" goes back that many steps, so the list entry with its scroll position is reused.
@@ -172,7 +172,8 @@ export default function Wishlist({
   const [badges, setBadges] = useState<Record<string, PriceBadgeData>>({});
   const [alerts, setAlerts] = useState<AlertRules>({});
   const [events, setEvents] = useState<AlertEvent[] | null>(null);
-  const [fetchStatus, setFetchStatus] = useState<FetchStatusResponse | null>(null);
+  // Request budget for the "Abrufe heute" tile, from the app's one fetch-status poller (shared with the sidebar card).
+  const { data: fetchStatus } = useFetchStatus();
   const [editionItems, setEditionItems] = useState<WishlistItem[]>([]);
   const [tab, setTab] = useState<TabId>(routeTab);
   const [editionError, setEditionError] = useState('');
@@ -296,32 +297,6 @@ export default function Wishlist({
       })
       .catch(() => {});
     return () => controller.abort();
-  }, []);
-  // Request budget for the "Abrufe heute" tile, refreshed like the sidebar card (at most every 60 s, never while hidden).
-  useEffect(() => {
-    const controller = new AbortController();
-    let cancel = () => {};
-    const load = () => {
-      api<FetchStatusResponse>('/status/fetch', 'GET', undefined, undefined, controller.signal)
-        .then(next => {
-          if (!controller.signal.aborted) setFetchStatus(next);
-        })
-        .catch(() => {})
-        .finally(() => {
-          if (!controller.signal.aborted) cancel = whenVisible(load, FETCH_REFRESH_MS);
-        });
-    };
-    load();
-    const reload = () => {
-      cancel();
-      load();
-    };
-    window.addEventListener(FETCH_STATUS_CHANGED, reload);
-    return () => {
-      controller.abort();
-      cancel();
-      window.removeEventListener(FETCH_STATUS_CHANGED, reload);
-    };
   }, []);
   const closeSearch = useCallback(() => onAddOpen(false), [onAddOpen]);
 
@@ -698,7 +673,6 @@ export default function Wishlist({
           offersColumns={offersColumns}
           offersHidden={offersHidden}
           onTab={changeTab}
-          onBack={closeDetail}
           onPurchase={() => void purchase()}
           onRemove={() => {
             setRemoveError('');

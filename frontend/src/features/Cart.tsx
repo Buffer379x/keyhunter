@@ -44,6 +44,8 @@ interface Props {
   targetCountry: string;
   onOpen: (item: WishlistItem) => void;
   onOpenWishlist: () => void;
+  /** The number of entries for the navigation, after each read. */
+  onCountChange: (count: number) => void;
   onError: (error: unknown) => void;
 }
 
@@ -51,7 +53,7 @@ interface Props {
  * Warenkorb (0.8.0): wishes the owner plans to buy together, with the total without and with the estimated fees, split by
  * shop. Each wish is in it once; "Gekauft" or deleting the wish takes it out.
  */
-export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onError }: Props) {
+export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onCountChange, onError }: Props) {
   const [entries, setEntries] = useState<CartEntry[] | null>(null);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
   const [loadError, setLoadError] = useState('');
@@ -68,6 +70,7 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
         const cart = await api<CartEntry[]>('/cart', 'GET', undefined, undefined, controller.signal);
         if (controller.signal.aborted) return;
         setEntries(cart);
+        onCountChange(cart.length);
         setLoadedAt(Date.now());
         setLoadError('');
       } catch (e) {
@@ -85,7 +88,7 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
       controller.abort();
       cancel();
     };
-  }, [reload, onError]);
+  }, [reload, onCountChange, onError]);
 
   const change = useCallback(
     async (method: 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown) => {

@@ -117,7 +117,6 @@ test('offers are ordered by price and the cheapest region is compared with the t
           json: {
             links: [link(1, 'DE', 3000), link(2, 'USA', 1000), link(3, 'India', 500)],
             histories: { preferred: [], all: [] },
-            history: [],
             best_base: 3000,
             offer_count: 3,
             best_estimate: 3100,

@@ -114,7 +114,6 @@ test('the price trend shows the steadily cheapest region and each product its ch
       link(4, 'India', 0, 0.5, 48 * 3600, 'sold_out'),
     ],
     histories: { preferred: [], all: [] },
-    history: [],
     best_base: 3990,
     offer_count: 3,
     best_estimate: null,
