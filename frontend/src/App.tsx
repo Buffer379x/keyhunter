@@ -121,15 +121,19 @@ export default function App() {
     setLibraryAddOpen(false);
     setNavOpen(false);
   };
+  /** The session ended on purpose ("Abmelden", "Überall abmelden"): back to the sign-in. */
+  const signedOut = () => {
+    resetSession();
+    setPage('wishlist');
+    setScreen('login');
+    window.history.replaceState(null, '', window.location.pathname);
+  };
   async function logout() {
     setBusy(true);
     setError('');
     try {
       await api('/session', 'DELETE', undefined, csrf);
-      resetSession();
-      setPage('wishlist');
-      setScreen('login');
-      window.history.replaceState(null, '', window.location.pathname);
+      signedOut();
     } catch (e) {
       handleProtectedError(e);
     } finally {
@@ -510,6 +514,7 @@ export default function App() {
                 onSourcesChanged={refreshSources}
                 onError={handleProtectedError}
                 onLogout={() => void logout()}
+                onSignedOut={signedOut}
               />
             )
           )}

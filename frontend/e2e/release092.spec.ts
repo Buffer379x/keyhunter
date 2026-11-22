@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { signInToFixture } from './helpers';
+import { navTo, signInToFixture } from './helpers';
 
 /** A write to the API as the page would send it (origin and CSRF token). */
 async function write(page: Page, method: 'POST' | 'PUT' | 'DELETE', path: string, data?: object) {
@@ -38,4 +38,45 @@ test('a paused wish shows no search in progress and its detail is not polled eve
   // Without a fetch the owner triggered, the detail reloads every 60 s, not every 3 s.
   await page.waitForTimeout(7000);
   expect(reads).toHaveLength(1);
+});
+
+const PASSPHRASE = 'browser test passphrase only';
+const CHANGED = 'browser test passphrase changed';
+
+test('the passphrase is changed in System and "Überall abmelden" ends every session after a confirmation (SEC-03)', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signInToFixture(page);
+  await navTo(page, 'System');
+  const form = page.getByRole('region', { name: 'Passphrase ändern' });
+  const change = async (current: string, next: string, confirm = next) => {
+    await form.getByLabel('Aktuelle Passphrase', { exact: true }).fill(current);
+    await form.getByLabel('Neue Passphrase', { exact: true }).fill(next);
+    await form.getByLabel('Neue Passphrase wiederholen', { exact: true }).fill(confirm);
+    await form.getByRole('button', { name: 'Passphrase ändern', exact: true }).click();
+  };
+  try {
+    await change(PASSPHRASE, CHANGED, `${CHANGED}!`);
+    await expect(page.getByText('Die neuen Passphrasen stimmen nicht überein.')).toBeVisible();
+    await change('not the passphrase', CHANGED);
+    await expect(page.getByText('Die aktuelle Passphrase stimmt nicht.')).toBeVisible();
+    await change(PASSPHRASE, CHANGED);
+    await expect(page.getByText(/^Passphrase geändert/)).toBeVisible();
+    await expect(form.getByLabel('Aktuelle Passphrase', { exact: true })).toHaveValue('');
+    // This session stays.
+    expect((await page.request.get('/api/v1/me')).ok()).toBe(true);
+  } finally {
+    await write(page, 'PUT', '/api/v1/session/passphrase', { current: CHANGED, new: PASSPHRASE });
+  }
+
+  await page.getByRole('button', { name: 'Überall abmelden', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Überall abmelden?' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Abbrechen', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  expect((await page.request.get('/api/v1/me')).ok()).toBe(true);
+  await page.getByRole('button', { name: 'Überall abmelden', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Überall abmelden', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Anmelden', exact: true })).toBeVisible();
+  expect((await page.request.get('/api/v1/me')).status()).toBe(401);
+  await signInToFixture(page);
 });

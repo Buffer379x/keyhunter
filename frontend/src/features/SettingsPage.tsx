@@ -38,6 +38,8 @@ interface Props {
   onSourcesChanged: () => void;
   onError: (error: unknown) => void;
   onLogout: () => void;
+  /** Every session ended ("Überall abmelden"). */
+  onSignedOut: () => void;
 }
 
 /**
@@ -92,7 +94,20 @@ function SaveBar({ auto }: { auto: SettingsDraft }) {
   );
 }
 
-export default function SettingsPage({ section, settings, auto, csrf, countries, sourceStatus, busy, onSection, onSourcesChanged, onError, onLogout }: Props) {
+export default function SettingsPage({
+  section,
+  settings,
+  auto,
+  csrf,
+  countries,
+  sourceStatus,
+  busy,
+  onSection,
+  onSourcesChanged,
+  onError,
+  onLogout,
+  onSignedOut,
+}: Props) {
   const fetched = useFetchStatus(section === 'shops' || section === 'status');
   const [httpsSeen, setHttpsSeen] = useState(readSeen);
   const dismissHttps = () => {
@@ -164,7 +179,7 @@ export default function SettingsPage({ section, settings, auto, csrf, countries,
               />
             )}
             {id === 'log' && <Log />}
-            {id === 'system' && <System onLogout={onLogout} busy={busy} />}
+            {id === 'system' && <System csrf={csrf} busy={busy} onLogout={onLogout} onSignedOut={onSignedOut} onError={onError} />}
           </div>
         </TabPanel>
       ))}
