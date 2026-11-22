@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, CART_CHANGED, HttpError } from '../api';
 import type { WishlistItem } from '../api';
-import { Button, EmptyState, Icon, IconButton, Inset, Label, Notice, PageHeading, Panel, PanelHead, Price, Reg, Seg, formatPrice } from '../components';
+import { Button, EmptyState, Icon, Help, IconButton, Inset, Label, Notice, PageHeading, Panel, PanelHead, Price, Reg, Seg, formatPrice } from '../components';
 import { whenVisible } from '../poll';
 import { itemName } from './catalog-ui';
 import GameCover from './GameCover';
@@ -93,7 +93,7 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
   };
   const addable = wishes.filter(wish => !wish.in_cart && !entries?.some(entry => entry.id === wish.id)).sort((a, b) => itemName(a).localeCompare(itemName(b), 'de'));
   const sub = !entries ? 'Wird geladen …' : entries.length === 0 ? 'Leer · lege Spiele aus der Wunschliste hinein'
-    : `${games(entries.length)} · Preise aus den letzten Shop-Abfragen${loadedAt ? `, Stand ${time(loadedAt)}` : ''}`;
+    : `${games(entries.length)}${loadedAt ? ` · Stand ${time(loadedAt)}` : ''}`;
   // Only while a wish is left to add; with none on the wishlist the empty state links to it.
   const picker = addable.length > 0 && <form className="cart-add" onSubmit={add}>
     <select aria-label="Spiel aus der Wunschliste wählen" value={pick} onChange={event => setPick(event.target.value)} disabled={busy}>
@@ -104,7 +104,8 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
   </form>;
 
   return <section className="page cart-page" aria-labelledby="cart-title">
-    <PageHeading id="cart-title" title="Warenkorb" sub={sub} />
+    <PageHeading id="cart-title" title="Warenkorb" sub={sub} help={<><span>Die Preise kommen aus den letzten Shop-Abfragen und aktualisieren sich von selbst.</span>
+      <span>„Günstigster“ nimmt je Spiel das günstigste Angebot nach Key-Preis, egal welcher Shop und welche Region. {code || 'DE'} zählt nur im Zielland aktivierbare Keys des gewählten Shops, INT die günstigste Region dieses Shops.</span></>} />
     {loadError && <Notice error>{loadError}<Button size="sm" onClick={() => setReload(n => n + 1)}>Erneut laden</Button></Notice>}
     {error && <Notice error>{error}</Notice>}
     {entries?.length === 0 && <Panel><EmptyState icon="cart" title="Der Warenkorb ist leer"
@@ -148,18 +149,18 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
         <Inset>
           <ul className="cart-shops" aria-label="Nach Shops">
             {sums.shops.map(shop => <li key={shop.source}>
-              <div className="cart-shop-head"><b>{shopName(shop.source)}</b><span className="faint">{games(shop.count)}</span><Price cents={shop.total} /></div>
+              <div className="cart-shop-head"><b>{shopName(shop.source)}</b><span className="faint">{games(shop.count)}</span><span className="mono">{formatPrice(shop.total)}</span></div>
               <dl className="cart-split">
                 <dt>Keys</dt><dd className="mono">{formatPrice(shop.keys)}</dd>
                 <dt>Gebühren</dt><dd className="mono">{shop.fees !== null ? `+${formatPrice(shop.fees)}` : 'unbekannt'}</dd>
               </dl>
             </li>)}
           </ul>
-          <dl className="cart-totals">
-            <dt>Reine Key-Kosten</dt><dd><Price cents={sums.keys} /></dd>
-            <dt>Gebühren (geschätzt)</dt><dd className="mono">+{formatPrice(sums.fees)}</dd>
-            <dt className="cart-grand">Gesamt mit Gebühren</dt><dd className="cart-grand"><Price cents={sums.total} /></dd>
-            <dt>Gesamt ohne Gebühren</dt><dd><Price cents={sums.keys} /></dd>
+          <dl className="cart-totals" aria-label="Summe">
+            <dt>Reine Key-Kosten</dt><dd className="mono">{formatPrice(sums.keys)}</dd>
+            <dt className="with-help">Gebühren (geschätzt)<Help label="Hilfe zu den Gebühren">Die Gebühren sind Schätzungen aus den Einstellungen (Key-Shops › Geschätzte Gebühren). Ein Shop ohne Schätzung zählt nur mit seinem Key-Preis.</Help></dt>
+            <dd className="mono">+{formatPrice(sums.fees)}</dd>
+            <dt className="cart-grand">Gesamt mit Gebühren</dt><dd className="cart-grand mono">{formatPrice(sums.total)}</dd>
           </dl>
           {sums.extra && <dl className="cart-extra" aria-label="Mehrkosten">
             <dt>Mehrkosten gegenüber der günstigsten Zusammensetzung</dt>
@@ -167,7 +168,6 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onEr
           </dl>}
           {sums.unknownFees.length > 0 && <p className="hint">Für {sums.unknownFees.map(shopName).join(', ')} ist keine Gebührenschätzung eingestellt (Einstellungen › Key-Shops); dort zählt nur der Key-Preis.</p>}
           {sums.missing.length > 0 && <p className="hint">Nicht eingerechnet, ohne Preis für den gewählten Shop: {sums.missing.map(itemName).join(', ')}.</p>}
-          <p className="hint">„Günstigster“ nimmt je Spiel das günstigste Angebot nach Key-Preis, egal welcher Shop und welche Region. {code || 'DE'} zählt nur im Zielland aktivierbare Keys des gewählten Shops, INT die günstigste Region dieses Shops. Die Gebühren sind Schätzungen aus den Einstellungen.</p>
         </Inset>
       </Panel>
     </div>}

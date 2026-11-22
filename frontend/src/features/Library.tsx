@@ -91,10 +91,10 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
   }
 
   const empty = !loading && !loadError && items.length === 0;
-  const sub = loading ? 'Wird geladen …' : items.length === 0 ? 'Noch keine Spiele · gekaufte Spiele werden nicht mehr abgefragt'
-    : visible.length === items.length ? `${games(items.length)} gekauft · werden nicht mehr abgefragt` : `${visible.length} von ${games(items.length)}`;
+  const sub = loading ? 'Wird geladen …' : items.length === 0 ? 'Noch keine Spiele'
+    : visible.length === items.length ? `${games(items.length)} gekauft` : `${visible.length} von ${games(items.length)}`;
   return <section className="page library-page" aria-labelledby="library-title">
-    <PageHeading id="library-title" title="Bibliothek" sub={sub} actions={<>
+    <PageHeading id="library-title" title="Bibliothek" sub={sub} help="Gekaufte Spiele. KeyHunter fragt für sie keine Preise mehr ab; der gespeicherte Preisverlauf bleibt erhalten."  actions={<>
       <IconButton className="lib-add" label="Spiel zur Bibliothek hinzufügen" onClick={() => onAddOpen(true)}><Icon name="plus" /></IconButton>
       {items.length > 0 && <>
       <select className="lib-system" aria-label="Bibliothek nach System filtern" value={activeSystem} onChange={event => filter(event.target.value)}>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import type { CatalogGame, WishlistItem } from '../api';
-import { Button, ConfirmDialog, Icon, IconButton, Inset, Label, Notice, Panel, PanelHead, Pill, Reg } from '../components';
+import { Button, ConfirmDialog, Help, Icon, IconButton, Inset, Label, Notice, Panel, PanelHead, Pill, Reg } from '../components';
 import { itemName, kindName, platformName } from './catalog-ui';
 import LinkReview from './LinkReview';
 import type { Link } from './offers-model';
@@ -93,9 +93,8 @@ export default function InfosTab({ item, game, state }: { item: WishlistItem; ga
             <span className="match-actions"><Pill tone="dim" icon="x">Verworfen</Pill><Button size="sm" variant="ghost" disabled={busy} onClick={() => void write(`/${link.id}`, 'PUT', { decision: 'pending' })}>Erneut prüfen</Button></span></div>{deleteButton(link)}</li>)}
         </ul>
         <form className="form-grid link-form" onSubmit={add}>
-          <div className="form-row"><label htmlFor="shop-product-url">Produktlink von Eneba oder Driffle ergänzen</label>
-            <span className="link-input"><input id="shop-product-url" type="url" required maxLength={300} placeholder="https://www.eneba.com/…" value={url} onChange={e => setUrl(e.target.value)} /><Button type="submit" disabled={busy}>Link prüfen</Button></span>
-            <span className="hint">Falls die automatische Suche diese Edition noch nicht abdeckt.</span></div>
+          <div className="form-row"><span className="with-help"><label htmlFor="shop-product-url">Produktlink von Eneba oder Driffle ergänzen</label><Help label="Hilfe zum Produktlink">Falls die automatische Suche diese Edition noch nicht abdeckt.</Help></span>
+            <span className="link-input"><input id="shop-product-url" type="url" required maxLength={300} placeholder="https://www.eneba.com/…" value={url} onChange={e => setUrl(e.target.value)} /><Button type="submit" disabled={busy}>Link prüfen</Button></span></div>
         </form>
       </Inset>
     </Panel>

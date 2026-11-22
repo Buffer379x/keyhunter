@@ -1,13 +1,26 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { api } from '../../api';
 import type { Settings, WishlistItem } from '../../api';
-import { Button, Icon, Notice } from '../../components';
+import { Button, Help, Icon, Notice, TabPanel, Tabs } from '../../components';
 import { downloadJson, wishlistExport } from '../wishlist-export';
 import { SettingsPanel } from './parts';
 import type { SettingsDraft } from './draft';
 import WishlistColumns from './WishlistColumns';
 import OffersColumns from './OffersColumns';
 
+/** The column settings of both tables in one panel (0.8.3), one tab each. */
+function TableColumns({ settings, edit }: { settings: Settings; edit: SettingsDraft['edit'] }) {
+  const [table, setTable] = useState<'wishlist' | 'offers'>('wishlist');
+  const tabs: { id: 'wishlist' | 'offers'; label: string; body: ReactNode }[] = [
+    { id: 'wishlist', label: 'Wunschliste', body: <WishlistColumns settings={settings} edit={edit} /> },
+    { id: 'offers', label: 'Angebote', body: <OffersColumns settings={settings} edit={edit} /> },
+  ];
+  return <SettingsPanel title="Tabellenspalten" titleId="general-columns-title" insetClassName="col-panel">
+    <Tabs id="columns" label="Tabelle" className="col-tabs" value={table} onChange={id => setTable(id as 'wishlist' | 'offers')} items={tabs.map(({ id, label }) => ({ id, label }))} />
+    {tabs.map(tab => <TabPanel key={tab.id} id="columns" tab={tab.id} value={table}>{tab.body}</TabPanel>)}
+  </SettingsPanel>;
+}
 
 export default function General({ settings, countries, edit, onError }: {
   settings: Settings; countries: { code: string; name: string }[]; edit: SettingsDraft['edit']; onError: (error: unknown) => void;
@@ -32,25 +45,24 @@ export default function General({ settings, countries, edit, onError }: {
     <SettingsPanel title="Region und Anzeige" titleId="general-region-title">
       <div className="form-grid">
         <div className="form-row">
-          <label htmlFor="target-country">Zielland</label>
+          <span className="with-help"><label htmlFor="target-country">Zielland</label>
+            <Help label="Hilfe zum Zielland"><span>Der beste Preis gilt für dieses Land. Die Wunschliste zeigt immer diesen Preis und daneben die günstigste Region weltweit.</span>
+              <span>Abgefragt werden alle Regionen gleich, das Zielland wird nicht bevorzugt. Die Shops bestätigen die Aktivierung derzeit für {confirmed.map(nameOf).join(', ')}; Preise werden in Euro verglichen.</span></Help></span>
           <select id="target-country" className="set-w-260" value={target ?? ''} onChange={event => edit(current => ({ ...current, target_country: event.target.value || null }))}>
             <option value="">Bitte wählen</option>
             {countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
           </select>
         </div>
-        {unconfirmed
-          ? <div className="note warn" role="note" data-testid="activation-note"><Icon name="alert" /><span>Die Shops bestätigen die Aktivierung derzeit nur für Deutschland. Für {nameOf(target)} werden Angebote angezeigt, zählen aber nicht als gültiger Bestpreis.</span></div>
-          : <p className="hint">Der beste Preis gilt für dieses Land. Die Wunschliste zeigt immer diesen Preis und daneben die günstigste Region weltweit. Abgefragt werden alle Regionen gleich, das Zielland wird nicht bevorzugt. Die Shops bestätigen die Aktivierung derzeit für {confirmed.map(nameOf).join(', ')}; Preise werden in Euro verglichen.</p>}
+        {unconfirmed && <div className="note warn" role="note" data-testid="activation-note"><Icon name="alert" /><span>Die Shops bestätigen die Aktivierung derzeit nur für Deutschland. Für {nameOf(target)} werden Angebote angezeigt, zählen aber nicht als gültiger Bestpreis.</span></div>}
       </div>
     </SettingsPanel>
 
-    <WishlistColumns settings={settings} edit={edit} />
-    <OffersColumns settings={settings} edit={edit} />
+    <TableColumns settings={settings} edit={edit} />
 
     <SettingsPanel title="Export" titleId="general-export-title">
       <div className="form-grid">
         <div className="set-row">
-          <div><h3 className="set-row-title">Wunschliste exportieren</h3><p className="hint">Titel, Plattform, IGDB-ID, Art und Prüfstatus als JSON</p></div>
+          <div className="with-help"><h3 className="set-row-title">Wunschliste exportieren</h3><Help label="Hilfe zum Export">Titel, Plattform, IGDB-ID, Art und Prüfstatus als JSON-Datei.</Help></div>
           <Button loading={exporting} onClick={() => void exportList()}><Icon name="download" />Exportieren</Button>
         </div>
         {exportError && <Notice error>{exportError}</Notice>}

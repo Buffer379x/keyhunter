@@ -53,7 +53,7 @@ test('Bibliothek shows covers with the title only, and keeps the restore action'
   ] }));
   await navTo(page, 'Bibliothek');
   await expect(page.getByRole('heading', { name: 'Bibliothek', level: 1, exact: true })).toBeVisible();
-  await expect(page.getByText('2 Spiele gekauft · werden nicht mehr abgefragt')).toBeVisible();
+  await expect(page.getByText('2 Spiele gekauft', { exact: true })).toBeVisible();
   const items = page.getByRole('list', { name: 'Meine Spiele' }).getByRole('listitem');
   // The edition is part of the title already, the purchase date is not needed: the tile shows the title alone.
   await expect(items.first().locator('.lib-info')).toHaveText('Halo Infinite');

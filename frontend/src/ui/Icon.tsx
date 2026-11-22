@@ -47,6 +47,10 @@ const shapes = {
   book: <><path d="M5 5a2 2 0 0 1 2-2h12v15H7a2 2 0 0 0-2 2z" /><path d="M5 20a2 2 0 0 0 2 2h12v-4" /></>,
   send: <path d="M20 4L3 11l7 3 3 7zM10 14l10-10" />,
   shield: <><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z" /><path d="M9 12l2 2 4-4" /></>,
+  // 0.8.3: the help symbol, the settings button in the sidebar and the log tab.
+  help: <><circle cx="12" cy="12" r="9" /><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.4c-.6.3-1 .8-1 1.5v.4M12 16.8v.4" /></>,
+  settings: <><path d="M10.3 3.5h3.4l.5 2.4 1.7 1 2.3-.8 1.7 2.9-1.8 1.6v2l1.8 1.6-1.7 2.9-2.3-.8-1.7 1-.5 2.4h-3.4l-.5-2.4-1.7-1-2.3.8-1.7-2.9 1.8-1.6v-2L4.1 9l1.7-2.9 2.3.8 1.7-1z" /><circle cx="12" cy="12" r="2.6" /></>,
+  log: <><path d="M6 3h9l4 4v14H6z" /><path d="M14 3v5h5M9 12h7M9 15.5h7M9 19h4" /></>,
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof shapes;

@@ -44,6 +44,12 @@ Bekannte Produktseiten werden standardmäßig alle acht Stunden eingeplant; pro 
 
 `GET /api/v1/status/fetch` (angemeldet) zeigt je Shop das Budget (verbraucht, Limit und dessen Herkunft, aktueller Abstand, nächster möglicher Abruf, Abrufe je UTC-Stunde des Tages und den geschätzten Tagesbedarf), fällige Jobs, Pausen und die letzten 25 Abrufe. Der Tagesbedarf zählt die regelmäßigen Abrufe des aktuellen Plans: Produkte im angepassten Intervall, wöchentliche Suchen, beobachtete Vorschauen und die Discovery. Liegt er über dem Budget, werden Preise seltener aktualisiert als eingestellt. Die Historie wird 30 Tage aufbewahrt. `/health/ready` meldet 503, wenn ein Abrufdienst länger als fünf Minuten nicht reagiert. Compose und Unraid begrenzen den App-Speicher auf 512 MiB.
 
+Seit 0.8.3 nennt `GET /api/v1/status/fetch` unter `upcoming` außerdem die fünf Abfragen, die als Nächstes laufen, mit geschätzter Startzeit. `GET /api/v1/status/fetch/runs` liefert die aufgezeichneten Abrufe (30 Tage) seitenweise mit Spiel und Region; `tone` (ok, warn, error), `q` (Volltext), `page` und `per_page` (10–200) filtern und blättern.
+
+### Log
+
+**Einstellungen → Log** (API `GET /api/v1/log` mit `level`, `q`, `page`, `per_page`) protokolliert Anmeldungen, Änderungen an Wunschliste, Bibliothek, Warenkorb, Zuordnungen, Preisalarmen und Einstellungen, zugestellte und fehlgeschlagene Benachrichtigungen sowie Fehler beim Abruf (ohne „Nicht gefunden“). Jeder Eintrag hat eine Stufe (Info, Warnung, Fehler) und einen Bereich. Einträge bleiben 7 Tage; jeder neue Eintrag löscht ältere automatisch. Passphrase, Sitzungen, Tokens, Zugangsdaten und die ntfy-Adresse werden nie geschrieben. Wiederholte Hintergrundfehler erscheinen höchstens einmal pro Stunde.
+
 ## Backup und Update
 
 Stoppe den Container vor dem Kopieren des vollständigen Datenverzeichnisses, einschließlich vorhandener SQLite-WAL- und SHM-Dateien. Bewahre Backups auf einem getrennten Datenträger auf. Das Datenbackup enthält den IGDB-Zugang. Sichere die getrennte ntfy-Datei ebenfalls geschützt. Starte nach einem Update mit einer konsistenten Kopie der Daten. Für einen Rollback verwende das vorherige Image zusammen mit dem Stand vor der Migration. Wiederherstellung auf eine frische Instanz lässt sich über `/health/ready`, die Anmeldung und die vorhandenen Wunschlisten, Zuordnungen und Regeln prüfen.

@@ -1,5 +1,21 @@
 # Änderungen
 
+## 0.8.3 – 2026-11-22
+
+Die Einstellungen sind eine Seite mit Tabs, hinter einem Symbol unter dem Abrufstatus. Neu sind ein Log der letzten 7 Tage, ein durchsuchbarer Abrufstatus mit Spiel und den nächsten Abfragen, und alle Erklärungen stehen hinter einem einheitlichen Fragezeichen. Beim Start legt die Datenbank die Tabelle für das Log an (mit Sicherung vorher), sonst ist beim Update nichts zu tun.
+
+### Neu
+- **Log:** Unter Einstellungen → Log steht, was in KeyHunter passiert ist: Anmeldungen, Änderungen an Wunschliste, Bibliothek, Warenkorb und Einstellungen, bestätigte, verworfene oder gelöschte Zuordnungen, Preisalarme und Fehler beim Abruf. Jeder Eintrag hat eine Stufe (Info, Warnung, Fehler) und einen Bereich. Du filterst nach Stufe, suchst im Volltext (wie in der Spielesuche, während du tippst) und wählst 25, 50, 100 oder 200 Einträge pro Seite; die Wahl merkt sich der Browser. Einträge bleiben höchstens 7 Tage, danach löscht KeyHunter den ältesten automatisch. Passphrase, Zugangsdaten und Tokens stehen nie im Log.
+- **Abrufstatus:** Die Liste „Abrufe“ zeigt jetzt zu jedem Abruf das Spiel (mit Region), lässt sich nach Ergebnis filtern (Erfolgreich, Warnung, Fehler), durchsuchen und seitenweise durchblättern, mit derselben Wahl der Einträge pro Seite. Aufgezeichnet bleiben wie bisher 30 Tage.
+- **Nächste Abfragen:** Der Abrufstatus zeigt die fünf Abfragen, die KeyHunter als Nächstes ausführt, über alle Shops: wann (geschätzt aus Fälligkeit, Tagesbudget und Pausen), Shop, Art, Spiel und Ziel; manuell angeforderte sind markiert.
+
+### Oberfläche
+- **Einstellungen als Tabs:** Allgemein, Key-Shops, Spieleindex, Benachrichtigungen, Abrufstatus, Log und System sind Tabs einer Seite „Einstellungen“. Das Hauptmenü zeigt nur noch die Seiten; unter dem Abrufstatus stehen zwei Symbol-Knöpfe für Einstellungen und Abmelden. Die Adresse merkt sich den offenen Tab wie bisher.
+- **Tabellenspalten in einer Box:** Die Spalten der Wunschliste und der Angebote stellst du in einer Box „Tabellenspalten“ mit je einem Tab ein.
+- **Key-Shops als Tabs:** Jeder Shop hat einen eigenen Tab; ein ausgeschalteter Shop trägt „aus“ im Tab.
+- **Hilfe hinter dem Fragezeichen:** Erklärungen stehen nicht mehr als Text in der Oberfläche, sondern hinter demselben Fragezeichen-Symbol. Das Popup öffnet beim Überfahren mit der Maus, mit der Tastatur und per Tippen, und bleibt im sichtbaren Bereich. Umgestellt sind die Einstellungen (Zielland, Spalten, Export, Intervall, Abrufe pro Tag, Gebühren, IGDB, Editionsinhalte, ntfy, Sicherheit, Backup), die Wunschliste, die Bibliothek, die Preisalarme, der Warenkorb, der Verlauf, der Preisalarm eines Spiels und der Produktlink unter Infos. Der Dialog „Wie werden Gebühren behandelt?“ ist jetzt die Hilfe neben „Geschätzte Gebühren“. Fehlermeldungen, Warnungen und Ladezustände bleiben sichtbar.
+- **Warenkorb:** Die Summe steht in einer eigenen Box wie die Shops darüber, alle Beträge stehen untereinander am rechten Rand. „Gesamt ohne Gebühren“ entfällt, es war derselbe Betrag wie „Reine Key-Kosten“. Die Erklärung zu den Gebühren steht in der Hilfe neben „Gebühren (geschätzt)“.
+
 ## 0.8.2 – 2026-11-21
 
 Die Angebote eines Spiels bekommen einen farbigen Score und wählbare Spalten, Xbox-360-Spiele finden ihre abwärtskompatiblen Keys. Beim Start ergänzt die Datenbank zwei Einstellungen, sonst ist beim Update nichts zu tun.

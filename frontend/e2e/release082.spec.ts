@@ -58,6 +58,7 @@ test('the offers table shows a coloured score and follows the column settings', 
 
   // Settings: Score first, Gesehen and Gültigkeit hidden; the price cannot be hidden.
   await navTo(page, 'Allgemein');
+  await page.getByRole('tablist', { name: 'Tabelle', exact: true }).getByRole('tab', { name: 'Angebote', exact: true }).click();
   const list = page.getByRole('list', { name: 'Spaltenreihenfolge der Angebote', exact: true });
   await expect(list.getByRole('switch', { name: 'Preis anzeigen', exact: true })).toBeDisabled();
   await list.getByRole('switch', { name: 'Gesehen anzeigen', exact: true }).click();

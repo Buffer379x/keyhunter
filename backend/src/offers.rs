@@ -1,5 +1,7 @@
 use crate::{
-    ApiError, ApiResult, Shared, auth, internal, now, pricing,
+    ApiError, ApiResult, Shared, auth,
+    eventlog::{self, Area, Level},
+    internal, now, pricing,
     shops::{self, Product, Shop, title_key},
 };
 use axum::{
@@ -524,6 +526,14 @@ pub(crate) async fn add_link(
         }
     }
     tx.commit().await?;
+    if link.is_some() {
+        let game = eventlog::game(&state.pool, &id).await;
+        log(
+            &state,
+            format!("{}-Link für {game} von Hand hinzugefügt", shop.name()),
+        )
+        .await;
+    }
     Ok(StatusCode::ACCEPTED)
 }
 
@@ -564,6 +574,12 @@ pub(crate) async fn review(
         if changed.rows_affected() == 0 {
             return Err(CONFLICT);
         }
+        let how = if matching {
+            "bestätigt"
+        } else {
+            "von Hand bestätigt"
+        };
+        log_review(&state, &id, link_id, how).await;
     } else if matches!(input.decision.as_str(), "rejected" | "pending") {
         sqlx::query("UPDATE offer_link SET review=?, fingerprint=NULL, confirmed_name=NULL, manual_match=0 WHERE id=? AND wish_id=?")
             .bind(&input.decision)
@@ -579,6 +595,12 @@ pub(crate) async fn review(
                 .execute(&state.pool)
                 .await?;
         }
+        let how = if input.decision == "rejected" {
+            "abgelehnt"
+        } else {
+            "zur erneuten Prüfung zurückgesetzt"
+        };
+        log_review(&state, &id, link_id, how).await;
     } else {
         return Err(ApiError(
             StatusCode::BAD_REQUEST,
@@ -586,6 +608,17 @@ pub(crate) async fn review(
         ));
     }
     Ok(StatusCode::NO_CONTENT)
+}
+
+async fn log(state: &Shared, message: String) {
+    eventlog::record(&state.pool, Level::Info, Area::Offers, message).await;
+}
+
+/// "Eneba-Angebot (Global) für „Forza Horizon 5“ abgelehnt".
+async fn log_review(state: &Shared, id: &str, link: i64, how: &str) {
+    let offer = eventlog::offer(&state.pool, link).await;
+    let game = eventlog::game(&state.pool, id).await;
+    log(state, format!("{offer} für {game} {how}")).await;
 }
 
 /// Deletes a completely wrong product mapping with its price history. The automatic search does not
@@ -612,6 +645,7 @@ pub(crate) async fn remove_link(
     if blocked.rows_affected() == 0 {
         return Err(NOT_FOUND);
     }
+    let offer = eventlog::offer(&mut *tx, link_id).await;
     // Jobs and price observations go with the link (ON DELETE CASCADE).
     sqlx::query("DELETE FROM offer_link WHERE id=? AND wish_id=?")
         .bind(link_id)
@@ -619,6 +653,8 @@ pub(crate) async fn remove_link(
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;
+    let game = eventlog::game(&state.pool, &id).await;
+    log(&state, format!("{offer} für {game} gelöscht")).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -639,7 +675,9 @@ pub(crate) async fn refresh(
         .bind(t).bind(t).bind(&id).bind(t).bind(t-900).execute(&state.pool).await?;
     sqlx::query("UPDATE shop_job SET due=MIN(due,?),requested_at=? WHERE lease_until<=?
         AND link_id IN (SELECT id FROM offer_link WHERE wish_id=? AND review!='rejected' AND COALESCE(attempted_at,0)<=?)")
-        .bind(t).bind(t).bind(t).bind(id).bind(t-900).execute(&state.pool).await?;
+        .bind(t).bind(t).bind(t).bind(&id).bind(t-900).execute(&state.pool).await?;
+    let game = eventlog::game(&state.pool, &id).await;
+    log(&state, format!("Aktualisierung für {game} angefordert")).await;
     Ok(StatusCode::ACCEPTED)
 }
 

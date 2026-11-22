@@ -825,3 +825,120 @@ async fn automatic_origin_supports_lan_http_and_proxy_https() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }
+
+async fn get(f: &Fixture, cookie: &str, path: &str) -> (StatusCode, Value) {
+    let (status, data, _) = call(&f.app, "GET", path, Value::Null, Some(cookie), None, None).await;
+    (status, data)
+}
+
+#[tokio::test]
+async fn the_log_records_logins_without_secrets_and_can_be_filtered_searched_and_paged() {
+    let f = Fixture::new().await;
+    let (cookie, _) = setup(&f).await;
+    let login = |password: &'static str| {
+        call(
+            &f.app,
+            "POST",
+            "/api/v1/session",
+            json!({ "password": password }),
+            None,
+            None,
+            Some("http://localhost:3000"),
+        )
+    };
+    assert_eq!(
+        login("wrong passphrase secret").await.0,
+        StatusCode::UNAUTHORIZED
+    );
+    let (status, warnings) = get(&f, &cookie, "/api/v1/log?level=warn").await;
+    assert_eq!(status, StatusCode::OK, "{warnings}");
+    assert_eq!(warnings["total"], 1);
+    let entry = &warnings["entries"][0];
+    assert_eq!(entry["level"], "warn");
+    assert_eq!(entry["area"], "Anmeldung");
+    assert_eq!(entry["message"], "Anmeldung fehlgeschlagen");
+    assert!(entry["id"].is_i64() && entry["at"].is_i64());
+    // A flood of rejected attempts is logged once.
+    for _ in 0..6 {
+        login("wrong passphrase secret").await;
+    }
+    let (_, all) = get(&f, &cookie, "/api/v1/log?per_page=200").await;
+    let messages: Vec<&str> = all["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["message"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        messages
+            .iter()
+            .filter(|m| **m == "Zu viele Anmeldeversuche")
+            .count(),
+        1
+    );
+    assert!(messages.contains(&"Einrichtung abgeschlossen"));
+    assert!(messages.contains(&concat!(
+        "KeyHunter ",
+        env!("CARGO_PKG_VERSION"),
+        " gestartet"
+    )));
+    let text = all.to_string();
+    for secret in [
+        "wrong passphrase secret",
+        "correct horse battery staple",
+        f.token.trim(),
+        cookie.trim_start_matches("keyhunter_session="),
+    ] {
+        assert!(!text.contains(secret), "the log contains a secret");
+    }
+
+    let pool = sqlx::SqlitePool::connect_with(
+        sqlx::sqlite::SqliteConnectOptions::new().filename(f.config.data_dir.join("keyhunter.db")),
+    )
+    .await
+    .unwrap();
+    let t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    for n in 0..30 {
+        sqlx::query("INSERT INTO event_log(at,level,area,message) VALUES(?,'info','Abruf',?)")
+            .bind(t - n)
+            .bind(format!("Eintrag {n}"))
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+    sqlx::query("INSERT INTO event_log(at,level,area,message) VALUES(?,'error','Abruf','100% fehlgeschlagen')")
+        .bind(t)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let (_, page) = get(
+        &f,
+        &cookie,
+        "/api/v1/log?level=info&q=EINTRAG&page=3&per_page=10",
+    )
+    .await;
+    assert_eq!(page["total"], 30);
+    assert_eq!(page["page"], 3);
+    assert_eq!(page["per_page"], 10);
+    assert_eq!(page["entries"].as_array().unwrap().len(), 10);
+    assert_eq!(page["entries"][0]["message"], "Eintrag 20");
+    // `%` is a literal character, not a wildcard; the area is searched too.
+    let (_, percent) = get(&f, &cookie, "/api/v1/log?q=0%25").await;
+    assert_eq!(percent["total"], 1);
+    assert_eq!(percent["entries"][0]["message"], "100% fehlgeschlagen");
+    let (_, area) = get(&f, &cookie, "/api/v1/log?q=abruf&level=error").await;
+    assert_eq!(area["total"], 1);
+    let (_, clamped) = get(&f, &cookie, "/api/v1/log?per_page=5&level=").await;
+    assert_eq!(clamped["per_page"], 10);
+    assert_eq!(clamped["page"], 1);
+    for bad in ["?level=debug", "?page=x"] {
+        let (status, error) = get(&f, &cookie, &format!("/api/v1/log{bad}")).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{bad}");
+        assert_eq!(error["code"], "invalid_request");
+    }
+    let (status, _, _) = call(&f.app, "GET", "/api/v1/log", Value::Null, None, None, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}

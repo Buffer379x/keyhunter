@@ -17,21 +17,25 @@ const fetchStatus = () => ({
 
 test('settings sections are bound to the URL, and Abrufstatus shows queue, budget, pauses and recent runs', async ({ page }) => {
   await page.route('**/api/v1/status/fetch', route => route.fulfill({ json: fetchStatus() }));
+  // 0.8.3: the runs come page by page with their game.
+  await page.route('**/api/v1/status/fetch/runs?*', route => route.fulfill({ json: {
+    runs: fetchStatus().recent_runs.map((run, id) => ({ ...run, id, game: id === 1 ? 'Starfield' : null, region: null })), total: 3, page: 1, per_page: 50 } }));
   await signInToFixture(page);
   await navTo(page, 'Allgemein');
   // The sidebar group "Einstellungen" lists the sections; the open one is the current page and named in the breadcrumbs.
   const crumbs = page.getByRole('navigation', { name: 'Pfad' });
-  await expect(navItem(page, 'Allgemein')).toHaveAttribute('aria-current', 'page');
+  await expect(navItem(page, 'Allgemein')).toHaveAttribute('aria-selected', 'true');
   await expect(crumbs).toHaveText(/Einstellungen.*Allgemein/);
   await navTo(page, 'Benachrichtigungen');
   await expect(page).toHaveURL(/section=notifications/);
-  await expect(page.getByRole('heading', { name: 'Benachrichtigungen', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Einstellungen', level: 1 })).toBeVisible();
+  await expect(navItem(page, 'Benachrichtigungen')).toHaveAttribute('aria-selected', 'true');
   await navTo(page, 'System');
-  await expect(navItem(page, 'System')).toHaveAttribute('aria-current', 'page');
+  await expect(navItem(page, 'System')).toHaveAttribute('aria-selected', 'true');
   await expect(page).toHaveURL(/section=system/);
   await page.goBack();
   await expect(page).toHaveURL(/section=notifications/);
-  await expect(navItem(page, 'Benachrichtigungen')).toHaveAttribute('aria-current', 'page');
+  await expect(navItem(page, 'Benachrichtigungen')).toHaveAttribute('aria-selected', 'true');
   await navTo(page, 'Abrufstatus');
   await expect(page).toHaveURL(/section=status/);
   // Per shop: state pill, today's fetches, budget; a pause or error gets its own line.
@@ -48,12 +52,13 @@ test('settings sections are bound to the URL, and Abrufstatus shows queue, budge
   await expect(driffle).toContainText('Abruflimit erreicht');
   const runs = page.getByRole('table', { name: 'Letzte Abrufe' });
   await expect(runs.getByRole('row')).toHaveCount(4);
-  await expect(runs.getByRole('columnheader')).toHaveText(['Zeit', 'Shop', 'Art', 'Ziel', 'Ergebnis']);
+  await expect(runs.getByRole('columnheader')).toHaveText(['Zeit', 'Shop', 'Art', 'Spiel', 'Ziel', 'Ergebnis']);
+  await expect(runs.getByRole('row').nth(2)).toContainText('Starfield');
   await expect(runs.getByRole('row').nth(1)).toContainText('Forza Horizon 5');
   await expect(runs.getByRole('row').nth(1)).toContainText('1,2 s');
   await expect(runs.getByRole('row').nth(2)).toContainText('Abruflimit erreicht');
   await page.reload();
-  await expect(navItem(page, 'Abrufstatus')).toHaveAttribute('aria-current', 'page');
+  await expect(navItem(page, 'Abrufstatus')).toHaveAttribute('aria-selected', 'true');
   await expect(crumbs).toHaveText(/Einstellungen.*Abrufstatus/);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -114,6 +119,9 @@ test('leaving the settings with unsaved changes asks to save, discard or go back
   await navTo(page, 'Key-Shops');
   await expect(interval).toHaveValue(before);
   await interval.selectOption(other);
+  // 0.8.3: the settings button and the tab are two history entries; the second step back leaves the settings.
+  await page.goBack();
+  await expect(dialog).toBeHidden();
   await page.goBack();
   await dialog.getByRole('button', { name: 'Speichern', exact: true }).click();
   await expect(dialog).not.toBeVisible();
@@ -174,7 +182,7 @@ test('Abrufstatus shows pace, demand marker and, when the demand is above the li
   await expect(notes).toContainText('mindestens 620');
   await notes.getByRole('button', { name: 'Zu den Key-Shops' }).click();
   await expect(page).toHaveURL(/section=shops/);
-  await expect(navItem(page, 'Key-Shops')).toHaveAttribute('aria-current', 'page');
+  await expect(navItem(page, 'Key-Shops')).toHaveAttribute('aria-selected', 'true');
   await page.setViewportSize({ width: 390, height: 844 });
   await navTo(page, 'Abrufstatus');
   await expect(notes).toBeVisible();

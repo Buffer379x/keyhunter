@@ -160,7 +160,24 @@ export interface FetchRun {
   detail: string | null;
 }
 /** `paused_at`: the owner paused the automatic checks at this time (0.7.0); null or missing while they run. */
-export interface FetchStatusResponse { paused_at?: number | null; shops: FetchShopStatus[]; errors_24h: number; recent_runs: FetchRun[] }
+/** One of the next fetches the scheduler will run (0.8.3): `due_at` is the estimated start, `requested` a manual refresh. */
+export interface UpcomingFetch {
+  source: string; kind: string; wish_id: string | null; link_id: number | null; game: string | null; region: string | null;
+  search_page: number | null; due_at: number; requested: boolean;
+}
+export interface FetchStatusResponse {
+  paused_at?: number | null; shops: FetchShopStatus[]; errors_24h: number; recent_runs: FetchRun[];
+  upcoming?: UpcomingFetch[]; upcoming_paused?: boolean;
+}
+/** A page of a filtered, searched list (0.8.3: Log and the fetch runs). */
+export interface Paged { total: number; page: number; per_page: number }
+export type LogLevel = 'info' | 'warn' | 'error';
+export interface LogEntry { id: number; at: number; level: LogLevel; area: string; message: string }
+/** GET /log: the event log of the last 7 days. */
+export interface LogPage extends Paged { entries: LogEntry[] }
+/** GET /status/fetch/runs: the fetch runs with the game they were for. */
+export interface RunEntry extends FetchRun { id: number; game: string | null; region: string | null }
+export interface RunPage extends Paged { runs: RunEntry[] }
 /** Event on window after the automatic checks were paused or resumed, so every status view reloads at once. */
 export const FETCH_STATUS_CHANGED = 'keyhunter:fetch-status';
 /** The shopping cart changed (0.8.0): the navigation reads its count again. */

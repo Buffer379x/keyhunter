@@ -35,11 +35,13 @@ test('owner can set up, save service fees, use keyboard dialog, and log in again
   await expect(settingsCountry(page)).toHaveValue('DE');
   await navTo(page, 'Key-Shops');
   await expect(eneba.getByLabel('Geschätzte Gebühren (%)', { exact: true })).toHaveValue('2,50');
-  const help = page.getByRole('button', { name: 'Wie werden Gebühren behandelt?' });
+  // 0.8.3: the fee explanation is the popup of the help symbol (before, a dialog).
+  const help = eneba.getByRole('button', { name: 'Hilfe zu Gebühren', exact: true });
+  await expect(help).toHaveAccessibleDescription(/Aufschlag in Prozent auf den Grundpreis/);
   await help.focus(); await page.keyboard.press('Enter');
-  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('tooltip').filter({ hasText: 'Ein Schätzwert ersetzt weder' })).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog')).not.toBeVisible();
+  await expect(page.getByRole('tooltip')).toHaveCount(0);
   await expect(help).toBeFocused();
   await page.locator('#main-content').focus();
   await page.evaluate(() => window.scrollTo(0, 0));

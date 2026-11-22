@@ -9,7 +9,7 @@ import type { WishlistItem } from './api';
 import PriceAlerts from './features/PriceAlerts';
 import SettingsPage from './features/SettingsPage';
 import AuthScreen from './features/AuthScreen';
-import { Brand, Button, Icon, IconButton, InfoDialog, Notice } from './components';
+import { Brand, Button, Icon, IconButton, Notice } from './components';
 import type { IconName } from './components';
 import FetchStatus from './FetchStatus';
 import { mediaQuery } from './breakpoints';
@@ -17,7 +17,7 @@ import { useMediaQuery } from './useMediaQuery';
 import { useSettingsDraft } from './features/settings/draft';
 import UnsavedDialog from './features/settings/UnsavedDialog';
 import { appVersion } from './version';
-import { routeSection, sectionLabel, sections } from './features/settings/sections';
+import { routeSection, sectionLabel } from './features/settings/sections';
 import type { Section } from './features/settings/sections';
 
 type Page = 'wishlist' | 'settings' | 'alerts' | 'library' | 'cart';
@@ -49,7 +49,6 @@ export default function App() {
   const [sourceStatus, setSourceStatus] = useState<SourceStatuses | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [dialogOpen, setDialogOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
   const sidebar = useRef<HTMLElement>(null);
 
@@ -249,15 +248,14 @@ export default function App() {
             <Icon name={item.icon} />{item.label}<span className="count" aria-hidden="true">{item.count ?? '–'}</span>
           </button>)}
         </div>
-        <div className="nav-group" role="group" aria-labelledby="nav-settings"><span className="label" id="nav-settings">Einstellungen</span>
-          {sections.map(item => <button key={item.id} type="button" className="nav-item" aria-current={page === 'settings' && section === item.id ? 'page' : undefined} onClick={() => openSettings(item.id)}>
-            <Icon name={item.icon} />{item.label}
-          </button>)}
-        </div>
       </nav>
       <div className="side-foot">
         <FetchStatus csrf={csrf} onOpen={() => openSettings('status')} />
-        <button type="button" className="nav-item" onClick={() => void logout()} disabled={busy}><Icon name="logout" />Abmelden</button>
+        {/* 0.8.3: the settings are one page with tabs; the sidebar keeps only these two buttons below the fetch status. */}
+        <div className="side-actions">
+          <IconButton label="Einstellungen" aria-current={page === 'settings' ? 'page' : undefined} onClick={() => openSettings(page === 'settings' ? section : 'general')}><Icon name="settings" /></IconButton>
+          <IconButton label="Abmelden" disabled={busy} onClick={() => void logout()}><Icon name="logout" /></IconButton>
+        </div>
       </div>
     </aside>
     <div className="scrim" aria-hidden="true" onClick={() => setNavOpen(false)} />
@@ -278,10 +276,9 @@ export default function App() {
             : page === 'cart' ? <Cart csrf={csrf} targetCountry={savedCountry ?? ''} onOpen={selectSearchResult} onOpenWishlist={() => navigate('wishlist')} onError={handleProtectedError} />
             : page === 'alerts' ? <PriceAlerts csrf={csrf} targetCountry={savedCountry} targetLabel={targetLabel ?? 'Zielland'} onError={handleProtectedError} />
               : auto.settings && <SettingsPage section={section} onSection={openSettings} settings={auto.settings} auto={auto} csrf={csrf} busy={busy} countries={countries} sourceStatus={sourceStatus}
-                onSourcesChanged={refreshSources} onError={handleProtectedError} onHelp={() => setDialogOpen(true)} onLogout={() => void logout()} />}
+                onSourcesChanged={refreshSources} onError={handleProtectedError} onLogout={() => void logout()} />}
       </main>
     </div>
-    <InfoDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
     <UnsavedDialog open={leaving !== null && auto.dirty} error={auto.state === 'error' ? auto.error : ''}
       onSave={async () => { const ok = await auto.save(); if (ok) setLeaving(null); return ok; }}
       onDiscard={() => { auto.discard(); setLeaving(null); }}

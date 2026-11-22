@@ -4,6 +4,7 @@ mod cart;
 pub mod catalog;
 pub mod config;
 mod edition_tracking;
+mod eventlog;
 mod history;
 mod jobs;
 mod offers;
@@ -153,7 +154,7 @@ async fn create_app_inner(
         .connect_with(options)
         .await?;
     let migrator = sqlx::migrate!("./migrations");
-    backup_before_migration(&pool, &migrator, &config.data_dir).await?;
+    let backup = backup_before_migration(&pool, &migrator, &config.data_dir).await?;
     migrator
         .run(&pool)
         .await
@@ -161,6 +162,23 @@ async fn create_app_inner(
     shops::upgrade_fingerprints(&pool)
         .await
         .context("Fingerprint upgrade failed")?;
+    if let Some((from, to)) = backup {
+        eventlog::record(
+            &pool,
+            eventlog::Level::Info,
+            eventlog::Area::System,
+            format!("Datenbank vor dem Update gesichert (Schema {from} → {to})"),
+        )
+        .await;
+    }
+    // The start entry also prunes entries older than seven days.
+    eventlog::record(
+        &pool,
+        eventlog::Level::Info,
+        eventlog::Area::System,
+        format!("KeyHunter {} gestartet", env!("CARGO_PKG_VERSION")),
+    )
+    .await;
     let exists: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM owner")
         .fetch_one(&pool)
         .await?;
@@ -224,6 +242,8 @@ async fn create_app_inner(
         .route("/sources/status", get(catalog::source_status))
         .route("/status/fetch", get(jobs::status))
         .route("/status/fetch/pause", post(jobs::set_paused))
+        .route("/status/fetch/runs", get(jobs::runs))
+        .route("/log", get(eventlog::list))
         .route("/wishlist", get(wishlist::list).post(wishlist::add))
         .route("/library", get(wishlist::library).post(wishlist::add_owned))
         .route("/wishlist/{id}/purchase", post(wishlist::purchase))
@@ -328,18 +348,19 @@ async fn security_headers(req: Request<Body>, next: Next) -> Response {
 
 /// Copy the database before pending migrations change an existing schema. The newest three
 /// copies are kept in `<data>/backups`; restoring one is a plain file copy (docs/operations.md).
+/// Returns the schema versions before and after the update when a copy was made.
 async fn backup_before_migration(
     pool: &SqlitePool,
     migrator: &sqlx::migrate::Migrator,
     data_dir: &std::path::Path,
-) -> Result<()> {
+) -> Result<Option<(i64, i64)>> {
     let initialized: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='_sqlx_migrations')",
     )
     .fetch_one(pool)
     .await?;
     if !initialized {
-        return Ok(());
+        return Ok(None);
     }
     let applied: i64 =
         sqlx::query_scalar("SELECT COALESCE(MAX(version),0) FROM _sqlx_migrations WHERE success")
@@ -347,7 +368,7 @@ async fn backup_before_migration(
             .await?;
     let latest = migrator.iter().map(|m| m.version).max().unwrap_or(0);
     if applied >= latest {
-        return Ok(());
+        return Ok(None);
     }
     let dir = data_dir.join("backups");
     if !dir.exists() {
@@ -378,7 +399,7 @@ async fn backup_before_migration(
     for old in copies.iter().rev().skip(3) {
         fs::remove_file(old)?;
     }
-    Ok(())
+    Ok(Some((applied, latest)))
 }
 
 #[cfg(test)]

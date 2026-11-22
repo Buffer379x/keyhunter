@@ -181,3 +181,23 @@ tbody tr.click:hover td { background: var(--panel-3); }
   .ticks { display: none; }
   .kpi-foot { padding: 6px 12px; flex-wrap: wrap; }
 }
+
+/* Help (0.8.3): the same "?" symbol for every explanation; the popup floats fixed above everything. */
+.help { display: inline-flex; vertical-align: middle; }
+.help-btn {
+  display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%;
+  background: none; color: var(--faint); cursor: help; flex: none;
+}
+.help-btn:hover, .help-btn[aria-expanded='true'] { color: var(--accent); }
+.help-pop {
+  position: fixed; z-index: 60; width: max-content; max-width: min(340px, calc(100vw - 16px)); padding: 10px 12px;
+  background: var(--panel-3); border: 1px solid var(--line-2); border-radius: var(--r-md); box-shadow: var(--shadow-tip);
+  color: var(--text-2); font: 400 var(--t-xs)/1.5 var(--f-sans); text-align: left; white-space: normal; letter-spacing: 0; text-transform: none;
+}
+.help-pop[hidden] { display: none; }
+.help-pop > span { display: block; }
+.help-pop > span + span { margin-top: 6px; }
+.help-pop b, .help-pop strong { color: var(--text); font-weight: 600; }
+.form-row > .with-help { display: flex; align-items: center; gap: 2px; font-size: var(--t-xs); color: var(--text-2); }
+.form-row > .with-help .help-btn { width: 20px; height: 20px; }
+.with-help { display: flex; align-items: center; gap: 2px; min-width: 0; }

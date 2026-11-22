@@ -339,7 +339,18 @@ pub(crate) async fn put_settings(
         }
     }
     tx.commit().await?;
+    log(&state, "Einstellungen gespeichert").await;
     Ok(Json(load(&state).await?))
+}
+
+async fn log(state: &Shared, message: &str) {
+    crate::eventlog::record(
+        &state.pool,
+        crate::eventlog::Level::Info,
+        crate::eventlog::Area::Settings,
+        message,
+    )
+    .await;
 }
 
 /// The value to store for `daily_jobs`: NULL when absent or equal to the operator default.
@@ -376,6 +387,7 @@ pub(crate) async fn put_igdb_credentials(
         ),
         error => crate::catalog::provider_error(error),
     })?;
+    log(&state, "IGDB-Zugang gespeichert").await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -390,5 +402,6 @@ pub(crate) async fn delete_igdb_credentials(
         .update_credentials(None)
         .await
         .map_err(crate::catalog::provider_error)?;
+    log(&state, "IGDB-Zugang entfernt").await;
     Ok(StatusCode::NO_CONTENT)
 }

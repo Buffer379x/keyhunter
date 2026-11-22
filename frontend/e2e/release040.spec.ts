@@ -6,7 +6,7 @@ test('settings separate key shops from games index and persist source intervals'
   await signInToFixture(page);
   await navTo(page, 'Allgemein');
   await navTo(page, 'Key-Shops');
-  await expect(navItem(page, 'Key-Shops')).toHaveAttribute('aria-current', 'page');
+  await expect(navItem(page, 'Key-Shops')).toHaveAttribute('aria-selected', 'true');
   const eneba = page.getByRole('article', { name: 'Eneba', exact: true });
   await expect(eneba.getByLabel('Produktseiten abfragen alle', { exact: true })).toHaveValue(String(8 * 3600));
   await expect(page.getByRole('region', { name: 'IGDB-Zugang' })).not.toBeVisible();
@@ -15,13 +15,16 @@ test('settings separate key shops from games index and persist source intervals'
   await page.reload();
   await expect(eneba.getByLabel('Produktseiten abfragen alle', { exact: true })).toHaveValue(String(2 * 3600));
   // 0.7.4: every built-in shop is listed and switched with "Aktiv"; there is no adding or removing.
+  // 0.8.3: one tab per shop; a shop that is off says so in its tab.
+  await page.getByRole('tablist', { name: 'Key-Shops', exact: true }).getByRole('tab', { name: 'Driffle · aus', exact: true }).click();
   const driffle = page.getByRole('article', { name: 'Driffle', exact: true });
   await expect(driffle).toBeVisible();
+  await expect(eneba).toBeHidden();
   await expect(driffle.getByRole('switch', { name: 'Driffle Aktiv' })).not.toBeChecked();
   await expect(page.getByRole('heading', { name: 'Weiteren Shop hinzufügen' })).toHaveCount(0);
   await expect(page.getByLabel('Shop-URL', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Entfernen', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Wie werden Gebühren behandelt?', exact: true })).toBeVisible();
+  await expect(driffle.getByRole('button', { name: 'Hilfe zu Gebühren', exact: true })).toBeVisible();
   await navTo(page, 'Spieleindex');
   await expect(page.getByRole('region', { name: 'IGDB-Zugang' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Editionsinhalte von Microsoft / Xbox' })).toBeVisible();
@@ -77,7 +80,7 @@ test('edition previews keep the saved version, offers keep price order and histo
   await expect(data.nth(29)).toContainText('12,00');
   await expect(data.nth(29)).toContainText('9,00');
   await expect(data.nth(29 - 4)).toContainText('keine Messung');
-  await expect(page.locator('.chart-hint')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Hilfe zu leeren Spalten', exact: true })).toHaveAccessibleDescription(/keine gültige Messung/);
   // Keyboard and pointer highlight a column and show its prices in the tooltip.
   await chart.focus();
   await page.keyboard.press('End');

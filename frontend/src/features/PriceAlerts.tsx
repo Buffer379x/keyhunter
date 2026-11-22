@@ -107,7 +107,7 @@ export default function PriceAlerts({ csrf, targetCountry, targetLabel, onError 
   const country = targetCountry ?? 'Zielland';
   const channel = data ? <Pill tone={data.configured ? 'ok' : 'dim'} icon={data.configured ? 'check' : 'minus'}>{data.configured ? 'ntfy eingerichtet' : 'ntfy nicht eingerichtet'}</Pill> : null;
   return <section className="page alerts-page" aria-labelledby="alerts-title">
-    <PageHeading id="alerts-title" title="Preisalarme" sub={`Benachrichtigung über ntfy, sobald ein in ${targetLabel} aktivierbarer Key das Ziel erreicht`}
+    <PageHeading id="alerts-title" title="Preisalarme" help={`Benachrichtigung über ntfy, sobald ein in ${targetLabel} aktivierbarer Key das Ziel erreicht. Höchstens eine Nachricht je Spiel und 24 Stunden.`}
       actions={<>{channel}<Button disabled={!data?.configured || busy} loading={busy} onClick={() => void testChannel()}><Icon name="send" />Testnachricht senden</Button></>} />
     {loadError && <Notice error>{loadError} <Button size="sm" onClick={() => setReload(n => n + 1)}>Erneut laden</Button></Notice>}
     {message && <Notice>{message}</Notice>}

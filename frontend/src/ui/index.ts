@@ -10,3 +10,4 @@ export type { TabItem } from './Tabs';
 export { Field, FormRow, Switch } from './Form';
 export { Panel, PanelHead, Inset, Label, Kpi, Ticks, EmptyState } from './Layout';
 export { Toast } from './Toast';
+export { Help } from './Help';

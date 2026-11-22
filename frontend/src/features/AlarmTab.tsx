@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, HttpError } from '../api';
 import type { AlertOverview } from '../api';
-import { Button, Icon, Inset, Label, Notice, Panel, PanelHead, Seg, Switch, Toast } from '../components';
+import { Button, Help, Icon, Inset, Label, Notice, Panel, PanelHead, Seg, Switch, Toast } from '../components';
 import type { AlertState, Rule } from './PriceAlerts';
 import { money } from './price-format';
 
@@ -72,8 +72,8 @@ export default function AlarmTab({ id, alert, editionName, code, hasEstimates, o
             {mode === 'target' && <label className="form-row"><span>Zielpreis</span><span className="field target-field"><input inputMode="decimal" maxLength={10} required value={target} onChange={event => setTarget(event.target.value)} aria-label="Zielpreis" /><span className="muted">€</span></span></label>}
             {showBasis && <div className="form-row"><span>Preisgrundlage</span><Seg label="Preisgrundlage" value={basis} onChange={setBasis} options={[{ value: 'base', label: 'Grundpreis' }, { value: 'estimate', label: 'Gesamtpreis geschätzt' }]} /></div>}
             <Switch checked={enabled} onChange={setEnabled}>{mode === 'target' ? `Benachrichtigen, wenn ein in ${code} aktivierbarer Key das Ziel erreicht` : `Benachrichtigen bei einem neuen Tiefstpreis eines in ${code} aktivierbaren Keys`}</Switch>
-            <p className="hint">Kanal: ntfy{configured ? '' : ' (noch nicht eingerichtet, die Regel wird trotzdem gespeichert)'}. Es zählen nur in {code} aktivierbare Keys; {mode === 'target' ? 'der Alarm kommt, wenn der Preis auf oder unter das Ziel fällt' : 'der Alarm kommt bei jedem neuen Tiefstpreis seit dem Speichern'}, höchstens einmal je Spiel in 24 Stunden.
-              {!configured && <> <button type="button" className="text-button" onClick={onSettings}>Kanal einrichten</button></>}</p>
+            <div className="with-help"><span className="hint">Kanal: ntfy{configured ? '' : ' · noch nicht eingerichtet, die Regel wird trotzdem gespeichert'}{!configured && <> · <button type="button" className="text-button" onClick={onSettings}>Kanal einrichten</button></>}</span>
+              <Help label="Hilfe zum Preisalarm">Es zählen nur in {code} aktivierbare Keys; {mode === 'target' ? 'der Alarm kommt, wenn der Preis auf oder unter das Ziel fällt' : 'der Alarm kommt bei jedem neuen Tiefstpreis seit dem Speichern'}, höchstens einmal je Spiel in 24 Stunden.</Help></div>
             {error && <Notice error>{error}</Notice>}
             <div className="actions">
               <Button type="submit" variant="primary" loading={busy}>Speichern</Button>

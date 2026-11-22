@@ -77,7 +77,7 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
   await navTo(page, 'Wunschliste');
   await page.reload(); // alarm rules and the fetch status are read when the page loads
   await expect(page).not.toHaveURL(/item=/);
-  await expect(page.locator('.page-head p')).toHaveText(/^3 von 100 Plätzen · Zielland .+ · Preise verglichen mit allen Regionen$/);
+  await expect(page.locator('.page-head p')).toHaveText(/^3 von 100 Plätzen · Zielland .+$/);
 
   // KPI tiles
   await expect(kpi(page, 'Wünsche').locator('.kpi-val')).toHaveText('3Spiele');

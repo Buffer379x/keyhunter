@@ -1,9 +1,11 @@
-import { EmptyState, Icon, Panel, Pill } from '../../components';
-import type { FetchRun, FetchShopStatus, FetchStatusResponse } from '../../api';
+import { useState } from 'react';
+import { EmptyState, Help, Icon, Inset, Label, Panel, PanelHead, Pill } from '../../components';
+import type { FetchShopStatus, FetchStatusResponse, RunPage, UpcomingFetch } from '../../api';
 import { relativeTime } from '../../time';
 import { paceText } from '../../FetchStatus';
 import { SettingsPanel } from './parts';
-import { DAILY_JOBS_MAX, budgetView, intervalLabel, clockText, dateTimeText, durationText, fetchPill, kindText, outcomeText, outcomeTone, shopState, shopTitle, untilText, workerState } from './format';
+import { Pager, PagedTools, usePaged } from './paged';
+import { DAILY_JOBS_MAX, budgetView, intervalLabel, dateTimeText, durationText, fetchPill, kindText, outcomeText, outcomeTone, shopState, shopTitle, untilText, workerState } from './format';
 
 const pct = (share: number) => `${(share * 100).toFixed(1)}%`;
 
@@ -61,21 +63,64 @@ function DemandNote({ shop, interval, onShops }: { shop: FetchShopStatus; interv
   </div>;
 }
 
-function RunsTable({ runs }: { runs: FetchRun[] }) {
-  if (runs.length === 0) return <p className="hint set-pad">Noch keine Abrufe aufgezeichnet.</p>;
-  return <div className="table-wrap"><table aria-label="Letzte Abrufe">
-    <thead><tr><th>Zeit</th><th>Shop</th><th>Art</th><th>Ziel</th><th>Ergebnis</th></tr></thead>
-    <tbody>{runs.map((run, index) => {
-      const tone = outcomeTone(run.outcome);
-      return <tr key={`${run.started_at}-${index}`}>
-        <td className="mono" title={dateTimeText(run.started_at)}>{clockText(run.started_at)}</td>
-        <td>{shopTitle(run.source)}</td>
-        <td>{kindText(run.kind)}</td>
-        <td className="set-run-target" title={run.detail ?? undefined}>{run.detail ?? '–'}</td>
-        <td><Pill tone={tone === 'ok' ? 'ok' : tone === 'warn' ? 'warn' : 'danger'} icon={tone === 'ok' ? 'check' : 'alert'}>{tone === 'ok' ? durationText(run.duration_ms) : outcomeText(run.outcome)}</Pill></td>
-      </tr>;
-    })}</tbody>
-  </table></div>;
+type ToneFilter = '' | 'ok' | 'warn' | 'error';
+const tones: { value: ToneFilter; label: string }[] = [
+  { value: '', label: 'Alle' }, { value: 'ok', label: 'Erfolgreich' }, { value: 'warn', label: 'Warnung' }, { value: 'error', label: 'Fehler' },
+];
+/** Game and region of a row ("Forza Horizon 5 · Global"); discovery runs belong to no game. */
+const gameText = (game: string | null, region: string | null) => game ? <><b>{game}</b>{region && <span className="faint"> · {region}</span>}</> : <span className="faint">–</span>;
+
+/** Abrufe (0.8.3): every recorded fetch with the game it was for, by result and full text, page by page. */
+function Runs() {
+  const [tone, setTone] = useState<ToneFilter>('');
+  const list = usePaged<RunPage>('/status/fetch/runs', 'tone', tone, 'keyhunter.runs.perPage');
+  const { data } = list;
+  return <Panel aria-labelledby="runs-title" className="paged">
+    <PanelHead className="paged-title"><Label as="h2" tone="soft" id="runs-title">Abrufe</Label>
+      <Help label="Hilfe zu den Abrufen"><span>Jede Abfrage der Shops mit Spiel, Art und Ergebnis, die neueste zuerst. Die Suche findet Spiel, Shop, Ziel und Ergebnis.</span>
+        <span>„Nicht gefunden“ und „Abruflimit erreicht“ sind Warnungen: KeyHunter versucht es später von selbst wieder. Aufgezeichnet werden die letzten 30 Tage.</span></Help>
+    </PanelHead>
+    <PagedTools label="Abrufe" filter={tone} filters={tones} onFilter={setTone} text={list.text} onText={list.setText} placeholder="Spiel, Shop, Ergebnis …"
+      perPage={list.perPage} onPerPage={list.choosePerPage} />
+    <Inset className="table-wrap set-runs">
+      {!data ? <p className="hint set-pad" role="status">{list.failed ? 'Die Abrufe konnten nicht gelesen werden.' : 'Abrufe werden geladen …'}</p>
+        : data.runs.length === 0 ? <p className="hint set-pad">{tone || list.text.trim() ? 'Kein Abruf passt zu diesem Filter.' : 'Noch keine Abrufe aufgezeichnet.'}</p>
+          : <table aria-label="Letzte Abrufe">
+            <thead><tr><th>Zeit</th><th>Shop</th><th>Art</th><th>Spiel</th><th>Ziel</th><th>Ergebnis</th></tr></thead>
+            <tbody>{data.runs.map(run => {
+              const result = outcomeTone(run.outcome);
+              return <tr key={run.id}>
+                <td className="mono" title={dateTimeText(run.started_at)}>{dateTimeText(run.started_at)}</td>
+                <td>{shopTitle(run.source)}</td>
+                <td>{kindText(run.kind)}</td>
+                <td className="set-run-game">{gameText(run.game, run.region)}</td>
+                <td className="set-run-target" title={run.detail ?? undefined}>{run.detail ?? '–'}</td>
+                <td><Pill tone={result === 'ok' ? 'ok' : result === 'warn' ? 'warn' : 'danger'} icon={result === 'ok' ? 'check' : 'alert'}>{result === 'ok' ? durationText(run.duration_ms) : outcomeText(run.outcome)}</Pill></td>
+              </tr>;
+            })}</tbody>
+          </table>}
+    </Inset>
+    {data && data.total > 0 && <Pager label="Abrufe" total={data.total} page={list.page} perPage={list.perPage} onPage={list.setPage} />}
+  </Panel>;
+}
+
+/** The next five fetches the scheduler will run (0.8.3), with the estimated start. */
+function Upcoming({ items, paused, now }: { items: UpcomingFetch[]; paused: boolean; now: number }) {
+  return <SettingsPanel title="Nächste Abfragen" titleId="upcoming-title" insetClassName="set-runs"
+    aside={<Help label="Hilfe zu den nächsten Abfragen"><span>Die fünf Abfragen, die KeyHunter als Nächstes ausführt, über alle Shops. Die Zeit ist eine Schätzung aus Fälligkeit, Tagesbudget und Pausen.</span>
+      <span>Manuell angeforderte Abfragen und neue Wünsche kommen vor den regelmäßigen dran.</span></Help>}>
+    {items.length === 0 ? <p className="hint set-pad">{paused ? 'Die automatischen Abfragen sind pausiert; es steht keine angeforderte Abfrage an.' : 'Gerade steht keine Abfrage an.'}</p>
+      : <div className="table-wrap"><table aria-label="Nächste Abfragen">
+        <thead><tr><th>Wann</th><th>Shop</th><th>Art</th><th>Spiel</th><th>Ziel</th></tr></thead>
+        <tbody>{items.map((item, index) => <tr key={`${item.source}-${item.link_id ?? item.wish_id ?? 'd'}-${index}`}>
+          <td className="mono" title={dateTimeText(item.due_at)}>{untilText(item.due_at, now)}</td>
+          <td>{shopTitle(item.source)}</td>
+          <td>{kindText(item.kind)}{item.requested && <> <Pill tone="hot">angefordert</Pill></>}</td>
+          <td className="set-run-game">{gameText(item.game, null)}</td>
+          <td className="set-run-target">{item.kind === 'search' && item.search_page ? `Seite ${item.search_page}` : item.kind === 'discovery' ? 'Neue Produkte' : item.region ?? '–'}</td>
+        </tr>)}</tbody>
+      </table></div>}
+  </SettingsPanel>;
 }
 
 /** Recommended product interval of both shops (settings::shop_readers). */
@@ -91,8 +136,7 @@ export default function FetchPanel({ data, failed, loadedAt, intervals = {}, onS
     {failed && loadedAt !== null && <p className="hint" role="status">Aktualisierung fehlgeschlagen · Stand {new Date(loadedAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr</p>}
     {!data.paused_at && data.shops.map(shop => <DemandNote key={shop.source} shop={shop} interval={intervals[shop.source]} onShops={onShops} />)}
     <div className="shops">{data.shops.map(shop => <ShopStatus key={shop.source} shop={shop} now={now} paused={!!data.paused_at} />)}</div>
-    <SettingsPanel title="Letzte Abrufe" titleId="runs-title" insetClassName="set-runs">
-      <RunsTable runs={data.recent_runs} />
-    </SettingsPanel>
+    {data.upcoming && <Upcoming items={data.upcoming} paused={!!data.paused_at || !!data.upcoming_paused} now={now} />}
+    <Runs />
   </>;
 }

@@ -94,3 +94,33 @@
 /* (0.7.1) Show / hide switch per column; hidden columns read quieter. */
 .settings-page .col-order .switch { flex: none; margin-right: 4px; }
 .settings-page .col-order li:has(input[role="switch"]:not(:checked)) .col-name { color: var(--muted); }
+
+/* (0.8.3) Tabs instead of sidebar entries; the settings page has one title. */
+.settings-page > .set-tabs { margin-top: -6px; }
+/* Paged lists (Log, Abrufe): filter, search and page size in the head, the pager below the table. */
+.settings-page .paged-title { border-bottom: 1px solid var(--line); }
+.settings-page .paged-tools { gap: 10px; border-bottom: 1px solid var(--line); }
+.settings-page .paged-q { width: 240px; }
+.settings-page .paged-size { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: var(--t-xs); white-space: nowrap; }
+.settings-page .paged-size select { width: auto; height: var(--h-btn); }
+.settings-page .pager { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: var(--t-xs); }
+.settings-page .pager .icon-btn { width: 30px; height: 30px; }
+.settings-page .pager .pager-double { margin-left: -11px; }
+.settings-page .pager-at { padding: 0 6px; white-space: nowrap; }
+.settings-page .pager-at b { color: var(--text); font-weight: 500; }
+.settings-page .log-table td { white-space: nowrap; vertical-align: top; }
+.settings-page .log-table td.log-msg { white-space: normal; min-width: 240px; color: var(--text-2); overflow-wrap: anywhere; }
+.settings-page .log-table tr.lv-error td.log-msg { color: var(--text); }
+.settings-page .set-runs td.set-run-game { white-space: normal; min-width: 160px; }
+.settings-page .set-runs td.set-run-game b { font-weight: 500; }
+@media (max-width: 720px) {
+  .settings-page .paged-q { flex: 1 1 160px; width: auto; }
+  .settings-page .pager-at { display: none; }
+}
+/* (0.8.3) Tabellenspalten: one panel, a tab per table; tools (open mode, help, reset) above the list. */
+.settings-page .col-panel { display: grid; gap: 14px; }
+.settings-page .col-tabs { margin: -4px -4px 0; }
+.settings-page .col-tools { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 10px; max-width: 420px; }
+/* Key-Shops (0.8.3): one tab per shop. */
+.settings-page .shop-tabs { margin-bottom: -4px; }
+.settings-page .shop-tabs .dot { margin-right: 2px; }

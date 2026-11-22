@@ -2825,3 +2825,168 @@ async fn offers_columns_are_saved_and_the_price_cannot_be_hidden() {
     let (_, kept) = f.call("PUT", "/api/v1/settings", without).await;
     assert_eq!(kept["offers_hidden"], json!(["seen", "validity"]));
 }
+
+#[tokio::test]
+async fn fetch_runs_carry_their_game_and_can_be_filtered_searched_and_paged() {
+    let f = Fixture::new().await;
+    let (_, wish) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":1,"platform_id":169}),
+        )
+        .await;
+    let id = wish["item"]["id"].as_str().unwrap();
+    let (s, _) = f.call("POST", "/api/v1/cart", json!({"wish_id": id})).await;
+    assert_eq!(s, StatusCode::CREATED);
+    let (_, log) = f
+        .call("GET", "/api/v1/log?level=info&q=Example", Value::Null)
+        .await;
+    let entries: Vec<(&str, &str)> = log["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| (e["area"].as_str().unwrap(), e["message"].as_str().unwrap()))
+        .collect();
+    assert_eq!(
+        entries,
+        [
+            ("Warenkorb", "„Example“ in den Warenkorb gelegt"),
+            ("Wunschliste", "„Example“ hinzugefügt"),
+        ]
+    );
+    // The queue preview starts with the first search of the new wish.
+    let (_, status) = f.call("GET", "/api/v1/status/fetch", Value::Null).await;
+    assert_eq!(status["upcoming_paused"], false);
+    let first = &status["upcoming"][0];
+    assert_eq!(first["kind"], "search", "{status}");
+    assert_eq!(first["wish_id"], id);
+    assert_eq!(first["game"], "Example");
+    assert_eq!(first["search_page"], 1);
+    assert_eq!(first["requested"], false);
+    assert!(first["due_at"].is_i64());
+
+    let pool = sqlx::SqlitePool::connect_with(
+        sqlx::sqlite::SqliteConnectOptions::new().filename(f.config.data_dir.join("keyhunter.db")),
+    )
+    .await
+    .unwrap();
+    let link: i64 = sqlx::query_scalar("INSERT INTO offer_link(wish_id,source,url,latest) VALUES(?,'eneba','https://www.eneba.com/de/xbox-example-key-global','{\"region\":\"Global\"}') RETURNING id")
+        .bind(id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    let run = |source: &'static str,
+               kind: &'static str,
+               wish: Option<&str>,
+               link: Option<i64>,
+               at: i64,
+               outcome: &'static str,
+               detail: Option<String>| {
+        sqlx::query("INSERT INTO job_run(source,kind,wish_id,link_id,started_at,duration_ms,outcome,detail) VALUES(?,?,?,?,?,7,?,?)")
+            .bind(source)
+            .bind(kind)
+            .bind(wish.map(str::to_string))
+            .bind(link)
+            .bind(at)
+            .bind(outcome)
+            .bind(detail)
+            .execute(&pool)
+    };
+    run(
+        "eneba",
+        "product",
+        None,
+        Some(link),
+        t - 1,
+        "ok",
+        Some("2890 ct".into()),
+    )
+    .await
+    .unwrap();
+    run("eneba", "search", Some(id), None, t - 2, "not_found", None)
+        .await
+        .unwrap();
+    run(
+        "driffle",
+        "discovery",
+        None,
+        None,
+        t - 3,
+        "access_denied",
+        None,
+    )
+    .await
+    .unwrap();
+    for n in 0..12 {
+        run(
+            "eneba",
+            "discovery",
+            None,
+            None,
+            t - 100 - n,
+            "ok",
+            Some(format!("{n} Kandidaten")),
+        )
+        .await
+        .unwrap();
+    }
+    let runs = |query: &'static str| f.call("GET", query, Value::Null);
+    let (s, all) = runs("/api/v1/status/fetch/runs").await;
+    assert_eq!(s, StatusCode::OK, "{all}");
+    assert_eq!(all["total"], 15);
+    assert_eq!(all["page"], 1);
+    assert_eq!(all["per_page"], 50);
+    let newest = &all["runs"][0];
+    assert_eq!(newest["game"], "Example");
+    assert_eq!(newest["region"], "Global");
+    assert_eq!(newest["link_id"], link);
+    assert!(newest["wish_id"].is_null());
+    assert_eq!(newest["detail"], "2890 ct");
+    assert_eq!(newest["duration_ms"], 7);
+    assert!(newest["id"].is_i64());
+    let (_, errors) = runs("/api/v1/status/fetch/runs?tone=error").await;
+    assert_eq!(errors["total"], 1);
+    assert_eq!(errors["runs"][0]["source"], "driffle");
+    assert!(errors["runs"][0]["game"].is_null());
+    let (_, warnings) = runs("/api/v1/status/fetch/runs?tone=warn").await;
+    assert_eq!(warnings["total"], 1);
+    assert_eq!(warnings["runs"][0]["game"], "Example");
+    // The search covers the game (any case), detail, shop, outcome and kind.
+    for (query, total) in [
+        ("/api/v1/status/fetch/runs?q=EXAMPLE", 2),
+        ("/api/v1/status/fetch/runs?q=example&tone=ok", 1),
+        ("/api/v1/status/fetch/runs?q=kandidaten", 12),
+        ("/api/v1/status/fetch/runs?q=driffle", 1),
+        ("/api/v1/status/fetch/runs?q=access_denied", 1),
+        ("/api/v1/status/fetch/runs?q=search", 1),
+        ("/api/v1/status/fetch/runs?q=%25", 0),
+        ("/api/v1/status/fetch/runs?q=_", 2),
+    ] {
+        let (_, found) = runs(query).await;
+        assert_eq!(found["total"], total, "{query} {found}");
+    }
+    let (_, page) = runs("/api/v1/status/fetch/runs?page=2&per_page=10").await;
+    assert_eq!(page["runs"].as_array().unwrap().len(), 5);
+    assert_eq!(page["total"], 15);
+    assert_eq!(page["page"], 2);
+    let (s, _) = runs("/api/v1/status/fetch/runs?tone=bad").await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (_, status) = f.call("GET", "/api/v1/status/fetch", Value::Null).await;
+    assert_eq!(status["recent_runs"][0]["game"], "Example");
+    assert_eq!(status["recent_runs"][0]["outcome"], "ok");
+    let (s, _, _) = request(
+        &f.app,
+        "GET",
+        "/api/v1/status/fetch/runs",
+        Value::Null,
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+}

@@ -39,10 +39,17 @@
 //! Links attached at start-up or after a shop-wide discovery are never direct user actions.
 
 use crate::{
-    ApiResult, Shared, alerts, auth, now, offers, random_token,
+    ApiResult, Shared, alerts, auth,
+    eventlog::{self, Area, GAME_NAME, Level},
+    now, offers, random_token,
     shops::{Availability, Product, Shop, ShopError},
 };
-use axum::{Json, extract::State, http::HeaderMap};
+use axum::{
+    Json,
+    extract::{Query, State, rejection::QueryRejection},
+    http::HeaderMap,
+};
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 // Composed queries only join the constant SQL fragments below; values are always bound.
 use sqlx::{AssertSqlSafe, FromRow, SqlitePool};
@@ -135,7 +142,7 @@ pub(crate) fn start(pool: &SqlitePool, heartbeat: Arc<Heartbeat>) {
         tokio::spawn(async move {
             // Catch up once after start or upgrade; afterwards only events attach candidates.
             if let Err(error) = attach(&pool, shop).await {
-                tracing::warn!(source = shop.id(), %error, "Candidate attachment failed");
+                attach_failed(&pool, shop, &error).await;
             }
             loop {
                 heartbeat.beat(shop, now());
@@ -144,12 +151,38 @@ pub(crate) fn start(pool: &SqlitePool, heartbeat: Arc<Heartbeat>) {
                     Ok(false) => tokio::time::sleep(Duration::from_secs(3)).await,
                     Err(error) => {
                         tracing::error!(source = shop.id(), error = %error, "Shop job database operation failed");
+                        eventlog::record_once(
+                            &pool,
+                            Level::Error,
+                            Area::Fetch,
+                            format!(
+                                "{}: Datenbankfehler im Abrufdienst, der Abruf wird wiederholt",
+                                shop.name()
+                            ),
+                            eventlog::REPEAT,
+                        )
+                        .await;
                         tokio::time::sleep(Duration::from_secs(10)).await;
                     }
                 }
             }
         });
     }
+}
+
+async fn attach_failed(pool: &SqlitePool, shop: Shop, error: &anyhow::Error) {
+    tracing::warn!(source = shop.id(), %error, "Candidate attachment failed");
+    eventlog::record_once(
+        pool,
+        Level::Warn,
+        Area::Fetch,
+        format!(
+            "{}: Gefundene Angebote konnten nicht zugeordnet werden",
+            shop.name()
+        ),
+        eventlog::REPEAT,
+    )
+    .await;
 }
 
 // Shared SQL conditions; `j` is shop_job, `l` the joined offer_link and `t` the item the job
@@ -653,9 +686,28 @@ async fn complete(
             None
         }
     };
-    let kind = Kind::of(job.link_id, job.wish_id.as_deref()).id();
+    let kind = Kind::of(job.link_id, job.wish_id.as_deref());
+    if let Err(error) = &result {
+        let (game, region): (Option<String>, Option<String>) = sqlx::query_as(AssertSqlSafe(format!(
+            "SELECT {GAME_NAME},(SELECT json_extract(latest,'$.region') FROM offer_link WHERE id=?2)
+            FROM wishlist_item w JOIN game g ON g.id=w.game_id LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id
+            WHERE w.id=COALESCE(?1,(SELECT wish_id FROM offer_link WHERE id=?2))"
+        )))
+        .bind(&job.wish_id)
+        .bind(job.link_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+        if let Some((level, message)) =
+            failure_entry(shop, kind, game.as_deref(), region.as_deref(), error)
+        {
+            eventlog::record(&mut *tx, level, Area::Fetch, message).await;
+        }
+    }
     sqlx::query("INSERT INTO job_run(source,kind,wish_id,link_id,started_at,duration_ms,outcome,detail) VALUES(?,?,?,?,?,?,?,?)")
-        .bind(shop.id()).bind(kind).bind(&job.wish_id).bind(job.link_id).bind(started_at).bind(elapsed_ms)
+        .bind(shop.id()).bind(kind.id()).bind(&job.wish_id).bind(job.link_id).bind(started_at).bind(elapsed_ms)
         .bind(result.as_ref().err().map_or("ok", ShopError::code)).bind(detail)
         .execute(&mut *tx).await?;
     sqlx::query("DELETE FROM job_run WHERE started_at<?")
@@ -671,6 +723,41 @@ async fn complete(
         attach(pool, shop).await?;
     }
     Ok(())
+}
+
+/// Log entry of a failed shop job: a warning for network errors and rate limits, an error otherwise, with
+/// the shop pause it causes. None for `not_found`, which is normal.
+fn failure_entry(
+    shop: Shop,
+    kind: Kind,
+    game: Option<&str>,
+    region: Option<&str>,
+    error: &ShopError,
+) -> Option<(Level, String)> {
+    let (level, reason) = match error {
+        ShopError::NotFound => return None,
+        ShopError::Network => (Level::Warn, "Netzwerkfehler"),
+        ShopError::Throttled(_) => (Level::Warn, "Abruflimit erreicht"),
+        ShopError::Denied => (Level::Error, "Zugriff verweigert"),
+        ShopError::Parse => (Level::Error, "Antwort nicht lesbar"),
+    };
+    let game = eventlog::quoted(game);
+    let what = match (kind, region) {
+        (Kind::Product, Some(region)) => format!("Preisabruf für {game} ({region})"),
+        (Kind::Product, None) => format!("Preisabruf für {game}"),
+        (Kind::Search, _) => format!("Suche nach {game}"),
+        (Kind::Discovery, _) => "Discovery".into(),
+    };
+    let mut message = format!("{}: {what} fehlgeschlagen ({reason})", shop.name());
+    let pause = error.source_pause();
+    if pause > 0 {
+        message += &format!(
+            ". Abrufe bei {} pausieren {} Min.",
+            shop.name(),
+            (pause + 59) / 60
+        );
+    }
+    Some((level, message))
 }
 
 async fn set_success(
@@ -803,7 +890,7 @@ pub(crate) async fn schedule_wish(pool: &SqlitePool, id: &str) -> sqlx::Result<(
         .bind(now()).bind(id).execute(pool).await?;
     for shop in Shop::ALL {
         if let Err(error) = attach_wish(pool, shop, id, true).await {
-            tracing::warn!(source = shop.id(), %error, "Candidate attachment failed");
+            attach_failed(pool, shop, &error).await;
         }
     }
     Ok(())
@@ -935,6 +1022,12 @@ pub(crate) async fn set_paused(
     let paused_at: Option<i64> = sqlx::query_scalar(AssertSqlSafe(format!("SELECT {PAUSED_AT}")))
         .fetch_one(&state.pool)
         .await?;
+    let message = if paused {
+        "Automatische Abfragen pausiert"
+    } else {
+        "Automatische Abfragen fortgesetzt"
+    };
+    eventlog::record(&state.pool, Level::Info, Area::Settings, message).await;
     Ok(Json(json!({ "paused_at": paused_at })))
 }
 
@@ -988,18 +1081,11 @@ pub(crate) async fn status(
             "worker_seen_at": state.heartbeat.last(shop),
         }));
     }
-    type Run = (
-        String,
-        String,
-        Option<String>,
-        Option<i64>,
-        i64,
-        i64,
-        String,
-        Option<String>,
-    );
-    let runs: Vec<Run> = sqlx::query_as("SELECT source,kind,wish_id,link_id,started_at,duration_ms,outcome,detail FROM job_run ORDER BY started_at DESC,id DESC LIMIT 25")
-        .fetch_all(&state.pool).await?;
+    let runs: Vec<Run> = sqlx::query_as(AssertSqlSafe(format!(
+        "SELECT {RUN_COLUMNS} {RUNS} ORDER BY r.started_at DESC,r.id DESC LIMIT 25"
+    )))
+    .fetch_all(&state.pool)
+    .await?;
     let errors: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM job_run WHERE started_at>? AND outcome!='ok'")
             .bind(t - DAY)
@@ -1012,11 +1098,201 @@ pub(crate) async fn status(
         "paused_at": paused_at,
         "shops": shops,
         "errors_24h": errors,
-        "recent_runs": runs.into_iter().map(|(source, kind, wish_id, link_id, started_at, duration_ms, outcome, detail)| json!({
-            "source": source, "kind": kind, "wish_id": wish_id, "link_id": link_id,
-            "started_at": started_at, "duration_ms": duration_ms, "outcome": outcome, "detail": detail,
-        })).collect::<Vec<_>>(),
+        "recent_runs": runs,
+        "upcoming": upcoming(&state.pool, t, paused_at.is_some()).await?,
+        "upcoming_paused": paused_at.is_some(),
     })))
+}
+
+/// One fetch run with its game (`wish_id` and `link_id` as stored: a product run has only its link).
+#[derive(Serialize, FromRow)]
+struct Run {
+    id: i64,
+    source: String,
+    kind: String,
+    wish_id: Option<String>,
+    link_id: Option<i64>,
+    game: Option<String>,
+    /// Region of the product of the link, when it has been fetched.
+    region: Option<String>,
+    started_at: i64,
+    duration_ms: i64,
+    outcome: String,
+    detail: Option<String>,
+}
+
+const RUNS: &str = "FROM job_run r LEFT JOIN offer_link l ON l.id=r.link_id
+    LEFT JOIN wishlist_item w ON w.id=COALESCE(r.wish_id,l.wish_id) LEFT JOIN game g ON g.id=w.game_id
+    LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id";
+/// Columns of [`Run`]; the game name is [`GAME_NAME`].
+const RUN_COLUMNS: &str = "r.id,r.source,r.kind,r.wish_id,r.link_id,
+    COALESCE(json_extract(c.payload,'$.name'),g.manual_title) AS game,json_extract(l.latest,'$.region') AS region,
+    r.started_at,r.duration_ms,r.outcome,r.detail";
+/// `?1` tone (ok, warn or error as in the frontend's outcomeTone), `?2` LIKE pattern; both optional.
+const RUN_FILTER: &str = r"WHERE (?1 IS NULL OR CASE WHEN r.outcome='ok' THEN 'ok'
+    WHEN r.outcome IN ('rate_limited','not_found') THEN 'warn' ELSE 'error' END=?1)
+    AND (?2 IS NULL OR COALESCE(json_extract(c.payload,'$.name'),g.manual_title) LIKE ?2 ESCAPE '\'
+    OR r.detail LIKE ?2 ESCAPE '\' OR r.source LIKE ?2 ESCAPE '\' OR r.outcome LIKE ?2 ESCAPE '\'
+    OR r.kind LIKE ?2 ESCAPE '\')";
+
+#[derive(Deserialize)]
+pub(crate) struct RunsQuery {
+    tone: Option<String>,
+    q: Option<String>,
+    page: Option<i64>,
+    per_page: Option<i64>,
+}
+
+/// GET /api/v1/status/fetch/runs?tone=&q=&page=&per_page=: the fetch history (30 days), newest first.
+pub(crate) async fn runs(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    query: Result<Query<RunsQuery>, QueryRejection>,
+) -> ApiResult<Json<Value>> {
+    auth::authenticate(&state, &headers).await?;
+    let Query(query) = query.map_err(|_| eventlog::BAD_FILTER)?;
+    let tone = eventlog::choice(query.tone.as_deref(), &["ok", "warn", "error"])?;
+    let pattern = eventlog::pattern(query.q.as_deref())?;
+    let (page, per_page) = eventlog::paging(query.page, query.per_page);
+    let total: i64 = sqlx::query_scalar(AssertSqlSafe(format!(
+        "SELECT COUNT(*) {RUNS} {RUN_FILTER}"
+    )))
+    .bind(tone)
+    .bind(&pattern)
+    .fetch_one(&state.pool)
+    .await?;
+    let runs: Vec<Run> = sqlx::query_as(AssertSqlSafe(format!(
+        "SELECT {RUN_COLUMNS} {RUNS} {RUN_FILTER} ORDER BY r.started_at DESC,r.id DESC LIMIT ?3 OFFSET ?4"
+    )))
+    .bind(tone)
+    .bind(&pattern)
+    .bind(per_page)
+    .bind((page - 1) * per_page)
+    .fetch_all(&state.pool)
+    .await?;
+    Ok(Json(
+        json!({"runs": runs, "total": total, "page": page, "per_page": per_page}),
+    ))
+}
+
+/// Length of the queue preview of the status page.
+const UPCOMING: usize = 5;
+/// Jobs per shop the preview considers.
+const UPCOMING_CANDIDATES: i64 = 200;
+
+#[derive(FromRow)]
+struct Queued {
+    id: i64,
+    source: String,
+    link_id: Option<i64>,
+    wish_id: Option<String>,
+    search_page: i64,
+    due: i64,
+    requested: bool,
+    class: i64,
+    bypass: bool,
+    game: Option<String>,
+    region: Option<String>,
+}
+
+/// The next [`UPCOMING`] jobs over all active shops, a best estimate: each shop's worker is replayed with the
+/// claim rules (claimable jobs, class order with every fourth job for classes 2 to 5, retry pause, pacing
+/// after each paced job and the daily budget). Running jobs are left out; while the automatic checks are
+/// paused only direct user actions remain. `due_at` is the estimated start.
+async fn upcoming(pool: &SqlitePool, t: i64, paused: bool) -> sqlx::Result<Vec<Value>> {
+    let mut picks = Vec::new();
+    for shop in Shop::ALL {
+        let state: Option<(i64, i64, i64, i64, Option<i64>)> = sqlx::query_as(
+            "SELECT p.paced_until,p.retry_at,p.budget_day,p.jobs_today,s.daily_jobs
+            FROM shop_state p JOIN source_settings s ON s.id=p.source WHERE p.source=? AND s.enabled AND s.configured",
+        )
+        .bind(shop.id())
+        .fetch_optional(pool)
+        .await?;
+        let Some((mut paced, retry_at, budget_day, jobs_today, setting)) = state else {
+            continue;
+        };
+        let mut pending: Vec<Queued> = sqlx::query_as(AssertSqlSafe(format!(
+            "SELECT j.id,j.source,j.link_id,j.wish_id,j.search_page,j.due,j.requested_at>?3 AS requested,
+            {} AS class,{} AS bypass,{GAME_NAME} AS game,json_extract(l.latest,'$.region') AS region
+            FROM shop_job j LEFT JOIN offer_link l ON l.id=j.link_id {ITEM}
+            LEFT JOIN game g ON g.id=t.game_id LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id
+            WHERE j.source=?1 AND j.lease_until<=?2 AND (NOT ?4 OR {}) AND {}
+            ORDER BY MAX(j.due,CASE WHEN {} THEN 0 ELSE ?5 END),class,j.due,j.id LIMIT ?6",
+            class("?3"),
+            bypass("?3"),
+            bypass("?3"),
+            queued(),
+            bypass("?3")
+        )))
+        .bind(shop.id())
+        .bind(t)
+        .bind(t - REQUEST_WINDOW)
+        .bind(paused)
+        .bind(paced)
+        .bind(UPCOMING_CANDIDATES)
+        .fetch_all(pool)
+        .await?;
+        let limit = daily_limit(setting);
+        let mut day = t / DAY;
+        let mut used = if budget_day == day { jobs_today } else { 0 };
+        let mut clock = t.max(retry_at);
+        for seq in 0..UPCOMING {
+            let ready = |job: &Queued| {
+                if job.bypass {
+                    job.due
+                } else {
+                    job.due.max(paced)
+                }
+            };
+            let Some(first) = pending.iter().map(ready).min() else {
+                break;
+            };
+            let mut at = first.max(clock);
+            if at / DAY != day {
+                day = at / DAY;
+                used = 0;
+            }
+            if used >= limit {
+                day += 1;
+                at = at.max(day * DAY);
+                used = 0;
+            }
+            let fourth = used % 4 == 3;
+            let rank = |job: &Queued| match job.class {
+                0 => 0,
+                class if fourth => 1 + i64::from(class < 2),
+                class => class,
+            };
+            let Some(next) = (0..pending.len())
+                .filter(|&i| ready(&pending[i]) <= at)
+                .min_by_key(|&i| (rank(&pending[i]), pending[i].due, pending[i].id))
+            else {
+                break;
+            };
+            let job = pending.swap_remove(next);
+            used += 1;
+            if !job.bypass {
+                paced = at + pace_gap(at, limit - used);
+            }
+            clock = at;
+            picks.push((at, seq, job));
+        }
+    }
+    picks.sort_by_key(|(at, seq, job)| (*at, *seq, job.class, job.due, job.id));
+    Ok(picks
+        .into_iter()
+        .take(UPCOMING)
+        .map(|(at, _, job)| {
+            let kind = Kind::of(job.link_id, job.wish_id.as_deref());
+            json!({
+                "source": job.source, "kind": kind.id(), "wish_id": job.wish_id, "link_id": job.link_id,
+                "game": job.game, "region": job.region,
+                "search_page": (kind == Kind::Search).then_some(job.search_page),
+                "due_at": at, "requested": job.requested,
+            })
+        })
+        .collect())
 }
 
 #[cfg(test)]
@@ -2469,6 +2745,159 @@ mod tests {
         assert!(
             (simulated - estimate).abs() <= estimate * 0.03,
             "estimate {estimate:.1}/day, simulation {simulated:.1}/day"
+        );
+    }
+
+    /// Only the jobs a test adds, nothing paced.
+    async fn empty_queue() -> SqlitePool {
+        let pool = memory().await;
+        sqlx::query("DELETE FROM shop_job")
+            .execute(&pool)
+            .await
+            .unwrap();
+        unpace(&pool).await;
+        add_item(&pool, "w", "wished").await;
+        pool
+    }
+
+    fn links_and_starts(next: &[Value]) -> Vec<(i64, i64)> {
+        next.iter()
+            .map(|e| {
+                (
+                    e["link_id"].as_i64().unwrap(),
+                    e["due_at"].as_i64().unwrap(),
+                )
+            })
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn upcoming_jobs_follow_the_claim_order_and_the_pace() {
+        let pool = empty_queue().await;
+        let t = now();
+        let old = add_link(&pool, "w", 0, t - 10).await;
+        let future = add_link(&pool, "w", 1, t + 3600).await;
+        let requested = add_link(&pool, "w", 2, t - 5).await;
+        sqlx::query("UPDATE shop_job SET requested_at=? WHERE link_id=?")
+            .bind(t)
+            .bind(requested)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let next = upcoming(&pool, t, false).await.unwrap();
+        // The requested refresh (class 0) goes before the older due job; the future job waits for its time.
+        assert_eq!(
+            links_and_starts(&next),
+            [(requested, t), (old, t), (future, t + 3600)]
+        );
+        assert_eq!(next[0]["requested"], true);
+        assert_eq!(next[1]["requested"], false);
+        assert_eq!(next[0]["game"], "w");
+        assert_eq!(next[0]["kind"], "product");
+        assert_eq!(next[0]["source"], "eneba");
+        assert!(next[0]["search_page"].is_null());
+        // Five at most; paced jobs follow each other at the pace gap, the requested one does not count.
+        for n in 3..10 {
+            add_link(&pool, "w", n, t - 100).await;
+        }
+        let next = upcoming(&pool, t, false).await.unwrap();
+        assert_eq!(next.len(), 5);
+        assert_eq!(next[0]["link_id"], requested);
+        let limit = daily_limit(None);
+        let second = t + pace_gap(t, limit - 2);
+        assert_eq!(next[1]["due_at"], t);
+        assert_eq!(next[2]["due_at"], second);
+        assert_eq!(next[3]["due_at"], second + pace_gap(second, limit - 3));
+    }
+
+    #[tokio::test]
+    async fn upcoming_jobs_leave_out_owned_rejected_running_and_switched_off_shops() {
+        let pool = empty_queue().await;
+        let t = now();
+        add_item(&pool, "owned", "owned").await;
+        let kept = add_link(&pool, "w", 0, t - 10).await;
+        add_link(&pool, "owned", 1, t - 10).await;
+        let rejected = add_link(&pool, "w", 2, t - 10).await;
+        sqlx::query("UPDATE offer_link SET review='rejected' WHERE id=?")
+            .bind(rejected)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let running = add_link(&pool, "w", 3, t - 10).await;
+        sqlx::query("UPDATE shop_job SET lease_until=? WHERE link_id=?")
+            .bind(t + 60)
+            .bind(running)
+            .execute(&pool)
+            .await
+            .unwrap();
+        // Driffle is switched off in a fresh database.
+        let off: i64 = sqlx::query_scalar("INSERT INTO offer_link(wish_id,source,url) VALUES('w','driffle','https://driffle.com/de/x-xbox-live-digital-key-p1') RETURNING id")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO shop_job(source,link_id,due) VALUES('driffle',?,?)")
+            .bind(off)
+            .bind(t - 10)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let next = upcoming(&pool, t, false).await.unwrap();
+        assert_eq!(links_and_starts(&next), [(kept, t)]);
+        // Paused: only direct user actions remain.
+        assert!(upcoming(&pool, t, true).await.unwrap().is_empty());
+        sqlx::query("UPDATE shop_job SET requested_at=? WHERE link_id=?")
+            .bind(t)
+            .bind(kept)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let next = upcoming(&pool, t, true).await.unwrap();
+        assert_eq!(links_and_starts(&next), [(kept, t)]);
+        assert_eq!(next[0]["requested"], true);
+    }
+
+    #[tokio::test]
+    async fn failed_shop_jobs_are_logged_with_shop_game_and_pause_but_not_found_is_not() {
+        let pool = empty_queue().await;
+        let link = add_link(&pool, "w", 0, 0).await;
+        sqlx::query("UPDATE offer_link SET latest=? WHERE id=?")
+            .bind(serde_json::to_string(&priced(true)).unwrap())
+            .bind(link)
+            .execute(&pool)
+            .await
+            .unwrap();
+        for error in [ShopError::NotFound, ShopError::Network, ShopError::Denied] {
+            unpace(&pool).await;
+            sqlx::raw_sql("UPDATE shop_state SET retry_at=0; UPDATE shop_job SET due=0")
+                .execute(&pool)
+                .await
+                .unwrap();
+            let job = claim(&pool, Shop::Eneba, "aa", now(), 1000)
+                .await
+                .unwrap()
+                .unwrap();
+            complete(&pool, Shop::Eneba, &job, "aa", Err(error), now(), now(), 1)
+                .await
+                .unwrap();
+        }
+        let entries: Vec<(String, String, String)> =
+            sqlx::query_as("SELECT level,area,message FROM event_log ORDER BY id")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        let entry = |level: &str, message: &str| (level.into(), "Abruf".into(), message.into());
+        assert_eq!(
+            entries,
+            [
+                entry(
+                    "warn",
+                    "Eneba: Preisabruf für „w“ (Global) fehlgeschlagen (Netzwerkfehler)"
+                ),
+                entry(
+                    "error",
+                    "Eneba: Preisabruf für „w“ (Global) fehlgeschlagen (Zugriff verweigert). Abrufe bei Eneba pausieren 60 Min."
+                ),
+            ]
         );
     }
 }
