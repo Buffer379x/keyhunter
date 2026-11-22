@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { signInToFixture } from '../helpers';
+import { withState } from '../offer-state';
 
 // Visual regression of the seven core views at three viewports. Run only through deploy/visual-check.sh.
 // Determinism: fixed clock, all price data mocked (the fixture has no shop prices), animations and caret off.
@@ -10,7 +11,7 @@ const now = NOW_MS / 1000,
   H = 3600,
   D = 86400;
 
-const link = (id: number, source: string, region: string, cents: number, reasons: string[], extra = {}) => ({
+const rawLink = (id: number, source: string, region: string, cents: number, reasons: string[], extra = {}) => ({
   id,
   source,
   url: 'https://www.eneba.com/de/xbox-fixture-key-global',
@@ -44,6 +45,7 @@ const link = (id: number, source: string, region: string, cents: number, reasons
       ],
   ...extra,
 });
+const link = (...args: Parameters<typeof rawLink>) => withState(rawLink(...args));
 const pt = (days: number, cents: number, region: string, source = 'eneba') => ({ observed_at: now - days * D, base_cents: cents, link_id: 1, region, source });
 const offers = {
   links: [

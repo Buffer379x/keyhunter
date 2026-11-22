@@ -2,9 +2,10 @@ import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { signInToFixture } from './helpers';
 import { openTab, wishlistRows } from './detail-helpers';
+import { withState } from './offer-state';
 
 const now = () => Math.floor(Date.now() / 1000);
-const link = (id: number, name: string, extra: object = {}) => ({
+const rawLink = (id: number, name: string, extra: object = {}) => ({
   id,
   source: 'eneba',
   url: `https://www.eneba.com/de/xbox-${id}-key`,
@@ -23,6 +24,7 @@ const link = (id: number, name: string, extra: object = {}) => ({
   quotes: [{ id: String(id), seller: null, base_cents: 2890, estimated_total_cents: null }],
   ...extra,
 });
+const link = (...args: Parameters<typeof rawLink>) => withState(rawLink(...args));
 const view = (links: object[]) => ({
   links,
   histories: { preferred: [], all: [] },

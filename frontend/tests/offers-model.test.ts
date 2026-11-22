@@ -247,3 +247,16 @@ test('SCORE-03: the Prüftempo buckets are häufig from 70, selten up to 30, nor
   assert.equal(tempo(null), null);
   assert.equal(tempo(undefined), null);
 });
+
+test('FUNC-03: without server fields, unknown availability and a never observed link are no current price either', () => {
+  const unknown = link(1, 'Brazil', 700, ['availability_unknown']);
+  const unseen = link(2, 'Peru', 800, [], { observed_at: null });
+  assert.deepEqual(
+    offerRows(view([unknown, unseen, link(3, 'DE', 3000)], 3000), 'base').map(r => [r.link.id, r.current]),
+    [
+      [1, false],
+      [2, false],
+      [3, true],
+    ],
+  );
+});

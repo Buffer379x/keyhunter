@@ -134,7 +134,8 @@ export type OfferRow = {
  */
 export function isCurrent(link: Link): boolean {
   if (link.data_state !== undefined) return link.data_state === 'current' && link.current !== false;
-  return !link.stale && !link.reasons?.some(r => r === 'stale' || r === 'source_error');
+  // Legacy branch (Phase C removes it): a link never observed or with unknown availability is no price either.
+  return !link.stale && link.observed_at !== null && !link.reasons?.some(r => r === 'stale' || r === 'source_error' || r === 'availability_unknown');
 }
 
 /** One row per observed price, plus one status row per product without a price. Ordered by price only. */

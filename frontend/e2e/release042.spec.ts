@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { signInToFixture, navTo } from './helpers';
 import { editionSelect, openTab, openWishlistRow, removeCurrent, wishlistRows } from './detail-helpers';
+import { withState } from './offer-state';
 
 test('saved prices appear on the first list response and edition tags are prepared before switching', async ({ page }) => {
   await signInToFixture(page);
@@ -91,7 +92,7 @@ test('offers are ordered by price and the cheapest region is compared with the t
   await page.getByRole('searchbox', { name: 'Nach Spielen suchen', exact: true }).fill('forza');
   await page.getByRole('region', { name: 'Suchergebnisse' }).getByRole('button', { name: 'Forza Horizon 5 (Xbox Series X|S) vormerken', exact: true }).click();
   await expect(page).toHaveURL(/[?&]item=/);
-  const link = (id: number, region: string, cents: number) => ({
+  const rawLink = (id: number, region: string, cents: number) => ({
     id,
     source: 'eneba',
     url: 'https://www.eneba.com/de/xbox-fixture-key-global',
@@ -109,6 +110,7 @@ test('offers are ordered by price and the cheapest region is compared with the t
     product: { name: 'Synthetic', region, market: 'DE', activation: region === 'DE' ? 'confirmed' : 'unknown', availability: 'in_stock' },
     quotes: [{ id: String(id), seller: null, base_cents: cents, estimated_total_cents: region === 'India' ? null : cents + 100 }],
   });
+  const link = (...args: Parameters<typeof rawLink>) => withState(rawLink(...args));
   await page.route('**/api/v1/wishlist/*/offers', route =>
     route.request().method() === 'GET'
       ? route.fulfill({

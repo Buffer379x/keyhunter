@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { saveSettings, signInToFixture, navTo, navItem } from './helpers';
 import { editionSelect, openTab, openWishlistRow, removeCurrent, wishlistRows, wishlistTable } from './detail-helpers';
+import { withState } from './offer-state';
 
 test('settings separate key shops from games index and persist source intervals', async ({ page }) => {
   await signInToFixture(page);
@@ -40,7 +41,7 @@ test('edition previews keep the saved version, offers keep price order and histo
   const originalUrl = page.url();
   const now = Math.floor(Date.now() / 1000),
     day = 86400;
-  const link = (id: number, region: string, cents: number) => ({
+  const rawLink = (id: number, region: string, cents: number) => ({
     id,
     source: 'eneba',
     url: 'https://www.eneba.com/de/xbox-fixture-key-global',
@@ -57,6 +58,7 @@ test('edition previews keep the saved version, offers keep price order and histo
     product: { name: 'Synthetic offer', region, market: 'DE', activation: region === 'Global' ? 'confirmed' : 'unknown', availability: 'in_stock' },
     quotes: [{ id: String(id), seller: 'Synthetic seller', base_cents: cents, estimated_total_cents: null }],
   });
+  const link = (...args: Parameters<typeof rawLink>) => withState(rawLink(...args));
   const point = (at: number, cents: number, region: string) => ({ observed_at: at, base_cents: cents, link_id: 1, region, source: 'eneba' });
   await page.route('**/api/v1/wishlist/*/offers', route =>
     route.request().method() === 'GET'

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { navItem, navTo, signInToFixture } from './helpers';
 import { openTab } from './detail-helpers';
+import { withState } from './offer-state';
 
 /** A write to the API as the page would send it (origin and CSRF token). */
 async function write(page: Page, method: 'POST' | 'DELETE', path: string, data?: object) {
@@ -18,7 +19,7 @@ test.afterEach(async ({ page }) => {
 });
 
 const now = () => Math.floor(Date.now() / 1000);
-const link = (id: number, region: string, cents: number) => ({
+const rawLink = (id: number, region: string, cents: number) => ({
   id,
   source: 'eneba',
   url: `https://www.eneba.com/de/xbox-forza-horizon-5-${region.toLowerCase()}-key`,
@@ -36,6 +37,7 @@ const link = (id: number, region: string, cents: number) => ({
   product: { name: 'Forza Horizon 5 Xbox Key', region, market: 'DE', activation: region === 'Global' ? 'confirmed' : 'unknown', availability: 'in_stock' },
   quotes: [{ id: String(id), seller: null, base_cents: cents, estimated_total_cents: null }],
 });
+const link = (...args: Parameters<typeof rawLink>) => withState(rawLink(...args));
 const view = {
   links: [link(1, 'Global', 2890), link(2, 'India', 1290)],
   histories: { preferred: [], all: [] },
