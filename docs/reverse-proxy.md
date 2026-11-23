@@ -9,11 +9,11 @@ Alle Angaben sind am Code geprüft (`config.rs`, `auth.rs`, `throttle.rs`).
 | Thema | Verhalten |
 |---|---|
 | `KEYHUNTER_ORIGIN` | Die vollständige Adresse, unter der du KeyHunter im Browser öffnest: Schema, Host und bei nicht standardmäßigem Port der Port, **ohne Pfad**, ohne Zugangsdaten (`https://keyhunter.example.org`). Ein Schrägstrich am Ende wird entfernt. Ein ungültiger Wert verhindert den Start. Ist die Variable gesetzt, gilt genau diese eine Adresse; ist sie leer, vergleicht KeyHunter den `Origin` des Browsers mit dem `Host` der Anfrage, dann muss der Proxy den ursprünglichen `Host` unverändert weiterreichen. Mit gesetzter Variable ist der `Host` egal. |
-| HTTPS | Außerhalb von Heimnetz-Adressen akzeptiert KeyHunter Anmeldung und Änderungen nur über HTTPS. Das Sitzungscookie bekommt `Secure`, sobald der Browser über HTTPS kommt. Ein Pfad-Präfix (`/keyhunter`) wird nicht unterstützt: KeyHunter braucht eine eigene Adresse oder Subdomain. |
+| HTTPS | Ob Anmeldung und Änderungen über HTTP gehen, hängt von zwei Variablen ab (`auth.rs`, `checked_transport`): Mit `KEYHUNTER_ALLOW_INSECURE_HTTP=false` nie, dann ist auch eine `http://`-Adresse in `KEYHUNTER_ORIGIN` ein Startfehler. Mit dem Standard `true` und **leerer** `KEYHUNTER_ORIGIN` nur auf Heimnetz-Adressen: private IPv4 (`10.x`, `172.16–31.x`, `192.168.x`), IPv6 ULA (`fc…` und `fd…`), Loopback und lokale Namen (ohne Punkt wie `tower`, oder auf `.local`, `.lan`, `.home.arpa`, `.internal`); für jede andere Adresse, auch `100.x` von Tailscale, ist HTTPS nötig. Mit dem Standard `true` und **gesetzter** `KEYHUNTER_ORIGIN` gilt genau diese Adresse mit ihrem Schema, eine `http://`-Adresse also auch dann, wenn sie kein Heimnetz-Name ist. Das Sitzungscookie bekommt `Secure`, sobald der Browser über HTTPS kommt. Ein Pfad-Präfix (`/keyhunter`) wird nicht unterstützt: KeyHunter braucht eine eigene Adresse oder Subdomain. |
 | `KEYHUNTER_TRUSTED_PROXY` | IP-Adresse oder CIDR-Bereich des Proxys, **so wie KeyHunter ihn sieht** (die Adresse der TCP-Verbindung), mehrere durch Komma getrennt (`172.18.0.0/16`). Ohne diese Angabe kommt jede Anfrage vom Proxy, und die Anmeldedrossel (5 Fehlversuche je Adresse in 15 Minuten) sperrt bei fünf Fehlversuchen von irgendwem alle. Nur Anfragen von einer vertrauten Adresse werden ausgewertet. |
 | `X-Forwarded-For` | Für Anfragen von einer vertrauten Adresse liest KeyHunter den Header **von rechts**: die erste Adresse, die nicht selbst zum vertrauten Bereich gehört, zählt als Client. Weiter links stehende Einträge schreibt der Client und sie werden nicht beachtet. Ist ein Eintrag keine IP-Adresse, zählt der Proxy. Der Proxy muss den Header setzen oder ergänzen; die drei Beispiele tun das von sich aus. Trage nie Adressen ein, von denen auch andere Geräte direkt zugreifen. |
 | HSTS | KeyHunter sendet **kein** `Strict-Transport-Security`. Setze es am Proxy (siehe unten). |
-| Zeitlimits | Eine Anfrage endet nach 60 Sekunden, die Daten müssen innerhalb von 15 Sekunden vollständig ankommen. Stelle den Proxy auf mindestens 60 Sekunden Lese-Zeitlimit. Der Anfragekörper ist höchstens 16 KiB groß (der Import der Wunschliste 128 KiB). WebSockets werden nicht benutzt. |
+| Zeitlimits | Eine Anfrage endet nach 60 Sekunden, die Daten müssen innerhalb von 15 Sekunden vollständig ankommen. Stelle den Proxy auf mindestens 60 Sekunden Lese-Zeitlimit. Der Anfragekörper ist höchstens 16 KiB groß (der Import der Wunschliste 128 KiB, aber nur mit Sitzungscookie). WebSockets werden nicht benutzt. |
 
 ### Welche Adresse ist der Proxy?
 
@@ -26,7 +26,7 @@ Die Seite lädt, aber **Einrichtung, Anmeldung und jede Änderung** antworten mi
 - `KEYHUNTER_ORIGIN` nennt eine andere Adresse als die im Browser (Schema `http` statt `https`, ein anderer Host, ein fehlender Port).
 - `KEYHUNTER_ORIGIN` ist leer, und der Proxy schreibt den `Host` um (zum Beispiel auf den Containernamen).
 - Du erreichst KeyHunter über mehrere Adressen (Domain und IP); mit gesetzter Variable gilt nur eine.
-- HTTP über eine Domain: nur Heimnetz-Adressen sind erlaubt, sonst ist HTTPS nötig.
+- HTTP über eine Domain bei leerer `KEYHUNTER_ORIGIN`: dann sind nur Heimnetz-Adressen erlaubt, sonst ist HTTPS nötig.
 - `KEYHUNTER_ALLOW_INSECURE_HTTP=false` und Zugriff über HTTP.
 
 Nach einer Änderung an den Variablen startest du den Container neu.
