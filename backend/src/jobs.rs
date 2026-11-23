@@ -1903,6 +1903,100 @@ mod tests {
             );
         }
     }
+    /// PERF-08: attaching the indexed candidates (the catch-up after every start) reads with a constant number of
+    /// statements, whether the wishlist holds one wish or fifty.
+    #[tokio::test]
+    async fn attaching_candidates_uses_the_same_statements_for_one_and_for_fifty_wishes_perf08() {
+        use std::sync::{
+            Mutex,
+            atomic::{AtomicUsize, Ordering},
+        };
+        // sqlx logs each statement from the worker thread of its connection. A marker statement tells which thread is
+        // the one of the test's pool, so concurrent tests do not count.
+        static WORKER: Mutex<Option<std::thread::ThreadId>> = Mutex::new(None);
+        static STATEMENTS: AtomicUsize = AtomicUsize::new(0);
+        struct Counter;
+        struct Marked(bool);
+        impl tracing::field::Visit for Marked {
+            fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+                self.0 |=
+                    field.name() == "summary" && format!("{value:?}").contains("perf08_marker");
+            }
+        }
+        impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for Counter {
+            fn on_event(
+                &self,
+                event: &tracing::Event<'_>,
+                _: tracing_subscriber::layer::Context<'_, S>,
+            ) {
+                if event.metadata().target() != "sqlx::query" {
+                    return;
+                }
+                let mut marked = Marked(false);
+                event.record(&mut marked);
+                let mut worker = WORKER.lock().unwrap();
+                if marked.0 {
+                    *worker = Some(std::thread::current().id());
+                } else if *worker == Some(std::thread::current().id()) {
+                    STATEMENTS.fetch_add(1, Ordering::SeqCst);
+                }
+            }
+        }
+        tracing::subscriber::set_global_default(tracing_subscriber::layer::SubscriberExt::with(
+            tracing_subscriber::registry(),
+            Counter,
+        ))
+        .unwrap();
+        let mut counts = vec![];
+        for wishes in [1, 50] {
+            let pool = sqlx::sqlite::SqlitePoolOptions::new()
+                .max_connections(1)
+                .connect("sqlite::memory:")
+                .await
+                .unwrap();
+            sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+            sqlx::query("SELECT 1 AS perf08_marker")
+                .execute(&pool)
+                .await
+                .unwrap();
+            for n in 1..=wishes {
+                sqlx::query(
+                    "INSERT INTO game(id,manual_title,manual_key,created_at) VALUES(?1,?2,?3,0)",
+                )
+                .bind(format!("g{n}"))
+                .bind(format!("Forza Horizon {n}"))
+                .bind(format!("forza horizon {n}"))
+                .execute(&pool)
+                .await
+                .unwrap();
+                sqlx::query("INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES(?1,?1,169,0)")
+                    .bind(format!("g{n}")).execute(&pool).await.unwrap();
+                sqlx::query("INSERT INTO shop_candidate(source,url,title_key) VALUES('eneba',?,?)")
+                    .bind(format!(
+                        "https://www.eneba.com/de/xbox-forza-horizon-{n}-xbox-live-key-global"
+                    ))
+                    .bind(format!("forza horizon {n}"))
+                    .execute(&pool)
+                    .await
+                    .unwrap();
+            }
+            attach(&pool, Shop::Eneba).await.unwrap();
+            let links: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM offer_link")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+            assert_eq!(links, wishes, "every wish got its candidate");
+            // Everything is linked now: the catch-up of the next start only reads.
+            let before = STATEMENTS.load(Ordering::SeqCst);
+            attach(&pool, Shop::Eneba).await.unwrap();
+            counts.push(STATEMENTS.load(Ordering::SeqCst) - before);
+        }
+        assert!(counts[0] > 0, "the counter sees no statements");
+        assert_eq!(
+            counts[0], counts[1],
+            "statements for one and for fifty wishes"
+        );
+    }
     #[tokio::test]
     async fn indexed_regions_are_all_queued_once_regardless_of_country_preference() {
         let pool = sqlx::sqlite::SqlitePoolOptions::new()

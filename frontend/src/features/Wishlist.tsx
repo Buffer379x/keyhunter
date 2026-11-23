@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { AlertEvent, CatalogGame, PriceBadgeData, WishlistItem } from '../api';
+import type { AlertEvent, CatalogGame, EditionsView, PriceBadgeData, WishlistItem } from '../api';
 import { api, CART_CHANGED } from '../api';
 import { useFetchStatus } from '../fetch-status';
 import { Button, Chip, ConfirmDialog, EmptyState, Field, Help, Icon, Inset, Kpi, Notice, Panel, PanelHead, Seg, formatPrice } from '../components';
@@ -20,7 +20,7 @@ import { pauseText } from './wish-pause';
 import { PageSize, Pager, pageCount, useListView } from './list-view';
 import type { ChipFilter, PriceBasis, Row, RowFacts } from './wishlist-model';
 import { itemName } from './catalog-ui';
-import { whenVisible } from '../poll';
+import { badgePollDelay, whenVisible } from '../poll';
 import { columnOrder, openMode, visibleColumns } from './wishlist-columns';
 import type { WishlistColumn } from './wishlist-columns';
 import { notify } from '../notify';
@@ -251,13 +251,7 @@ export default function Wishlist({
     let cancel = () => {};
     async function prepare(method = 'POST') {
       try {
-        const data = await api<{ items: WishlistItem[]; preparing: boolean; error: string | null }>(
-          `/wishlist/${selected!.id}/editions`,
-          method,
-          method === 'POST' ? {} : undefined,
-          csrf,
-          controller.signal,
-        );
+        const data = await api<EditionsView>(`/wishlist/${selected!.id}/editions`, method, method === 'POST' ? {} : undefined, csrf, controller.signal);
         if (controller.signal.aborted) return;
         setEditionItems(data.items);
         setEditionError(data.error ?? (data.preparing ? 'Editionen werden vorbereitet …' : ''));
@@ -292,7 +286,7 @@ export default function Wishlist({
     listRead.current = null;
     const skipFirst = fresh?.items === items && fresh.target === targetCountry;
     async function readPrices() {
-      let refreshing = false;
+      let delay = badgePollDelay([]);
       try {
         const data = await api<Record<string, PriceBadgeData>>(
           `/wishlist/price-badges?anchor=${selected?.id ?? ''}`,
@@ -303,15 +297,14 @@ export default function Wishlist({
         );
         if (!controller.signal.aborted) {
           updateBadges(data);
-          // Fast only for a fetch the owner triggered; a backlog of due checks is the normal state (PERF-02).
-          refreshing = Object.values(data).some(badge => badge.refreshing);
+          delay = badgePollDelay(Object.values(data));
         }
       } catch {
         /* Retain saved badges during a failed local read. */
       }
-      if (!controller.signal.aborted) cancel = whenVisible(() => void readPrices(), refreshing ? 3000 : 60000);
+      if (!controller.signal.aborted) cancel = whenVisible(() => void readPrices(), delay);
     }
-    if (skipFirst) cancel = whenVisible(() => void readPrices(), items.some(item => item.price_badge?.refreshing) ? 3000 : 60000);
+    if (skipFirst) cancel = whenVisible(() => void readPrices(), badgePollDelay(items.map(item => item.price_badge)));
     else void readPrices();
     return () => {
       controller.abort();

@@ -105,6 +105,12 @@ export interface FeeView {
   world: WorldBest | null;
   trend: (number | null)[];
 }
+/** GET and POST /wishlist/{id}/editions: the wish and its tracked editions, and the state of their preparation. */
+export interface EditionsView {
+  items: WishlistItem[];
+  preparing: boolean;
+  error: string | null;
+}
 export interface WishlistItem {
   price_badge?: PriceBadgeData;
   id: string;

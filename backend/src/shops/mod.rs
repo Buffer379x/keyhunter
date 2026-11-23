@@ -206,25 +206,30 @@ pub(crate) async fn upgrade_fingerprints(pool: &sqlx::SqlitePool) -> sqlx::Resul
     )
     .fetch_all(pool)
     .await?;
+    // One statement per table whatever the number of links (PERF-08).
+    let moves: Vec<_> = rows
+        .into_iter()
+        .filter_map(|(id, latest)| {
+            let product = serde_json::from_str::<Product>(&latest).ok()?;
+            Some(serde_json::json!({"id": id, "old": product.legacy_fingerprint(), "new": product.fingerprint()}))
+        })
+        .collect();
+    let moves = serde_json::to_string(&moves).map_err(|e| sqlx::Error::Encode(e.into()))?;
     let mut tx = pool.begin().await?;
-    for (id, latest) in rows {
-        let Ok(product) = serde_json::from_str::<Product>(&latest) else {
-            continue;
-        };
-        let (old, new) = (product.legacy_fingerprint(), product.fingerprint());
-        sqlx::query("UPDATE offer_link SET fingerprint=? WHERE id=? AND fingerprint=?")
-            .bind(&new)
-            .bind(id)
-            .bind(&old)
-            .execute(&mut *tx)
-            .await?;
-        sqlx::query("UPDATE OR IGNORE price_observation SET fingerprint=? WHERE link_id=? AND fingerprint=?")
-            .bind(&new)
-            .bind(id)
-            .bind(&old)
-            .execute(&mut *tx)
-            .await?;
-    }
+    sqlx::query(
+        "UPDATE offer_link SET fingerprint=json_extract(m.value,'$.new') FROM json_each(?1) m
+        WHERE offer_link.id=json_extract(m.value,'$.id') AND offer_link.fingerprint=json_extract(m.value,'$.old')",
+    )
+    .bind(&moves)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "UPDATE OR IGNORE price_observation SET fingerprint=json_extract(m.value,'$.new') FROM json_each(?1) m
+        WHERE price_observation.link_id=json_extract(m.value,'$.id') AND price_observation.fingerprint=json_extract(m.value,'$.old')",
+    )
+    .bind(&moves)
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await
 }
 

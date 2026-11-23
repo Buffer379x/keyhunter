@@ -220,6 +220,17 @@ async fn app(wishes: i64, links: i64) -> (tempfile::TempDir, Api, String) {
     (dir, api, first)
 }
 
+/// Installs the counter once; the tests share it, so each holds the lock while it measures.
+async fn counting() -> tokio::sync::MutexGuard<'static, ()> {
+    static SERIAL: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    static INSTALL: std::sync::Once = std::sync::Once::new();
+    INSTALL.call_once(|| {
+        tracing::subscriber::set_global_default(tracing_subscriber::registry().with(Counter))
+            .unwrap()
+    });
+    SERIAL.lock().await
+}
+
 /// The statements one request needs.
 async fn statements(api: &Api, path: &str) -> usize {
     let before = STATEMENTS.load(Ordering::SeqCst);
@@ -229,7 +240,7 @@ async fn statements(api: &Api, path: &str) -> usize {
 
 #[tokio::test]
 async fn list_endpoints_use_the_same_number_of_statements_for_one_and_for_fifty_wishes_code08() {
-    tracing::subscriber::set_global_default(tracing_subscriber::registry().with(Counter)).unwrap();
+    let _serial = counting().await;
     let (_small_dir, small, small_first) = app(1, 1).await;
     let (_large_dir, large, large_first) = app(50, 50).await;
     for (what, small_path, large_path) in [
@@ -267,4 +278,48 @@ async fn list_endpoints_use_the_same_number_of_statements_for_one_and_for_fifty_
             "{what}: {many} statements for 50 wishes, {one} for one"
         );
     }
+}
+
+/// PERF-08: the start of an already upgraded database (`upgrade_fingerprints`) runs the same statements for one link
+/// as for fifty.
+#[tokio::test]
+async fn a_second_start_uses_the_same_statements_for_one_and_for_fifty_links_perf08() {
+    let _serial = counting().await;
+    let mut counts = vec![];
+    for links in [1, 50] {
+        let (dir, _api, _) = app(1, links).await;
+        let config = Config {
+            bind: "127.0.0.1:3000".parse().unwrap(),
+            origin: Some("http://localhost:3000".into()),
+            data_dir: dir.path().join("data"),
+            frontend_dir: dir.path().join("frontend"),
+            bootstrap_file: None,
+            allow_insecure_http: true,
+            trusted_proxies: vec![],
+        };
+        // A fingerprint that is neither the old nor the new one: nothing is left to upgrade.
+        let pool = SqlitePool::connect_with(
+            SqliteConnectOptions::new().filename(config.data_dir.join("keyhunter.db")),
+        )
+        .await
+        .unwrap();
+        sqlx::query("UPDATE offer_link SET fingerprint='current'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let before = STATEMENTS.load(Ordering::SeqCst);
+        let _ = create_app_with_catalog(config, Arc::new(Provider))
+            .await
+            .unwrap();
+        counts.push(STATEMENTS.load(Ordering::SeqCst) - before);
+    }
+    assert!(counts[0] > 0, "the counter sees no statements");
+    // The pool may open one more connection while it starts (a statement or two of its setup); a statement per link
+    // would add fifty.
+    assert!(
+        counts[1] <= counts[0] + 3,
+        "{} statements of a start with fifty links, {} with one",
+        counts[1],
+        counts[0]
+    );
 }

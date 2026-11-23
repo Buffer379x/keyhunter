@@ -1,0 +1,198 @@
+{
+  "endpoint": "GET /settings",
+  "shape": {
+    "fields": {
+      "confirmed_activation_countries": {
+        "required": true,
+        "shape": {
+          "items": {
+            "kind": "scalar",
+            "types": [
+              "string"
+            ]
+          },
+          "kind": "array"
+        }
+      },
+      "countries": {
+        "required": true,
+        "shape": {
+          "items": {
+            "kind": "scalar",
+            "types": [
+              "string"
+            ]
+          },
+          "kind": "array"
+        }
+      },
+      "currency": {
+        "required": true,
+        "shape": {
+          "kind": "scalar",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      "offers_columns": {
+        "required": true,
+        "shape": {
+          "items": {
+            "kind": "scalar",
+            "types": [
+              "string"
+            ]
+          },
+          "kind": "array"
+        }
+      },
+      "offers_hidden": {
+        "required": true,
+        "shape": {
+          "items": {
+            "kind": "scalar",
+            "types": [
+              "string"
+            ]
+          },
+          "kind": "array"
+        }
+      },
+      "sources": {
+        "required": true,
+        "shape": {
+          "items": {
+            "fields": {
+              "configured": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "boolean"
+                  ]
+                }
+              },
+              "daily_jobs": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "nullable": true,
+                  "types": [
+                    "number"
+                  ]
+                }
+              },
+              "daily_jobs_default": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "nullable": true,
+                  "types": [
+                    "number"
+                  ]
+                }
+              },
+              "enabled": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "boolean"
+                  ]
+                }
+              },
+              "fee_basis_points": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "number"
+                  ]
+                }
+              },
+              "fee_estimation_enabled": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "boolean"
+                  ]
+                }
+              },
+              "id": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "string"
+                  ]
+                }
+              },
+              "kind": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "string"
+                  ]
+                }
+              },
+              "poll_interval_seconds": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "number"
+                  ]
+                }
+              }
+            },
+            "kind": "object"
+          },
+          "kind": "array"
+        }
+      },
+      "target_country": {
+        "required": true,
+        "shape": {
+          "kind": "scalar",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      "wishlist_columns": {
+        "required": true,
+        "shape": {
+          "items": {
+            "kind": "scalar",
+            "types": [
+              "string"
+            ]
+          },
+          "kind": "array"
+        }
+      },
+      "wishlist_hidden": {
+        "required": true,
+        "shape": {
+          "items": {
+            "kind": "unknown"
+          },
+          "kind": "array"
+        }
+      },
+      "wishlist_open": {
+        "required": true,
+        "shape": {
+          "kind": "scalar",
+          "types": [
+            "string"
+          ]
+        }
+      }
+    },
+    "kind": "object"
+  }
+}

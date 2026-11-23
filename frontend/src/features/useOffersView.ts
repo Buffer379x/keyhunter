@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, HttpError } from '../api';
 import { notify } from '../notify';
 import type { PriceBadgeData } from '../api';
-import { whenVisible } from '../poll';
+import { badgePollDelay, whenVisible } from '../poll';
 import type { OffersView } from './offers-model';
 
 /**
@@ -27,7 +27,7 @@ export function useOffersView(id: string, csrf: string, onError: (error: unknown
         setView(data);
         if (data.price_badge) onBadge?.(id, data.price_badge as PriceBadgeData);
         setError('');
-        cancel = whenVisible(() => void load(), data.price_badge?.refreshing ? 3000 : 60000);
+        cancel = whenVisible(() => void load(), badgePollDelay([data.price_badge]));
       } catch (e) {
         if (controller.signal.aborted) return;
         if (e instanceof HttpError && e.status === 401) {

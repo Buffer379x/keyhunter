@@ -30,9 +30,11 @@ const SNAPSHOTS: Record<string, Source[]> = {
   counts: [{ call: '/counts' }],
   alerts: [{ call: '/alerts' }],
   cart: [{ call: '/cart' }],
+  settings: [{ call: '/settings' }],
+  editions: [{ type: ['src/api.ts', 'EditionsView'] }],
 };
-/** Optional fields of a type the server never sends for this response ("snapshot:path"): the library has no badges. */
-const NOT_SENT = new Set<string>(['library:[].price_badge', 'library:[].offer_count']);
+/** Optional fields of a type the server never sends for this response ("snapshot:path"): the library has no badges, the editions no offer count. */
+const NOT_SENT = new Set<string>(['library:[].price_badge', 'library:[].offer_count', 'editions:.items[].offer_count']);
 
 function load() {
   const config = ts.readConfigFile(resolve(root, 'tsconfig.json'), ts.sys.readFile);

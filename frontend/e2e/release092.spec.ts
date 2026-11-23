@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { navTo, signInToFixture } from './helpers';
+import { mockPriceBadges, navTo, signInToFixture } from './helpers';
 
 /** A write to the API as the page would send it (origin and CSRF token). */
 async function write(page: Page, method: 'POST' | 'PUT' | 'DELETE', path: string, data?: object) {
@@ -39,6 +39,46 @@ test('a paused wish shows no search in progress and its detail is not polled eve
   await page.waitForTimeout(7000);
   expect(reads).toHaveLength(1);
 });
+
+// PERF-02: a wish waiting in the backlog (pending, not refreshing) is re-read every 60 s, a fetch the owner triggered every 3 s.
+for (const [name, refreshing] of [
+  ['a backlog wish', false],
+  ['a refreshing wish', true],
+] as const) {
+  test(`${name} polls the badges and the detail ${refreshing ? 'every 3 s' : 'every 60 s'} (PERF-02)`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signInToFixture(page);
+    const id = (await (await write(page, 'POST', '/api/v1/wishlist', { igdb_id: 1001, platform_id: 169 })).json()).item.id;
+    const badge = { cents: null, state: 'unknown', observed_at: null, checked_at: null, stale: false, pending: true, refreshing };
+    await mockPriceBadges(page, () => ({ [id]: badge }));
+    await page.route(`**/api/v1/wishlist/${id}/offers`, async route => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({ json: { ...(await (await route.fetch()).json()), price_badge: badge } });
+    });
+    const reads = { badges: 0, offers: 0 };
+    page.on('request', request => {
+      if (/\/wishlist\/price-badges/.test(request.url())) reads.badges++;
+      else if (request.url().includes(`/wishlist/${id}/offers`)) reads.offers++;
+    });
+    await page.clock.install();
+    await page.goto(`/?item=${id}`);
+    await expect(page.getByRole('main').getByText('Wird gesucht …', { exact: true })).toBeVisible();
+    await expect.poll(() => reads.offers).toBeGreaterThan(0);
+    const before = { ...reads };
+    if (refreshing) {
+      await page.clock.runFor(3500);
+      await expect.poll(() => reads.badges).toBeGreaterThan(before.badges);
+      await expect.poll(() => reads.offers).toBeGreaterThan(before.offers);
+    } else {
+      await page.clock.runFor(30000);
+      await page.waitForTimeout(300);
+      expect(reads).toEqual(before);
+      await page.clock.runFor(32000);
+      await expect.poll(() => reads.badges).toBeGreaterThan(before.badges);
+      await expect.poll(() => reads.offers).toBeGreaterThan(before.offers);
+    }
+  });
+}
 
 const PASSPHRASE = 'browser test passphrase only';
 const CHANGED = 'browser test passphrase changed';

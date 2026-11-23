@@ -507,4 +507,12 @@ async fn the_main_responses_keep_the_shapes_the_frontend_types_are_checked_again
     let cart = get(&api, "/cart").await;
     assert_eq!(cart.as_array().unwrap().len(), 1, "{cart}");
     check("cart", "GET /cart", shape(&cart));
+    check(
+        "settings",
+        "GET /settings",
+        shape(&get(&api, "/settings").await),
+    );
+    let editions = get(&api, &format!("/wishlist/{priced}/editions")).await;
+    assert_eq!(editions["items"].as_array().unwrap().len(), 1, "{editions}");
+    check("editions", "GET /wishlist/{id}/editions", shape(&editions));
 }

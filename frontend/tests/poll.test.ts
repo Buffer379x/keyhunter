@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { whenVisible } from '../src/poll.ts';
+import { badgePollDelay, whenVisible } from '../src/poll.ts';
 
 // Minimal document stand-in: a visibility state and visibilitychange listeners.
 const listeners = new Set<() => void>();
@@ -44,4 +44,18 @@ test('cancel stops a pending poll, also while hidden', async () => {
   show('visible');
   assert.equal(runs, 0);
   assert.equal(listeners.size, 0);
+});
+
+test('badgePollDelay: only a fetch the owner triggered polls fast, a backlog waits 60 s (PERF-02)', () => {
+  assert.equal(badgePollDelay([{ pending: true, refreshing: false }]), 60000);
+  assert.equal(badgePollDelay([{ pending: true }]), 60000);
+  assert.equal(badgePollDelay([{ pending: false, refreshing: false }, undefined, null]), 60000);
+  assert.equal(badgePollDelay([]), 60000);
+  assert.equal(
+    badgePollDelay([
+      { pending: true, refreshing: false },
+      { pending: true, refreshing: true },
+    ]),
+    3000,
+  );
 });
