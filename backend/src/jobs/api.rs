@@ -3,7 +3,7 @@
 use super::{
     ITEM, JOBS, Kind, PAUSED_AT, REQUEST_WINDOW,
     budget::{daily_budget, daily_limit, default_budget, demand, pace_gap},
-    bypass, class, queued, waiting,
+    bypass, class, fourth_turn, queued, waiting,
 };
 use crate::extract::ApiJson;
 use crate::{
@@ -301,7 +301,7 @@ pub(super) fn upcoming_sql() -> String {
 }
 
 /// The next [`UPCOMING`] jobs over all active shops, a best estimate: each shop's worker is replayed with the
-/// claim rules (claimable jobs, class order with every fourth job for classes 2 to 5, retry pause, pacing
+/// claim rules (claimable jobs, class order with every fourth job for classes 2 to 5 in turn, retry pause, pacing
 /// after each paced job and the daily budget). Running jobs are left out; while the automatic checks are
 /// paused only direct user actions remain. `due_at` is the estimated start.
 pub(super) async fn upcoming(pool: &SqlitePool, t: i64, paused: bool) -> sqlx::Result<Vec<Value>> {
@@ -351,11 +351,11 @@ pub(super) async fn upcoming(pool: &SqlitePool, t: i64, paused: bool) -> sqlx::R
                 at = at.max(day * DAY);
                 used = 0;
             }
-            let fourth = used % 4 == 3;
-            let rank = |job: &Queued| match job.class {
-                0 => 0,
-                class if fourth => 1 + i64::from(class < 2),
-                class => class,
+            let turn = fourth_turn(used);
+            let rank = |job: &Queued| match (job.class, turn) {
+                (0, _) => (0, false),
+                (class, Some(turn)) => (1 + i64::from(class < 2), class != turn),
+                (class, None) => (class, false),
             };
             let Some(next) = (0..pending.len())
                 .filter(|&i| ready(&pending[i]) <= at)

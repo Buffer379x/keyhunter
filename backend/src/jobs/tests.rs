@@ -472,6 +472,7 @@ async fn persistent_lease_budget_and_source_pause() {
     );
 }
 
+/// The bottleneck scenario of the scheduler, also the fairness test of the fourth job (SCORE-05, 1.1).
 #[tokio::test]
 async fn budget_keeps_every_region_of_active_wishes_fresh_alike() {
     use crate::shops::{Quote, SearchPage};
@@ -543,8 +544,9 @@ async fn budget_keeps_every_region_of_active_wishes_fresh_alike() {
         for e in 0..2 {
             let preview = format!("p{w}x{e}");
             item(&pool, &preview).await;
+            // Viewed throughout the run, so the preview stays watched (PREVIEW_VIEWED_WITHIN).
             sqlx::query("UPDATE wishlist_item SET state='preview',viewed_at=? WHERE id=?")
-                .bind(T0)
+                .bind(i64::MAX / 2)
                 .bind(&preview)
                 .execute(&pool)
                 .await
@@ -587,9 +589,17 @@ async fn budget_keeps_every_region_of_active_wishes_fresh_alike() {
                     .bind(ids).bind(since).fetch_one(&pool).await.unwrap()
         }
     };
+    // Classes 2 to 5 take turns at every fourth job (SCORE-05): about 39 jobs a day leave 9 fourth jobs. The discovery
+    // (class 5, due a day after its run) and the repeated searches of the 10 wishes (class 2, due a week after their run)
+    // take at most 1 + 10/7 of them; the 200 preview links and 20 preview searches (class 4) get the rest, at least
+    // 6.5 a day, so each runs once within 220 / 6.5 < 34 days. Up to 1.0 the fourth job went to the oldest due
+    // of all four classes: the previews' backlog kept the discovery to one run in 10 days and the searches to none.
+    const DAYS: i64 = 34;
     let mut late_search = None;
+    let mut discoveries = vec![];
+    let mut per_day = vec![0; DAYS as usize];
     let mut t = T0;
-    while t < T0 + 10 * DAY {
+    while t < T0 + DAYS * DAY {
         if t == T0 + 6 * DAY {
             item(&pool, "late").await;
             sqlx::query("UPDATE shop_job SET due=? WHERE wish_id='late'")
@@ -603,27 +613,55 @@ async fn budget_keeps_every_region_of_active_wishes_fresh_alike() {
             if job.wish_id.as_deref() == Some("late") && late_search.is_none() {
                 late_search = Some(t);
             }
+            per_day[((t - T0) / DAY) as usize] += 1;
             let result = match (job.link_id, &job.wish_id) {
                 (Some(id), _) => Ok(Work::Product(Box::new(product(relevant[&id])))),
                 (None, Some(_)) => Ok(Work::Search(SearchPage {
                     urls: vec![],
                     next_page: None,
                 })),
-                (None, None) => Ok(Work::Discovery(vec![], None)),
+                (None, None) => {
+                    discoveries.push(t);
+                    Ok(Work::Discovery(vec![], None))
+                }
             };
             complete(&pool, Shop::Eneba, &job, "aa", result, t + 5, t, 5000)
                 .await
                 .unwrap();
         }
-        t += 300;
+        // Every 5 minutes, but straight to the end of the pacing pause (nothing here bypasses it but the late wish,
+        // which comes at a day boundary), never past the next day boundary.
+        let paced: i64 =
+            sqlx::query_scalar("SELECT paced_until FROM shop_state WHERE source='eneba'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        t = (t + 300)
+            .max((paced + 299) / 300 * 300)
+            .min((t / DAY + 1) * DAY);
         if t % DAY == 0 && t >= T0 + 5 * DAY {
+            let day = (t - T0) / DAY;
             // Every region of an active wish shares the budget alike, valid in DE or not.
             for (ids, what) in [(&active_valid, "DE-valid"), (&active_other, "other")] {
                 assert_eq!(
                     stale_count(ids, t - 4 * DAY).await,
                     0,
-                    "every {what} variant of an active wish is at most four days old on day {}",
-                    (t - T0) / DAY
+                    "every {what} variant of an active wish is at most four days old on day {day}",
+                );
+            }
+            // A repeated search waits a week, then at most for the turns of class 2 (2.25 a day) to reach it among the
+            // 11 searches of active wishes (< 5 days): none is older than 12 days.
+            if day >= 12 {
+                let old: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM shop_job j JOIN wishlist_item w ON w.id=j.wish_id WHERE w.state='wished' AND COALESCE(j.checked_at,0)<?",
+                )
+                .bind(t - 12 * DAY)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+                assert_eq!(
+                    old, 0,
+                    "every active wish searched within 12 days on day {day} (SCORE-05)"
                 );
             }
         }
@@ -640,24 +678,36 @@ async fn budget_keeps_every_region_of_active_wishes_fresh_alike() {
         0,
         "other regions are not starved"
     );
-    // Classes 2 to 5 share every fourth job by due time, so under this bottleneck 121 of the 200 preview links are
-    // still unmeasured after ten days and the discovery runs once (audit 11, SCORE-05). Known and kept for 1.0; the
-    // fair share of the fourth slot is planned for 1.1. The bound keeps it from getting worse unnoticed.
-    assert!(
-        stale_count(&previews, T0).await <= 121,
-        "at most 121 of 200 previews stay unmeasured (SCORE-05, 1.1)"
+    // SCORE-05 (1.1): every preview link and preview search ran at least once within the 34 days.
+    assert_eq!(
+        stale_count(&previews, T0).await,
+        0,
+        "every preview link is measured within {DAYS} days"
     );
-    let discoveries: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM job_run WHERE kind='discovery'")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-    assert!(discoveries >= 1, "the discovery runs at least once");
-    let runs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM job_run")
+    let unsearched: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM shop_job j JOIN wishlist_item w ON w.id=j.wish_id WHERE w.state='preview' AND j.checked_at IS NULL")
         .fetch_one(&pool)
         .await
         .unwrap();
-    assert!(runs <= BUDGET * 10, "the daily budget holds: {runs} runs");
+    assert_eq!(
+        unsearched, 0,
+        "every preview is searched within {DAYS} days"
+    );
+    // The discovery runs regularly: due a day after its run, then its turn comes within two turn cycles (32 jobs,
+    // 19.2 h at 40 a day), so never more than 44 hours apart.
+    let gaps = std::iter::once(T0)
+        .chain(discoveries.iter().copied())
+        .zip(discoveries.iter().copied().chain(std::iter::once(t)));
+    let longest = gaps.map(|(a, b)| b - a).max().unwrap();
+    assert!(
+        longest <= 44 * 3600,
+        "the discovery ran {} times, at most {} h apart (SCORE-05)",
+        discoveries.len(),
+        longest / 3600
+    );
+    assert!(
+        per_day.iter().all(|&jobs| jobs <= BUDGET),
+        "the daily budget holds: {per_day:?}"
+    );
     // Pacing spreads the budget: no UTC hour of a busy day gets more than a few jobs.
     let busiest: i64 = sqlx::query_scalar(
             "SELECT MAX(n) FROM (SELECT COUNT(*) AS n FROM job_run WHERE started_at>=? GROUP BY started_at/3600)",
@@ -667,10 +717,83 @@ async fn budget_keeps_every_region_of_active_wishes_fresh_alike() {
         .await
         .unwrap();
     assert!(busiest <= 6, "at most 6 jobs in one hour, got {busiest}");
+    let runs: i64 = per_day.iter().sum();
     assert!(
-        runs >= BUDGET * 9,
+        runs >= BUDGET * DAYS * 9 / 10,
         "pacing still uses the budget: {runs} runs"
     );
+}
+
+/// SCORE-05 (1.1): every fourth job goes to classes 2, 3, 4 and 5 in turn, not to the oldest due among them; the
+/// status page predicts the same job. Up to 1.0 the preview (oldest due) took every fourth job here.
+#[tokio::test]
+async fn the_fourth_job_goes_to_classes_two_to_five_in_turn() {
+    let pool = empty_queue().await;
+    let t = now();
+    let cheap = add_link(&pool, "w", 0, t - 5000).await;
+    let sold_out = add_link(&pool, "w", 1, t - 1000).await;
+    sqlx::query("UPDATE shop_job SET relevance=2 WHERE link_id=?")
+        .bind(sold_out)
+        .execute(&pool)
+        .await
+        .unwrap();
+    add_item(&pool, "p", "preview").await;
+    sqlx::query("INSERT INTO edition_watch VALUES('w','p')")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let preview = add_link(&pool, "p", 0, t - 4000).await;
+    sqlx::query("INSERT INTO shop_job(source,wish_id,due,checked_at) VALUES('eneba','w',?,?)")
+        .bind(t - 2000)
+        .bind(t - WEEK)
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO shop_job(source,due) VALUES('eneba',?)")
+        .bind(t - 3000)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let search = (None, Some("w".to_string()));
+    for (used, expected) in [
+        (0, (Some(cheap), None)),
+        (3, search.clone()),
+        (7, (Some(sold_out), None)),
+        (11, (Some(preview), None)),
+        (15, (None, None)),
+        (19, search),
+    ] {
+        sqlx::query(
+            "UPDATE shop_state SET budget_day=?,jobs_today=?,paced_until=0 WHERE source='eneba'",
+        )
+        .bind(t / DAY)
+        .bind(used)
+        .execute(&pool)
+        .await
+        .unwrap();
+        let next = upcoming(&pool, t, false).await.unwrap();
+        let job = claim(&pool, Shop::Eneba, "aa", t, 1000)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            (job.link_id, job.wish_id.clone()),
+            expected,
+            "after {used} jobs"
+        );
+        assert_eq!(
+            (
+                next[0]["link_id"].as_i64(),
+                next[0]["wish_id"].as_str().map(str::to_string)
+            ),
+            expected,
+            "status page after {used} jobs"
+        );
+        sqlx::query("UPDATE shop_job SET lease_until=0,lease_token=NULL")
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
 }
 
 pub(super) async fn memory() -> SqlitePool {

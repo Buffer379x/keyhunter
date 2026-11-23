@@ -12,8 +12,11 @@
 //! | 4 | edition previews | yes (a requested refresh is class 0) |
 //! | 5 | shop-wide discovery | yes |
 //!
-//! Every fourth job of a day goes to the most overdue job of classes 2 to 5, so lower
-//! classes keep a share of the budget even when class 1 alone could use it up. Product intervals adapt to
+//! Every fourth job of a day goes to classes 2 to 5, and they take turns ([`fourth_turn`]: 2, 3, 4, 5, 2, …): the
+//! class whose turn it is gets its most overdue job, if it has none due the most overdue job of the other three. So
+//! each of these classes gets at least one job in sixteen whenever it has work, and lower classes keep a share of the
+//! budget even when class 1 alone could use it up (1.1, SCORE-05; up to 1.0 the most overdue of all four, so a long
+//! backlog of previews kept the discovery and the repeated searches waiting for weeks). Product intervals adapt to
 //! the price trend of each product within its wish (0.6.5, 1.1: [`trend::price_trend`]): the steadily cheapest region is
 //! checked twice as often, one steadily at twice the cheapest price or more and sold-out products half as often,
 //! previews half as often. Every region is treated alike; the target country only decides which price counts, not
@@ -264,18 +267,25 @@ struct Job {
     bypass: bool,
 }
 
-/// Leases the next job of `?1` (placeholders of [`claimable`], `?6` lease end, `?7` token). Every fourth job of the
-/// day goes to the most overdue job of classes 2..5.
+/// Class whose turn the fourth job is after `used` jobs of the day (module docs, SCORE-05): 2, 3, 4, 5, 2, … every
+/// fourth job, so each of them gets at least one job in sixteen whenever it has a due job.
+fn fourth_turn(used: i64) -> Option<i64> {
+    (used % 4 == 3).then_some(2 + used / 4 % 4)
+}
+
+/// Leases the next job of `?1` (placeholders of [`claimable`], `?6` lease end, `?7` token). Class order; every fourth
+/// job of the day goes to classes 2..5, first to the one whose turn it is ([`fourth_turn`]), else the most overdue.
 fn claim_sql() -> String {
+    // Jobs of the shop today before this one; an uncorrelated scalar subquery, evaluated once per statement.
+    const USED: &str = "(SELECT CASE WHEN q.budget_day=?3 THEN q.jobs_today ELSE 0 END FROM shop_state q WHERE q.source=?1)";
     format!(
         "UPDATE shop_job SET lease_until=?6,lease_token=?7 WHERE id=(SELECT id FROM (
             SELECT j.id AS id, j.due AS due, {} AS class {}
             AND NOT EXISTS(SELECT 1 FROM shop_job running WHERE running.source=j.source AND running.lease_until>?2)
         ) ORDER BY CASE
             WHEN class=0 THEN 0
-            WHEN (SELECT CASE WHEN q.budget_day=?3 THEN q.jobs_today ELSE 0 END FROM shop_state q WHERE q.source=?1)%4=3
-                THEN CASE WHEN class>=2 THEN 1 ELSE 2 END
-            ELSE class END, due, id LIMIT 1)
+            WHEN {USED}%4=3 THEN CASE WHEN class>=2 THEN 1 ELSE 2 END
+            ELSE class END, class!=2+{USED}/4%4, due, id LIMIT 1)
         RETURNING id,link_id,failures,dead_failures,wish_id,search_page",
         class("?5"),
         claimable()
