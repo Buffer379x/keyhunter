@@ -9,6 +9,8 @@ const offer = (cents: number, estimate: number | null, region: string, stale = f
   region,
   observed_at: 1,
   stale,
+  fits_target: true,
+  activation: 'confirmed',
 });
 const entry = (id: string, offers: Record<string, ShopOffers>, source: string | null = null, scope: CartScope = 'world'): CartEntry => ({
   id,

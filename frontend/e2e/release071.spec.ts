@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { navTo, saveSettings, signInToFixture } from './helpers';
+import { mockPriceBadges, navTo, saveSettings, signInToFixture } from './helpers';
 import { backToList, removeCurrent, wishlistRows, wishlistTable } from './detail-helpers';
 
 async function addForza(page: Page) {
@@ -68,23 +68,19 @@ test('Preis DE and Preis INT show only the shop under the price', async ({ page 
   await addForza(page);
   const id = new URL(page.url()).searchParams.get('item')!;
   const now = Math.floor(Date.now() / 1000);
-  await page.route(/\/api\/v1\/wishlist\/price-badges(?:\?.*)?$/, route =>
-    route.fulfill({
-      json: {
-        [id]: {
-          state: 'price',
-          cents: 2890,
-          source: 'eneba',
-          region: 'Germany',
-          observed_at: now - 3600,
-          checked_at: now - 3600,
-          stale: false,
-          pending: false,
-          world: { cents: 1290, source: 'driffle', region: 'India', observed_at: now - 3600 },
-        },
-      },
-    }),
-  );
+  await mockPriceBadges(page, () => ({
+    [id]: {
+      state: 'price',
+      cents: 2890,
+      source: 'eneba',
+      region: 'Germany',
+      observed_at: now - 3600,
+      checked_at: now - 3600,
+      stale: false,
+      pending: false,
+      world: { cents: 1290, source: 'driffle', region: 'India', observed_at: now - 3600 },
+    },
+  }));
   await backToList(page);
   const row = wishlistRows(page).first();
   await expect(wishlistTable(page).locator('thead th').nth(2)).toHaveText('Preis INT');

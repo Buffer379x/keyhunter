@@ -24,7 +24,7 @@ const badge = (cents: number | null, world?: number): PriceBadgeData => ({
   checked_at: 1,
   stale: false,
   pending: false,
-  world: world === undefined ? null : { cents: world, region: 'IN', observed_at: 1 },
+  world: world === undefined ? null : { cents: world, region: 'IN', observed_at: 1, fits_target: true, activation: 'confirmed' },
   trend: [],
 });
 const rule = (target: number) => ({ mode: 'target' as const, basis: 'base' as const, target_cents: target, enabled: true });

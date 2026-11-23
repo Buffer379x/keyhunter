@@ -1,5 +1,6 @@
 #!/bin/sh
-# Browser checks: the e2e suite in the host Chromium, then (1.0) a short WebKit run of the responsive checks
+# Browser checks: the e2e suite in the host Chromium, the "priced" specs (1.0, FUNC-06: real backend with seeded
+# price data, no route mocks) against their own server, then a short WebKit run of the responsive checks
 # (release094-responsive.spec.ts) in the pinned Playwright image, each against a fresh fixture server.
 # Arguments go to the Chromium run. KEYHUNTER_SKIP_WEBKIT=1 skips the WebKit run (for example without Docker).
 set -eu
@@ -17,11 +18,12 @@ stop() {
   pid=
 }
 trap stop EXIT
-# start <port>: a fixture server with its own data directory; sets $origin and $data_dir.
+# start <port> [prices]: a fixture server with its own data directory; sets $origin and $data_dir.
+# With "prices" it seeds the synthetic price data (KEYHUNTER_FIXTURE_PRICES=1).
 start() {
   data_dir=$(mktemp -d "$PWD/work/check/browser.XXXXXXXX")
   origin=http://$host:$1
-  KEYHUNTER_BIND=$host:$1 KEYHUNTER_DATA_DIR="$data_dir" \
+  KEYHUNTER_BIND=$host:$1 KEYHUNTER_DATA_DIR="$data_dir" KEYHUNTER_FIXTURE_PRICES=$([ "${2:-}" = prices ] && echo 1 || echo 0) \
     KEYHUNTER_FRONTEND_DIR=frontend/dist work/check/target/debug/examples/catalog_fixture &
   pid=$!
   attempt=0
@@ -35,6 +37,9 @@ start() {
 port=${KEYHUNTER_TEST_PORT:-38751}
 start "$port"
 (cd frontend && KEYHUNTER_E2E_BASE_URL="$origin" KEYHUNTER_TEST_DATA_DIR="$data_dir" npm run test:e2e -- "$@")
+stop
+start $((port + 2)) prices
+(cd frontend && KEYHUNTER_E2E_BASE_URL="$origin" KEYHUNTER_TEST_DATA_DIR="$data_dir" npm run test:priced -- "$@")
 stop
 if [ "${KEYHUNTER_SKIP_WEBKIT:-}" = 1 ]; then
   echo "WebKit run skipped (KEYHUNTER_SKIP_WEBKIT=1)."

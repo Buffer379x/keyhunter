@@ -208,7 +208,15 @@ test('Abrufstatus pages through the runs with their game and shows the next five
 test('the cart totals stand in a box of their own, every amount in one column', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await signInToFixture(page);
-  const offer = (cents: number) => ({ cents, estimate_cents: Math.round(cents * 1.05), region: 'Global', observed_at: now() - 60, stale: false });
+  const offer = (cents: number) => ({
+    cents,
+    estimate_cents: Math.round(cents * 1.05),
+    region: 'Global',
+    observed_at: now() - 60,
+    stale: false,
+    fits_target: true,
+    activation: 'confirmed',
+  });
   await page.route('**/api/v1/cart', async route => {
     if (route.request().method() !== 'GET') return route.continue();
     const entry = (id: string, name: string, eneba: number, driffle: number) => ({

@@ -1,0 +1,44 @@
+{
+  "endpoint": "GET /counts",
+  "shape": {
+    "fields": {
+      "alerts": {
+        "required": true,
+        "shape": {
+          "kind": "scalar",
+          "types": [
+            "number"
+          ]
+        }
+      },
+      "cart": {
+        "required": true,
+        "shape": {
+          "kind": "scalar",
+          "types": [
+            "number"
+          ]
+        }
+      },
+      "library": {
+        "required": true,
+        "shape": {
+          "kind": "scalar",
+          "types": [
+            "number"
+          ]
+        }
+      },
+      "wishlist": {
+        "required": true,
+        "shape": {
+          "kind": "scalar",
+          "types": [
+            "number"
+          ]
+        }
+      }
+    },
+    "kind": "object"
+  }
+}

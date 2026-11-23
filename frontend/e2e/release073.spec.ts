@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { signInToFixture } from './helpers';
+import { mockPriceBadges, signInToFixture } from './helpers';
 import { openTab, wishlistRows } from './detail-helpers';
 import { withState } from './offer-state';
 
@@ -119,20 +119,16 @@ test('the wishlist shows prices without or with fees; without, the title of a pr
     },
   };
   let fees = true;
-  await page.route(/\/api\/v1\/wishlist\/price-badges(?:\?.*)?$/, route =>
-    route.fulfill({
-      json: {
-        [id]: fees
-          ? badge
-          : {
-              ...badge,
-              estimate_cents: null,
-              world: { ...badge.world, estimate_cents: null },
-              with_fees: { ...badge.with_fees, cents: null, base_cents: null, source: null, world: null },
-            },
-      },
-    }),
-  );
+  await mockPriceBadges(page, () => ({
+    [id]: fees
+      ? badge
+      : {
+          ...badge,
+          estimate_cents: null,
+          world: { ...badge.world, estimate_cents: null },
+          with_fees: { ...badge.with_fees, cents: null, base_cents: null, source: null, world: null },
+        },
+  }));
   await page.goto('/');
   const switcher = page.getByRole('radiogroup', { name: 'Preise', exact: true });
   await expect(switcher.getByRole('radio', { name: 'Ohne Gebühren', exact: true })).toHaveAttribute('aria-checked', 'true');

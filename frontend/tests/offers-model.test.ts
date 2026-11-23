@@ -30,6 +30,7 @@ const link = (id: number, region: string, cents: number, reasons: string[] = [],
   retry_at: 0,
   reasons,
   data_state: 'current',
+  fits_target: true,
   current: true,
   product: {
     name: 'p',

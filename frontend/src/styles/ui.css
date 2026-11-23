@@ -140,6 +140,8 @@
 .chip .mono {
   color: var(--muted);
   font-size: var(--t-label);
+  min-width: 2ch;
+  text-align: center;
 }
 .pill {
   display: inline-flex;

@@ -835,6 +835,89 @@ mod tests {
         assert_eq!(open, 0);
     }
 
+    /// FUNC-05: the delivery re-checks the freshness of its price with the link's own limit
+    /// ([`crate::pricing::fresh_for`], twice the check interval, at least a day), not a fixed day.
+    #[tokio::test]
+    async fn delivery_keeps_a_price_that_is_fresh_for_the_interval_of_its_link() {
+        const HOUR: i64 = 3600;
+        // (check interval in hours, age of the observation in hours, delivered)
+        for (interval, age, delivered) in [
+            (72, 30, true),
+            (72, 143, true),
+            (72, 145, false),
+            (8, 30, false),
+        ] {
+            let pool = pool().await;
+            sqlx::query("UPDATE app_settings SET target_country='DE'")
+                .execute(&pool)
+                .await
+                .unwrap();
+            sqlx::query("UPDATE source_settings SET poll_interval_seconds=? WHERE id='eneba'")
+                .bind(interval * HOUR)
+                .execute(&pool)
+                .await
+                .unwrap();
+            sqlx::query("INSERT INTO game(id,manual_title,manual_key,created_at) VALUES('g','Game','game',0)").execute(&pool).await.unwrap();
+            sqlx::query("INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES('wish','g',169,0)").execute(&pool).await.unwrap();
+            sqlx::query("INSERT INTO offer_link(id,wish_id,source,url,review) VALUES(1,'wish','eneba','https://www.eneba.com/de/xbox-game-key-global','confirmed')").execute(&pool).await.unwrap();
+            sqlx::query("INSERT INTO shop_job(source,link_id,due) VALUES('eneba',1,0)")
+                .execute(&pool)
+                .await
+                .unwrap();
+            sqlx::query("INSERT INTO alert_rule(wish_id,mode,basis,target_cents,enabled) VALUES('wish','target','base',2400,1)").execute(&pool).await.unwrap();
+            let mut product = Product {
+                id: "fixture".into(),
+                name: "Game".into(),
+                title: "Game".into(),
+                key_game: true,
+                platform_ids: vec![169],
+                region: Some("Global".into()),
+                allowed: vec!["DE".into()],
+                blocked: vec![],
+                purchase_country: Some("DE".into()),
+                offers: vec![crate::shops::Quote {
+                    id: "one".into(),
+                    cents: 2600,
+                    seller: None,
+                }],
+                availability: crate::shops::Availability::InStock,
+            };
+            // The alert arises when the price drops (observed `age` hours ago) and is delivered now.
+            let t = now() - age * HOUR;
+            for (offset, cents) in [(0, 2600), (2, 2400), (3, 2400)] {
+                product.offers[0].cents = cents;
+                let mut tx = pool.begin().await.unwrap();
+                sqlx::query(
+                    "UPDATE offer_link SET fingerprint=?,latest=?,observed_at=? WHERE id=1",
+                )
+                .bind(product.fingerprint())
+                .bind(serde_json::to_string(&product).unwrap())
+                .bind(t + offset)
+                .execute(&mut *tx)
+                .await
+                .unwrap();
+                observe(&mut tx, "wish", 1, t + offset).await.unwrap();
+                tx.commit().await.unwrap();
+            }
+            let hook = mock(&[]).await;
+            let dir = tempfile::tempdir().unwrap();
+            let notifier = notifier(dir.path(), "http://127.0.0.1:9");
+            configure(
+                &notifier,
+                &pool,
+                Kind::Webhook,
+                json!({"enabled": true, "secrets": {"url": format!("{}/hook", hook.url)}}),
+            )
+            .await;
+            deliver_one(&pool, &notifier).await.unwrap();
+            assert_eq!(
+                hook.count(),
+                usize::from(delivered),
+                "interval {interval} h, observed {age} h ago"
+            );
+        }
+    }
+
     /// The test message of the alert page takes the outbox to every active channel.
     #[tokio::test]
     async fn the_queued_test_message_reaches_every_active_channel() {

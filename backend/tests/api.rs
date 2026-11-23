@@ -1690,6 +1690,100 @@ async fn every_route_checks_the_session_first_and_answers_errors_as_german_json_
     }
 }
 
+/// CODE-03, the CSRF and origin matrix: every state-changing route (POST, PUT, DELETE; the router has no PATCH) rejects
+/// a request with a valid session but no CSRF header, a wrong token or a foreign origin with 403 before it changes
+/// anything. The documented exceptions are the setup and the sign-in: they have no session yet, so no CSRF token, and
+/// are protected by the origin check alone (covered by `setup_requires_local_secret_and_is_single_use` and the
+/// sign-in tests).
+#[tokio::test]
+async fn every_state_changing_route_needs_csrf_and_a_matching_origin_code03() {
+    let f = Fixture::new().await;
+    let (cookie, csrf) = setup(&f).await;
+    let routes: Vec<_> = api_routes()
+        .into_iter()
+        .filter(|(method, _)| method != "GET")
+        .filter(|route| {
+            !matches!(
+                (route.0.as_str(), route.1.as_str()),
+                ("POST", "/setup" | "/session")
+            )
+        })
+        .collect();
+    assert!(routes.len() >= 25, "{routes:?}");
+    let before = state_snapshot(&f, &cookie).await;
+    for (method, path) in &routes {
+        let route = format!("{method} {path}");
+        let url = format!(
+            "/api/v1{}",
+            path.replace("{id}", "1")
+                .replace("{link}", "1")
+                .replace("{kind}", "ntfy")
+        );
+        let attempts = [
+            ("no CSRF header", None, "http://localhost:3000"),
+            (
+                "wrong CSRF token",
+                Some("0".repeat(csrf.len())),
+                "http://localhost:3000",
+            ),
+            ("foreign origin", Some(csrf.clone()), "https://evil.example"),
+        ];
+        for (what, token, origin) in attempts {
+            let mut req = Request::builder()
+                .method(method.as_str())
+                .uri(&url)
+                .header("Content-Type", "application/json")
+                .header("Origin", origin)
+                .header("Cookie", &cookie);
+            if let Some(token) = token {
+                req = req.header("X-CSRF-Token", token);
+            }
+            let response = f
+                .app
+                .clone()
+                .oneshot(req.body(Body::from("{}")).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(
+                response.status(),
+                StatusCode::FORBIDDEN,
+                "{route} with {what}"
+            );
+        }
+    }
+    // Nothing changed: the session still works and the state is as before.
+    assert_eq!(state_snapshot(&f, &cookie).await, before);
+}
+
+/// The parts of the state a state-changing route could touch.
+async fn state_snapshot(f: &Fixture, cookie: &str) -> Vec<Value> {
+    let mut out = Vec::new();
+    for path in [
+        "/me",
+        "/settings",
+        "/wishlist",
+        "/library",
+        "/cart",
+        "/alerts",
+        "/alerts/channels",
+        "/status/fetch",
+    ] {
+        let (status, data, _) = call(
+            &f.app,
+            "GET",
+            &format!("/api/v1{path}"),
+            Value::Null,
+            Some(cookie),
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{path}");
+        out.push(data);
+    }
+    out
+}
+
 /// CODE-02 / FUNC-15: the rejections of body, query and path, the method and the size, each with its own message.
 #[tokio::test]
 async fn extractor_rejections_name_the_problem_in_german_code02() {

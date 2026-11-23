@@ -18,7 +18,7 @@ Bei Compose oder einem eigenen `docker run` läuft das Image standardmäßig dir
 
 `KEYHUNTER_ORIGIN` ist optional. Leer oder weggelassen funktioniert HTTP auf privaten IPv4- und IPv6-Adressen, auf Loopback und auf lokalen Hostnamen (ohne Punkt wie `tower` oder mit `.local`, `.lan`, `.home.arpa`, `.internal`). Verwende HTTP nur in einem vertrauenswürdigen LAN oder VPN. Passphrase, Sitzung und Zugangsdaten werden dabei ohne TLS übertragen.
 
-Für HTTPS leite mit einem Reverse Proxy an Port 3000 weiter. Der Proxy muss den ursprünglichen Host einschließlich eines nicht standardmäßigen Ports weiterreichen. Falls der Proxy den Host umschreibt oder du genau eine Adresse erlauben möchtest, setze `KEYHUNTER_ORIGIN` auf die vollständige Browser-URL ohne Pfad. Wenn HTTP-Anmeldung und Änderungen gesperrt bleiben sollen, setze `KEYHUNTER_ALLOW_INSECURE_HTTP=false`.
+Für HTTPS leite mit einem Reverse Proxy an Port 3000 weiter (Beispiele für Caddy, Nginx Proxy Manager und Traefik mit allen Variablen, HSTS und Fehlerbildern: [reverse-proxy.md](reverse-proxy.md)). Der Proxy muss den ursprünglichen Host einschließlich eines nicht standardmäßigen Ports weiterreichen. Falls der Proxy den Host umschreibt oder du genau eine Adresse erlauben möchtest, setze `KEYHUNTER_ORIGIN` auf die vollständige Browser-URL ohne Pfad. Wenn HTTP-Anmeldung und Änderungen gesperrt bleiben sollen, setze `KEYHUNTER_ALLOW_INSECURE_HTTP=false`.
 
 ### Anmeldeschutz und Passphrase
 
@@ -44,7 +44,7 @@ Bei einem bereits eingerichteten Container kannst du das Feld **Repository** dir
 
 Wenn der Status **not available** ist, prüfe zuerst das Feld **Repository**. Eine lokal importierte Referenz wie `keyhunter:0.2.2` hat keine GHCR-Herkunft für die Updateprüfung. Mit der GHCR-Referenz kannst du **Check for Updates** erneut ausführen. Falls die Anzeige ausbleibt, teste im Unraid-Terminal `docker pull ghcr.io/buffer379x/keyhunter:latest`. Nach erfolgreichem Pull kannst du im Docker-Tab unter **Advanced View → Force Update** den Container aus seinem bestehenden Template neu erstellen. Bei diesem Schritt bleiben die eingebundenen Daten erhalten.
 
-Die Veröffentlichung wurde unter Linux/amd64 mit Docker geprüft. Das XML ist für die manuelle Installation vorbereitet. Der Test auf einer Unraid-Installation steht aus.
+Die Veröffentlichung wurde unter Linux/amd64 mit Docker geprüft. Das XML ist für die manuelle Installation vorbereitet. Der Test auf einer Unraid-Installation macht der Eigentümer vor dem Release mit [release-1.0-acceptance.md](release-1.0-acceptance.md).
 
 ## Zugangsdaten
 
@@ -78,7 +78,7 @@ Compose liest `KEYHUNTER_UID`, `KEYHUNTER_GID`, `KEYHUNTER_PORT` und `KEYHUNTER_
 
 | Was | Wert |
 |---|---|
-| Wunschliste | höchstens 100 aktive Wünsche |
+| Wunschliste | keine Obergrenze (seit 0.9.0) |
 | Tagesbudget je Shop | 20 bis 2000 Jobs pro UTC-Tag in der App, Standard 500 |
 | Abstand zwischen zwei Abrufen eines Shops | Rest des UTC-Tages geteilt durch das verbleibende Budget, 20 s bis 1 h |
 | Produktintervall je Shop | 15 Minuten bis 7 Tage, Standard 8 Stunden |
@@ -88,6 +88,7 @@ Compose liest `KEYHUNTER_UID`, `KEYHUNTER_GID`, `KEYHUNTER_PORT` und `KEYHUNTER_
 | Nicht erreichbare Produktseite | nach 5 Fehlschlägen in Folge nur noch mit 4-fachem Intervall |
 | Abrufhistorie / Log | 30 Tage / 7 Tage |
 | Anfragen | Body höchstens 16 KiB, Daten innerhalb von 15 s, Antwort innerhalb von 60 s |
+| Wunschlisten-Import | höchstens 100 Einträge und 128 KiB je Anfrage, die 128 KiB nur mit Sitzungscookie (sonst 16 KiB); die Seite teilt längere Dateien (bis 1000 Einträge, 2 MB) auf |
 | Anmeldeversuche | 5 Fehlversuche je Adresse und 100 insgesamt in 15 Minuten |
 | Sitzung | 12 Stunden |
 
@@ -97,11 +98,15 @@ Das Prüftempo (häufig, normal, selten) einer Preisbeobachtung und die Frischer
 
 Die Weboberfläche nutzt `/api/v1/*` mit Sitzungscookie und CSRF-Token. Jede Route außer Einrichtung und Anmeldung prüft zuerst die Sitzung und liest danach erst Pfad, Query und Body: Ohne Sitzung antwortet sie immer mit 401, auch bei ungültigem Body. Fehler haben immer die Form `{"error": "<deutsche Meldung>", "code": "<fester Code>"}`. Codes: `invalid_request` (400), `unauthenticated` (401), `forbidden` (403), `not_found` (404), `timeout` (408), `conflict` (409), `method_not_allowed` (405), `too_large` (413), `unsupported_media_type` (415), `unprocessable` (422), `rate_limited` (429, mit `Retry-After`), `unavailable` (502/503/504) und `internal`. `GET /api/v1/counts` liefert die Zahlen der Navigation: `{"wishlist", "cart", "library", "alerts"}` (aktive Alarme). `GET /api/v1/status/fetch` beschreibt den Abrufstatus, siehe „Jobs und Speicher“.
 
+Bei Änderungen (alles außer `GET` und `HEAD`) prüft dieselbe Schicht nach der Sitzung auch `Origin` und CSRF-Token, bevor der Body ausgewertet wird: Eine fremde Seite bekommt 403, ohne dass ihr Inhalt ausgewertet wird. Den Body selbst liest der Server vorher vollständig ein (Grenzen siehe „Grenzen und Zeiten“).
+
+`POST /api/v1/wishlist/import` nimmt die Datei des Wunschlisten-Exports: `{"version": 1, "items": [...], "dry_run": false}`. `version` muss `1` sein (sonst 422), `items` hat höchstens 100 Einträge (sonst 422), jeder Eintrag mit `platform` (der Name wie im Export, z. B. `Xbox One`) und `igdb_id` oder `title` (mit beiden zählt die IGDB-ID, ohne sie der Titel als manueller Titel); weitere Felder des Exports werden ignoriert. Mit `"dry_run": true` meldet der Server nur, was passieren würde, und ändert nichts. Die Antwort enthält `dry_run`, `counts` und je Eintrag in Dateireihenfolge `results` mit `title`, `platform`, `status` und bei Bedarf `message`. Die Zustände: `added` (neu auf der Wunschliste), `existing` (schon auf der Liste oder in der Datei mehrfach), `library` (in der Bibliothek, bleibt dort), `unknown` (Plattform nicht unterstützt oder dem Katalog für dieses System unbekannt) und `invalid` (nicht im Format des Exports oder ohne gültigen Titel). Ein nicht erreichbarer Katalog beendet die Anfrage mit einem Fehler; ein erneuter Import ergänzt den Rest. Wiederholungen erkennt der Server innerhalb einer Anfrage; die Seite erkennt sie vor dem Aufteilen über die ganze Datei. Die erste Suche importierter Spiele läuft im normalen Abruftempo (siehe „Jobs und Speicher“).
+
 ## Jobs und Speicher
 
-Bekannte Produktseiten werden standardmäßig alle acht Stunden eingeplant; pro Shop ist das Intervall einstellbar. Die Discovery läuft frühestens täglich (bei längeren Produktintervallen entsprechend später) mit begrenzter Abdeckung. Jeder Shop hat ein Tagesbudget von standardmäßig 500 Jobs pro UTC-Tag. Unter **Einstellungen → Key-Shops** lässt es sich je Shop zwischen 20 und 2000 festlegen; ohne eigenen Wert gilt `KEYHUNTER_SHOP_DAILY_JOBS` (1–2000) und sonst 500. Eine Änderung wirkt ohne Neustart. Die Abrufe werden gleichmäßig über den Tag verteilt: Nach einem Abruf wartet der Shop den Rest des UTC-Tages geteilt durch das verbleibende Budget, mindestens 20 Sekunden und höchstens eine Stunde; der nächste erlaubte Zeitpunkt übersteht einen Neustart. Direkte Aktionen warten nicht, zählen aber zum Budget: angeforderte Aktualisierungen, die erste Suche eines neuen Wunsches mit ihren Folgeseiten und der erste Preisabruf der dabei gefundenen oder von Hand hinzugefügten Produkte. Das Budget geht zuerst an angeforderte Aktualisierungen und erste Suchen, dann an Preise aktiver Wünsche, die im Zielland gelten können; jeder vierte Abruf eines Tages geht an den am längsten wartenden übrigen Job (Wiederholungssuchen, andere Regionen, Editionsvorschauen, Discovery). Vorübergehende Fehler werden nach 2, 10 und 60 Minuten wiederholt, danach im normalen Intervall. Ist eine Produktseite fünfmal in Folge nicht gefunden oder nicht lesbar, wird sie bis zum nächsten erfolgreichen Abruf nur noch mit vierfachem Intervall geprüft; das Log meldet das einmal (seit 0.9.3). Manuelle Prüfungen halten 15 Minuten Abstand zum letzten Abruf und schließen zuvor fehlgeschlagene Links ein.
+Bekannte Produktseiten werden standardmäßig alle acht Stunden eingeplant; pro Shop ist das Intervall einstellbar. Die Discovery läuft frühestens täglich (bei längeren Produktintervallen entsprechend später) mit begrenzter Abdeckung. Jeder Shop hat ein Tagesbudget von standardmäßig 500 Jobs pro UTC-Tag. Unter **Einstellungen → Key-Shops** lässt es sich je Shop zwischen 20 und 2000 festlegen; ohne eigenen Wert gilt `KEYHUNTER_SHOP_DAILY_JOBS` (1–2000) und sonst 500. Eine Änderung wirkt ohne Neustart. Die Abrufe werden gleichmäßig über den Tag verteilt: Nach einem Abruf wartet der Shop den Rest des UTC-Tages geteilt durch das verbleibende Budget, mindestens 20 Sekunden und höchstens eine Stunde; der nächste erlaubte Zeitpunkt übersteht einen Neustart. Direkte Aktionen warten nicht, zählen aber zum Budget: angeforderte Aktualisierungen, die erste Suche eines von Hand hinzugefügten Wunsches mit ihren Folgeseiten und der erste Preisabruf der dabei gefundenen oder von Hand hinzugefügten Produkte. Ein Import ist keine direkte Aktion: Die ersten Suchen importierter Wünsche und die Preise der dabei gefundenen Produkte warten wie Wiederholungssuchen auf ihren Platz im Tagesplan, damit eine Wiederherstellung von Hunderten Wünschen nicht das Budget eines Tages auf einmal verbraucht; **Jetzt prüfen** sucht ein einzelnes Spiel trotzdem sofort. Das Budget geht zuerst an angeforderte Aktualisierungen und erste Suchen von Hand hinzugefügter Wünsche, dann an Preise aktiver Wünsche, die im Zielland gelten können; jeder vierte Abruf eines Tages geht an den am längsten wartenden übrigen Job (Wiederholungssuchen, andere Regionen, Editionsvorschauen, Discovery). Vorübergehende Fehler werden nach 2, 10 und 60 Minuten wiederholt, danach im normalen Intervall. Ist eine Produktseite fünfmal in Folge nicht gefunden oder nicht lesbar, wird sie bis zum nächsten erfolgreichen Abruf nur noch mit vierfachem Intervall geprüft; das Log meldet das einmal (seit 0.9.3). Manuelle Prüfungen halten 15 Minuten Abstand zum letzten Abruf und schließen zuvor fehlgeschlagene Links ein.
 
-`GET /api/v1/status/fetch` (angemeldet) zeigt je Shop das Budget (verbraucht, Limit und dessen Herkunft, aktueller Abstand, nächster möglicher Abruf, Abrufe je UTC-Stunde des Tages und den geschätzten Tagesbedarf), fällige Jobs, Pausen und die letzten 25 Abrufe. Der Tagesbedarf zählt die regelmäßigen Abrufe des aktuellen Plans: Produkte im angepassten Intervall, wöchentliche Suchen, beobachtete Vorschauen und die Discovery. Liegt er über dem Budget, werden Preise seltener aktualisiert als eingestellt. Die Historie wird 30 Tage aufbewahrt. `/health/ready` meldet 503, wenn ein Abrufdienst länger als fünf Minuten nicht reagiert. Compose und Unraid begrenzen den App-Speicher auf 512 MiB.
+`GET /api/v1/status/fetch` (angemeldet) zeigt je Shop das Budget (verbraucht, Limit und dessen Herkunft, aktueller Abstand, nächster möglicher Abruf, Abrufe je UTC-Stunde des Tages und den geschätzten Tagesbedarf), fällige Jobs, Pausen und die letzten 25 Abrufe. Der Tagesbedarf zählt die regelmäßigen Abrufe des aktuellen Plans: Produkte im angepassten Intervall, wöchentliche Suchen, beobachtete Vorschauen und die Discovery. Liegt er über dem Budget, werden Preise seltener aktualisiert als eingestellt. Die Historie wird 30 Tage aufbewahrt. `/health/ready` meldet 503, wenn ein Abrufdienst länger als fünf Minuten nicht reagiert. Der Container-Healthcheck ruft dafür `keyhunter --health` auf (das Image enthält kein curl mehr); er endet mit Exit-Code 0 nur bei einer Antwort 200. Compose und Unraid begrenzen den App-Speicher auf 512 MiB.
 
 Seit 0.8.3 nennt `GET /api/v1/status/fetch` unter `upcoming` außerdem die fünf Abfragen, die als Nächstes laufen, mit geschätzter Startzeit. `GET /api/v1/status/fetch/runs` liefert die aufgezeichneten Abrufe (30 Tage) seitenweise mit Spiel und Region; `tone` (ok, warn, error), `q` (Volltext), `page` und `per_page` (10–200) filtern und blättern.
 
@@ -111,8 +116,44 @@ Seit 0.8.3 nennt `GET /api/v1/status/fetch` unter `upcoming` außerdem die fünf
 
 ## Backup und Update
 
-Stoppe den Container vor dem Kopieren des vollständigen Datenverzeichnisses, einschließlich vorhandener SQLite-WAL- und SHM-Dateien. Bewahre Backups auf einem getrennten Datenträger auf. Das Datenbackup enthält den IGDB-Zugang und die Zugangsdaten der Benachrichtigungskanäle. Sichere eine getrennte ntfy-Datei ebenfalls geschützt. Starte nach einem Update mit einer konsistenten Kopie der Daten. Für einen Rollback verwende das vorherige Image zusammen mit dem Stand vor der Migration. Wiederherstellung auf eine frische Instanz lässt sich über `/health/ready`, die Anmeldung und die vorhandenen Wunschlisten, Zuordnungen und Regeln prüfen.
+Es gibt drei Wege, geordnet nach Umfang:
 
+1. **Wunschliste** (Export und Import): **Einstellungen → System → Sichern & Wiederherstellen**. Der Export schreibt Titel, Plattform und IGDB-ID als JSON-Datei. Der Import liest diese Datei, zeigt vorher, wie viele Spiele hinzukommen, schon auf der Liste oder in der Bibliothek sind oder dem Katalog unbekannt sind, und fügt erst nach deiner Bestätigung hinzu. Er geht pro Eintrag denselben Weg wie das Hinzufügen von Hand, löscht und überschreibt nichts, lässt Zuordnungen unberührt und ändert bei einem zweiten Import derselben Datei nichts. Preise, Zuordnungen, Alarme und Einstellungen sind nicht in der Datei. Der Import braucht für unbekannte Spiele den IGDB-Zugang. Die Shops durchsucht KeyHunter danach im normalen Abruftempo, nicht alle importierten Spiele auf einmal.
+2. **Automatische Sicherung vor Migrationen** (siehe unten): eine Kopie der Datenbank vor einem Update, das das Schema ändert.
+3. **Kaltbackup** des ganzen Datenverzeichnisses: der vollständige Stand (Datenbank mit Preisen, Zuordnungen, Alarmen, Einstellungen, Zugangsdaten).
+
+### Kaltbackup und Wiederherstellung
+
+Ein Kaltbackup ist eine Kopie des Datenverzeichnisses bei gestopptem Container, also ohne halb geschriebene Datenbankdateien. Das Datenbackup enthält den IGDB-Zugang (`igdb-credentials.json`), die Zugangsdaten der Benachrichtigungskanäle (`notification-secrets.json`) und die Anmeldedaten (`keyhunter.db`). Bewahre es auf einem getrennten Datenträger auf und schütze es wie ein Passwort. Eine getrennte ntfy-Datei (`/config/ntfy.env`) sicherst du ebenfalls.
+
+**Sichern** (Unraid, Datenordner zum Beispiel `/mnt/user/appdata/keyhunter`):
+
+1. Docker-Tab: Container **KeyHunter** stoppen (Compose: `docker compose stop keyhunter`).
+2. Das ganze Verzeichnis kopieren, mit Rechten und allen Dateien einschließlich `keyhunter.db-wal` und `keyhunter.db-shm`, falls vorhanden: `cp -a /mnt/user/appdata/keyhunter /mnt/user/backups/keyhunter-$(date +%F)`.
+3. Container wieder starten.
+
+**Wiederherstellen** (auf demselben oder einem neuen Rechner):
+
+1. Container stoppen, falls er läuft.
+2. Das Datenverzeichnis leeren oder wegsichern und die Kopie an dessen Stelle legen: `cp -a /mnt/user/backups/keyhunter-2026-11-23/. /mnt/user/appdata/keyhunter/`.
+3. Container mit **demselben Datenvolume** und mindestens der Version starten, mit der das Backup entstand. Auf Unraid richtet das Template die Rechte beim Start ein; bei Compose oder `docker run` muss der konfigurierte Benutzer (UID 10001 im Image) schreiben dürfen.
+4. Prüfen: `/health/ready` antwortet, die Anmeldung mit der **Passphrase von damals** funktioniert (kein neuer Einrichtungscode), Wunschliste, Preise und Einstellungen sind da.
+
+Dieser Ablauf ist praktisch nachgewiesen: `sh deploy/backup-restore-check.sh` baut mit der echten App (Prüfserver mit synthetischem Katalog, ohne Netz) ein Datenverzeichnis mit Einrichtung, Wünschen, Preisen und Einstellungen, kopiert es bei gestopptem Server und startet eine frische Instanz auf der Kopie. Wunschliste, Preis-Badges und Einstellungen müssen Byte für Byte übereinstimmen, die richtige Passphrase meldet an, eine falsche nicht.
+
+Für ein **Update** gilt dasselbe in Kurzform: Container stoppen, Kaltbackup anlegen, neues Image ziehen, starten. Für einen **Rollback** nimmst du das vorherige Image zusammen mit dem Stand vor dem Update: entweder dein Kaltbackup oder die Kopie unter `backups` (siehe „Sicherung vor Migrationen“). Ein altes Image mit einer bereits migrierten Datenbank startet nicht zuverlässig.
+
+### Parserprüfung vor dem Release
+
+Die Shop-Leser hängen an der Seitenstruktur der Shops (siehe [data-sources.md](data-sources.md)). Bevor du ein Release veröffentlichst oder installierst, kannst du **von Hand** prüfen, ob sie noch Produkte mit Preisen finden. Das Skript ruft je Shop genau eine Produktseite ab (und die `robots.txt` des Shops), mit demselben Client, derselben Kennung `Keyhunter` und denselben Regeln wie die App. Es läuft nie automatisch, nicht in Tests, nicht in CI und nicht in `deploy/check.sh`.
+
+```sh
+KEYHUNTER_CANARY_CONSENT=1 sh deploy/parser-canary.sh \
+  "https://www.eneba.com/de/xbox-<Produkt>-key-<Region>" \
+  "https://driffle.com/de/<Produkt>-xbox-live-digital-<…>-p<Nummer>"
+```
+
+Als Links nimmst du je einen Produktlink aus der App (Spieldetail → Angebote). `KEYHUNTER_IMAGE` wählt das Image (Voreinstellung: das Release-Image auf GHCR; lokal zum Beispiel `keyhunter:1.0.0`). Das Skript nennt zuerst, welche Adressen der Lauf kontaktiert (`https://<Shop>/robots.txt and <Link>`). Ohne `KEYHUNTER_CANARY_CONSENT=1` endet es danach mit `Refused: nothing was contacted. …` und Exit-Code 2, ohne Abruf. Mit Zustimmung nennt die App die Adressen vor dem ersten Abruf noch einmal. Die Ausgabe je Shop (englisch, wie die App sie schreibt): `ok: "<Produkt>", <n> offer(s), from <Cent> cents` heißt bestanden. Nicht bestanden sind `page read, "<Produkt>" but no price found: the parser may be broken`, `page read, "<Produkt>" is sold out; no price to compare, try another link` und `failed (<Fehlercode>): the page or the parser changed, or the shop refused`; dann endet das Skript mit Exit-Code 1. Es speichert nichts und öffnet die Datenbank nicht (der Container läuft ohne Datenvolume). Einen ausverkauften Treffer (`is sold out`) wertet es als nicht bestanden, weil kein Preis zu prüfen ist: nimm dann einen anderen Link.
 
 ## Offline-Installation
 
@@ -121,7 +162,7 @@ Die GitHub-Releases enthalten zugehörige Image-Archive mit Prüfsumme. Importie
 
 ## GitHub-Veröffentlichung
 
-Verwende als GitHub-Release-Titel die Versionsnummer, zum Beispiel `0.2.2`. Die Veröffentlichungs-Action veröffentlicht den numerischen Tag und `latest` als Image-Index für `linux/amd64`. So kann auch Unraids Updateprüfung vor 7.4.0 den Image-Digest abrufen. Das Package benötigt die Sichtbarkeit **Public** für Abrufe ohne Anmeldung und unter **Manage Actions access** Schreibzugriff für das zugehörige Repository.
+Verwende als GitHub-Release-Titel die Versionsnummer, zum Beispiel `0.2.2`. Die Veröffentlichungs-Action veröffentlicht den numerischen Tag und `latest` als Image-Index für `linux/amd64`. Ein Release, das auf GitHub als **Pre-release** markiert ist (etwa `1.0.0-rc.1`), erscheint nur unter seinem eigenen Tag (`ghcr.io/buffer379x/keyhunter:1.0.0-rc.1`); `latest` bleibt beim letzten vollständigen Release. Die Version in `backend/Cargo.toml` muss dem Tag entsprechen. So kann auch Unraids Updateprüfung vor 7.4.0 den Image-Digest abrufen. Das Package benötigt die Sichtbarkeit **Public** für Abrufe ohne Anmeldung und unter **Manage Actions access** Schreibzugriff für das zugehörige Repository.
 
 
 ## Upgrade auf 0.3.0
@@ -154,7 +195,7 @@ Die Bibliothek zeigt das System unter dem Titel. Der Systemfilter enthält nur v
 
 ## Sicherung vor Migrationen
 
-Bevor ein Update das Datenbankschema ändert, legt KeyHunter automatisch eine Kopie unter `<Datenverzeichnis>/backups/keyhunter-schema-<alte Version>-<Zeit>.db` an; die drei neuesten bleiben erhalten. Rückweg: Container stoppen, die Kopie als `keyhunter.db` zurückkopieren (vorhandene `keyhunter.db-wal` und `-shm` vorher entfernen) und das vorherige Image starten.
+Bevor ein Update das Datenbankschema ändert, legt KeyHunter automatisch eine Kopie unter `<Datenverzeichnis>/backups/keyhunter-schema-<Schema>-<Zeit>.db` an, zum Beispiel `keyhunter-schema-0025-1795000000000.db` (Schema 25 vor dem Update, vierstellig; die Zeit in Millisekunden); die drei neuesten bleiben erhalten. Ein Update ohne Migration (etwa 0.9.4 → 1.0) legt keine Kopie an. Rückweg: Container stoppen, die Kopie als `keyhunter.db` zurückkopieren (vorhandene `keyhunter.db-wal` und `-shm` vorher entfernen) und das vorherige Image starten.
 
 ## Upgrade auf 0.6.0
 

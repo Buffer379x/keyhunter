@@ -12,7 +12,7 @@ run_unprivileged() {
 }
 
 if [ "${1:-}" = "--healthcheck" ]; then
-    set -- curl --fail --silent --output /dev/null http://127.0.0.1:3000/health/ready
+    set -- /app/keyhunter --health
     if [ "$(id -u)" = 0 ]; then
         run_unprivileged "$@"
     fi

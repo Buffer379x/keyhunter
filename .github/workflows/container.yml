@@ -13,9 +13,13 @@ concurrency:
   group: publish-keyhunter-container
   cancel-in-progress: false
 
+# A release builds and pushes its version tag. A prerelease (a release candidate such as 1.0.0-rc.1) is published
+# too, but only under its own version tag and never as `latest`: `latest` moves only for the release that
+# `releases/latest` names (GitHub never names a prerelease there), and the last step also checks the prerelease
+# flag and the version suffix. workflow_dispatch republishes the latest full release, as before.
 jobs:
   publish:
-    if: github.repository == 'Buffer379x/keyhunter' && (github.event_name == 'workflow_dispatch' || !github.event.release.prerelease)
+    if: github.repository == 'Buffer379x/keyhunter'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -24,15 +28,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
+          PRERELEASE: ${{ github.event.release.prerelease || false }}
         shell: bash
         run: |
           tag="$RELEASE_TAG"
+          prerelease="$PRERELEASE"
           if [[ -z "$tag" ]]; then
             tag=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+            prerelease=false
           fi
-          [[ "$tag" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          # x.y.z, or a semver prerelease x.y.z-rc.1 (Cargo accepts it; Docker tags allow letters, digits, '.' and '-').
+          [[ "$tag" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$ ]]
+          version="${tag#v}"
+          if [[ "$version" == *-* ]]; then
+            prerelease=true
+          fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
 
       - name: Check out the tagged source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -45,6 +58,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
           VERSION: ${{ steps.release.outputs.version }}
+          PRERELEASE: ${{ steps.release.outputs.prerelease }}
         shell: bash
         run: |
           test "$(python3 -c 'import tomllib; print(tomllib.load(open("backend/Cargo.toml", "rb"))["package"]["version"])')" = "$VERSION"
@@ -84,6 +98,11 @@ jobs:
             ' >/dev/null
           }
           check_index "$version_ref"
+          # A prerelease never moves `latest`; a full release only when it is the latest one.
+          if [[ "$PRERELEASE" == true ]]; then
+            echo "Prerelease $VERSION: published as $version_ref only; latest is unchanged."
+            exit 0
+          fi
           latest_tag=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
           if [[ "$RELEASE_TAG" == "$latest_tag" ]]; then
             docker buildx imagetools create --tag "$image:latest" "$version_ref"

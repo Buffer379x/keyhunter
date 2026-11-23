@@ -64,7 +64,7 @@ export function rowFacts(badge: PriceBadgeData | undefined, rule: TargetRule | n
           other: positive(basis === 'estimate' ? best.base_cents : best.estimate_cents),
           region: best.region,
           source: best.source ?? null,
-          activation: best.activation ?? null,
+          activation: best.activation,
         }
       : null;
   // A saving against a price that is only the last known one would be invented (FUNC-03).
@@ -194,7 +194,7 @@ export const shortTitle = (title: string) =>
 interface FetchKpi {
   used: number;
   limit: number;
-  demand: number | null;
+  demand: number;
   ticks: number[];
   /** The owner paused the automatic checks (0.7.0). */
   paused: boolean;
@@ -204,29 +204,21 @@ interface FetchKpi {
    */
   short: string[];
 }
-/** "Abrufe heute" summed over the enabled shops; demand and the hourly ticks only when the backend reports them. */
+/** "Abrufe heute" summed over the enabled shops; with demand and the hourly ticks. */
 export function fetchKpi(status: FetchStatusResponse | null, nowMs = Date.now()): FetchKpi | null {
   const shops = status?.shops.filter(shop => shop.enabled) ?? [];
   if (!shops.length) return null;
   const used = shops.reduce((sum, shop) => sum + shop.budget.used, 0);
   const limit = shops.reduce((sum, shop) => sum + shop.budget.limit, 0);
-  const demands = shops.map(shop => shop.budget.demand_per_day).filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
-  const demand = demands.length ? demands.reduce((sum, value) => sum + value, 0) : null;
-  const hours = shops.map(shop => shop.budget.by_hour).filter((value): value is number[] => Array.isArray(value) && value.length > 0);
-  let ticks: number[] = [];
-  if (hours.length) {
-    const perHour = Array.from({ length: 24 }, (_, hour) => hours.reduce((sum, list) => sum + (Number(list[hour]) || 0), 0));
-    // Up to the current hour (or the last hour with requests, if the server clock is ahead): later hours are still empty.
-    const lastActive = perHour.reduce((last, value, hour) => (value > 0 ? hour : last), -1);
-    const end = Math.max(new Date(nowMs).getHours(), lastActive);
-    let total = 0;
-    ticks = perHour.slice(0, end + 1).map(value => (total += value));
-  }
-  const short = shops
-    .filter(
-      shop => typeof shop.budget.demand_per_day === 'number' && Number.isFinite(shop.budget.demand_per_day) && shop.budget.demand_per_day > shop.budget.limit,
-    )
-    .map(shop => shop.source);
+  const demand = shops.reduce((sum, shop) => sum + shop.budget.demand_per_day, 0);
+  const hours = shops.map(shop => shop.budget.by_hour);
+  const perHour = Array.from({ length: 24 }, (_, hour) => hours.reduce((sum, list) => sum + (list[hour] ?? 0), 0));
+  // Up to the current hour (or the last hour with requests, if the server clock is ahead): later hours are still empty.
+  const lastActive = perHour.reduce((last, value, hour) => (value > 0 ? hour : last), -1);
+  const end = Math.max(new Date(nowMs).getHours(), lastActive);
+  let total = 0;
+  const ticks = perHour.slice(0, end + 1).map(value => (total += value));
+  const short = shops.filter(shop => shop.budget.demand_per_day > shop.budget.limit).map(shop => shop.source);
   return { used, limit, demand, ticks, paused: !!status?.paused_at, short };
 }
 

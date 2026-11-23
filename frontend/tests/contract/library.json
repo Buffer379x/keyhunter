@@ -1,0 +1,113 @@
+{
+  "endpoint": "GET /library",
+  "shape": {
+    "items": {
+      "fields": {
+        "acquired_at": {
+          "required": true,
+          "shape": {
+            "kind": "scalar",
+            "types": [
+              "number"
+            ]
+          }
+        },
+        "created_at": {
+          "required": true,
+          "shape": {
+            "kind": "scalar",
+            "types": [
+              "number"
+            ]
+          }
+        },
+        "game": {
+          "required": true,
+          "shape": {
+            "nullable": true
+          }
+        },
+        "game_id": {
+          "required": true,
+          "shape": {
+            "kind": "scalar",
+            "types": [
+              "string"
+            ]
+          }
+        },
+        "id": {
+          "required": true,
+          "shape": {
+            "kind": "scalar",
+            "types": [
+              "string"
+            ]
+          }
+        },
+        "in_cart": {
+          "required": true,
+          "shape": {
+            "kind": "scalar",
+            "types": [
+              "boolean"
+            ]
+          }
+        },
+        "manual_title": {
+          "required": true,
+          "shape": {
+            "kind": "scalar",
+            "types": [
+              "string"
+            ]
+          }
+        },
+        "paused": {
+          "required": true,
+          "shape": {
+            "kind": "scalar",
+            "types": [
+              "boolean"
+            ]
+          }
+        },
+        "paused_until": {
+          "required": true,
+          "shape": {
+            "nullable": true
+          }
+        },
+        "platform_id": {
+          "required": true,
+          "shape": {
+            "kind": "scalar",
+            "types": [
+              "number"
+            ]
+          }
+        },
+        "review_count": {
+          "required": true,
+          "shape": {
+            "kind": "scalar",
+            "types": [
+              "number"
+            ]
+          }
+        },
+        "verification": {
+          "required": true,
+          "shape": {
+            "kind": "scalar",
+            "types": [
+              "string"
+            ]
+          }
+        }
+      },
+      "kind": "object"
+    },
+    "kind": "array"
+  }
+}

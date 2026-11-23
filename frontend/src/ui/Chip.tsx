@@ -2,7 +2,10 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { Icon } from './Icon';
 import type { IconName } from './Icon';
 
-/** Filter chip (`.chip`): a toggle button with aria-pressed and an optional mono count ("Alle 12"). */
+/**
+ * Filter chip (`.chip`): a toggle button with aria-pressed and an optional mono count ("Alle 12"). `count` null (not read
+ * yet) reserves the room of a count, so the chip row keeps its size when the numbers arrive (1.0).
+ */
 export function Chip({
   pressed,
   count,
@@ -17,7 +20,11 @@ export function Chip({
   return (
     <button type="button" className={`chip ${className}`.trim()} aria-pressed={pressed} {...props}>
       {children}
-      {count !== undefined && count !== null && <span className="mono">{count}</span>}
+      {count !== undefined && (
+        <span className="mono" aria-hidden={count === null || undefined}>
+          {count ?? '\u00a0\u00a0'}
+        </span>
+      )}
     </button>
   );
 }

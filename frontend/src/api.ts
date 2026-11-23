@@ -90,9 +90,9 @@ export interface WorldBest {
   base_cents?: number;
   estimate_cents?: number | null;
   /** The region can be bought for the target country: activation confirmed there and the same market (0.9.3, RESP-14). */
-  fits_target?: boolean;
+  fits_target: boolean;
   /** Activation of the offer in the target country. */
-  activation?: 'confirmed' | 'blocked' | 'unknown';
+  activation: 'confirmed' | 'blocked' | 'unknown';
 }
 export interface FeeView {
   cents: number | null;
@@ -104,6 +104,12 @@ export interface FeeView {
   region: string | null;
   world: WorldBest | null;
   trend: (number | null)[];
+}
+/** GET and POST /wishlist/{id}/editions: the wish and its tracked editions, and the state of their preparation. */
+export interface EditionsView {
+  items: WishlistItem[];
+  preparing: boolean;
+  error: string | null;
 }
 export interface WishlistItem {
   price_badge?: PriceBadgeData;
@@ -147,22 +153,21 @@ export async function api<T>(path: string, method = 'GET', body?: unknown, csrf?
 }
 
 /**
- * Daily request budget of one shop. `used` and `limit` always exist; the other fields come with the paced worker (0.6.1)
- * and are optional so the frontend keeps working against an older backend.
+ * Daily request budget of one shop; the server always sends every field.
  */
 export interface FetchBudget {
   used: number;
   limit: number;
   /** Where the limit comes from: 'setting' (Key-Shops), 'env' (environment variable) or 'default'. */
-  limit_source?: string;
+  limit_source: string;
   /** Requests per day the current wishlist needs. */
-  demand_per_day?: number;
+  demand_per_day: number;
   /** Planned spacing between two requests in seconds ("alle 3 Min."). */
-  pace_seconds?: number | null;
+  pace_seconds: number;
   /** Unix seconds of the next planned request. */
-  next_at?: number | null;
+  next_at: number | null;
   /** Requests per hour of today, 24 entries (index 0 = 00:00 local server time). */
-  by_hour?: number[];
+  by_hour: number[];
 }
 /** GET /status/fetch: queue, budget and pauses per shop (times in Unix seconds). */
 export interface FetchShopStatus {

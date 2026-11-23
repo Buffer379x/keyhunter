@@ -73,3 +73,29 @@ export async function signOut(page: Page) {
 }
 /** The target country select of the open settings page (the sidebar has its own one). */
 export const settingsCountry = (page: Page) => page.getByRole('main').getByLabel('Zielland', { exact: true });
+
+/** The daily budget of one shop as the server sends it (every field, 0.9.x); mocks override what they need. */
+export const fetchBudget = (patch: Record<string, unknown> = {}) => ({
+  used: 0,
+  limit: 100,
+  limit_source: 'default',
+  demand_per_day: 0,
+  pace_seconds: 0,
+  next_at: null,
+  by_hour: Array.from({ length: 24 }, () => 0),
+  ...patch,
+});
+
+/**
+ * Mock the prices of the wishlist: the list carries the badges of the first read (`price_badge`, PERF-06), the poll
+ * `/wishlist/price-badges` the later ones. `badges` is read per request, so a spec may change it.
+ */
+export async function mockPriceBadges(page: Page, badges: () => Record<string, unknown>) {
+  await page.route(/\/api\/v1\/wishlist\/price-badges(?:\?.*)?$/, route => route.fulfill({ json: badges() }));
+  await page.route('**/api/v1/wishlist', async route => {
+    if (route.request().method() !== 'GET') return route.continue();
+    const rows: { id: string; price_badge?: unknown }[] = await (await route.fetch()).json();
+    const current = badges();
+    await route.fulfill({ json: rows.map(row => ({ ...row, price_badge: current[row.id] ?? row.price_badge })) });
+  });
+}

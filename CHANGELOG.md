@@ -1,5 +1,47 @@
 # Änderungen
 
+## 1.0.0-rc.1 – 2026-11-23
+
+Release-Kandidat für KeyHunter 1.0: Die Wunschliste lässt sich aus der Exportdatei wieder einlesen, Sichern und Wiederherstellen sind dokumentiert und praktisch geprüft, und alle Fehler aus dem Release-Audit sind behoben und durch Tests abgesichert. Beim Update ist nichts zu tun: keine Migration, die Daten bleiben unverändert. Der Kandidat erscheint nur unter `ghcr.io/buffer379x/keyhunter:1.0.0-rc.1`; `latest` bleibt bei 0.9.4, Unraid bietet ihn also nicht als Update an. Er ist für die Abnahme in einem Testcontainer gedacht (`docs/release-1.0-acceptance.md`). Wer direkt von 0.9.1 oder älter kommt, findet unten die wichtigsten Verhaltensänderungen seit 0.9.1 zusammengefasst; die Einzelheiten stehen bei 0.9.2 bis 0.9.4.
+
+### Neu
+- **Sichern & Wiederherstellen** (Einstellungen › System): Die Wunschliste lässt sich aus der Exportdatei wieder einlesen. Vor dem Hinzufügen zeigt ein Dialog, wie viele Spiele neu sind, schon auf der Liste oder in der Bibliothek stehen, dem Katalog unbekannt oder ungültig sind. Der Import geht pro Eintrag denselben Weg wie das Vormerken von Hand, löscht und überschreibt nichts und lässt bestätigte Zuordnungen unberührt; ein zweiter Import derselben Datei ändert nichts. Importierte Spiele werden im normalen Abruftempo gesucht, damit ein großer Import nicht das Budget eines ganzen Tages verbraucht; **Jetzt prüfen** sucht ein einzelnes sofort, ein von Hand hinzugefügtes Spiel wird wie bisher sofort gesucht. Der Export zog dafür aus „Allgemein“ in dieses Panel. Das Fragezeichen erklärt die vollständige Sicherung (Datenverzeichnis, Sicherungen vor Migrationen, Kaltbackup).
+- **Parserprüfung vor einem Update, nur von Hand:** `KEYHUNTER_CANARY_CONSENT=1 sh deploy/parser-canary.sh <Produktlink>...` ruft je Shop eine Produktseite (und die robots.txt) mit dem eigenen Client ab und meldet, ob KeyHunter dort noch Produkte mit Preisen findet. Das Skript nennt immer zuerst, welche Adressen ein Lauf kontaktieren würde; ohne Zustimmung endet es, ohne etwas abzurufen. Es läuft nie in Tests oder CI.
+- **Healthcheck ohne curl:** Der Container prüft sich mit `keyhunter --health`. Das Image enthält kein curl mehr; wer curl im Container für eigene Skripte genutzt hat, braucht dafür jetzt einen eigenen Weg.
+
+### Behoben
+- **„Editionen werden vorbereitet …“ blieb hängen:** Wer ein Spiel verließ oder die Seite neu lud, während die Editionen vorbereitet wurden, sah den Hinweis bis zu drei Minuten lang. Die Vorbereitung läuft jetzt zu Ende, auch wenn der Browser die Anfrage abbricht.
+- **Kein Spiel ohne Suche:** Wurde die Verbindung beim Hinzufügen genau im falschen Moment unterbrochen, konnte ein Spiel ohne Preissuche auf der Wunschliste stehen. Wunsch und Suche werden jetzt gemeinsam gespeichert.
+- **„Bedarf pro Tag“ und „zu knapp“** berücksichtigen den Rückstau toter Produktseiten (ab fünf Fehlschlägen in Folge viermal seltener geprüft) genau wie der Abrufplan. Bisher wurde der Bedarf zu hoch geschätzt, sobald Produktseiten nicht mehr gefunden wurden.
+- **Sicherheit:** Jede ändernde Anfrage ohne gültigen CSRF-Token oder mit fremdem Origin wird mit 403 abgewiesen, bevor ihr Inhalt gelesen wird. Bisher antworteten einzelne Routen bei kaputtem Inhalt zuerst mit 400. Die größere Datenmenge des Imports (128 KiB) nimmt der Server nur von angemeldeten Browsern an, alle anderen Anfragen bleiben bei 16 KiB.
+
+### Schneller und ruhiger
+- Die Wunschliste liest ihre Preisanzeigen beim Laden nur noch einmal statt zweimal. Danach aktualisiert sie sich wie bisher einmal pro Minute, bei einem selbst angestoßenen Abruf alle drei Sekunden; ein Wunsch, der nur in der Warteschlange steht, fragt nicht mehr im Drei-Sekunden-Takt.
+- Die Filterleiste der Wunschliste behält beim Laden ihre Größe; die Tabelle springt nicht mehr nach unten, wenn pausierte Wünsche vorhanden sind. Einstellige Zähler belegen dafür die Breite von zwei Ziffern.
+- Der Start prüft die Produkt-Fingerabdrücke mit einer festen Zahl an Datenbankabfragen, auch bei sehr vielen Zuordnungen.
+
+### Dokumentation
+- **Datenquellen** (`docs/data-sources.md`): je Quelle (Eneba, Driffle, IGDB, Microsoft-Katalog), was abgerufen wird, wie oft und wie gedrosselt (Budget, Abstand, Crawl-Delay, Retry-After, Pausen), Kennung, Umgang mit robots.txt und die Verantwortung des Betreibers für die Bedingungen der Seiten.
+- **Reverse Proxy** (`docs/reverse-proxy.md`): Beispiele für Caddy, Nginx Proxy Manager und Traefik mit `KEYHUNTER_ORIGIN`, `KEYHUNTER_TRUSTED_PROXY`, HSTS, wann HTTP erlaubt und wann HTTPS nötig ist, und was bei falscher Adresse bricht.
+- **Kaltbackup und Wiederherstellung** in `docs/operations.md`, praktisch nachgewiesen mit `sh deploy/backup-restore-check.sh`.
+- **Abnahme auf Unraid** (`docs/release-1.0-acceptance.md`): am Release-Kandidaten in einem Testcontainer, Installation, Update, Neustart, Sicherung und Rückweg Schritt für Schritt zum Abhaken. Ein Update von 0.9.4 legt keine automatische Sicherung an (keine Datenbankänderung); das Kaltbackup ist der Rückweg.
+- **Betrieb** (`docs/operations.md`): Import-Schnittstelle und ihre Grenzen; die veraltete Grenze von 100 Wünschen ist entfernt.
+
+### Was sich seit 0.9.1 im Verhalten geändert hat
+- **Anmeldung:** Fehlversuche bremsen nur noch die Adresse, von der sie kommen (5 je 15 Minuten, 100 insgesamt); ein Fremder kann den Eigentümer nicht mehr aussperren. Hinter einem Reverse Proxy zählt die echte Adresse nur mit `KEYHUNTER_TRUSTED_PROXY`. Die Passphrase lässt sich ändern, „Überall abmelden“ beendet alle Sitzungen, und `keyhunter --reset-owner` setzt einen vergessenen Zugang auf dem Host zurück (0.9.2, 0.9.3).
+- **Frische:** Ein Preis bleibt so lange aktuell, wie das Abfrageintervall seines Produkts es vorsieht (doppeltes Intervall, mindestens 24 Stunden), überall gleich: Preis, Wunschliste, Verlauf, Warenkorb und Alarme (0.9.3).
+- **Zuordnung:** Gleichnamige Spiele aus einem anderen Erscheinungsjahr werden nicht mehr automatisch zugeordnet; Konten und PC-Produkte zählen nie als Key-Preis. Bereits bestätigte Zuordnungen bleiben unverändert (0.9.3).
+- **Veraltete Angebote** zeigen keine Ersparnis und keinen Warenkorb-Knopf; tote Produktseiten werden nach fünf Fehlschlägen seltener geprüft (0.9.3).
+- **EU-Zielländer** bekommen Preis, Trend und Verlauf aus dem EU-Markt (0.9.3).
+- **„Score“ heißt „Prüftempo“** und ist standardmäßig ausgeblendet (0.9.3).
+- **Layout** für Phone, Tablet und Laptop, Touch-Ziele mindestens 44 px, einheitliche Zustände, Tab „Zuordnungen“ statt „Infos“ (alte Links gehen weiter), „Gekauft“ fragt nach (0.9.4).
+
+### Entwicklung
+- Neue Tests: Fehlerklassen der Shop-Abrufe gegen einen lokalen Testserver, CSRF- und Origin-Matrix über alle Routen, Update einer 0.9.1-Datenbank ohne Verlust, Abgleich der Server-Antworten mit den TypeScript-Typen (`frontend/tests/contract/`, Aktualisierung mit `KEYHUNTER_UPDATE_CONTRACT=1`), Abfragezahl unabhängig von der Listengröße, Abfragetakt, Alarm-Frische, Import, Kaltbackup. Browser-Tests laufen zusätzlich gegen das echte Backend mit gesäten Preisdaten (`frontend/e2e/priced/`, `KEYHUNTER_FIXTURE_PRICES=1`).
+- Das Frontend verlässt sich auf die Felder, die der Server immer sendet; die Ersatzwerte für ältere Server sind entfernt.
+- Basisimages im Dockerfile per Digest festgelegt, Dependabot für Cargo, npm, Docker und GitHub Actions.
+- Release-Kandidaten (etwa `1.0.0-rc.1`) erscheinen als eigenes Image unter ihrer Versionsnummer und verschieben `latest` nie.
+
 ## 0.9.4 – 2026-11-23
 
 Das neue Layout für Phone, Tablet und Laptop: Wunschliste und Angebote werden auf schmalen Bildschirmen zu Karten, nichts läuft mehr seitlich aus dem Bild, und auf Touch-Geräten sind alle Bedienelemente groß genug. Zustände sehen überall gleich aus, eine Checkliste führt durch den ersten Start, und die Hauptansichten sind ohne schwere Barrierefreiheitsfehler. Nur die Oberfläche ändert sich: keine Migration, beim Update ist nichts zu tun. Falls im Browser-Tab noch das alte Favicon erscheint, die Seite einmal mit Strg+F5 neu laden.

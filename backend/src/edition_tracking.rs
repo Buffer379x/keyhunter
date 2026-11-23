@@ -15,6 +15,10 @@ use std::time::Duration;
 
 const ACTIVE: &str = "SELECT w.id FROM wishlist_item w WHERE w.id=? AND w.state='wished'";
 const MISSING: ApiError = ApiError(StatusCode::NOT_FOUND, "Wunschlisteneintrag nicht gefunden.");
+const INTERRUPTED: ApiError = ApiError(
+    StatusCode::INTERNAL_SERVER_ERROR,
+    "Editionen konnten nicht vorbereitet werden.",
+);
 #[derive(Serialize)]
 pub(crate) struct Prepared {
     items: Vec<WishlistItem>,
@@ -80,7 +84,13 @@ pub(crate) async fn prepare(
     headers: HeaderMap,
 ) -> ApiResult<Json<Prepared>> {
     auth::require_csrf(&state, &headers, &session)?;
-    prepare_one(&state, &id).await?;
+    // Its own task, so it finishes when the client leaves (navigation, reload, request timeout): a dropped request
+    // kept the lease, and the game showed "Editionen werden vorbereitet …" for up to three minutes.
+    let task = {
+        let (state, id) = (state.clone(), id.clone());
+        tokio::spawn(async move { prepare_one(&state, &id).await })
+    };
+    task.await.map_err(|_| INTERRUPTED)??;
     Ok(Json(snapshot(&state, &id).await?))
 }
 

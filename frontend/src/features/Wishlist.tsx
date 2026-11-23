@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { AlertEvent, CatalogGame, PriceBadgeData, WishlistItem } from '../api';
+import type { AlertEvent, CatalogGame, EditionsView, PriceBadgeData, WishlistItem } from '../api';
 import { api, CART_CHANGED } from '../api';
 import { useFetchStatus } from '../fetch-status';
 import { Button, Chip, ConfirmDialog, EmptyState, Field, Help, Icon, Inset, Kpi, Notice, Panel, PanelHead, Seg, formatPrice } from '../components';
@@ -20,7 +20,7 @@ import { pauseText } from './wish-pause';
 import { PageSize, Pager, pageCount, useListView } from './list-view';
 import type { ChipFilter, PriceBasis, Row, RowFacts } from './wishlist-model';
 import { itemName } from './catalog-ui';
-import { whenVisible } from '../poll';
+import { badgePollDelay, whenVisible } from '../poll';
 import { columnOrder, openMode, visibleColumns } from './wishlist-columns';
 import type { WishlistColumn } from './wishlist-columns';
 import { notify } from '../notify';
@@ -85,6 +85,7 @@ function SortHeader({
 }
 const SORT_KEY = 'keyhunter.wishlist.sort';
 const BASIS_KEY = 'keyhunter.wishlist.basis';
+const PAUSED_KEY = 'keyhunter.wishlist.has-paused';
 /** Key-shops the list filter knows by name (IGDB is a catalog, not a shop). */
 const SHOP_NAMES = Object.fromEntries(Object.entries(shopNames).filter(([id]) => id !== 'igdb'));
 /**
@@ -162,6 +163,15 @@ export default function Wishlist({
       return 'base';
     }
   });
+  // The chip "Pausiert" exists only with paused wishes. Whether the last list had any is kept, so the chip row has the
+  // same size while the list loads and the table does not move when the chips fill in.
+  const [hadPaused] = useState(() => {
+    try {
+      return localStorage.getItem(PAUSED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
   const chooseBasis = (value: PriceBasis) => {
     setBasis(value);
     try {
@@ -198,6 +208,10 @@ export default function Wishlist({
   const showingDetail = useRef(false);
   const returnFocus = useRef<string | null>(null);
   const loadGeneration = useRef(0);
+  /** The rows of the last `/wishlist` read with the target country they were priced for; their badges are current. */
+  const listRead = useRef<{ items: WishlistItem[]; target: string | null } | null>(null);
+  const targetRef = useRef(targetCountry);
+  targetRef.current = targetCountry;
   const listHeading = useRef<HTMLHeadingElement>(null);
   const focusListAfterRemove = useRef(false);
   const rows = useRef(new Map<string, HTMLButtonElement>());
@@ -237,13 +251,7 @@ export default function Wishlist({
     let cancel = () => {};
     async function prepare(method = 'POST') {
       try {
-        const data = await api<{ items: WishlistItem[]; preparing: boolean; error: string | null }>(
-          `/wishlist/${selected!.id}/editions`,
-          method,
-          method === 'POST' ? {} : undefined,
-          csrf,
-          controller.signal,
-        );
+        const data = await api<EditionsView>(`/wishlist/${selected!.id}/editions`, method, method === 'POST' ? {} : undefined, csrf, controller.signal);
         if (controller.signal.aborted) return;
         setEditionItems(data.items);
         setEditionError(data.error ?? (data.preparing ? 'Editionen werden vorbereitet …' : ''));
@@ -273,8 +281,12 @@ export default function Wishlist({
     if (!items.length) return;
     const controller = new AbortController();
     let cancel = () => {};
+    // The list just read carries the badges of this target country (PERF-06): the first poll waits a full interval.
+    const fresh = listRead.current;
+    listRead.current = null;
+    const skipFirst = fresh?.items === items && fresh.target === targetCountry;
     async function readPrices() {
-      let refreshing = false;
+      let delay = badgePollDelay([]);
       try {
         const data = await api<Record<string, PriceBadgeData>>(
           `/wishlist/price-badges?anchor=${selected?.id ?? ''}`,
@@ -285,15 +297,15 @@ export default function Wishlist({
         );
         if (!controller.signal.aborted) {
           updateBadges(data);
-          // Fast only for a fetch the owner triggered; a backlog of due checks is the normal state (PERF-02).
-          refreshing = Object.values(data).some(badge => badge.refreshing);
+          delay = badgePollDelay(Object.values(data));
         }
       } catch {
         /* Retain saved badges during a failed local read. */
       }
-      if (!controller.signal.aborted) cancel = whenVisible(() => void readPrices(), refreshing ? 3000 : 60000);
+      if (!controller.signal.aborted) cancel = whenVisible(() => void readPrices(), delay);
     }
-    void readPrices();
+    if (skipFirst) cancel = whenVisible(() => void readPrices(), badgePollDelay(items.map(item => item.price_badge)));
+    else void readPrices();
     return () => {
       controller.abort();
       cancel();
@@ -322,6 +334,7 @@ export default function Wishlist({
       const rows = await api<WishlistItem[]>('/wishlist');
       if (generation !== loadGeneration.current) return;
       updateBadges(Object.fromEntries(rows.flatMap(item => (item.price_badge ? [[item.id, item.price_badge]] : []))));
+      listRead.current = { items: rows, target: targetRef.current };
       setItems(rows);
       onCountChange(rows.length);
     } catch (e) {
@@ -573,6 +586,15 @@ export default function Wishlist({
     offen: items.length - priced,
     pause: items.filter(item => item.paused).length,
   };
+  const hasPaused = chipCounts.pause > 0;
+  useEffect(() => {
+    if (loading || listError) return;
+    try {
+      localStorage.setItem(PAUSED_KEY, hasPaused ? '1' : '0');
+    } catch {
+      /* Kept for this visit. */
+    }
+  }, [loading, listError, hasPaused]);
   const reached = useMemo(() => reachedTrend(all, alerts), [all, alerts]);
   const cheaper = useMemo(() => cheaperKpi(all), [all]);
   const budget = useMemo(() => fetchKpi(fetchStatus), [fetchStatus]);
@@ -822,7 +844,7 @@ export default function Wishlist({
                   <span>Automatische Abfragen</span>
                   <span className="warn">pausiert</span>
                 </>
-              ) : !budget || budget.demand === null ? (
+              ) : !budget ? (
                 emptyFoot
               ) : (
                 <>
@@ -850,7 +872,7 @@ export default function Wishlist({
         <PanelHead>
           <div className="chips" role="group" aria-label="Filter">
             {chipLabels
-              .filter(([id]) => id !== 'pause' || chipCounts.pause > 0 || chip === 'pause')
+              .filter(([id]) => id !== 'pause' || (ready ? chipCounts.pause > 0 : hadPaused) || chip === 'pause')
               .map(([id, label]) => (
                 <Chip key={id} pressed={chip === id} count={ready ? chipCounts[id] : null} disabled={!ready} onClick={() => setChip(id)}>
                   {label}
