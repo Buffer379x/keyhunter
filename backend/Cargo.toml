@@ -7,7 +7,7 @@ publish = false
 [dependencies]
 anyhow = "1"
 async-trait = "0.1"
-argon2 = "0.5.3"
+argon2 = "0.6.0"
 axum = "0.8"
 getrandom = "0.3"
 hex = "0.4"
