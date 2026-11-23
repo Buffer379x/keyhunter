@@ -101,7 +101,7 @@ fn verdict(result: &Result<Product, ShopError>) -> (bool, String) {
 pub async fn run(args: &[String], consent: Option<&str>) -> Result<bool> {
     if !consented(consent) {
         bail!(
-            "The canary contacts the shops. Set {CONSENT_VARIABLE}=1 to confirm that you want this run (deploy/parser-canary.sh does it after showing what it contacts)."
+            "The canary contacts the shops. Set {CONSENT_VARIABLE}=1 to confirm that you want this run (deploy/parser-canary.sh lists what it would contact first and passes your consent on)."
         );
     }
     let targets = targets(args)?;
@@ -143,6 +143,24 @@ mod tests {
         assert!(error.to_string().contains(CONSENT_VARIABLE));
         let error = run(&args(&[ENEBA_LINK]), Some("0")).await.unwrap_err();
         assert!(error.to_string().contains(CONSENT_VARIABLE));
+    }
+
+    /// The refusal points to deploy/parser-canary.sh as the script that lists what a run contacts before it passes the
+    /// consent on; the script does exactly that, in that order.
+    #[test]
+    fn the_script_lists_what_it_contacts_before_it_passes_consent_on() {
+        let script = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../deploy/parser-canary.sh"),
+        )
+        .unwrap();
+        let listed = script
+            .find("/robots.txt and $link")
+            .expect("lists hosts and pages");
+        let checked = script
+            .find(&format!("\"${{{CONSENT_VARIABLE}:-}}\" != 1"))
+            .expect("checks the consent");
+        let started = script.rfind("--canary").expect("starts the canary");
+        assert!(listed < checked && checked < started);
     }
 
     #[test]
