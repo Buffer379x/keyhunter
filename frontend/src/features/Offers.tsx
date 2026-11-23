@@ -3,7 +3,7 @@ import { Button, EmptyState, Help, Icon, IconButton, Inset, Label, Panel, PanelH
 import { relativeTime } from '../time';
 import { regionCode } from './regions';
 import { dateTime, money } from './price-format';
-import { everyText, fetchFailed, nextAttempt, reasonList, tempo, TEMPO_OFTEN, TEMPO_RARE, trendText, validity } from './offers-model';
+import { fetchFailed, nextAttempt, reasonList, tempo, tempoText, tempoTone, TEMPO_OFTEN, TEMPO_RARE, validity } from './offers-model';
 import { offersColumnName, offersOrder, visibleOffersColumns } from './offers-columns';
 import type { OffersColumn } from './offers-columns';
 import type { ReactNode } from 'react';
@@ -54,13 +54,6 @@ type Props = {
   columns?: readonly string[];
   hidden?: readonly string[];
 };
-
-/** Tooltip of the Prüftempo: the bucket, the planned interval and the price trend behind it (offers::Link::score). */
-function tempoTitle(row: OfferRow, label: string) {
-  const every = row.link.check_every ? `Abfrage ${everyText(row.link.check_every)}` : null;
-  const state = row.link.product?.availability === 'sold_out' ? 'ausverkauft, seltener geprüft' : trendText(row.link);
-  return [`Prüftempo ${label}`, state, every].filter(Boolean).join(' · ');
-}
 
 /** When the offer was last seen; a stale time in the grey clock pill of "Veraltet" (DS-04), none as "–" (the validity says why). */
 function Seen({ row }: { row: OfferRow }) {
@@ -177,10 +170,10 @@ export default function OffersTab({
                     {offersColumnName(column, code)}
                     {column === 'score' && (
                       <Help label="Hilfe zum Prüftempo">
-                        <span>Wie oft KeyHunter dieses Angebot prüft. Es ist keine Bewertung des Angebots.</span>
+                        <span>Wie oft KeyHunter dieses Angebot prüft. Der Score (0 bis 100) bestimmt es; die Farbe zeigt ihn.</span>
                         <span>
-                          Häufig: ab {TEMPO_OFTEN} von 100, das Angebot ist meist günstig und kommt öfter dran. Selten: bis {TEMPO_RARE}, es ist meist teuer
-                          oder ausverkauft. Dazwischen: normal.
+                          Häufig (grün): ab {TEMPO_OFTEN} von 100, das Angebot ist beständig das günstigste des Spiels und kommt öfter dran. Selten (gelb): bis{' '}
+                          {TEMPO_RARE}, es ist beständig am teuersten oder ausverkauft. Dazwischen: normal.
                         </span>
                         <span>Das Tempo ist geplant; bei knappem Abrufbudget kann es länger dauern.</span>
                       </Help>
@@ -251,9 +244,9 @@ export default function OffersTab({
                       {speed === null ? (
                         <span className="save none">–</span>
                       ) : (
-                        <span title={tempoTitle(row, speed)}>
-                          <Pill tone="dim">{speed}</Pill>
-                        </span>
+                        <Help label={`Prüftempo ${speed}, Score ${row.link.score} von 100`} trigger={<Pill tone={tempoTone(speed)}>{speed}</Pill>}>
+                          <span>{tempoText(row.link, speed)}</span>
+                        </Help>
                       )}
                     </td>
                   ),

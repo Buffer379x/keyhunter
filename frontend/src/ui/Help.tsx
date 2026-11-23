@@ -12,8 +12,10 @@ const EDGE = 8;
  * above everything (never clipped by a scrolling table) and stays inside the viewport, below the symbol or above when there is
  * no room. The text is the button's accessible description, so screen readers hear it without opening anything.
  * `label` names the button ("Hilfe zu Gebühren"); children are inline content, a `<span>` per paragraph.
+ * `trigger` (1.0.1) replaces the "?" by other content (a tag such as the Prüftempo), so a value can carry its explanation with
+ * the same popup, also on touch.
  */
-export function Help({ label = 'Hilfe', children, className = '' }: { label?: string; children: ReactNode; className?: string }) {
+export function Help({ label = 'Hilfe', children, className = '', trigger }: { label?: string; children: ReactNode; className?: string; trigger?: ReactNode }) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
@@ -71,7 +73,7 @@ export function Help({ label = 'Hilfe', children, className = '' }: { label?: st
       <button
         ref={button}
         type="button"
-        className="help-btn"
+        className={trigger ? 'help-btn help-tag' : 'help-btn'}
         aria-label={label}
         aria-describedby={id}
         aria-expanded={open}
@@ -88,7 +90,7 @@ export function Help({ label = 'Hilfe', children, className = '' }: { label?: st
           }
         }}
       >
-        <Icon name="help" size={15} />
+        {trigger ?? <Icon name="help" size={15} />}
       </button>
       <span ref={pop} id={id} role="tooltip" className="help-pop" hidden={!open} style={at ? { left: at.left, top: at.top } : { left: -9999, top: 0 }}>
         {children}

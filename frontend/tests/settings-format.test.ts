@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   budgetShare,
   budgetView,
+  dateTimeText,
+  foundText,
   durationText,
   fetchPill,
   intervalLabel,
@@ -132,5 +134,18 @@ test('a pause beyond today names its date', () => {
   const paused = (until: number) =>
     shopState({ enabled: true, paused_until: until, last_error: null, last_success_at: now - 60 }, now, () => 'vor 1 Min.').text;
   assert.match(paused(now + 3600), /^Pausiert bis \d\d:\d\d Uhr$/);
-  assert.match(paused(now + 3 * 86400), /^Pausiert bis \d\d\.\d\d\., \d\d:\d\d Uhr$/);
+  assert.match(paused(now + 3 * 86400), /^Pausiert bis \d\d\.\d\d\.\d{4}, \d\d:\d\d Uhr$/);
+});
+test('1.0.1: dateTimeText carries the year', () => {
+  assert.match(dateTimeText(Date.UTC(2026, 10, 23, 12, 5) / 1000), /^23\.11\.2026, \d\d:\d\d$/);
+});
+test('1.0.1: foundText turns the stored result of a fetch into words and leaves other text alone', () => {
+  const eur = (cents: number) => `${(cents / 100).toFixed(2).replace('.', ',')} €`;
+  assert.equal(foundText('1299 ct', eur), 'ab 12,99 €');
+  assert.equal(foundText('sold_out', eur), 'ausverkauft');
+  assert.equal(foundText('in_stock', eur), 'lieferbar');
+  assert.equal(foundText('unknown', eur), 'unbekannt');
+  assert.equal(foundText('Seite 1: 5 Produkte', eur), 'Seite 1: 5 Produkte');
+  assert.equal(foundText('etwas Neues', eur), 'etwas Neues');
+  assert.equal(foundText(null, eur), '–');
 });

@@ -90,7 +90,7 @@ test('settings sections are bound to the URL, and Abrufstatus shows queue, budge
   await expect(driffle).toContainText('Abruflimit erreicht');
   const runs = page.getByRole('table', { name: 'Letzte Abrufe' });
   await expect(runs.getByRole('row')).toHaveCount(4);
-  await expect(runs.getByRole('columnheader')).toHaveText(['Zeit', 'Shop', 'Art', 'Spiel', 'Ziel', 'Ergebnis']);
+  await expect(runs.getByRole('columnheader')).toHaveText(['Zeit', 'Shop', 'Art', 'Spiel', 'Gefunden', 'Ergebnis']);
   await expect(runs.getByRole('row').nth(2)).toContainText('Starfield');
   await expect(runs.getByRole('row').nth(1)).toContainText('Forza Horizon 5');
   await expect(runs.getByRole('row').nth(1)).toContainText('1,2 s');

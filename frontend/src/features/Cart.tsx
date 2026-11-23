@@ -27,6 +27,7 @@ import { cartSums, entryShop } from './cart-model';
 import type { CartEntry, CartLine, CartScope } from './cart-model';
 import { shopNames } from './shop-names';
 import { regCode } from './WishlistRow';
+import { WishFlags } from './WishFlags';
 
 /** Prices follow the saved shop checks: the cart reads them again this often while the tab is visible. */
 const REFRESH_MS = 60_000;
@@ -197,9 +198,12 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onCo
                           <div className="game-cell">
                             <Cover size="xs" src={line.item.game?.cover_url} title={name} />
                             <div className="game-name">
-                              <button type="button" className="title-open" title="Details öffnen" onClick={() => onOpen(line.item)}>
-                                <b>{name}</b>
-                              </button>
+                              <span className="game-title">
+                                <button type="button" className="title-open" title="Details öffnen" onClick={() => onOpen(line.item)}>
+                                  <b>{name}</b>
+                                </button>
+                                <WishFlags item={line.item} />
+                              </span>
                               {/* RESP-10: the same game for two systems stays apart */}
                               <small>{platformName(line.item.platform_id)}</small>
                             </div>

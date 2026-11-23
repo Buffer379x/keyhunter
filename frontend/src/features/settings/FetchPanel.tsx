@@ -1,5 +1,6 @@
 import { EmptyState, Help, Icon, Inset, Label, Panel, PanelHead, Pill } from '../../components';
 import type { FetchShopStatus, FetchStatusResponse, RunPage, UpcomingFetch } from '../../api';
+import { money } from '../price-format';
 import { relativeTime } from '../../time';
 import { paceText } from '../../FetchStatus';
 import { SettingsPanel } from './parts';
@@ -9,6 +10,7 @@ import {
   budgetView,
   intervalLabel,
   dateTimeText,
+  foundText,
   durationText,
   fetchPill,
   kindText,
@@ -169,7 +171,10 @@ function Runs() {
           Abrufe
         </Label>
         <Help label="Hilfe zu den Abrufen">
-          <span>Jede Abfrage der Shops mit Spiel, Art und Ergebnis, die neueste zuerst. Die Suche findet Spiel, Shop, Ziel und Ergebnis.</span>
+          <span>
+            Jede Abfrage der Shops mit Spiel, Art und Ergebnis, die neueste zuerst. „Gefunden“ ist das Ergebnis der Abfrage: der niedrigste Preis einer
+            Produktseite oder ihre Verfügbarkeit, bei einer Suche die Zahl der Treffer. Die Suche findet Spiel, Shop und Ergebnis.
+          </span>
           <span>
             „Nicht gefunden“ und „Abruflimit erreicht“ sind Warnungen: KeyHunter versucht es später von selbst wieder. Aufgezeichnet werden die letzten 30 Tage.
           </span>
@@ -201,7 +206,7 @@ function Runs() {
                 <th>Shop</th>
                 <th>Art</th>
                 <th>Spiel</th>
-                <th>Ziel</th>
+                <th>Gefunden</th>
                 <th>Ergebnis</th>
               </tr>
             </thead>
@@ -216,8 +221,8 @@ function Runs() {
                     <td>{shopTitle(run.source)}</td>
                     <td>{kindText(run.kind)}</td>
                     <td className="set-run-game">{gameText(run.game, run.region)}</td>
-                    <td className="set-run-target" title={run.detail ?? undefined}>
-                      {run.detail ?? '–'}
+                    <td className="set-run-target" title={foundText(run.detail, money)}>
+                      {foundText(run.detail, money)}
                     </td>
                     <td>
                       <Pill tone={result === 'ok' ? 'ok' : result === 'warn' ? 'warn' : 'danger'} icon={result === 'ok' ? 'check' : 'alert'}>
