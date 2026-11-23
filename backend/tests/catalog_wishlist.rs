@@ -31,6 +31,8 @@ fn game(id: i64) -> CatalogGame {
             4 => "Example DLC",
             5 => "Example Remaster",
             6 => "Example 2",
+            7 => "Example Collection Bundle",
+            8 => "Example: Director's Cut",
             _ => "Example",
         }
         .into(),
@@ -51,6 +53,8 @@ fn game(id: i64) -> CatalogGame {
             2 => "edition",
             4 => "dlc",
             5 => "remaster",
+            7 => "bundle",
+            8 => "expanded_game",
             _ => "base_game",
         }
         .into(),
@@ -72,7 +76,7 @@ impl CatalogProvider for Provider {
         if self.offline.load(Ordering::SeqCst) {
             return Err(CatalogError::Unavailable);
         }
-        Ok((1..=6).contains(&id).then(|| {
+        Ok((1..=8).contains(&id).then(|| {
             let mut value = game(id);
             if self.changed_platform.load(Ordering::SeqCst) {
                 value.platforms = vec![Platform {
@@ -804,7 +808,8 @@ async fn dlc_pc_and_wrong_release_platform_cannot_be_saved_as_xbox_game() {
         f.call("GET", "/api/v1/wishlist", Value::Null).await.1,
         json!([])
     );
-    for id in [5, 6] {
+    // A bundle sold as one key (1.1.1) is saved like a game.
+    for id in [5, 6, 7] {
         assert_eq!(
             f.call(
                 "POST",
@@ -818,6 +823,36 @@ async fn dlc_pc_and_wrong_release_platform_cannot_be_saved_as_xbox_game() {
     }
     let (_, items) = f.call("GET", "/api/v1/wishlist", Value::Null).await;
     assert_ne!(items[0]["game_id"], items[1]["game_id"]);
+    let bundle = items
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["game"]["kind"] == "bundle")
+        .unwrap();
+    assert_eq!(bundle["verification"], "catalog");
+    // An expanded game (1.1.1) cached as an unknown product type before the update is asked for again and saved.
+    let pool = sqlx::SqlitePool::connect_with(
+        sqlx::sqlite::SqliteConnectOptions::new().filename(f.config.data_dir.join("keyhunter.db")),
+    )
+    .await
+    .unwrap();
+    let mut stale = serde_json::to_value(game(8)).unwrap();
+    stale["kind"] = json!("unknown");
+    sqlx::query("INSERT INTO catalog_game (igdb_id, payload, fetched_at) VALUES (8, ?, strftime('%s','now'))")
+        .bind(stale.to_string())
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        f.call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":8,"platform_id":169})
+        )
+        .await
+        .0,
+        StatusCode::CREATED
+    );
 }
 
 #[tokio::test]

@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { AlertEvent, CatalogGame, EditionsView, PriceBadgeData, WishlistItem } from '../api';
+import type { AlertEvent, PriceBadgeData, WishlistItem } from '../api';
 import { api, CART_CHANGED } from '../api';
 import { useFetchStatus } from '../fetch-status';
-import { Button, ConfirmDialog, EmptyState, Field, Help, Icon, Inset, Kpi, Notice, Panel, PanelHead, Seg, formatPrice } from '../components';
+import { Button, EmptyState, Field, Help, Icon, Inset, Kpi, Notice, Panel, PanelHead, Seg, formatPrice } from '../components';
 import CatalogSearch from './CatalogSearch';
 import FirstSteps from './FirstSteps';
-import { openSection } from './settings/sections';
-import GameDetail, { parseTab } from './GameDetail';
-import type { TabId } from './GameDetail';
+import { fromList, listDepth, navigate, onRouteChange, openSection, returnToList, useRoute } from '../route';
+import type { TabId } from '../route';
+import GameDetail from './GameDetail';
+import { useWishDetail, WishDialogs } from './useWishDetail';
 import WishlistRow from './WishlistRow';
 import { mergeBadges } from './price-badges';
 import type { Rule } from './PriceAlerts';
@@ -16,17 +17,16 @@ import { nextSort, parseSort, serializeSort, sortWishlist } from './wishlist-sor
 import type { SortKey, WishlistSort } from './wishlist-sort';
 import { addedTicks, alarmSentToday, cheaperKpi, fetchKpi, filterShops, matchesChip, matchesText, reachedTrend, rowFacts, shortTitle } from './wishlist-model';
 import { shopNames } from './shop-names';
-import { pauseText } from './wish-pause';
 import { PageSize, Pager, pageCount, useListView } from './list-view';
 import type { ChipFilter, PriceBasis, Row, RowFacts } from './wishlist-model';
 import { itemName } from './catalog-ui';
-import { badgePollDelay, whenVisible } from '../poll';
+import { BADGE_POLL_MS, badgePollDelay, refreshing } from '../poll';
+import { usePolled } from '../usePolled';
 import { columnOrder, openMode, visibleColumns } from './wishlist-columns';
 import type { WishlistColumn } from './wishlist-columns';
-import { notify } from '../notify';
+import { notify, notifyError } from '../notify';
 
 interface Props {
-  csrf: string;
   targetCountry: string | null;
   targetLabel: string;
   /** Column order, hidden columns and what opens the game page, from the settings (missing = defaults). */
@@ -46,7 +46,6 @@ interface Props {
   onTitle: (title: string | null) => void;
   onSettings: () => void;
   onCountChange: (count: number) => void;
-  onError: (error: unknown) => void;
 }
 
 /**
@@ -88,26 +87,6 @@ const BASIS_KEY = 'keyhunter.wishlist.basis';
 const PAUSED_KEY = 'keyhunter.wishlist.has-paused';
 /** Key-shops the list filter knows by name (IGDB is a catalog, not a shop). */
 const SHOP_NAMES = Object.fromEntries(Object.entries(shopNames).filter(([id]) => id !== 'igdb'));
-/**
- * History state of a game opened from the list: the number of history entries since the list (opening the game plus
- * every tab change). "Zur Wunschliste" goes back that many steps, so the list entry with its scroll position is reused.
- */
-const FROM_LIST = 'keyhunter.wishlist';
-const listDepth = () => Number((window.history.state as Record<string, unknown> | null)?.[FROM_LIST]) || 0;
-/** Return from a game opened from the list by going back in history (the breadcrumb uses it too). False for a deep link. */
-export function returnToList(): boolean {
-  const depth = listDepth();
-  if (depth) window.history.go(-depth);
-  return depth > 0;
-}
-const routeTab = (): TabId => {
-  const url = new URL(window.location.href);
-  const tab = parseTab(url.searchParams.get('tab'));
-  if (tab) return tab;
-  return url.hash === '#alert-editor-title' ? 'alarm' : 'preis';
-};
-const routeSelection = () => new URL(window.location.href).searchParams.get('item');
-const routeFilter = () => new URL(window.location.href).searchParams.get('filter') ?? '';
 const scroller = () => document.getElementById('main-content');
 type AlertRules = Record<string, Rule>;
 const CHIPS: ChipFilter[] = ['alle', 'ziel', 'welt', 'offen', 'pause'];
@@ -127,7 +106,6 @@ const emptyFoot = <span aria-hidden="true">{'\u00a0'}</span>;
  * The list state (filter, sort, scroll position) survives a visit to a game; browser back returns to the same place.
  */
 export default function Wishlist({
-  csrf,
   targetCountry,
   targetLabel,
   columns,
@@ -142,7 +120,6 @@ export default function Wishlist({
   onTitle,
   onSettings,
   onCountChange,
-  onError,
 }: Props) {
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,9 +129,10 @@ export default function Wishlist({
   const view = useListView<ChipFilter>('keyhunter.list.wishlist', CHIPS, 'alle');
   const chip = view.filter;
   const setChip = view.setFilter;
-  const [filter, setFilter] = useState(() => routeFilter() || view.text);
-  const [selectedId, setSelectedId] = useState<string | null>(routeSelection);
-  const [preview, setPreview] = useState<WishlistItem | null>(null);
+  // The open game comes from the URL; the filter starts from it and follows browser back/forward.
+  const route = useRoute();
+  const selectedId = route.item;
+  const [filter, setFilter] = useState(() => route.filter || view.text);
   // Prices without or with the estimated shop fees (0.7.3); a view choice of this browser, like the sort.
   const [basis, setBasis] = useState<PriceBasis>(() => {
     try {
@@ -194,16 +172,6 @@ export default function Wishlist({
   const [channel, setChannel] = useState<boolean | null>(null);
   // Request budget for the "Abrufe heute" tile, from the app's one fetch-status poller (shared with the sidebar card).
   const { data: fetchStatus } = useFetchStatus();
-  const [editionItems, setEditionItems] = useState<WishlistItem[]>([]);
-  const [tab, setTab] = useState<TabId>(routeTab);
-  const [editionError, setEditionError] = useState('');
-  const [removeItem, setRemoveItem] = useState<WishlistItem | null>(null);
-  const [purchasing, setPurchasing] = useState(false);
-  /** "Gekauft" asks first (RESP-13): it ends the alarm and the cart entry, and the way back is in the library. */
-  const [confirmPurchase, setConfirmPurchase] = useState(false);
-  const [purchaseError, setPurchaseError] = useState('');
-  const [removing, setRemoving] = useState(false);
-  const [removeError, setRemoveError] = useState('');
   const listScroll = useRef(0);
   const showingDetail = useRef(false);
   const returnFocus = useRef<string | null>(null);
@@ -219,7 +187,6 @@ export default function Wishlist({
   const updateBadges = useCallback((entries: Record<string, PriceBadgeData>) => {
     setBadges(current => mergeBadges(current, entries));
   }, []);
-  const updateBadge = useCallback((id: string, badge: PriceBadgeData) => updateBadges({ [id]: badge }), [updateBadges]);
   const updateRule = useCallback(
     (id: string, rule: Rule | null) =>
       setAlerts(current => {
@@ -240,90 +207,28 @@ export default function Wishlist({
     [],
   );
 
-  // Editions of the open game (prepared on the server on first open).
-  useEffect(() => {
-    setPreview(null);
-    setTab(routeTab());
-    setEditionItems([]);
-    setEditionError('');
-    if (!selected?.game) return;
-    const controller = new AbortController();
-    let cancel = () => {};
-    async function prepare(method = 'POST') {
-      try {
-        const data = await api<EditionsView>(`/wishlist/${selected!.id}/editions`, method, method === 'POST' ? {} : undefined, csrf, controller.signal);
-        if (controller.signal.aborted) return;
-        setEditionItems(data.items);
-        setEditionError(data.error ?? (data.preparing ? 'Editionen werden vorbereitet …' : ''));
-        updateBadges(Object.fromEntries(data.items.flatMap(item => (item.price_badge ? [[item.id, item.price_badge]] : []))));
-        if (data.preparing) cancel = whenVisible(() => void prepare('GET'), 3000);
-      } catch (error) {
-        if (!controller.signal.aborted) setEditionError(error instanceof Error ? error.message : 'Editionen konnten nicht geladen werden.');
-      }
-    }
-    void prepare();
-    return () => {
-      controller.abort();
-      cancel();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only when the selected game's identity changes, not on every field of `selected`
-  }, [selected?.id, selected?.game?.igdb_id, selected?.platform_id, csrf, updateBadges]);
-  function chooseEdition(game: CatalogGame) {
-    if (!selected) return;
-    if (game.igdb_id === selected.game?.igdb_id) setPreview(null);
-    else {
-      const prepared = editionItems.find(item => item.game?.igdb_id === game.igdb_id);
-      if (prepared) setPreview(prepared);
-    }
-  }
-
-  useEffect(() => {
-    if (!items.length) return;
-    const controller = new AbortController();
-    let cancel = () => {};
-    // The list just read carries the badges of this target country (PERF-06): the first poll waits a full interval.
-    const fresh = listRead.current;
-    listRead.current = null;
-    const skipFirst = fresh?.items === items && fresh.target === targetCountry;
-    async function readPrices() {
-      let delay = badgePollDelay([]);
-      try {
-        const data = await api<Record<string, PriceBadgeData>>(
-          `/wishlist/price-badges?anchor=${selected?.id ?? ''}`,
-          'GET',
-          undefined,
-          undefined,
-          controller.signal,
-        );
-        if (!controller.signal.aborted) {
-          updateBadges(data);
-          delay = badgePollDelay(Object.values(data));
-        }
-      } catch {
-        /* Retain saved badges during a failed local read. */
-      }
-      if (!controller.signal.aborted) cancel = whenVisible(() => void readPrices(), delay);
-    }
-    if (skipFirst) cancel = whenVisible(() => void readPrices(), badgePollDelay(items.map(item => item.price_badge)));
-    else void readPrices();
-    return () => {
-      controller.abort();
-      cancel();
-    };
-  }, [items, targetCountry, updateBadges, selected?.id]);
+  // Badges of every wish, again after each change of the list (a failed read keeps the saved ones).
+  usePolled<Record<string, PriceBadgeData>>(items.length ? `/wishlist/price-badges?anchor=${selected?.id ?? ''}` : null, {
+    every: BADGE_POLL_MS,
+    fastWhen: data => refreshing(Object.values(data)),
+    retry: BADGE_POLL_MS,
+    restart: [items, targetCountry],
+    // The list just read carries the badges of this target country (PERF-06): the first read waits a full interval.
+    wait: () => {
+      const fresh = listRead.current;
+      listRead.current = null;
+      return fresh?.items === items && fresh.target === targetCountry ? badgePollDelay(items.map(item => item.price_badge)) : 0;
+    },
+    onData: updateBadges,
+  });
   // Alarm targets ("Ziel" column, "Ziel erreicht") and the delivery log ("Alarm gesendet"), read once; the open detail keeps the rules current.
-  useEffect(() => {
-    const controller = new AbortController();
-    void api<{ rules: (Rule & { wish_id: string })[]; events?: AlertEvent[]; configured?: boolean }>('/alerts', 'GET', undefined, undefined, controller.signal)
-      .then(data => {
-        if (controller.signal.aborted) return;
-        setAlerts(Object.fromEntries(data.rules.map(rule => [rule.wish_id, rule])));
-        setEvents(data.events ?? null);
-        setChannel(data.configured ?? null);
-      })
-      .catch(() => {});
-    return () => controller.abort();
-  }, []);
+  usePolled<{ rules: (Rule & { wish_id: string })[]; events?: AlertEvent[]; configured?: boolean }>('/alerts', {
+    onData: data => {
+      setAlerts(Object.fromEntries(data.rules.map(rule => [rule.wish_id, rule])));
+      setEvents(data.events ?? null);
+      setChannel(data.configured ?? null);
+    },
+  });
   const closeSearch = useCallback(() => onAddOpen(false), [onAddOpen]);
 
   const load = useCallback(async () => {
@@ -340,12 +245,12 @@ export default function Wishlist({
     } catch (e) {
       if (generation === loadGeneration.current) {
         setListError(e instanceof Error ? e.message : 'Wunschliste konnte nicht geladen werden.');
-        onError(e);
+        notifyError(e);
       }
     } finally {
       if (generation === loadGeneration.current) setLoading(false);
     }
-  }, [onCountChange, onError, updateBadges]);
+  }, [onCountChange, updateBadges]);
   useEffect(() => {
     void load();
     const generation = loadGeneration;
@@ -353,21 +258,39 @@ export default function Wishlist({
       ++generation.current;
     };
   }, [load]);
+  useEffect(
+    () =>
+      onRouteChange((next, _previous, browser) => {
+        if (browser) setFilter(next.filter);
+      }),
+    [],
+  );
+  // The game's page: its editions, tab and actions; a wish that leaves the list closes it.
+  const wish = useWishDetail(selected, {
+    targetCountry,
+    badges,
+    updateBadges,
+    patch: (id, fields) => setItems(current => current.map(item => (item.id === id ? { ...item, ...fields } : item))),
+    drop: (item, reason) => {
+      ++loadGeneration.current;
+      const next = items.filter(row => row.id !== item.id);
+      setItems(next);
+      onCountChange(next.length);
+      // Removed or bought: the server took it out of the cart as well.
+      if (item.in_cart) window.dispatchEvent(new Event(CART_CHANGED));
+      returnFocus.current = null;
+      closeDetail();
+      if (reason === 'removed') focusListAfterRemove.current = true;
+      else requestAnimationFrame(() => listHeading.current?.focus({ preventScroll: true }));
+    },
+  });
+  const removeOpen = wish.dialogs.removeItem !== null;
   useEffect(() => {
-    function restore() {
-      setTab(routeTab());
-      setSelectedId(routeSelection());
-      setFilter(routeFilter());
-    }
-    window.addEventListener('popstate', restore);
-    return () => window.removeEventListener('popstate', restore);
-  }, []);
-  useEffect(() => {
-    if (!removeItem && focusListAfterRemove.current) {
+    if (!removeOpen && focusListAfterRemove.current) {
       focusListAfterRemove.current = false;
       listHeading.current?.focus({ preventScroll: true });
     }
-  }, [removeItem]);
+  }, [removeOpen]);
 
   // List and game are two pages in one scroll area: the game starts at the top, the list returns to where it was.
   const detailOpen = !!selected;
@@ -399,43 +322,17 @@ export default function Wishlist({
     const depth = showingDetail.current ? (listDepth() ? listDepth() + 1 : 0) : 1;
     if (!showingDetail.current) listScroll.current = scroller()?.scrollTop ?? 0;
     returnFocus.current = showingDetail.current ? null : id;
-    setSelectedId(id);
-    const url = new URL(window.location.href);
-    url.hash = '';
-    url.searchParams.delete('view');
-    url.searchParams.set('item', id);
-    if (tab && tab !== 'preis') url.searchParams.set('tab', tab);
-    else url.searchParams.delete('tab');
-    if (url.href !== window.location.href) window.history.pushState(depth ? { [FROM_LIST]: depth } : null, '', url);
+    navigate({ view: null, item: id, tab: tab && tab !== 'preis' ? tab : null }, { state: fromList(depth) });
   }
   /** Back to the list: a game opened from the list goes back in history (filter, sort and scroll are kept); a deep link pushes the list. */
   function closeDetail() {
-    setSelectedId(null);
-    if (returnToList()) return;
-    const url = new URL(window.location.href);
-    url.hash = '';
-    url.searchParams.delete('item');
-    url.searchParams.delete('tab');
-    if (url.href !== window.location.href) window.history.pushState(null, '', url);
-  }
-  function changeTab(value: TabId) {
-    setTab(value);
-    const url = new URL(window.location.href);
-    url.hash = '';
-    if (value === 'preis') url.searchParams.delete('tab');
-    else url.searchParams.set('tab', value);
-    if (selected) url.searchParams.set('item', selected.id);
-    const depth = listDepth();
-    if (url.href !== window.location.href) window.history.pushState(depth ? { [FROM_LIST]: depth + 1 } : null, '', url);
+    if (!returnToList()) navigate({ item: null, tab: null });
   }
   function filterList(value: string) {
     setFilter(value);
     view.setText(value);
     view.setPage(1);
-    const url = new URL(window.location.href);
-    if (value) url.searchParams.set('filter', value);
-    else url.searchParams.delete('filter');
-    window.history.replaceState(window.history.state, '', url);
+    navigate({ filter: value || null }, { replace: true });
   }
   function sortBy(key: SortKey) {
     const value = nextSort(sort, key);
@@ -449,117 +346,13 @@ export default function Wishlist({
   function added(item: WishlistItem, created: boolean) {
     ++loadGeneration.current;
     const next = [item, ...items.filter(existing => existing.id !== item.id)];
-    if (item.price_badge) updateBadge(item.id, item.price_badge);
+    if (item.price_badge) updateBadges({ [item.id]: item.price_badge });
     setItems(next);
     onCountChange(next.length);
     filterList('');
     setChip('alle');
     open(item.id);
     notify(created ? `${itemName(item)} wurde vorgemerkt.` : 'Dieser Titel ist bereits auf deiner Wunschliste.');
-  }
-  async function remove() {
-    if (!removeItem || removing) return;
-    setRemoving(true);
-    setRemoveError('');
-    try {
-      await api(`/wishlist/${encodeURIComponent(removeItem.id)}`, 'DELETE', undefined, csrf);
-      ++loadGeneration.current;
-      const next = items.filter(item => item.id !== removeItem.id);
-      setItems(next);
-      onCountChange(next.length);
-      if (removeItem.in_cart) window.dispatchEvent(new Event(CART_CHANGED));
-      if (selectedId === removeItem.id) {
-        returnFocus.current = null;
-        closeDetail();
-      }
-      focusListAfterRemove.current = true;
-      notify(`${itemName(removeItem)} wurde aus der Wunschliste entfernt.`);
-      setRemoveItem(null);
-    } catch (e) {
-      setRemoveError(e instanceof Error ? e.message : 'Entfernen fehlgeschlagen.');
-      onError(e);
-    } finally {
-      setRemoving(false);
-    }
-  }
-  const [carting, setCarting] = useState(false);
-  /** The detail page's cart button: in or out, once per wish (0.8.0). */
-  async function toggleCart() {
-    if (!selected || preview || carting) return;
-    const inCart = !!selected.in_cart;
-    setCarting(true);
-    try {
-      if (inCart) await api(`/cart/${encodeURIComponent(selected.id)}`, 'DELETE', undefined, csrf);
-      else await api('/cart', 'POST', { wish_id: selected.id }, csrf);
-      setItems(current => current.map(item => (item.id === selected.id ? { ...item, in_cart: !inCart } : item)));
-      window.dispatchEvent(new Event(CART_CHANGED));
-      notify(inCart ? `${itemName(selected)} ist nicht mehr im Warenkorb.` : `${itemName(selected)} liegt jetzt im Warenkorb.`);
-    } catch (error) {
-      onError(error);
-    } finally {
-      setCarting(false);
-    }
-  }
-  const [pausing, setPausing] = useState(false);
-  /** Pause the selected wish's checks until a date or until resumed, or resume them (0.9.0). */
-  async function pauseWish(until: number | null | false) {
-    if (!selected || preview || pausing) return;
-    setPausing(true);
-    try {
-      const next = await api<WishlistItem>(
-        `/wishlist/${encodeURIComponent(selected.id)}/pause`,
-        'PUT',
-        until === false ? { paused: false } : { paused: true, until },
-        csrf,
-      );
-      setItems(current => current.map(item => (item.id === selected.id ? { ...item, paused: next.paused, paused_until: next.paused_until } : item)));
-      notify(until === false ? `Die Abfragen für ${itemName(selected)} laufen wieder.` : `${itemName(selected)}: ${pauseText(next)}.`);
-    } catch (error) {
-      onError(error);
-    } finally {
-      setPausing(false);
-    }
-  }
-  /** An offer from the Angebote tab: into the cart with its shop and scope, or the entry switched to it when already there. */
-  async function cartOffer(source: string, scope: 'home' | 'world') {
-    if (!selected || preview || carting) return;
-    setCarting(true);
-    try {
-      if (selected.in_cart) await api(`/cart/${encodeURIComponent(selected.id)}`, 'PUT', { source, scope }, csrf);
-      else await api('/cart', 'POST', { wish_id: selected.id, source, scope }, csrf);
-      setItems(current => current.map(item => (item.id === selected.id ? { ...item, in_cart: true } : item)));
-      window.dispatchEvent(new Event(CART_CHANGED));
-      const shop = shopNames[source] ?? source;
-      notify(`${itemName(selected)} liegt im Warenkorb: ${shop}, ${scope === 'home' ? `Preis ${targetCountry?.toUpperCase() || 'Zielland'}` : 'Preis INT'}.`);
-    } catch (error) {
-      onError(error);
-    } finally {
-      setCarting(false);
-    }
-  }
-  async function purchase() {
-    if (!selected || preview || purchasing) return;
-    setPurchasing(true);
-    setPurchaseError('');
-    try {
-      await api(`/wishlist/${selected.id}/purchase`, 'POST', {}, csrf);
-      ++loadGeneration.current;
-      const next = items.filter(item => item.id !== selected.id);
-      setItems(next);
-      onCountChange(next.length);
-      // Bought: the server took it out of the cart as well.
-      if (selected.in_cart) window.dispatchEvent(new Event(CART_CHANGED));
-      returnFocus.current = null;
-      setConfirmPurchase(false);
-      closeDetail();
-      notify(`${itemName(selected)} wurde in die Bibliothek verschoben.`);
-      requestAnimationFrame(() => listHeading.current?.focus({ preventScroll: true }));
-    } catch (error) {
-      setPurchaseError(error instanceof Error ? error.message : 'Verschieben fehlgeschlagen.');
-      onError(error);
-    } finally {
-      setPurchasing(false);
-    }
   }
 
   // Derived list data: facts per row (price, cheapest region, saving, target), chips, sorting and KPI tiles.
@@ -602,10 +395,6 @@ export default function Wishlist({
   const budget = useMemo(() => fetchKpi(fetchStatus), [fetchStatus]);
   const sentToday = alarmSentToday(events);
 
-  const variants = editionItems.flatMap(item => (item.game ? [item.game] : []));
-  if (selected?.game && !variants.some(g => g.igdb_id === selected.game?.igdb_id)) variants.unshift(selected.game);
-  variants.sort((a, b) => (a.version_parent ? 1 : 0) - (b.version_parent ? 1 : 0) || a.igdb_id - b.igdb_id);
-  const viewed = preview ?? selected;
   const title = selected ? itemName(selected) : null;
   useEffect(() => {
     onTitle(title);
@@ -664,77 +453,23 @@ export default function Wishlist({
 
   const dialogs = (
     <>
-      <CatalogSearch open={addOpen} csrf={csrf} items={items} onClose={closeSearch} onAdded={added} onError={onError} />
-      <ConfirmDialog
-        open={removeItem !== null}
-        title="Titel entfernen?"
-        confirmLabel="Entfernen bestätigen"
-        danger
-        cancelLabel="Behalten"
-        busy={removing}
-        onCancel={() => setRemoveItem(null)}
-        onConfirm={() => void remove()}
-      >
-        <p>„{removeItem ? itemName(removeItem) : ''}“ wird aus deiner Wunschliste entfernt.</p>
-        {removeError && <Notice error>{removeError}</Notice>}
-      </ConfirmDialog>
-      <ConfirmDialog
-        open={confirmPurchase && !!selected}
-        title="Als gekauft markieren?"
-        confirmLabel="In die Bibliothek verschieben"
-        cancelLabel="Abbrechen"
-        busy={purchasing}
-        onCancel={() => setConfirmPurchase(false)}
-        onConfirm={() => void purchase()}
-      >
-        <p>
-          „{selected ? itemName(selected) : ''}“ kommt in die Bibliothek. Die Preisabfragen und der Preisalarm enden
-          {selected?.in_cart ? ', der Eintrag im Warenkorb wird entfernt' : ''}. Zurück geht es über die Bibliothek.
-        </p>
-        {purchaseError && <Notice error>{purchaseError}</Notice>}
-      </ConfirmDialog>
+      <CatalogSearch open={addOpen} items={items} onClose={closeSearch} onAdded={added} />
+      <WishDialogs dialogs={wish.dialogs} />
     </>
   );
 
   // The game as its own page (breadcrumb "Wunschliste › Titel" through onTitle).
-  if (selected && viewed)
+  if (wish.open)
     return (
       <>
         <GameDetail
-          key={selected.id}
-          item={selected}
-          viewed={viewed}
-          preview={!!preview}
-          variants={variants}
-          editionItems={editionItems}
-          editionError={editionError}
-          badges={badges}
-          csrf={csrf}
+          key={wish.open.item.id}
+          wish={wish.open}
           targetCountry={targetCountry}
           targetLabel={targetLabel}
-          tab={tab}
-          purchasing={purchasing}
-          carting={carting}
-          onCart={() => void toggleCart()}
-          pausing={pausing}
-          onPause={until => void pauseWish(until)}
-          onCartOffer={(source, scope) => void cartOffer(source, scope)}
           offersColumns={offersColumns}
           offersHidden={offersHidden}
-          onTab={changeTab}
-          onPurchase={() => {
-            setPurchaseError('');
-            setConfirmPurchase(true);
-          }}
-          onRemove={() => {
-            setRemoveError('');
-            setRemoveItem(selected);
-          }}
-          onView={chooseEdition}
-          onClearPreview={() => setPreview(null)}
-          onBadge={updateBadge}
           onSettings={onSettings}
-          onError={onError}
           onRule={updateRule}
         />
         {dialogs}

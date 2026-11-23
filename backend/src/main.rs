@@ -1,8 +1,20 @@
 use anyhow::{Result, bail};
-use keyhunter::{config::Config, create_app, reset_owner};
+use keyhunter::{config::Config, container, create_app, reset_owner, setup_code_text};
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
+    // User checks and the privilege drop of the container start (SEC-05), before the runtime starts any thread.
+    if let Err(message) = container::prepare(&mut args) {
+        eprintln!("KeyHunter: {message}");
+        std::process::exit(1);
+    }
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?
+        .block_on(run(args))
+}
+
+async fn run(args: Vec<String>) -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -10,7 +22,6 @@ async fn main() -> Result<()> {
         )
         .init();
     let config = Config::from_env()?;
-    let args: Vec<String> = std::env::args().skip(1).collect();
     match args.as_slice() {
         [] => {}
         // Owner recovery for a forgotten passphrase (SEC-03), from a shell only: docs/operations.md.
@@ -26,6 +37,11 @@ async fn main() -> Result<()> {
                 reset.ended_sessions,
                 reset.setup_file.display()
             );
+            return Ok(());
+        }
+        // The setup code for `docker exec`, the image has no shell or cat (SEC-05).
+        [flag] if flag == "--setup-code" => {
+            println!("{}", setup_code_text(&config)?);
             return Ok(());
         }
         // Container healthcheck without curl in the image (SEC-05).
@@ -44,7 +60,7 @@ async fn main() -> Result<()> {
             return Ok(());
         }
         _ => bail!(
-            "Unknown arguments {args:?}. Usage: keyhunter [--reset-owner | --health | --canary <product-link>...]"
+            "Unknown arguments {args:?}. Usage: keyhunter [--init-unraid-data] [--reset-owner | --setup-code | --health | --canary <product-link>...]"
         ),
     }
     let bind = config.bind;

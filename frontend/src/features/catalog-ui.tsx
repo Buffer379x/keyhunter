@@ -7,7 +7,8 @@ export const platformName = (id: number) => platformNames[id] ?? 'Plattform unbe
 /** "Alle" in the add dialog: the search covers every system in PLATFORMS. */
 export const ALL_PLATFORMS = 0;
 export const itemName = (item: WishlistItem) => item.game?.name ?? item.manual_title ?? 'Unbekannter Titel';
-export const selectionAllowed = (game: CatalogGame) => ['base_game', 'edition', 'remake', 'remaster', 'port', 'standalone_expansion'].includes(game.kind);
+export const selectionAllowed = (game: CatalogGame) =>
+  ['base_game', 'edition', 'remake', 'remaster', 'port', 'standalone_expansion', 'bundle', 'expanded_game'].includes(game.kind);
 export function kindName(game: CatalogGame): string {
   return (
     (
@@ -20,7 +21,8 @@ export function kindName(game: CatalogGame): string {
         standalone_expansion: 'Eigenständige Erweiterung',
         dlc: 'DLC / Zusatzinhalt',
         mod: 'Modifikation',
-        bundle: 'Bündel · Inhalte ungeklärt',
+        bundle: 'Bündel',
+        expanded_game: 'Erweiterte Fassung',
       } as Record<string, string>
     )[game.kind] ?? 'Produkttyp ungeklärt'
   );

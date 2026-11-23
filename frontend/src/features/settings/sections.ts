@@ -11,18 +11,4 @@ export const sections: { id: Section; label: string; icon: IconName }[] = [
   { id: 'log', label: 'Log', icon: 'log' },
   { id: 'system', label: 'System', icon: 'shield' },
 ];
-const ids = sections.map(s => s.id);
-const isSection = (value: string | null): value is Section => ids.includes(value as Section);
-export const routeSection = (): Section => {
-  const value = new URL(location.href).searchParams.get('section');
-  return isSection(value) ? value : 'general';
-};
 export const sectionLabel = (id: Section) => sections.find(s => s.id === id)?.label ?? 'Allgemein';
-/** Open a settings tab from a page without access to the app navigation; App follows the URL through popstate. */
-export function openSection(id: Section) {
-  const url = new URL(location.href);
-  url.search = id === 'general' ? '?view=settings' : `?view=settings&section=${id}`;
-  url.hash = '';
-  history.pushState(null, '', url);
-  dispatchEvent(new PopStateEvent('popstate'));
-}

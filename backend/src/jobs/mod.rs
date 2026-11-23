@@ -169,9 +169,11 @@ pub(crate) const JOBS: &str = "shop_job j JOIN source_settings s ON s.id=j.sourc
 const PAUSED_AT: &str = "(SELECT fetch_paused_at FROM app_settings WHERE id=1)";
 const NOT_OWNED: &str = "COALESCE(t.state,'wished')!='owned'";
 /// A preview is fetched while an active wish that is not paused (0.9.0) watches it and it was viewed in the last 14 days.
+/// The watched previews are an uncorrelated list, built once per statement. As a correlated `EXISTS(…)` SQLite walked
+/// every active wish for each preview job, so 3000 previews among 30 000 jobs took a claim 0.6 s and the fetch status 5 s.
 fn watched_if_preview() -> String {
     format!(
-        "(COALESCE(t.state,'wished')!='preview' OR (COALESCE(t.viewed_at,0)>?2-{PREVIEW_VIEWED_WITHIN} AND EXISTS(SELECT 1 FROM edition_watch ew JOIN wishlist_item aw ON aw.id=ew.wish_id WHERE ew.track_id=t.id AND aw.state='wished' AND (aw.paused_at IS NULL OR (aw.paused_until IS NOT NULL AND aw.paused_until<=?2)))))"
+        "(COALESCE(t.state,'wished')!='preview' OR (COALESCE(t.viewed_at,0)>?2-{PREVIEW_VIEWED_WITHIN} AND t.id IN(SELECT ew.track_id FROM edition_watch ew JOIN wishlist_item aw ON aw.id=ew.wish_id WHERE aw.state='wished' AND (aw.paused_at IS NULL OR (aw.paused_until IS NOT NULL AND aw.paused_until<=?2)))))"
     )
 }
 /// Uncorrelated scalar subquery, so SQLite evaluates it once per statement. As `EXISTS(…)` SQLite 3.51 turned it

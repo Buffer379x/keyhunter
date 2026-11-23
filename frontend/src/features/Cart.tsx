@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { api, CART_CHANGED, HttpError } from '../api';
-import { notify } from '../notify';
+import { useCallback, useState } from 'react';
+import { api, CART_CHANGED, sessionEnded } from '../api';
+import { notifyError } from '../notify';
 import type { WishlistItem } from '../api';
 import {
   Button,
@@ -21,7 +21,7 @@ import {
   Seg,
   formatPrice,
 } from '../components';
-import { whenVisible } from '../poll';
+import { usePolled } from '../usePolled';
 import { itemName, platformName } from './catalog-ui';
 import { cartSums, entryShop } from './cart-model';
 import type { CartEntry, CartLine, CartScope } from './cart-model';
@@ -39,7 +39,6 @@ const riskText = (risk: NonNullable<CartLine['risk']>, code: string) =>
 const time = (ms: number) => new Date(ms).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 
 interface Props {
-  csrf: string;
   /** Target country code ("DE"), or "" without one. */
   targetCountry: string;
   onOpen: (item: WishlistItem) => void;
@@ -48,14 +47,13 @@ interface Props {
   onOpenWishlist: () => void;
   /** The number of entries for the navigation, after each read. */
   onCountChange: (count: number) => void;
-  onError: (error: unknown) => void;
 }
 
 /**
  * Warenkorb (0.8.0): wishes the owner plans to buy together, with the total without and with the estimated fees, split by
  * shop. Each wish is in it once; "Gekauft" or deleting the wish takes it out.
  */
-export default function Cart({ csrf, targetCountry, onOpen, onReview, onOpenWishlist, onCountChange, onError }: Props) {
+export default function Cart({ targetCountry, onOpen, onReview, onOpenWishlist, onCountChange }: Props) {
   const [entries, setEntries] = useState<CartEntry[] | null>(null);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
   const [loadError, setLoadError] = useState('');
@@ -63,53 +61,36 @@ export default function Cart({ csrf, targetCountry, onOpen, onReview, onOpenWish
   const [reload, setReload] = useState(0);
   const code = targetCountry.toUpperCase();
 
-  useEffect(() => {
-    const controller = new AbortController();
-    let cancel = () => {};
-    async function load() {
-      try {
-        // Games come into the cart only from the wishlist (0.9.0: no picker here any more).
-        const cart = await api<CartEntry[]>('/cart', 'GET', undefined, undefined, controller.signal);
-        if (controller.signal.aborted) return;
-        setEntries(cart);
-        onCountChange(cart.length);
-        setLoadedAt(Date.now());
-        setLoadError('');
-      } catch (e) {
-        if (controller.signal.aborted) return;
-        if (e instanceof HttpError && e.status === 401) {
-          onError(e);
-          return;
-        }
-        setLoadError(e instanceof Error ? e.message : 'Warenkorb konnte nicht geladen werden.');
-      }
-      cancel = whenVisible(() => void load(), REFRESH_MS);
-    }
-    void load();
-    return () => {
-      controller.abort();
-      cancel();
-    };
-  }, [reload, onCountChange, onError]);
-
-  const change = useCallback(
-    async (method: 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown) => {
-      setBusy(true);
-      try {
-        await api(path, method, body, csrf);
-        window.dispatchEvent(new Event(CART_CHANGED));
-        setReload(n => n + 1);
-        return true;
-      } catch (e) {
-        if (!(e instanceof HttpError && e.status === 401)) notify(e instanceof Error ? e.message : 'Warenkorb konnte nicht geändert werden.', 'error');
-        if (e instanceof HttpError && e.status === 401) onError(e);
-        return false;
-      } finally {
-        setBusy(false);
-      }
+  // Games come into the cart only from the wishlist (0.9.0: no picker here any more).
+  usePolled<CartEntry[]>('/cart', {
+    every: REFRESH_MS,
+    retry: REFRESH_MS,
+    restart: [reload],
+    onData: cart => {
+      setEntries(cart);
+      onCountChange(cart.length);
+      setLoadedAt(Date.now());
+      setLoadError('');
     },
-    [csrf, onError],
-  );
+    onError: e => {
+      if (!sessionEnded(e)) setLoadError(e instanceof Error ? e.message : 'Warenkorb konnte nicht geladen werden.');
+    },
+  });
+
+  const change = useCallback(async (method: 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown) => {
+    setBusy(true);
+    try {
+      await api(path, method, body);
+      window.dispatchEvent(new Event(CART_CHANGED));
+      setReload(n => n + 1);
+      return true;
+    } catch (e) {
+      notifyError(e);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }, []);
 
   const sums = entries ? cartSums(entries) : null;
   const homeLabel = `Preis ${code || 'Zielland'}`;

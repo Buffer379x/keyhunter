@@ -43,10 +43,19 @@ pub struct CatalogGame {
 }
 
 impl CatalogGame {
+    /// Products a wish can be saved for. A bundle without a parent game and an expanded game (1.1.1) are sold as one key
+    /// like a game, so they are saved and matched by their own title; neither stands in for the game it contains.
     pub fn selection_allowed(&self) -> bool {
         matches!(
             self.kind.as_str(),
-            "base_game" | "edition" | "remake" | "remaster" | "port" | "standalone_expansion"
+            "base_game"
+                | "edition"
+                | "remake"
+                | "remaster"
+                | "port"
+                | "standalone_expansion"
+                | "bundle"
+                | "expanded_game"
         )
     }
 }
@@ -489,9 +498,15 @@ fn normalize(raw: RawGame) -> Result<CatalogGame, CatalogError> {
         return Err(CatalogError::InvalidResponse);
     }
     let kind = match raw.game_type.as_ref().map(|g| g.kind.as_str()) {
-        Some("Main Game" | "Bundle") if raw.version_parent.is_some_and(|id| id > 0) => "edition",
+        Some("Main Game" | "Bundle" | "Expanded Game")
+            if raw.version_parent.is_some_and(|id| id > 0) =>
+        {
+            "edition"
+        }
         Some("Main Game") => "base_game",
         Some("Bundle") => "bundle",
+        // A fuller release of a game sold as a game of its own, e.g. "Death Stranding: Director's Cut" (1.1.1).
+        Some("Expanded Game") => "expanded_game",
         Some("DLC" | "Expansion" | "Pack / Addon" | "Update") => "dlc",
         Some("Remake") => "remake",
         Some("Remaster") => "remaster",
@@ -809,6 +824,8 @@ mod tests {
             ("Remaster", "remaster"),
             ("Remake", "remake"),
             ("Main Game", "base_game"),
+            ("Bundle", "bundle"),
+            ("Expanded Game", "expanded_game"),
         ] {
             let raw: RawGame = serde_json::from_value(
                 json!({"id":12,"name":"Example","game_type":{"type":source}}),
@@ -818,5 +835,11 @@ mod tests {
             assert_eq!(game.kind, kind);
             assert!(game.selection_allowed());
         }
+        // With a parent version it is an edition of that game, like a bundle.
+        let raw: RawGame = serde_json::from_value(
+            json!({"id":12,"name":"Example Director's Cut","game_type":{"type":"Expanded Game"},"version_parent":11}),
+        )
+        .unwrap();
+        assert_eq!(normalize(raw).unwrap().kind, "edition");
     }
 }

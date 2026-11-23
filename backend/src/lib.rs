@@ -4,6 +4,7 @@ pub mod canary;
 mod cart;
 pub mod catalog;
 pub mod config;
+pub mod container;
 mod edition_tracking;
 mod eventlog;
 mod extract;
@@ -229,6 +230,19 @@ fn bootstrap_path(config: &config::Config) -> PathBuf {
         .bootstrap_file
         .clone()
         .unwrap_or_else(|| config.data_dir.join("bootstrap-token"))
+}
+
+/// `keyhunter --setup-code`: the current setup code, read from its file.
+pub fn setup_code_text(config: &config::Config) -> Result<String> {
+    let path = bootstrap_path(config);
+    match fs::read_to_string(&path) {
+        Ok(code) => Ok(code.trim().to_string()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => bail!(
+            "No setup code in {}: KeyHunter has not started yet. For a forgotten passphrase see --reset-owner",
+            path.display()
+        ),
+        Err(error) => Err(error).with_context(|| format!("Cannot read {}", path.display())),
+    }
 }
 
 /// Digest of the setup code in `path`: an owner-only (0600) file with at least 32 characters.

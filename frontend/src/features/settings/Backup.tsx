@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { api, HttpError } from '../../api';
+import { api, sessionEnded } from '../../api';
 import type { WishlistItem } from '../../api';
-import { notify } from '../../notify';
+import { notify, notifyError } from '../../notify';
 import { Button, ConfirmDialog, Help, Icon, Notice } from '../../components';
 import { downloadJson, wishlistExport } from '../wishlist-export';
 import { IMPORT_MAX_BYTES, importInChunks, importSummary, parseWishlistFile } from '../wishlist-import';
@@ -10,11 +10,6 @@ import { PLATFORMS, platformName } from '../catalog-ui';
 import type { ImportReport, ImportStatus } from '../wishlist-import';
 import { appVersion } from '../../version';
 import { Facts, SettingsPanel } from './parts';
-
-type Props = {
-  csrf: string;
-  onError: (error: unknown) => void;
-};
 
 /** What the dialog shows: the file is being checked, the preview of the result, or why the file cannot be imported. */
 type Import = { items: unknown[]; report: ImportReport | null; error: string };
@@ -29,14 +24,14 @@ const rows: { status: ImportStatus; label: string }[] = [
 const SHOWN_PROBLEMS = 6;
 
 /** Sends the entries in parts; with `dryRun` the server only reports what would happen. */
-function importWishlist(items: unknown[], dryRun: boolean, csrf: string): Promise<ImportReport> {
+function importWishlist(items: unknown[], dryRun: boolean): Promise<ImportReport> {
   return importInChunks(items, PLATFORMS.map(platformName), chunk =>
-    api<ImportReport>('/wishlist/import', 'POST', { version: 1, items: chunk, dry_run: dryRun }, csrf),
+    api<ImportReport>('/wishlist/import', 'POST', { version: 1, items: chunk, dry_run: dryRun }),
   );
 }
 
 /** Einstellungen › System › Sichern & Wiederherstellen (PROD-01): export and import of the wishlist, and where the full backup lives. */
-export default function Backup({ csrf, onError }: Props) {
+export default function Backup() {
   const [exporting, setExporting] = useState(false);
   const [job, setJob] = useState<Import | null>(null);
   const [importing, setImporting] = useState(false);
@@ -48,7 +43,7 @@ export default function Backup({ csrf, onError }: Props) {
       const wishes = await api<WishlistItem[]>('/wishlist');
       downloadJson('keyhunter-wunschliste.json', wishlistExport(wishes));
     } catch (e) {
-      onError(e);
+      notifyError(e);
     } finally {
       setExporting(false);
     }
@@ -70,11 +65,10 @@ export default function Backup({ csrf, onError }: Props) {
     }
     setJob({ items: parsed.items, report: null, error: '' });
     try {
-      const report = await importWishlist(parsed.items, true, csrf);
+      const report = await importWishlist(parsed.items, true);
       setJob(current => current && { ...current, report });
     } catch (e) {
-      if (e instanceof HttpError && e.status === 401) onError(e);
-      else setJob(current => current && { ...current, error: e instanceof Error ? e.message : 'Die Datei konnte nicht geprüft werden.' });
+      if (!sessionEnded(e)) setJob(current => current && { ...current, error: e instanceof Error ? e.message : 'Die Datei konnte nicht geprüft werden.' });
     }
   }
 
@@ -82,12 +76,12 @@ export default function Backup({ csrf, onError }: Props) {
     if (!job) return;
     setImporting(true);
     try {
-      const report = await importWishlist(job.items, false, csrf);
+      const report = await importWishlist(job.items, false);
       setJob(null);
       notify(importSummary(report));
     } catch (e) {
-      if (e instanceof HttpError && e.status === 401) onError(e);
-      else setJob({ ...job, error: `${e instanceof Error ? e.message : 'Der Import ist fehlgeschlagen.'} Ein zweiter Import ergänzt, was fehlt.` });
+      if (!sessionEnded(e))
+        setJob({ ...job, error: `${e instanceof Error ? e.message : 'Der Import ist fehlgeschlagen.'} Ein zweiter Import ergänzt, was fehlt.` });
     } finally {
       setImporting(false);
     }

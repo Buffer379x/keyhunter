@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { api, HttpError } from '../api';
+import { api, HttpError, sessionEnded } from '../api';
 import type { CatalogGame, WishlistItem } from '../api';
+import { notifyError } from '../notify';
 import { Button, ConfirmDialog, Cover, Field, Icon, IconButton, Notice } from '../components';
 import { ALL_PLATFORMS, PLATFORMS, kindName, platformName, releaseYear, selectionAllowed } from './catalog-ui';
 
@@ -10,7 +11,6 @@ import { ALL_PLATFORMS, PLATFORMS, kindName, platformName, releaseYear, selectio
  * (default) or, in the library's dialog, straight into the library as owned (0.7.2).
  */
 interface Props {
-  csrf: string;
   open: boolean;
   inline?: boolean;
   target?: 'wishlist' | 'library';
@@ -18,9 +18,8 @@ interface Props {
   onOpen?: () => void;
   onClose: () => void;
   onAdded: (item: WishlistItem, created: boolean) => void;
-  onError: (error: unknown) => void;
 }
-export default function CatalogSearch({ csrf, open, inline = false, target = 'wishlist', items, onOpen, onClose, onAdded, onError }: Props) {
+export default function CatalogSearch({ open, inline = false, target = 'wishlist', items, onOpen, onClose, onAdded }: Props) {
   const library = target === 'library';
   const dialog = useRef<HTMLDialogElement>(null);
   const container = useRef<HTMLDivElement>(null);
@@ -55,12 +54,12 @@ export default function CatalogSearch({ csrf, open, inline = false, target = 'wi
   useEffect(() => {
     if (!inline || !open) return;
     const controller = new AbortController();
-    void api<WishlistItem[]>('/wishlist', 'GET', undefined, undefined, controller.signal)
+    void api<WishlistItem[]>('/wishlist', 'GET', undefined, controller.signal)
       .then(rows => {
         if (!controller.signal.aborted) setSavedItems(rows);
       })
       .catch(e => {
-        if (!controller.signal.aborted) onError(e);
+        if (!controller.signal.aborted) notifyError(e);
       });
     function outside(event: PointerEvent) {
       if (!busy && !ownedWarning && event.target instanceof Node && !container.current?.contains(event.target)) onClose();
@@ -70,7 +69,7 @@ export default function CatalogSearch({ csrf, open, inline = false, target = 'wi
       controller.abort();
       document.removeEventListener('pointerdown', outside);
     };
-  }, [inline, open, busy, ownedWarning, onClose, onError]);
+  }, [inline, open, busy, ownedWarning, onClose]);
   useEffect(() => {
     if (!open) return;
     const controller = new AbortController();
@@ -88,7 +87,6 @@ export default function CatalogSearch({ csrf, open, inline = false, target = 'wi
         `/catalog/search?q=${encodeURIComponent(text)}&platform=${platform}`,
         'GET',
         undefined,
-        undefined,
         controller.signal,
       )
         .then(data => {
@@ -100,8 +98,7 @@ export default function CatalogSearch({ csrf, open, inline = false, target = 'wi
         })
         .catch(e => {
           if (controller.signal.aborted) return;
-          if (e instanceof HttpError && e.status === 401) {
-            onError(e);
+          if (sessionEnded(e)) {
             onClose();
             return;
           }
@@ -113,7 +110,7 @@ export default function CatalogSearch({ csrf, open, inline = false, target = 'wi
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query, platform, open, onError, onClose]);
+  }, [query, platform, open, onClose]);
 
   /** The system a pick is for: the hit's own one, or for a title without catalog hit the filter (Series X|S under "Alle"). */
   async function add(game: CatalogGame | null, confirmed = false, system = platform === ALL_PLATFORMS ? manualSystem : platform) {
@@ -134,7 +131,6 @@ export default function CatalogSearch({ csrf, open, inline = false, target = 'wi
         library ? '/library' : '/wishlist',
         'POST',
         library ? { ...pick, confirm_wished: confirmed } : { ...pick, confirm_owned: confirmed },
-        csrf,
       );
       setOwnedWarning(null);
       setWishedWarning(null);
@@ -144,10 +140,8 @@ export default function CatalogSearch({ csrf, open, inline = false, target = 'wi
     } catch (e) {
       if (e instanceof HttpError && e.code === 'owned_game') setOwnedWarning({ game, message: e.message });
       else if (e instanceof HttpError && e.code === 'wished_game') setWishedWarning({ game, message: e.message });
-      else if (e instanceof HttpError && e.status === 401) {
-        onError(e);
-        onClose();
-      } else setAddError(e instanceof Error ? e.message : 'Speichern fehlgeschlagen.');
+      else if (sessionEnded(e)) onClose();
+      else setAddError(e instanceof Error ? e.message : 'Speichern fehlgeschlagen.');
     } finally {
       setBusy(false);
     }
@@ -277,6 +271,7 @@ export default function CatalogSearch({ csrf, open, inline = false, target = 'wi
                   </p>
                   <span className={`kind-badge ${selectionAllowed(game) ? '' : 'unverified'}`}>{kindName(game)}</span>
                   {game.kind === 'edition' && !library && <p className="edition-note">Edition separat erfasst · Händlerinhalt noch ungeprüft</p>}
+                  {game.kind === 'bundle' && !library && <p className="edition-note">Bündel als ein Key · Inhalt beim Shop prüfen</p>}
                   {!selectionAllowed(game) && <p className="edition-note">Kein belegtes eigenständiges Spiel bzw. keine zuordenbare Edition.</p>}
                 </div>
                 <Button

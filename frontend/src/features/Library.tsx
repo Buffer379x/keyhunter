@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { api, CART_CHANGED } from '../api';
 import type { LibraryItem, WishlistItem } from '../api';
 import { Button, ConfirmDialog, Cover, EmptyState, Field, Icon, IconButton, Inset, Notice, PageHeading, Panel, PanelHead, Seg } from '../components';
 import { itemName, platformName } from './catalog-ui';
 import CatalogSearch from './CatalogSearch';
 import { libraryItems } from './library-sort';
-import { notify } from '../notify';
+import { notify, notifyError } from '../notify';
+import { usePolled } from '../usePolled';
 
 type Order = 'added' | 'name';
 type View = 'tiles' | 'rows';
@@ -35,17 +36,15 @@ const fold = (text: string) =>
     .toLocaleLowerCase('de');
 
 interface Props {
-  csrf: string;
   /** The add dialog of the library (top bar "Spiel hinzufügen" on this page): picks go straight in as owned. */
   addOpen: boolean;
   onAddOpen: (open: boolean) => void;
   onRestored: (item: WishlistItem) => void;
   onOpenWishlist: () => void;
   onCountChange: (count: number) => void;
-  onError: (error: unknown) => void;
 }
 
-export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWishlist, onCountChange, onError }: Props) {
+export default function Library({ addOpen, onAddOpen, onRestored, onOpenWishlist, onCountChange }: Props) {
   const [items, setItems] = useState<LibraryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -94,28 +93,24 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
     notify(created ? `${itemName(entry)} ist jetzt in der Bibliothek.` : `${itemName(entry)} ist bereits in der Bibliothek.`);
   }
 
-  useEffect(() => {
-    const controller = new AbortController();
+  usePolled<LibraryItem[]>('/library', {
+    restart: [reload],
+    onData: rows => {
+      setItems(rows);
+      onCountChange(rows.length);
+      setLoading(false);
+    },
+    onError: e => {
+      setLoadError(e instanceof Error ? e.message : 'Bibliothek konnte nicht geladen werden.');
+      notifyError(e);
+      setLoading(false);
+    },
+  });
+  const retry = () => {
     setLoading(true);
     setLoadError('');
-    api<LibraryItem[]>('/library', 'GET', undefined, undefined, controller.signal)
-      .then(rows => {
-        if (!controller.signal.aborted) {
-          setItems(rows);
-          onCountChange(rows.length);
-        }
-      })
-      .catch(e => {
-        if (!controller.signal.aborted) {
-          setLoadError(e instanceof Error ? e.message : 'Bibliothek konnte nicht geladen werden.');
-          onError(e);
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [onError, onCountChange, reload]);
+    setReload(n => n + 1);
+  };
 
   const ask = useCallback((kind: 'restore' | 'remove', item: LibraryItem) => {
     setError('');
@@ -128,11 +123,11 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
     setError('');
     try {
       if (kind === 'restore') {
-        await api(`/library/${item.id}/restore`, 'POST', { confirm: true }, csrf);
+        await api(`/library/${item.id}/restore`, 'POST', { confirm: true });
         setAction(null);
         onRestored(item);
       } else {
-        await api(`/wishlist/${encodeURIComponent(item.id)}`, 'DELETE', undefined, csrf);
+        await api(`/wishlist/${encodeURIComponent(item.id)}`, 'DELETE');
         const rows = items.filter(row => row.id !== item.id);
         setItems(rows);
         onCountChange(rows.length);
@@ -140,7 +135,7 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : kind === 'restore' ? 'Verschieben fehlgeschlagen.' : 'Entfernen fehlgeschlagen.');
-      onError(e);
+      notifyError(e);
     } finally {
       setBusy(false);
     }
@@ -170,7 +165,7 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
       {loadError && (
         <Notice error>
           {loadError}
-          <Button size="sm" onClick={() => setReload(n => n + 1)}>
+          <Button size="sm" onClick={retry}>
             Erneut laden
           </Button>
         </Notice>
@@ -294,7 +289,7 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
           </Panel>
         )
       )}
-      <CatalogSearch target="library" open={addOpen} csrf={csrf} items={items} onClose={closeAdd} onAdded={added} onError={onError} />
+      <CatalogSearch target="library" open={addOpen} items={items} onClose={closeAdd} onAdded={added} />
       <ConfirmDialog
         open={action !== null}
         busy={busy}

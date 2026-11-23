@@ -36,7 +36,7 @@ function load() {
   controller?.abort();
   const current = new AbortController();
   controller = current;
-  api<FetchStatusResponse>('/status/fetch', 'GET', undefined, undefined, current.signal)
+  api<FetchStatusResponse>('/status/fetch', 'GET', undefined, current.signal)
     .then(data => {
       if (!current.signal.aborted) publish({ data, failed: false, loadedAt: Date.now() });
     })

@@ -97,7 +97,9 @@ pub(crate) async fn load_game(state: &Shared, id: i64) -> ApiResult<CatalogGame>
     .bind(now() - crate::DAY)
     .fetch_optional(&state.pool)
     .await?
-        && let Ok(game) = serde_json::from_str(&payload)
+        && let Ok(game) = serde_json::from_str::<CatalogGame>(&payload)
+        // A product type unknown when it was cached may be known now (1.1.1): ask the catalog again.
+        && game.kind != "unknown"
     {
         return Ok(game);
     }
@@ -177,7 +179,7 @@ pub(crate) async fn search(
             .iter()
             .filter_map(|payload| serde_json::from_str(payload).ok())
             .collect();
-        if games.len() == ids.len() {
+        if games.len() == ids.len() && games.iter().all(|game| game.kind != "unknown") {
             return Ok(Json(
                 json!({"games":games,"cached":true,"fetched_at":row.get::<i64,_>("fetched_at")}),
             ));

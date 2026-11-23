@@ -1,5 +1,22 @@
 # Änderungen
 
+## 1.1.1 – 2026-11-23
+
+Bündel und erweiterte Fassungen lassen sich vormerken, ein halb so großes Image ohne Shell mit deutlich weniger bekannten Schwachstellen, und große Wunschlisten mit vielen Editionsvorschauen werden wieder schnell. Keine Migration und keine Änderung an der Unraid-Vorlage, beim Update ist nichts zu tun.
+
+### Geändert
+- **Bündel lassen sich vormerken.** Produkte, die IGDB als Bündel ohne Hauptspiel führt (etwa „Final Fantasy VII Remake Intergrade“), waren als „Bündel · Inhalte ungeklärt“ gesperrt. Sie werden jetzt wie ein Spiel unter ihrem eigenen Titel vorgemerkt und zugeordnet. Angebote für die enthaltenen Spiele landen nicht beim Bündel und umgekehrt.
+- **Erweiterte Fassungen lassen sich vormerken.** Spiele, die IGDB als „Expanded Game“ führt (etwa „Death Stranding: Director's Cut“), erschienen als „Produkttyp ungeklärt“. Sie heißen jetzt „Erweiterte Fassung“ und werden ebenfalls unter ihrem eigenen Titel vorgemerkt. DLCs und Mods bleiben ausgeschlossen.
+- **Schlankeres, sichereres Image:** Der Container baut jetzt auf einem Distroless-Image (Debian 13) auf. Es enthält nur KeyHunter, die Weboberfläche, die Systembibliothek und die Zertifikate, keine Shell und keine Paketverwaltung. Den Start unter Unraid (Rechte am Datenordner, Wechsel auf den Benutzer 10001 ohne Sonderrechte) erledigt KeyHunter selbst. Das Image ist mit 73 statt 157 MB (19 statt 40 MB beim Download) halb so groß. Der Sicherheitsscanner Trivy findet statt 262 nur noch 55 bekannte Schwachstellen, davon 2 statt 39 hohe und keine kritische mehr.
+- **Einrichtungscode per Befehl:** Weil das Image kein `cat` mehr hat, zeigt jetzt `docker exec KeyHunter /app/keyhunter --setup-code` den Einrichtungscode; die Hilfe auf der Einrichtungsseite nennt diesen Befehl. Befehle mit `sh` im Container funktionieren nicht mehr. Dateien im Datenordner liest du auf dem Host (Unraid: `/mnt/user/appdata/keyhunter`).
+- **Abgelaufene Sitzung:** Läuft die Anmeldung ab, erscheint die Anmeldeseite jetzt sofort, nicht erst bei der nächsten Aktion.
+
+### Behoben
+- **Langsamer Abruf bei vielen Editionsvorschauen:** Bei großen Wunschlisten mit vielen beobachteten Editionen brauchte die Auswahl des nächsten Abrufs bis zu 1,6 Sekunden, der Abrufstatus etwa 5 Sekunden und die Preis-Badges der Wunschliste mehrere Zehntelsekunden. Jetzt sind es wenige Millisekunden bzw. etwa 0,1 Sekunden, unabhängig von der Zahl der Vorschauen. Welche Abrufe in welcher Reihenfolge laufen, ändert sich nicht.
+
+### Intern
+- **Aufgeräumter Oberflächen-Code:** Sitzung, CSRF-Token und Abmeldung nach einem 401 liegen an einer Stelle, ebenso die Adresse (Seite, Spiel, Tab) und das regelmäßige Nachladen. Die Spielseite hat ihren eigenen Zustand statt 29 durchgereichter Werte. Neue Tests halten Anfragen und Takt, Zurück-Taste und Fokus sowie die Anmeldung nach abgelaufener Sitzung fest.
+
 ## 1.1.0 – 2026-11-23
 
 Ein besseres Prüftempo, das jede Region gleich behandelt, eine gerechtere Verteilung bei knappem Budget, ein direkter Weg vom Warndreieck zu den Zuordnungen und eine einheitliche Schrift. Keine Migration, beim Update ist nichts zu tun.

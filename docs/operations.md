@@ -6,13 +6,23 @@
 2. Das Feld **Repository** enthält `ghcr.io/buffer379x/keyhunter:latest`. Unraid lädt das Image beim Anwenden aus dem [GitHub-Package](https://github.com/users/Buffer379x/packages/container/package/keyhunter).
 3. Wähle ein eigenes lokales Appdata-Verzeichnis für `/data`. Das aktuelle Unraid-Template bereitet diesen Ordner beim Start vor. Nutze für SQLite ein lokales Dateisystem. Benachrichtigungen richtest du in der App ein (siehe [notifications.md](notifications.md)); eine ältere ntfy-Datei kannst du weiter als `/config` schreibgeschützt einbinden.
 4. Öffne die WebUI in Unraid. Bei eigener LAN-IP erreichst du sie direkt unter `http://<Container-IP>:3000`. Im Bridge-Modus verwendest du die IP des Unraid-Hosts und den veröffentlichten Port.
-5. Verwende den Code aus der Datei `bootstrap-token` im gemounteten Datenverzeichnis, um deinen Eigentümerzugang einzurichten.
+5. Verwende den Code aus der Datei `bootstrap-token` im gemounteten Datenverzeichnis, um deinen Eigentümerzugang einzurichten. Im Unraid-Terminal zeigt ihn auch `docker exec KeyHunter /app/keyhunter --setup-code`.
 
 ### Rechte am Datenordner
 
-Das Unraid-Template ab 0.2.3 richtet nach dem Start die Rechte am eingebundenen `/data` und den bekannten Datenbank- und Zugangsdateien ein. Danach läuft der Webdienst als UID/GID `10001:10001` ohne Linux-Capabilities. Andere Dateien und der optionale `/config`-Mount behalten ihre Rechte. Für einen vorhandenen Unraid-Container muss das aktualisierte Template einmal angewendet werden. Ein reines Image-Update behält die bisherigen Startparameter. Verwende dabei dasselbe Datenvolume.
+Das Unraid-Template ab 0.2.3 richtet nach dem Start die Rechte am eingebundenen `/data` und den bekannten Datenbank- und Zugangsdateien ein (`--init-unraid-data`). Danach läuft der Webdienst als UID/GID `10001:10001` ohne Linux-Capabilities. Seit 1.1.1 erledigt das das Binary selbst; das Image enthält keine Shell mehr. Der Start bricht ab, wenn `/data` kein eigener Mount ist oder eine der Dateien ein Symlink bzw. ein Hardlink ist. Andere Dateien und der optionale `/config`-Mount behalten ihre Rechte. Für einen vorhandenen Unraid-Container muss das aktualisierte Template einmal angewendet werden. Ein reines Image-Update behält die bisherigen Startparameter. Verwende dabei dasselbe Datenvolume.
 
-Bei Compose oder einem eigenen `docker run` läuft das Image standardmäßig direkt als Nicht-Root-Benutzer. Stelle für manuelle Bind-Mounts sicher, dass der konfigurierte Benutzer schreiben kann. Alternativ initialisiert Docker ein benanntes Volume mit dem passenden Eigentümer.
+Bei Compose oder einem eigenen `docker run` läuft das Image standardmäßig direkt als Nicht-Root-Benutzer. Stelle für manuelle Bind-Mounts sicher, dass der konfigurierte Benutzer schreiben kann. Alternativ initialisiert Docker ein benanntes Volume mit dem passenden Eigentümer. Als root startet der Webdienst nur mit `--init-unraid-data`, sonst bricht er mit „refusing to run the web app as root“ ab.
+
+### Befehle im Container
+
+Das Image ist distroless: Es enthält nur das Binary, die Webassets, glibc und die CA-Zertifikate, keine Shell, kein `cat` und keine Paketverwaltung. `docker exec KeyHunter sh` funktioniert deshalb nicht. Dateien im Datenordner liest du auf dem Host (Unraid: `/mnt/user/appdata/keyhunter`). Das Binary kennt diese Befehle:
+
+| Befehl | Zweck |
+|---|---|
+| `/app/keyhunter --setup-code` | gibt den Einrichtungscode aus `bootstrap-token` aus |
+| `/app/keyhunter --reset-owner` | setzt den Eigentümerzugang zurück (unten) |
+| `/app/keyhunter --health` | Healthcheck des Containers, Exit-Code 0 nur bei Bereitschaft |
 
 ### Webadresse und HTTPS
 
@@ -30,7 +40,7 @@ Unter **Einstellungen → System** änderst du die Passphrase: aktuelle Passphra
 
 ### Passphrase vergessen
 
-Ohne Passphrase setzt du den Eigentümerzugang über die Kommandozeile zurück. Das geht nur mit Zugriff auf den Docker-Host bzw. das Datenvolume, nie über die Weboberfläche oder die API. `keyhunter --reset-owner` entfernt den Eigentümer und beendet alle Sitzungen, schreibt einen neuen Einrichtungscode in `bootstrap-token` im Datenverzeichnis (bzw. in die Datei aus `KEYHUNTER_BOOTSTRAP_FILE`) und vermerkt das im Log. Wunschliste, Bibliothek, Preise, Zuordnungen, Alarme und Einstellungen bleiben erhalten. Danach öffnest du KeyHunter und richtest den Zugang mit dem neuen Code und einer neuen Passphrase wieder ein; ein Neustart ist nicht nötig, der alte Code gilt nicht mehr.
+Ohne Passphrase setzt du den Eigentümerzugang über die Kommandozeile zurück. Das geht nur mit Zugriff auf den Docker-Host bzw. das Datenvolume, nie über die Weboberfläche oder die API. `keyhunter --reset-owner` entfernt den Eigentümer und beendet alle Sitzungen, schreibt einen neuen Einrichtungscode in `bootstrap-token` im Datenverzeichnis (bzw. in die Datei aus `KEYHUNTER_BOOTSTRAP_FILE`) und vermerkt das im Log. Wunschliste, Bibliothek, Preise, Zuordnungen, Alarme und Einstellungen bleiben erhalten. Danach öffnest du KeyHunter und richtest den Zugang mit dem neuen Code und einer neuen Passphrase wieder ein; ein Neustart ist nicht nötig, der alte Code gilt nicht mehr. Den neuen Code zeigt `docker exec KeyHunter /app/keyhunter --setup-code` (Compose: `docker compose exec keyhunter /app/keyhunter --setup-code`).
 
 Der Befehl muss als Eigentümer des Datenordners laufen, wie der Dienst selbst, sonst bricht er ohne Änderung ab:
 

@@ -1547,7 +1547,17 @@ async fn perf01_claim_and_status_stay_fast_at_500_wishes() {
     );
     // Every scheduler statement evaluates the active-wish check once, as an uncorrelated scalar subquery,
     // never as an EXISTS join per job row (the plan SQLite 3.51 chose for `EXISTS(…)`).
-    let statements = [
+    for sql in scheduler_statements() {
+        assert_evaluated_once(&pool, &sql, "any_wish").await;
+    }
+    // Generous bounds for a debug build; the release build needs a fraction (K22: claim < 5 ms, status < 50 ms).
+    assert!(claim_us < 100_000, "claim took {claim_us} µs");
+    assert!(status_us < 400_000, "status queries took {status_us} µs");
+}
+
+/// The statements of the worker and the status page that filter jobs with [`queued`].
+fn scheduler_statements() -> [String; 6] {
+    [
         format!("SELECT EXISTS(SELECT 1 {})", claimable()),
         claim_sql(),
         upcoming_sql(),
@@ -1564,32 +1574,93 @@ async fn perf01_claim_and_status_stay_fast_at_500_wishes() {
             "SELECT COUNT(*) FROM shop_job j LEFT JOIN offer_link l ON l.id=j.link_id {ITEM} WHERE {}",
             queued()
         ),
-    ];
-    for sql in statements {
-        let plan: Vec<(i64, i64, i64, String)> =
-            sqlx::query_as(AssertSqlSafe(format!("EXPLAIN QUERY PLAN {sql}")))
-                .fetch_all(&pool)
+    ]
+}
+
+/// Asserts that SQLite evaluates every access to table `alias` in `sql` once per statement: inside an uncorrelated
+/// subquery, never per job row.
+async fn assert_evaluated_once(pool: &SqlitePool, sql: &str, alias: &str) {
+    let plan: Vec<(i64, i64, i64, String)> =
+        sqlx::query_as(AssertSqlSafe(format!("EXPLAIN QUERY PLAN {sql}")))
+            .fetch_all(pool)
+            .await
+            .unwrap();
+    let parent = |id: i64| plan.iter().find(|row| row.0 == id);
+    let checks: Vec<_> = plan
+        .iter()
+        .filter(|row| row.3.split_whitespace().nth(1) == Some(alias))
+        .collect();
+    assert!(!checks.is_empty(), "no {alias} in {plan:?}");
+    for row in checks {
+        let mut up = parent(row.1);
+        while let Some(node) = up.filter(|node| !node.3.contains("SUBQUERY")) {
+            up = parent(node.1);
+        }
+        assert!(
+            up.is_some_and(|node| !node.3.starts_with("CORRELATED")) && !row.3.contains("EXISTS"),
+            "{alias} evaluated per row: {plan:#?}"
+        );
+    }
+}
+
+/// Edition previews among many jobs: the check "an active wish watches this preview" is one list per statement. As a
+/// correlated `EXISTS(…)` SQLite walked every active wish for each preview job; in 1.1.0 a claim with 3000 previews
+/// among 30 000 jobs took 0.6 s (9000 due) to 1.6 s (all due) and the fetch status 5 s.
+#[tokio::test]
+async fn preview_watch_check_runs_once_per_statement() {
+    const T0: i64 = 1_800_000_000 - 1_800_000_000 % DAY + 12 * 3600;
+    let pool = large_queue(T0).await;
+    // Every tenth wish becomes a preview, recently viewed and watched by the wish before it: 50 previews, 250 jobs.
+    sqlx::raw_sql(AssertSqlSafe(format!(
+        "UPDATE wishlist_item SET state='preview',viewed_at={T0} WHERE CAST(substr(id,2) AS INTEGER)%10=9;
+        INSERT INTO edition_watch(wish_id,track_id)
+            SELECT 'w'||(CAST(substr(id,2) AS INTEGER)-1),id FROM wishlist_item WHERE state='preview'"
+    )))
+    .execute(&pool)
+    .await
+    .unwrap();
+    for sql in scheduler_statements() {
+        assert_evaluated_once(&pool, &sql, "ew").await;
+    }
+    // The price badges of the wishlist use the same check.
+    assert_evaluated_once(&pool, crate::price_badges::BADGE_IDS, "e").await;
+    // The previews stay queued: watched by an active wish and viewed recently.
+    let previews: i64 = sqlx::query_scalar(AssertSqlSafe(format!(
+        "SELECT COUNT(*) FROM {JOBS} WHERE t.state='preview' AND {}",
+        queued()
+    )))
+    .bind(T0)
+    .bind(T0)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(previews, 250);
+    let claim_us = median_us(11, || {
+        let pool = pool.clone();
+        async move {
+            assert!(claim(&pool, Shop::Eneba, "perf", T0, 2000).await.unwrap().is_some());
+            sqlx::raw_sql("UPDATE shop_job SET lease_until=0,lease_token=NULL; UPDATE shop_state SET paced_until=0,jobs_today=0")
+                .execute(&pool)
                 .await
                 .unwrap();
-        let parent = |id: i64| plan.iter().find(|row| row.0 == id);
-        let checks: Vec<_> = plan
-            .iter()
-            .filter(|row| row.3.contains("any_wish"))
-            .collect();
-        assert!(!checks.is_empty(), "no active-wish check in {plan:?}");
-        for row in checks {
-            let mut up = parent(row.1);
-            while let Some(node) = up.filter(|node| !node.3.contains("SCALAR SUBQUERY")) {
-                up = parent(node.1);
-            }
-            assert!(
-                up.is_some_and(|node| !node.3.starts_with("CORRELATED"))
-                    && !row.3.contains("EXISTS"),
-                "active-wish check evaluated per row: {plan:#?}"
-            );
         }
-    }
-    // Generous bounds for a debug build; the release build needs a fraction (K22: claim < 5 ms, status < 50 ms).
+    })
+    .await;
+    let status_us = median_us(5, || {
+        let pool = pool.clone();
+        async move {
+            for shop in Shop::ALL {
+                backlog(&pool, shop, T0).await.unwrap();
+                budget_status(&pool, shop, T0).await.unwrap();
+            }
+            upcoming(&pool, T0, false).await.unwrap();
+        }
+    })
+    .await;
+    println!(
+        "Previews at 500 wishes: claim median {claim_us} µs, status queries median {status_us} µs"
+    );
+    // Same bounds as PERF-01 (debug build).
     assert!(claim_us < 100_000, "claim took {claim_us} µs");
     assert!(status_us < 400_000, "status queries took {status_us} µs");
 }

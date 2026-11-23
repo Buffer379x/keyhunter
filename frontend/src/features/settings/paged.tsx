@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { api } from '../../api';
 import type { Paged } from '../../api';
 import { Field, PanelHead, Seg } from '../../components';
 import { PageSize, pageCount, useListView } from '../list-view';
 export { Pager } from '../list-view';
-import { whenVisible } from '../../poll';
+import { usePolled } from '../../usePolled';
 
 const REFRESH_MS = 30_000;
 
@@ -19,7 +18,6 @@ export function usePaged<T extends Paged, F extends string>(path: string, filter
   const view = useListView(key, filters, fallback);
   const { filter, text, page, setPage, perPage } = view;
   const [query, setQuery] = useState(() => text.trim());
-  const [data, setData] = useState<T | null>(null);
   const [failed, setFailed] = useState(false);
   // Only a changed search goes back to page 1 (not the first render: that reset a page chosen in the first 250 ms).
   useEffect(() => {
@@ -31,35 +29,20 @@ export function usePaged<T extends Paged, F extends string>(path: string, filter
     }, 250);
     return () => window.clearTimeout(timer);
   }, [text, query, setPage]);
-  useEffect(() => {
-    const controller = new AbortController();
-    let cancel = () => {};
-    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
-    if (filter) params.set(filterName, filter);
-    if (query) params.set('q', query);
-    const load = () => {
-      api<T>(`${path}?${params}`, 'GET', undefined, undefined, controller.signal)
-        .then(next => {
-          if (controller.signal.aborted) return;
-          setData(next);
-          setFailed(false);
-          // The list shrank below the open page (7 days passed, a filter): show the last page instead.
-          const last = pageCount(next.total, next.per_page);
-          if (page > last) setPage(last);
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) setFailed(true);
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) cancel = whenVisible(load, REFRESH_MS);
-        });
-    };
-    load();
-    return () => {
-      controller.abort();
-      cancel();
-    };
-  }, [path, filterName, filter, query, page, perPage, setPage]);
+  const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+  if (filter) params.set(filterName, filter);
+  if (query) params.set('q', query);
+  const data = usePolled<T>(`${path}?${params}`, {
+    every: REFRESH_MS,
+    retry: REFRESH_MS,
+    onData: next => {
+      setFailed(false);
+      // The list shrank below the open page (7 days passed, a filter): show the last page instead.
+      const last = pageCount(next.total, next.per_page);
+      if (page > last) setPage(last);
+    },
+    onError: () => setFailed(true),
+  });
   return { ...view, data, failed };
 }
 
