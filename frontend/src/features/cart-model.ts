@@ -16,9 +16,9 @@ export interface CartOffer {
   observed_at: number;
   stale: boolean;
   /** Can be bought for the target country (0.9.3, RESP-14): always for `home`, not always for a `world` offer. */
-  fits_target?: boolean;
+  fits_target: boolean;
   /** Activation of the offer in the target country. */
-  activation?: 'confirmed' | 'blocked' | 'unknown';
+  activation: 'confirmed' | 'blocked' | 'unknown';
 }
 export interface ShopOffers {
   home: CartOffer | null;
@@ -115,8 +115,7 @@ export function cartLine(item: CartEntry): CartLine {
   const source = entryShop(item);
   const offer = automatic(item) ? (variant?.offer ?? null) : source ? (offers[source]?.[item.scope] ?? null) : null;
   if (!offer || offer.cents <= 0) return { item, source, region: null, base: null, fee: null, stale: false, risk: null, cheapest };
-  // Older payloads without the flag count as fitting.
-  const risk = offer.fits_target === false ? (offer.activation ?? 'unknown') : null;
+  const risk = offer.fits_target ? null : offer.activation;
   return { item, source, region: offer.region, base: offer.cents, fee: fee(offer), stale: offer.stale, risk, cheapest };
 }
 

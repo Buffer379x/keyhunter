@@ -72,7 +72,7 @@ function ShopStatus({ shop, now, paused }: { shop: FetchShopStatus; now: number;
             <span>
               {budget.used} von {budget.limit} Abrufen{budget.pace && !paused ? ` · gleichmäßig verteilt, etwa ${paceText(budget.pace)}` : ' heute'}
             </span>
-            {budget.demand !== null && <span>Bedarf ≈ {budget.demand} pro Tag</span>}
+            <span>Bedarf ≈ {budget.demand} pro Tag</span>
           </div>
           <span
             className="bar"
@@ -97,7 +97,7 @@ function ShopStatus({ shop, now, paused }: { shop: FetchShopStatus; now: number;
 /** Warning above the shops when the wishlist needs more fetches than a shop may make per day. */
 function DemandNote({ shop, interval, onShops }: { shop: FetchShopStatus; interval?: number; onShops: () => void }) {
   const budget = budgetView(shop.budget);
-  if (!shop.enabled || !budget.over || budget.needed === null) return null;
+  if (!shop.enabled || !budget.over) return null;
   const name = shopTitle(shop.source);
   const tooMany = budget.needed > DAILY_JOBS_MAX;
   return (
@@ -121,7 +121,7 @@ function DemandNote({ shop, interval, onShops }: { shop: FetchShopStatus; interv
           <>
             {' '}
             Alternativ das Intervall von {intervalLabel(interval)} auf die empfohlenen 8 Stunden verlängern; das senkt den Bedarf auf grob{' '}
-            {Math.max(1, Math.round((Number(budget.demand) * interval) / RECOMMENDED_INTERVAL))} pro Tag.
+            {Math.max(1, Math.round((budget.demand * interval) / RECOMMENDED_INTERVAL))} pro Tag.
           </>
         )}
         {budget.fromEnv && ' Das Limit kommt derzeit aus einer Umgebungsvariable.'}{' '}

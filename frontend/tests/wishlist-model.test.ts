@@ -14,7 +14,7 @@ import {
   sparkHeights,
 } from '../src/features/wishlist-model.ts';
 import type { Row, TargetRule } from '../src/features/wishlist-model.ts';
-import type { FetchShopStatus, PriceBadgeData, WishlistItem } from '../src/api.ts';
+import type { FetchBudget, FetchShopStatus, PriceBadgeData, WishlistItem } from '../src/api.ts';
 
 const item = (id: string, created_at = 1000, title = id): WishlistItem => ({
   id,
@@ -26,6 +26,16 @@ const item = (id: string, created_at = 1000, title = id): WishlistItem => ({
   manual_title: title,
   in_cart: false,
 });
+const budget = (patch: Partial<FetchBudget> = {}): FetchBudget => ({
+  used: 0,
+  limit: 100,
+  limit_source: 'default',
+  demand_per_day: 0,
+  pace_seconds: 0,
+  next_at: null,
+  by_hour: Array.from({ length: 24 }, () => 0),
+  ...patch,
+});
 const badge = (cents: number | null, world: number | null = null, extra: Partial<PriceBadgeData> = {}): PriceBadgeData => ({
   state: cents === null ? 'unknown' : 'price',
   cents,
@@ -33,7 +43,7 @@ const badge = (cents: number | null, world: number | null = null, extra: Partial
   checked_at: 1,
   stale: false,
   pending: false,
-  world: world === null ? null : { cents: world, region: 'IN', observed_at: 1 },
+  world: world === null ? null : { cents: world, region: 'IN', observed_at: 1, fits_target: true, activation: 'confirmed' },
   trend: [],
   ...extra,
 });
@@ -53,7 +63,7 @@ test('row facts: saving only when the cheapest region is really cheaper', () => 
   assert.equal(cheaper.reached, true);
   assert.equal(rowFacts(badge(1875, 1875), undefined).saving, null, 'same price is no saving');
   assert.equal(rowFacts(badge(null, 990), undefined).saving, null, 'no target price, no saving');
-  assert.deepEqual(rowFacts(badge(null, 990), undefined).world, { cents: 990, other: null, region: 'IN', source: null, activation: null });
+  assert.deepEqual(rowFacts(badge(null, 990), undefined).world, { cents: 990, other: null, region: 'IN', source: null, activation: 'confirmed' });
 });
 test('FUNC-03: no saving against a price that is only the last known one', () => {
   assert.equal(rowFacts(badge(2890, 1290), undefined).saving, 1600);
@@ -78,7 +88,7 @@ test('row facts: "Mit Gebühren" shows the estimated totals, compares estimate r
   const fees = badge(1000, 800, {
     source: 'driffle',
     estimate_cents: null,
-    world: { cents: 800, base_cents: 800, estimate_cents: 880, source: 'eneba', region: 'IN', observed_at: 1 },
+    world: { cents: 800, base_cents: 800, estimate_cents: 880, source: 'eneba', region: 'IN', observed_at: 1, fits_target: true, activation: 'confirmed' },
     with_fees: {
       cents: 1090,
       base_cents: 1000,
@@ -86,7 +96,7 @@ test('row facts: "Mit Gebühren" shows the estimated totals, compares estimate r
       stale: true,
       source: 'eneba',
       region: 'Global',
-      world: { cents: 880, base_cents: 800, estimate_cents: 880, source: 'eneba', region: 'IN', observed_at: 1 },
+      world: { cents: 880, base_cents: 800, estimate_cents: 880, source: 'eneba', region: 'IN', observed_at: 1, fits_target: true, activation: 'confirmed' },
       trend: [null, 1090],
     },
   });
@@ -95,7 +105,7 @@ test('row facts: "Mit Gebühren" shows the estimated totals, compares estimate r
   assert.equal(base.reached, true, 'base rule against the base price');
   const total = rowFacts(fees, rule(1050), 'estimate');
   assert.deepEqual([total.price, total.other, total.source, total.stale, total.basis], [1090, 1000, 'eneba', true, 'estimate']);
-  assert.deepEqual(total.world, { cents: 880, other: 800, region: 'IN', source: 'eneba', activation: null });
+  assert.deepEqual(total.world, { cents: 880, other: 800, region: 'IN', source: 'eneba', activation: 'confirmed' });
   assert.equal(total.saving, null, 'the total is only the last known one: no saving (FUNC-03)');
   assert.deepEqual(total.trend, [null, 1090]);
   assert.equal(total.reached, false, 'a base rule does not compare with a total');
@@ -166,14 +176,14 @@ test('cheaper KPI: count from 20 %, biggest saving of all rows, sorted savings',
   assert.equal(shortTitle('Halo: Infinite'), 'Halo: Infinite');
   assert.equal(shortTitle('Halo: Infinite Campaign'), 'Halo: Infinite');
 });
-test('fetch KPI: sums enabled shops, demand and hourly ticks only when reported', () => {
-  const shop = (budget: FetchShopStatus['budget'], enabled = true): FetchShopStatus => ({
+test('fetch KPI: sums enabled shops, demand and hourly ticks', () => {
+  const shop = (patch: Partial<FetchBudget>, enabled = true): FetchShopStatus => ({
     source: 's',
     enabled,
     last_success_at: null,
     last_error: null,
     paused_until: null,
-    budget,
+    budget: budget(patch),
     backlog: { due: 0, requested: 0, products: 0, searches: 0 },
     oldest_due_at: null,
     next_due_at: null,
@@ -194,11 +204,14 @@ test('fetch KPI: sums enabled shops, demand and hourly ticks only when reported'
     at3,
   );
   assert.deepEqual(full, { used: 35, limit: 220, demand: 240, ticks: [10, 15, 35, 35], paused: false, short: ['s'] });
-  assert.deepEqual(
-    fetchKpi({ shops: [shop({ used: 3, limit: 10 })], errors_24h: 0, recent_runs: [] }, at3),
-    { used: 3, limit: 10, demand: null, ticks: [], paused: false, short: [] },
-    'older server: no demand, no ticks',
-  );
+  assert.deepEqual(fetchKpi({ shops: [shop({ used: 3, limit: 10 })], errors_24h: 0, recent_runs: [] }, at3), {
+    used: 3,
+    limit: 10,
+    demand: 0,
+    ticks: [0, 0, 0, 0],
+    paused: false,
+    short: [],
+  });
   assert.equal(fetchKpi(null), null);
   assert.equal(fetchKpi({ shops: [shop({ used: 1, limit: 2 }, false)], errors_24h: 0, recent_runs: [] }), null);
   // PROD-14: the sum would be enough (450 of 500), but Eneba alone needs more than its own 400.
@@ -239,14 +252,14 @@ test('fetch KPI reports a pause of the automatic checks', () => {
     last_success_at: null,
     last_error: null,
     paused_until: null,
-    budget: { used: 1, limit: 10 },
+    budget: budget({ used: 1, limit: 10 }),
     backlog: { due: 0, requested: 0, products: 0, searches: 0 },
     oldest_due_at: null,
     next_due_at: null,
     worker_seen_at: null,
   };
-  assert.equal(fetchKpi({ paused_at: 1_800_000_000, shops: [shop as never], errors_24h: 0, recent_runs: [] })?.paused, true);
-  assert.equal(fetchKpi({ paused_at: null, shops: [shop as never], errors_24h: 0, recent_runs: [] })?.paused, false);
+  assert.equal(fetchKpi({ paused_at: 1_800_000_000, shops: [shop], errors_24h: 0, recent_runs: [] })?.paused, true);
+  assert.equal(fetchKpi({ paused_at: null, shops: [shop], errors_24h: 0, recent_runs: [] })?.paused, false);
 });
 
 test('list filter: titles, and shop names keep the rows where that shop is cheapest (Preis DE or INT)', () => {
@@ -255,7 +268,10 @@ test('list filter: titles, and shop names keep the rows where that shop is cheap
   assert.deepEqual(filterShops(' DRIF ', names), ['driffle']);
   assert.deepEqual(filterShops('dr', names), [], 'from three letters on');
   assert.deepEqual(filterShops('forza', names), []);
-  const home = rowFacts(badge(1000, 800, { source: 'eneba', world: { cents: 800, region: 'IN', source: 'driffle', observed_at: 1 } }), undefined);
+  const home = rowFacts(
+    badge(1000, 800, { source: 'eneba', world: { cents: 800, region: 'IN', source: 'driffle', observed_at: 1, fits_target: true, activation: 'confirmed' } }),
+    undefined,
+  );
   const none = rowFacts(badge(null), undefined);
   assert.equal(matchesText(['Forza Horizon 5'], home, 'horizon', []), true);
   assert.equal(matchesText(['Forza Horizon 5'], home, 'Eneba', filterShops('Eneba', names)), true, 'cheapest in the target country');

@@ -15,15 +15,25 @@ import {
   untilText,
   workerState,
 } from '../src/features/settings/format.ts';
-import type { FetchShopStatus } from '../src/api.ts';
+import type { FetchBudget, FetchShopStatus } from '../src/api.ts';
 
+const budget = (patch: Partial<FetchBudget> = {}): FetchBudget => ({
+  used: 0,
+  limit: 100,
+  limit_source: 'default',
+  demand_per_day: 0,
+  pace_seconds: 0,
+  next_at: null,
+  by_hour: Array.from({ length: 24 }, () => 0),
+  ...patch,
+});
 const shop = (patch: Partial<FetchShopStatus> = {}): FetchShopStatus => ({
   source: 'eneba',
   enabled: true,
   last_success_at: 1000,
   last_error: null,
   paused_until: null,
-  budget: { used: 41, limit: 120 },
+  budget: budget({ used: 41, limit: 120 }),
   backlog: { due: 5, requested: 2, products: 3, searches: 2 },
   oldest_due_at: 500,
   next_due_at: 2000,
@@ -72,22 +82,19 @@ test('daily jobs accept whole numbers from 20 to 2000 only', () => {
 });
 
 test('budget view places the demand marker and says when the limit is too low', () => {
-  const plain = budgetView({ used: 41, limit: 120 });
-  assert.deepEqual(
-    { demand: plain.demand, marker: plain.demandShare, pace: plain.pace, over: plain.over },
-    { demand: null, marker: null, pace: null, over: false },
-  );
-  const enough = budgetView({ used: 412, limit: 500, demand_per_day: 469.2, pace_seconds: 172, limit_source: 'setting' });
+  const plain = budgetView(budget({ used: 41, limit: 120 }));
+  assert.deepEqual({ demand: plain.demand, marker: plain.demandShare, pace: plain.pace, over: plain.over }, { demand: 0, marker: 0, pace: null, over: false });
+  const enough = budgetView(budget({ used: 412, limit: 500, demand_per_day: 469.2, pace_seconds: 172, limit_source: 'setting' }));
   assert.deepEqual(
     { demand: enough.demand, marker: enough.demandShare, pace: enough.pace, over: enough.over, env: enough.fromEnv },
     { demand: 470, marker: 0.94, pace: 172, over: false, env: false },
   );
-  const short = budgetView({ used: 120, limit: 120, demand_per_day: 610, limit_source: 'env' });
+  const short = budgetView(budget({ used: 120, limit: 120, demand_per_day: 610, limit_source: 'env' }));
   assert.deepEqual(
     { over: short.over, needed: short.needed, marker: short.demandShare, env: short.fromEnv },
     { over: true, needed: 610, marker: 1, env: true },
   );
-  assert.equal(budgetView({ used: 0, limit: 0, demand_per_day: 50 }).over, false);
+  assert.equal(budgetView(budget({ used: 0, limit: 0, demand_per_day: 50 })).over, false);
 });
 
 test('fetch pill, next fetch and run kinds', () => {

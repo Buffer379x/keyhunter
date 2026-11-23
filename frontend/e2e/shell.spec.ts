@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { saveSettings, navItem, navTo, settingsCountry, signInToFixture } from './helpers';
+import { fetchBudget, saveSettings, navItem, navTo, settingsCountry, signInToFixture } from './helpers';
 import { openWishlistRow, removeCurrent } from './detail-helpers';
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -9,10 +9,7 @@ const shop = (source: string, used: number, limit: number, pace?: number) => ({
   last_success_at: now() - 60,
   last_error: null,
   paused_until: null,
-  budget:
-    pace === undefined
-      ? { used, limit }
-      : { used, limit, limit_source: 'default', demand_per_day: 470, pace_seconds: pace, next_at: now() + pace, by_hour: Array(24).fill(0) },
+  budget: fetchBudget({ used, limit, demand_per_day: 470, pace_seconds: pace ?? 0, next_at: pace === undefined ? null : now() + pace }),
   backlog: { due: 0, requested: 0, products: 0, searches: 0 },
   oldest_due_at: null,
   next_due_at: null,

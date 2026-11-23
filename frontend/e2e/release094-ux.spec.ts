@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { WISHES, clearWishlist, prepareLayout, settle } from './layout-mocks';
-import { signInToFixture } from './helpers';
+import { fetchBudget, signInToFixture } from './helpers';
 
 // Release 1.0, Phase D part 2: one state language (DS-04), one cover (DS-09), no layout shift from the KPI tiles (PERF-05),
 // the first steps of a new owner (PROD-02 / RESP-15), the Zuordnungen tab (PROD-03), a visible budget bottleneck (PROD-14),
@@ -189,7 +189,7 @@ test.describe('desktop, 1366 px', () => {
       last_success_at: null,
       last_error: null,
       paused_until: null,
-      budget: { used: 10, limit, demand_per_day: demand, by_hour: [] },
+      budget: fetchBudget({ used: 10, limit, demand_per_day: demand }),
       backlog: { due: 0, requested: 0, products: 0, searches: 0 },
       oldest_due_at: null,
       next_due_at: null,

@@ -112,21 +112,21 @@ export function fetchPill(
 
 /**
  * Daily budget of one shop as drawn on Abrufstatus: share of the bar, position of the demand marker (both 0..1),
- * and `over` with the value the setting needs when the demand is higher than the limit. Fields the backend does not send stay null.
+ * and `over` with the value the setting needs when the demand is higher than the limit.
  */
 export function budgetView(budget: FetchBudget) {
   const { used, limit } = budget;
-  const demand = typeof budget.demand_per_day === 'number' && Number.isFinite(budget.demand_per_day) ? Math.ceil(budget.demand_per_day) : null;
-  const pace = typeof budget.pace_seconds === 'number' && budget.pace_seconds > 0 ? budget.pace_seconds : null;
+  const demand = Math.ceil(budget.demand_per_day);
+  const pace = budget.pace_seconds > 0 ? budget.pace_seconds : null;
   return {
     used,
     limit,
     share: budgetShare(used, limit),
     demand,
-    demandShare: demand === null || limit <= 0 ? null : Math.min(1, demand / limit),
+    demandShare: limit <= 0 ? null : Math.min(1, demand / limit),
     pace,
-    over: demand !== null && limit > 0 && demand > limit,
-    needed: demand === null ? null : Math.max(DAILY_JOBS_MIN, demand),
+    over: limit > 0 && demand > limit,
+    needed: Math.max(DAILY_JOBS_MIN, demand),
     fromEnv: budget.limit_source === 'env',
   };
 }

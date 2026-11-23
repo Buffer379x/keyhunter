@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { signInToFixture } from './helpers';
+import { mockPriceBadges, signInToFixture } from './helpers';
 import { wishlistRows } from './detail-helpers';
 
 /** A write to the API as the page would send it (origin and CSRF token). */
@@ -35,9 +35,7 @@ test('the list filter also takes a shop name and keeps the games where that shop
     world: { cents: 1290, source: world, region: 'India', observed_at: t },
   });
   // Base game: cheapest in Germany at Eneba, worldwide at Driffle. Premium: Driffle for both.
-  await page.route(/\/api\/v1\/wishlist\/price-badges(?:\?.*)?$/, route =>
-    route.fulfill({ json: { [base]: badge('eneba', 'driffle'), [premium]: badge('driffle', 'driffle') } }),
-  );
+  await mockPriceBadges(page, () => ({ [base]: badge('eneba', 'driffle'), [premium]: badge('driffle', 'driffle') }));
   await page.goto('/');
   const filter = page.getByLabel('Liste filtern');
   await expect(filter).toHaveAttribute('placeholder', 'Spiel oder Shop filtern …');

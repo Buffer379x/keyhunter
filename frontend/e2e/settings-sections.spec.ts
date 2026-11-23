@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { saveButton, saveSettings, signInToFixture, navTo, navItem } from './helpers';
+import { fetchBudget, saveButton, saveSettings, signInToFixture, navTo, navItem } from './helpers';
 
 const now = () => Math.floor(Date.now() / 1000);
 const fetchStatus = () => ({
@@ -10,7 +10,7 @@ const fetchStatus = () => ({
       last_success_at: now() - 60,
       last_error: null,
       paused_until: null,
-      budget: { used: 64, limit: 120 },
+      budget: fetchBudget({ used: 64, limit: 120, demand_per_day: 90 }),
       backlog: { due: 14, requested: 3, products: 9, searches: 5 },
       oldest_due_at: now() - 1500,
       next_due_at: now() + 900,
@@ -22,7 +22,7 @@ const fetchStatus = () => ({
       last_success_at: now() - 7200,
       last_error: 'rate_limited',
       paused_until: now() + 2400,
-      budget: { used: 41, limit: 120 },
+      budget: fetchBudget({ used: 41, limit: 120 }),
       backlog: { due: 6, requested: 0, products: 4, searches: 2 },
       oldest_due_at: now() - 5400,
       next_due_at: now() + 3200,
@@ -83,9 +83,8 @@ test('settings sections are bound to the URL, and Abrufstatus shows queue, budge
   await expect(eneba).toContainText('64 von 120 Abrufen');
   await expect(eneba).toContainText('in 15 Min.');
   await expect(eneba.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '64');
-  // Without the 0.6.1 budget fields there is no demand marker and no demand line.
-  await expect(eneba.locator('.need')).toHaveCount(0);
-  await expect(eneba).not.toContainText('Bedarf');
+  await expect(eneba.locator('.need')).toHaveCount(1);
+  await expect(eneba).toContainText('Bedarf ≈ 90 pro Tag');
   const driffle = page.getByRole('article', { name: 'Abrufstatus Driffle' });
   await expect(driffle).toContainText('Pausiert bis');
   await expect(driffle).toContainText('Abruflimit erreicht');

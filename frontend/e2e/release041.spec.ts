@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { signInToFixture, navTo } from './helpers';
+import { mockPriceBadges, signInToFixture, navTo } from './helpers';
 import { openWishlistRow, removeCurrent, wishlistRows } from './detail-helpers';
 
 test('price badge is permanent and its region setting persists', async ({ page }) => {
@@ -13,22 +13,20 @@ test('price badge is permanent and its region setting persists', async ({ page }
   await expect(row.locator('.c-status')).toHaveText(/^(Noch nicht abgefragt|Wird gesucht …)$/);
   const rows = await (await page.request.get('/api/v1/wishlist')).json();
   let price: number | null = 1234;
-  await page.route(/\/api\/v1\/wishlist\/price-badges(?:\?.*)?$/, route =>
-    route.fulfill({
-      json: Object.fromEntries(
-        rows.map((row: { id: string }) => [
-          row.id,
-          {
-            state: price === null ? 'no_offer' : 'price',
-            cents: price,
-            observed_at: 1795107000,
-            checked_at: price === null ? 1795108000 : 1795107000,
-            stale: false,
-            pending: false,
-          },
-        ]),
-      ),
-    }),
+  await mockPriceBadges(page, () =>
+    Object.fromEntries(
+      rows.map((row: { id: string }) => [
+        row.id,
+        {
+          state: price === null ? 'no_offer' : 'price',
+          cents: price,
+          observed_at: 1795107000,
+          checked_at: price === null ? 1795108000 : 1795107000,
+          stale: false,
+          pending: false,
+        },
+      ]),
+    ),
   );
   await page.clock.install();
   await page.reload();

@@ -41,7 +41,15 @@ test('wishes go into the cart once, show a basket in the list, and the cart sums
   await expect(wishlistRows(page).filter({ hasText: 'Premium' }).getByRole('img', { name: 'im Warenkorb' })).toHaveCount(0);
 
   // Real offers per shop (0.8.1): Eneba with 10 % fees, Driffle without a fee estimate.
-  const offer = (cents: number, estimate: number | null, region: string) => ({ cents, estimate_cents: estimate, region, observed_at: t(), stale: false });
+  const offer = (cents: number, estimate: number | null, region: string) => ({
+    cents,
+    estimate_cents: estimate,
+    region,
+    observed_at: t(),
+    stale: false,
+    fits_target: true,
+    activation: 'confirmed',
+  });
   const offers: Record<string, object> = {
     [base]: {
       eneba: { home: offer(2890, 3179, 'Global'), world: offer(1290, 1419, 'India') },

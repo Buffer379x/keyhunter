@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { saveSettings, signInToFixture, navTo, navItem } from './helpers';
+import { mockPriceBadges, saveSettings, signInToFixture, navTo, navItem } from './helpers';
 import { editionSelect, openTab, openWishlistRow, removeCurrent, wishlistRows, wishlistTable } from './detail-helpers';
 import { withState } from './offer-state';
 
@@ -184,9 +184,7 @@ test('wishlist column headers sort by name, price, saving and target distance an
     pending: false,
     world: forza(item) ? { cents: 599, region: 'India', observed_at: 1795107000 } : { cents: 999, region: 'Global', observed_at: 1795107000 },
   });
-  await page.route(/\/api\/v1\/wishlist\/price-badges(?:\?.*)?$/, route =>
-    route.fulfill({ json: Object.fromEntries(rows.map((item: { id: string; game: { igdb_id: number } }) => [item.id, badge(item)])) }),
-  );
+  await mockPriceBadges(page, () => Object.fromEntries(rows.map((item: { id: string; game: { igdb_id: number } }) => [item.id, badge(item)])));
   await page.route('**/api/v1/alerts', route =>
     route.request().method() === 'GET'
       ? route.fulfill({

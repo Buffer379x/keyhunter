@@ -85,6 +85,7 @@ function SortHeader({
 }
 const SORT_KEY = 'keyhunter.wishlist.sort';
 const BASIS_KEY = 'keyhunter.wishlist.basis';
+const PAUSED_KEY = 'keyhunter.wishlist.has-paused';
 /** Key-shops the list filter knows by name (IGDB is a catalog, not a shop). */
 const SHOP_NAMES = Object.fromEntries(Object.entries(shopNames).filter(([id]) => id !== 'igdb'));
 /**
@@ -162,6 +163,15 @@ export default function Wishlist({
       return 'base';
     }
   });
+  // The chip "Pausiert" exists only with paused wishes. Whether the last list had any is kept, so the chip row has the
+  // same size while the list loads and the table does not move when the chips fill in.
+  const [hadPaused] = useState(() => {
+    try {
+      return localStorage.getItem(PAUSED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
   const chooseBasis = (value: PriceBasis) => {
     setBasis(value);
     try {
@@ -198,6 +208,10 @@ export default function Wishlist({
   const showingDetail = useRef(false);
   const returnFocus = useRef<string | null>(null);
   const loadGeneration = useRef(0);
+  /** The rows of the last `/wishlist` read with the target country they were priced for; their badges are current. */
+  const listRead = useRef<{ items: WishlistItem[]; target: string | null } | null>(null);
+  const targetRef = useRef(targetCountry);
+  targetRef.current = targetCountry;
   const listHeading = useRef<HTMLHeadingElement>(null);
   const focusListAfterRemove = useRef(false);
   const rows = useRef(new Map<string, HTMLButtonElement>());
@@ -273,6 +287,10 @@ export default function Wishlist({
     if (!items.length) return;
     const controller = new AbortController();
     let cancel = () => {};
+    // The list just read carries the badges of this target country (PERF-06): the first poll waits a full interval.
+    const fresh = listRead.current;
+    listRead.current = null;
+    const skipFirst = fresh?.items === items && fresh.target === targetCountry;
     async function readPrices() {
       let refreshing = false;
       try {
@@ -293,7 +311,8 @@ export default function Wishlist({
       }
       if (!controller.signal.aborted) cancel = whenVisible(() => void readPrices(), refreshing ? 3000 : 60000);
     }
-    void readPrices();
+    if (skipFirst) cancel = whenVisible(() => void readPrices(), items.some(item => item.price_badge?.refreshing) ? 3000 : 60000);
+    else void readPrices();
     return () => {
       controller.abort();
       cancel();
@@ -322,6 +341,7 @@ export default function Wishlist({
       const rows = await api<WishlistItem[]>('/wishlist');
       if (generation !== loadGeneration.current) return;
       updateBadges(Object.fromEntries(rows.flatMap(item => (item.price_badge ? [[item.id, item.price_badge]] : []))));
+      listRead.current = { items: rows, target: targetRef.current };
       setItems(rows);
       onCountChange(rows.length);
     } catch (e) {
@@ -573,6 +593,15 @@ export default function Wishlist({
     offen: items.length - priced,
     pause: items.filter(item => item.paused).length,
   };
+  const hasPaused = chipCounts.pause > 0;
+  useEffect(() => {
+    if (loading || listError) return;
+    try {
+      localStorage.setItem(PAUSED_KEY, hasPaused ? '1' : '0');
+    } catch {
+      /* Kept for this visit. */
+    }
+  }, [loading, listError, hasPaused]);
   const reached = useMemo(() => reachedTrend(all, alerts), [all, alerts]);
   const cheaper = useMemo(() => cheaperKpi(all), [all]);
   const budget = useMemo(() => fetchKpi(fetchStatus), [fetchStatus]);
@@ -822,7 +851,7 @@ export default function Wishlist({
                   <span>Automatische Abfragen</span>
                   <span className="warn">pausiert</span>
                 </>
-              ) : !budget || budget.demand === null ? (
+              ) : !budget ? (
                 emptyFoot
               ) : (
                 <>
@@ -850,7 +879,7 @@ export default function Wishlist({
         <PanelHead>
           <div className="chips" role="group" aria-label="Filter">
             {chipLabels
-              .filter(([id]) => id !== 'pause' || chipCounts.pause > 0 || chip === 'pause')
+              .filter(([id]) => id !== 'pause' || (ready ? chipCounts.pause > 0 : hadPaused) || chip === 'pause')
               .map(([id, label]) => (
                 <Chip key={id} pressed={chip === id} count={ready ? chipCounts[id] : null} disabled={!ready} onClick={() => setChip(id)}>
                   {label}

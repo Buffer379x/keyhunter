@@ -96,7 +96,15 @@ test('log and fetch runs keep their filter, search and page size across pages', 
 
 test('the cart shows the games left and the totals right again, with every remove button in view', async ({ page }) => {
   await signInToFixture(page);
-  const offer = (cents: number) => ({ cents, estimate_cents: Math.round(cents * 1.05), region: 'Global', observed_at: now() - 60, stale: false });
+  const offer = (cents: number) => ({
+    cents,
+    estimate_cents: Math.round(cents * 1.05),
+    region: 'Global',
+    observed_at: now() - 60,
+    stale: false,
+    fits_target: true,
+    activation: 'confirmed',
+  });
   const entry = (n: number, name: string, source: string | null) => ({
     id: String(n).repeat(32),
     game_id: String(n),

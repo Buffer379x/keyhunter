@@ -36,7 +36,7 @@ export type Link = {
   /** A current price of its region (confirmed, fresh, in stock), whatever the target country. */
   current: boolean;
   /** Can be bought for the target country: activation confirmed there and the same market (RESP-14). */
-  fits_target?: boolean;
+  fits_target: boolean;
   /** End of the freshness limit of the last observation: twice the check interval, at least 24 h (FUNC-05). */
   fresh_until?: number | null;
 };

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { signInToFixture, navTo } from './helpers';
+import { fetchBudget, mockPriceBadges, signInToFixture, navTo } from './helpers';
 import { detailsButton, openWishlistRow, removeCurrent, wishlistHeading, wishlistRows, wishlistTable } from './detail-helpers';
 
 // The wishlist page of design v4: KPI tiles from real data only, filter chips, sorting and the game as its own page.
@@ -82,7 +82,7 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
       trend: Array(14).fill(null),
     },
   };
-  await page.route(/\/api\/v1\/wishlist\/price-badges(?:\?.*)?$/, route => route.fulfill({ json: badges }));
+  await mockPriceBadges(page, () => badges);
   await page.route('**/api/v1/alerts', route =>
     route.request().method() === 'GET'
       ? route.fulfill({
@@ -110,7 +110,7 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
             last_success_at: now,
             last_error: null,
             paused_until: null,
-            budget: { used: 300, limit: 400, demand_per_day: 450, by_hour: hours },
+            budget: fetchBudget({ used: 300, limit: 400, demand_per_day: 450, by_hour: hours }),
             backlog: { due: 0, requested: 0, products: 0, searches: 0 },
             oldest_due_at: null,
             next_due_at: null,
@@ -122,7 +122,7 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
             last_success_at: now,
             last_error: null,
             paused_until: null,
-            budget: { used: 12, limit: 100 },
+            budget: fetchBudget({ used: 12, limit: 100 }),
             backlog: { due: 0, requested: 0, products: 0, searches: 0 },
             oldest_due_at: null,
             next_due_at: null,
