@@ -3,7 +3,10 @@ use crate::extract::{ApiJson, ApiPath};
 use crate::{
     ApiError, ApiResult, Shared, auth,
     eventlog::{self, Area, Level},
-    notify::{self, Alert, Event, Kind, Notifier},
+    notify::{
+        Kind, Notifier,
+        message::{Alert, Event, euro},
+    },
     now, offers,
     shops::{Product, Shop},
 };
@@ -93,7 +96,7 @@ pub(crate) async fn put_rule(
         return Err(NEED_COUNTRY);
     }
     let summary = match input.target_cents {
-        Some(cents) => format!("Zielpreis {}", notify::euro(cents)),
+        Some(cents) => format!("Zielpreis {}", euro(cents)),
         None => "neuer Tiefstpreis".into(),
     };
     let summary = if input.enabled {

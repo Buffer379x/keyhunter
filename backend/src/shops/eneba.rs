@@ -1,4 +1,6 @@
-use super::{Availability, Product, Quote, Shop, ShopError, http::PublicClient, title_key};
+use super::{
+    Availability, Product, Quote, SearchPage, Shop, ShopError, http::PublicClient, title_key,
+};
 use scraper::{Html, Selector};
 use serde_json::Value;
 use std::collections::BTreeSet;
@@ -204,7 +206,7 @@ fn strip_suffix(name: &str) -> Option<&str> {
 }
 
 pub(super) async fn discover(shop: Shop, shard: usize) -> Result<Vec<(String, String)>, ShopError> {
-    let mut client = PublicClient::new(shop.host()).await?;
+    let mut client = PublicClient::new(shop).await?;
     let index = Url::parse("https://www.eneba.com/de/sitemap.xml").unwrap();
     let body = client.get(&index, 128 * 1024, false).await?;
     let paths: Vec<_> = sitemap_locs(&body)?
@@ -247,7 +249,7 @@ pub(super) fn sitemap_locs(body: &str) -> Result<impl Iterator<Item = &str>, Sho
         .filter(|s| !s.contains(['&', '<', '>'])))
 }
 
-pub(crate) fn search_urls(keys: &[String]) -> Vec<Url> {
+fn search_urls(keys: &[String]) -> Vec<Url> {
     let Some(title) = keys.first() else {
         return vec![];
     };
@@ -272,13 +274,27 @@ pub(crate) fn search_urls(keys: &[String]) -> Vec<Url> {
     .collect()
 }
 
-/// One public search page per durable job; country preference never filters discovery.
-pub(crate) struct SearchPage {
-    pub urls: Vec<String>,
-    pub next_page: Option<i64>,
+/// The query of a public search page ([`search_page`]): only the title text, the type and platform filters and the
+/// page number, so a shop client requests nothing else with a query.
+pub(super) fn search_query(url: &Url) -> bool {
+    url.host_str() == Some("www.eneba.com")
+        && url.path() == "/de/store/all"
+        && url.query().is_some_and(|q| q.len() <= 1500)
+        && url.query_pairs().all(|(key, value)| match key.as_ref() {
+            "text" => {
+                !value.is_empty()
+                    && value.chars().count() <= 300
+                    && !value.chars().any(char::is_control)
+            }
+            "types[]" => value == "game",
+            "drms[]" => value == "xbox",
+            "page" => value.parse::<u16>().is_ok_and(|n| (1..=500).contains(&n)),
+            _ => false,
+        })
 }
 
-pub(crate) async fn search_page(
+/// One public search page per durable job.
+pub(super) async fn search_page(
     keys: &[String],
     known: &[String],
     page: i64,
@@ -295,7 +311,7 @@ pub(crate) async fn search_page(
         .append_pair("types[]", "game")
         .append_pair("drms[]", "xbox")
         .append_pair("page", &page.to_string());
-    let mut client = PublicClient::new(Shop::Eneba.host()).await?;
+    let mut client = PublicClient::new(Shop::Eneba).await?;
     let mut result = match client.get(&url, 2 * 1024 * 1024, false).await {
         Ok(body) => parse_search_page(&body, keys, page)?,
         Err(ShopError::NotFound) if page == 1 => SearchPage {

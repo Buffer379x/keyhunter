@@ -163,8 +163,8 @@ async fn load(state: &Shared) -> ApiResult<Settings> {
                     fee_basis_points: r.get("fee_basis_points"),
                     configured: r.get("configured"),
                     poll_interval_seconds: r.get("poll_interval_seconds"),
-                    daily_jobs: shop.then(|| crate::jobs::daily_limit(r.get("daily_jobs"))),
-                    daily_jobs_default: shop.then(crate::jobs::daily_budget),
+                    daily_jobs: shop.then(|| crate::jobs::budget::daily_limit(r.get("daily_jobs"))),
+                    daily_jobs_default: shop.then(crate::jobs::budget::daily_budget),
                 }
             })
             .collect(),
@@ -308,7 +308,7 @@ pub(crate) async fn put_settings(
                 .await?;
         }
         if previous != source.poll_interval_seconds {
-            // Same rule as the scheduler (jobs::effective_interval, without the preview factor): the interval times
+            // Same rule as the scheduler (jobs::trend::effective_interval, without the preview factor): the interval times
             // the price-trend pace, at most a week.
             sqlx::query(
             "UPDATE shop_job SET due=MAX(?,(SELECT observed_at FROM offer_link WHERE id=link_id)
@@ -343,7 +343,7 @@ async fn log(state: &Shared, message: &str) {
 fn stored_daily_jobs(source: &SourceSettings) -> Option<i64> {
     source
         .daily_jobs
-        .filter(|v| *v != crate::jobs::daily_budget())
+        .filter(|v| *v != crate::jobs::budget::daily_budget())
 }
 
 pub(crate) async fn put_igdb_credentials(

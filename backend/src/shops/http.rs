@@ -1,4 +1,4 @@
-use super::ShopError;
+use super::{Shop, ShopError};
 use reqwest::{Client, StatusCode, redirect::Policy};
 use std::{
     collections::HashMap,
@@ -31,12 +31,13 @@ static SESSIONS: LazyLock<Mutex<HashMap<&'static str, Slot>>> = LazyLock::new(De
 /// Exclusive use of the shared session for one host: requests to a shop are serialized,
 /// so the crawl delay also holds across jobs and manual link checks.
 pub(super) struct PublicClient {
-    host: &'static str,
+    shop: Shop,
     session: OwnedMutexGuard<Option<Session>>,
 }
 
 impl PublicClient {
-    pub(super) async fn new(host: &'static str) -> Result<Self, ShopError> {
+    pub(super) async fn new(shop: Shop) -> Result<Self, ShopError> {
+        let host = shop.host();
         let slot = Arc::clone(
             SESSIONS
                 .lock()
@@ -51,7 +52,7 @@ impl PublicClient {
         {
             *session = Some(Session::open(host).await?);
         }
-        Ok(Self { host, session })
+        Ok(Self { shop, session })
     }
 
     pub(super) async fn get(
@@ -62,11 +63,11 @@ impl PublicClient {
     ) -> Result<String, ShopError> {
         let session = self.session.as_mut().ok_or(ShopError::Network)?;
         if url.scheme() != "https"
-            || url.host_str() != Some(self.host)
+            || url.host_str() != Some(self.shop.host())
             || url.port().is_some()
             || !url.username().is_empty()
             || url.password().is_some()
-            || !allowed_query(url)
+            || !allowed_query(self.shop, url)
             || !session.robots.allows(&url[url::Position::BeforePath..])
         {
             return Err(ShopError::Denied);
@@ -114,24 +115,9 @@ impl Session {
     }
 }
 
-// Only the public catalog's pagination and title/platform filters accept a query.
-// Product links and all other endpoints remain query-free.
-fn allowed_query(url: &Url) -> bool {
-    url.query().is_none()
-        || (url.host_str() == Some("www.eneba.com")
-            && url.path() == "/de/store/all"
-            && url.query().is_some_and(|q| q.len() <= 1500)
-            && url.query_pairs().all(|(key, value)| match key.as_ref() {
-                "text" => {
-                    !value.is_empty()
-                        && value.chars().count() <= 300
-                        && !value.chars().any(char::is_control)
-                }
-                "types[]" => value == "game",
-                "drms[]" => value == "xbox",
-                "page" => value.parse::<u16>().is_ok_and(|n| (1..=500).contains(&n)),
-                _ => false,
-            }))
+/// Product links and every other endpoint stay query-free; only the shop's own search pages carry a query.
+fn allowed_query(shop: Shop, url: &Url) -> bool {
+    url.query().is_none() || shop.allows_query(url)
 }
 
 async fn fetch(
@@ -340,7 +326,7 @@ mod tests {
             "https://www.eneba.com/de/store/all?text=Forza+Horizon+5&types%5B%5D=game&drms%5B%5D=xbox&page=2",
             "https://www.eneba.com/de/xbox-game-xbox-live-key-global",
         ] {
-            assert!(allowed_query(&Url::parse(raw).unwrap()));
+            assert!(allowed_query(Shop::Eneba, &Url::parse(raw).unwrap()));
         }
         for raw in [
             "https://www.eneba.com/de/store/all?text=game&regions%5B%5D=global",
@@ -349,10 +335,14 @@ mod tests {
             "https://www.eneba.com/de/store/all?text=game&page=501",
             "https://www.eneba.com/de/store/all?text=game&srsltid=tracking",
             "https://www.eneba.com/de/xbox-game-xbox-live-key-global?text=game",
-            "https://driffle.com/de/store/all?text=game",
         ] {
-            assert!(!allowed_query(&Url::parse(raw).unwrap()), "{raw}");
+            assert!(
+                !allowed_query(Shop::Eneba, &Url::parse(raw).unwrap()),
+                "{raw}"
+            );
         }
+        let driffle = Url::parse("https://driffle.com/de/store/all?text=game").unwrap();
+        assert!(!allowed_query(Shop::Driffle, &driffle));
         let robots = Robots::parse("User-agent: *\nDisallow: /*?*srsltid").unwrap();
         assert!(!robots.allows("/de/store/all?text=game&srsltid=tracking"));
     }

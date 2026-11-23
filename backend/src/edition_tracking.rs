@@ -121,7 +121,7 @@ async fn prepare_one(state: &Shared, id: &str) -> ApiResult<()> {
         sqlx::query("UPDATE edition_scan SET checked_at=?,lease_until=0,next_attempt=?,last_error=NULL WHERE wish_id=?").bind(now()).bind(now()+crate::DAY).bind(id).execute(&mut *tx).await?;
         tx.commit().await?;
         let ids:Vec<String>=sqlx::query_scalar("SELECT track_id FROM edition_watch WHERE wish_id=?").bind(id).fetch_all(&state.pool).await?;
-        for track in ids {crate::jobs::schedule_wish(&state.pool,&track).await?;}
+        for track in ids {crate::jobs::attach::schedule_wish(&state.pool,&track).await?;}
         Ok::<_,ApiError>(())
     }.await;
     if let Err(error) = result {

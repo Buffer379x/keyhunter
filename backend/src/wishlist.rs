@@ -323,7 +323,7 @@ pub(crate) async fn add_wish(state: &Shared, input: AddInput, mode: AddMode) -> 
         });
     }
     let direct = mode == AddMode::ByHand;
-    crate::jobs::queue_search(&mut tx, &item.id, direct).await?;
+    crate::jobs::attach::queue_search(&mut tx, &item.id, direct).await?;
     tx.commit().await?;
     if created {
         let game = eventlog::game(&state.pool, &item.id).await;
@@ -335,7 +335,7 @@ pub(crate) async fn add_wish(state: &Shared, input: AddInput, mode: AddMode) -> 
         )
         .await;
     }
-    crate::jobs::attach_candidates(&state.pool, &item.id, direct).await;
+    crate::jobs::attach::attach_candidates(&state.pool, &item.id, direct).await;
     Ok(Added::Wish {
         item: Box::new(item),
         created,
@@ -578,7 +578,7 @@ pub(crate) async fn preview(
             .await?,
     )?;
     tx.commit().await?;
-    crate::jobs::schedule_wish(&state.pool, &track).await?;
+    crate::jobs::attach::schedule_wish(&state.pool, &track).await?;
     let item = with_badge(&state, item).await?;
     Ok(Json(serde_json::json!({"item":item})))
 }
@@ -955,7 +955,7 @@ pub(crate) async fn restore(
         format!("{game} aus der Bibliothek in die Wunschliste zurückgesetzt"),
     )
     .await;
-    crate::jobs::schedule_wish(&state.pool, &id).await?;
+    crate::jobs::attach::schedule_wish(&state.pool, &id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

@@ -282,7 +282,7 @@ pub(super) async fn discover(
     shop: Shop,
     shard: usize,
 ) -> Result<(Vec<(String, String)>, i64), ShopError> {
-    let mut client = PublicClient::new(shop.host()).await?;
+    let mut client = PublicClient::new(shop).await?;
     let index = Url::parse("https://driffle.com/sitemap.xml").unwrap();
     let body = client.get(&index, 256 * 1024, false).await?;
     let paths = sitemap_paths(&body)?;
