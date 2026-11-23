@@ -56,13 +56,13 @@ test('the wishlist goes page by page and keeps chip, page size and page when the
   await expect(pager).toContainText('1–25 von 28');
   await pager.getByRole('button', { name: 'Nächste Seite', exact: true }).click();
   await expect(wishlistRows(page)).toHaveCount(3);
-  await page.getByRole('button', { name: /^Ohne Preis/ }).click();
+  await page.getByRole('radio', { name: /^Ohne Preis/ }).click();
   await expect(pager).toContainText('1–25 von 28');
   await pager.getByRole('button', { name: 'Letzte Seite', exact: true }).click();
   // Away and back: the chip, the page size and the page are kept.
   await navTo(page, 'Warenkorb');
   await navTo(page, 'Wunschliste');
-  await expect(page.getByRole('button', { name: /^Ohne Preis/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('radio', { name: /^Ohne Preis/ })).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByLabel('Pro Seite', { exact: true })).toHaveValue('25');
   await expect(pager).toContainText('26–28 von 28');
   // The first and last page buttons show a bar at the side they lead to.

@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { api, HttpError } from '../../api';
 import { notify } from '../../notify';
 import type { ChannelView } from '../../api';
-import { Button, ConfirmDialog, Help, Icon, Notice, Pill, Switch, TabPanel, Tabs } from '../../components';
+import { Button, ConfirmDialog, Help, Icon, Notice, Pill, Seg, Switch, TabPanel } from '../../components';
 import { SettingsPanel } from './parts';
 import { channelBody, channelDirty, channelFields, channelHelp, channelStored, channelValues, SECRET_SAVED } from './channels';
 
@@ -241,13 +241,14 @@ export default function Notifications({ csrf, onError }: { csrf: string; onError
         )
       ) : (
         <>
-          <Tabs
-            id="channels"
+          <Seg
+            tabs="channels"
             label="Benachrichtigungskanäle"
-            className="shop-tabs"
+            className="box-seg"
+            wrap
             value={current}
             onChange={setOpen}
-            items={channels.map(c => ({ id: c.kind, label: c.active ? c.name : `${c.name} · aus` }))}
+            options={channels.map(c => ({ value: c.kind, label: c.active ? c.name : `${c.name} · aus` }))}
           />
           {channels.map(c => (
             <TabPanel key={c.kind} id="channels" tab={c.kind} value={current}>

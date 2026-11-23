@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import type { Settings } from '../../api';
-import { Help, Icon, TabPanel, Tabs } from '../../components';
+import { Help, Icon, Seg, TabPanel } from '../../components';
 import { SettingsPanel } from './parts';
 import type { SettingsDraft } from './draft';
 import WishlistColumns from './WishlistColumns';
@@ -16,14 +16,7 @@ function TableColumns({ settings, edit }: { settings: Settings; edit: SettingsDr
   ];
   return (
     <SettingsPanel title="Tabellenspalten" titleId="general-columns-title" insetClassName="col-panel">
-      <Tabs
-        id="columns"
-        label="Tabelle"
-        className="col-tabs"
-        value={table}
-        onChange={id => setTable(id as 'wishlist' | 'offers')}
-        items={tabs.map(({ id, label }) => ({ id, label }))}
-      />
+      <Seg tabs="columns" label="Tabelle" className="box-seg" value={table} onChange={setTable} options={tabs.map(({ id, label }) => ({ value: id, label }))} />
       {tabs.map(tab => (
         <TabPanel key={tab.id} id="columns" tab={tab.id} value={table}>
           {tab.body}

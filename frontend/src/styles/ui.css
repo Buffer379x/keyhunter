@@ -261,7 +261,23 @@
 .seg button:hover:not(:disabled) {
   color: var(--text);
 }
+/* (1.0.1) Count of a filter option, like the chip's. */
+.seg button .mono {
+  display: inline-block;
+  margin-left: 6px;
+  min-width: 2ch;
+  text-align: center;
+  color: var(--muted);
+  font-size: var(--t-label);
+}
+/* (1.0.1) Many or long options wrap onto more lines instead of scrolling; the group then has a corner radius, not a pill. */
+.seg.wrap {
+  flex-wrap: wrap;
+  overflow: visible;
+  border-radius: var(--r-lg);
+}
 .seg button[aria-checked='true'],
+.seg button[aria-selected='true'],
 .seg button[aria-pressed='true'] {
   background: var(--panel-3);
   color: var(--text);
@@ -816,6 +832,12 @@ tbody tr.click:hover td {
 .help-btn:hover,
 .help-btn[aria-expanded='true'] {
   color: var(--accent);
+}
+/* A tag as the trigger (Prüftempo): the button only wraps the pill. */
+.help-btn.help-tag {
+  width: auto;
+  height: auto;
+  border-radius: 999px;
 }
 .help-pop {
   position: fixed;

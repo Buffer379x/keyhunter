@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FetchShopStatus, Settings, SourceSettings } from '../../api';
-import { Help, Switch, TabPanel, Tabs } from '../../components';
+import { Help, Seg, Switch, TabPanel } from '../../components';
 import { parseFeePercent } from '../../fees';
 import { SettingsPanel } from './parts';
 import { DAILY_JOBS_MAX, DAILY_JOBS_MIN, intervalOptions, parseDailyJobs, shopTitle } from './format';
@@ -197,13 +197,14 @@ export default function Shops({
   const current = shops.some(s => s.id === open) ? open : (shops[0]?.id ?? '');
   return (
     <>
-      <Tabs
-        id="shops"
+      <Seg
+        tabs="shops"
         label="Key-Shops"
-        className="shop-tabs"
+        className="box-seg"
+        wrap
         value={current}
         onChange={setOpen}
-        items={shops.map(source => ({ id: source.id, label: source.enabled ? shopTitle(source.id) : `${shopTitle(source.id)} · aus` }))}
+        options={shops.map(source => ({ value: source.id, label: source.enabled ? shopTitle(source.id) : `${shopTitle(source.id)} · aus` }))}
       />
       {shops.map(source => (
         <TabPanel key={source.id} id="shops" tab={source.id} value={current}>

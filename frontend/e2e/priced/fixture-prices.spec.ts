@@ -150,12 +150,12 @@ test('PERF-05: with paused wishes the chip row has its final size while the list
     await route.fallback();
   });
   await page.reload();
-  const chips = page.getByRole('group', { name: 'Filter', exact: true });
-  await expect(chips.getByRole('button', { name: /^Pausiert/ })).toBeVisible();
+  const chips = page.getByRole('radiogroup', { name: 'Filter', exact: true });
+  await expect(chips.getByRole('radio', { name: /^Pausiert/ })).toBeVisible();
   await expect(wishlistRows(page)).toHaveCount(0);
   const body = page.getByRole('region', { name: 'Spiele', exact: true }).locator('> :nth-child(2)');
   const before = (await body.boundingBox())!.y;
   await expect(wishlistRows(page)).toHaveCount(7);
-  await expect(chips.getByRole('button', { name: /^Pausiert/ })).toContainText('1');
+  await expect(chips.getByRole('radio', { name: /^Pausiert/ })).toContainText('1');
   expect((await body.boundingBox())!.y, `table top while loading: ${before}`).toBe(before);
 });
