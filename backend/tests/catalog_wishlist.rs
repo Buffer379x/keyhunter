@@ -19,6 +19,8 @@ use tower::ServiceExt;
 struct Provider {
     offline: AtomicBool,
     changed_platform: AtomicBool,
+    /// The editions answer late, like a slow catalog.
+    slow_editions: AtomicBool,
 }
 fn game(id: i64) -> CatalogGame {
     CatalogGame {
@@ -82,6 +84,9 @@ impl CatalogProvider for Provider {
         }))
     }
     async fn editions(&self, _parent: i64) -> Result<Vec<CatalogGame>, CatalogError> {
+        if self.slow_editions.load(Ordering::SeqCst) {
+            tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+        }
         if self.offline.load(Ordering::SeqCst) {
             return Err(CatalogError::Unavailable);
         }
@@ -123,6 +128,7 @@ impl Fixture {
         let provider = Arc::new(Provider {
             offline: AtomicBool::new(false),
             changed_platform: AtomicBool::new(false),
+            slow_editions: AtomicBool::new(false),
         });
         let app = create_app_with_catalog(config.clone(), provider.clone())
             .await
@@ -3639,4 +3645,55 @@ async fn counts_match_the_lists_of_the_navigation_code08() {
         counts,
         json!({"wishlist": 2, "cart": 1, "library": 1, "alerts": 1})
     );
+}
+
+/// Phase E: a client that leaves while the editions are prepared (navigation, reload) must not leave the lease behind;
+/// before 1.0 the dropped request kept it, and the game showed "Editionen werden vorbereitet …" for three minutes.
+#[tokio::test]
+async fn a_dropped_edition_request_still_finishes_and_releases_the_lease() {
+    let f = Fixture::new().await;
+    let (_, saved) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":1,"platform_id":169}),
+        )
+        .await;
+    let id = saved["item"]["id"].as_str().unwrap();
+    let path = format!("/api/v1/wishlist/{id}/editions");
+    f.provider.slow_editions.store(true, Ordering::SeqCst);
+    let left = tokio::time::timeout(
+        std::time::Duration::from_millis(100),
+        f.call("POST", &path, json!({})),
+    )
+    .await;
+    assert!(left.is_err(), "the client left before the catalog answered");
+    let pool = sqlx::SqlitePool::connect_with(
+        sqlx::sqlite::SqliteConnectOptions::new().filename(f.config.data_dir.join("keyhunter.db")),
+    )
+    .await
+    .unwrap();
+    let scan = || async {
+        sqlx::query_as::<_, (i64, Option<i64>)>(
+            "SELECT lease_until,checked_at FROM edition_scan WHERE wish_id=?",
+        )
+        .bind(id)
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+    };
+    assert!(scan().await.0 > 0, "the request claimed the preparation");
+    let mut finished = false;
+    for _ in 0..60 {
+        let (lease, checked) = scan().await;
+        if lease == 0 && checked.is_some() {
+            finished = true;
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+    assert!(finished, "the preparation finished without the client");
+    let (_, prepared) = f.call("GET", &path, Value::Null).await;
+    assert_eq!(prepared["preparing"], false);
+    assert_eq!(prepared["items"].as_array().unwrap().len(), 2);
 }
