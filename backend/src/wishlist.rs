@@ -1,6 +1,6 @@
 use crate::extract::{ApiJson, ApiPath};
 use crate::{
-    ApiError, ApiResult, Shared, auth,
+    ApiError, ApiResult, Shared,
     catalog::{self, provider::CatalogGame},
     eventlog::{self, Area, Level},
     internal, now, random_token,
@@ -8,7 +8,7 @@ use crate::{
 use axum::{
     Json,
     extract::State,
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
@@ -79,10 +79,7 @@ fn decode(row: SqliteRow) -> ApiResult<WishlistItem> {
 
 /// GET /api/v1/counts: the numbers of the navigation (CODE-08), the same rows the wishlist, cart, library and
 /// alert lists show (enabled alerts only), without building those lists.
-pub(crate) async fn counts(
-    State(state): State<Shared>,
-    _: auth::Session,
-) -> ApiResult<Json<serde_json::Value>> {
+pub(crate) async fn counts(State(state): State<Shared>) -> ApiResult<Json<serde_json::Value>> {
     let (wishlist, cart, library, alerts): (i64, i64, i64, i64) = sqlx::query_as(
         "SELECT (SELECT COUNT(*) FROM wishlist_item WHERE state='wished'),
         (SELECT COUNT(*) FROM cart_item k JOIN wishlist_item w ON w.id=k.wish_id WHERE w.state='wished'),
@@ -96,10 +93,7 @@ pub(crate) async fn counts(
     ))
 }
 
-pub(crate) async fn list(
-    State(state): State<Shared>,
-    _: auth::Session,
-) -> ApiResult<Json<Vec<WishlistItem>>> {
+pub(crate) async fn list(State(state): State<Shared>) -> ApiResult<Json<Vec<WishlistItem>>> {
     let rows = sqlx::query(items_sql!(
         " WHERE w.state='wished' ORDER BY w.created_at DESC, w.rowid DESC"
     ))
@@ -344,11 +338,8 @@ pub(crate) async fn add_wish(state: &Shared, input: AddInput, mode: AddMode) -> 
 
 pub(crate) async fn add(
     State(state): State<Shared>,
-    session: auth::Session,
-    headers: HeaderMap,
     ApiJson(input): ApiJson<AddInput>,
 ) -> ApiResult<Response> {
-    auth::require_csrf(&state, &headers, &session)?;
     Ok(match add_wish(&state, input, AddMode::ByHand).await? {
         Added::InLibrary(title) => (
             StatusCode::CONFLICT,
@@ -403,11 +394,8 @@ struct ImportResult {
 /// overwritten, a game in the library stays there, and a second import of the same file adds nothing.
 pub(crate) async fn import(
     State(state): State<Shared>,
-    session: auth::Session,
-    headers: HeaderMap,
     ApiJson(input): ApiJson<ImportInput>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    auth::require_csrf(&state, &headers, &session)?;
     if input.version != 1 {
         return Err(ApiError(
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -525,12 +513,9 @@ pub(crate) struct PreviewInput {
 
 pub(crate) async fn preview(
     State(state): State<Shared>,
-    session: auth::Session,
-    headers: HeaderMap,
     ApiPath(id): ApiPath<String>,
     ApiJson(input): ApiJson<PreviewInput>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    auth::require_csrf(&state, &headers, &session)?;
     let row = sqlx::query(items_sql!(" WHERE w.id=? AND w.state='wished'"))
         .bind(&id)
         .fetch_optional(&state.pool)
@@ -585,11 +570,8 @@ pub(crate) async fn preview(
 
 pub(crate) async fn remove(
     State(state): State<Shared>,
-    session: auth::Session,
-    headers: HeaderMap,
     ApiPath(id): ApiPath<String>,
 ) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
     if id.len() != 32 || !id.bytes().all(|c| c.is_ascii_hexdigit()) {
         return Err(ApiError(
             StatusCode::BAD_REQUEST,
@@ -657,10 +639,7 @@ pub(crate) struct LibraryItem {
     acquired_at: i64,
 }
 
-pub(crate) async fn library(
-    State(state): State<Shared>,
-    _: auth::Session,
-) -> ApiResult<Json<Vec<LibraryItem>>> {
+pub(crate) async fn library(State(state): State<Shared>) -> ApiResult<Json<Vec<LibraryItem>>> {
     let rows = sqlx::query("SELECT w.id,w.game_id,w.platform_id,w.created_at,g.manual_title,c.payload,0 AS in_cart,COALESCE(w.acquired_at,0) AS acquired_at FROM wishlist_item w JOIN game g ON g.id=w.game_id LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id WHERE w.state='owned' ORDER BY w.acquired_at DESC,w.rowid DESC")
     .fetch_all(&state.pool)
     .await?;
@@ -691,12 +670,9 @@ const PAUSE_MAX: i64 = 366 * crate::DAY;
 /// pause does not touch it: a wish paused here stays paused when the checks are resumed.
 pub(crate) async fn pause(
     State(state): State<Shared>,
-    session: auth::Session,
-    headers: HeaderMap,
     ApiPath(id): ApiPath<String>,
     ApiJson(input): ApiJson<PauseInput>,
 ) -> ApiResult<Json<WishlistItem>> {
-    auth::require_csrf(&state, &headers, &session)?;
     let t = now();
     if input.paused
         && input
@@ -764,11 +740,8 @@ pub(crate) fn civil(seconds: i64) -> (i64, i64, i64) {
 
 pub(crate) async fn purchase(
     State(state): State<Shared>,
-    session: auth::Session,
-    headers: HeaderMap,
     ApiPath(id): ApiPath<String>,
 ) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
     let mut tx = state.pool.begin().await?;
     if !mark_owned(&mut tx, &id).await? {
         return Err(ApiError(
@@ -836,11 +809,8 @@ pub(crate) struct OwnedInput {
 /// A preview of an edition becomes an owned item too.
 pub(crate) async fn add_owned(
     State(state): State<Shared>,
-    session: auth::Session,
-    headers: HeaderMap,
     ApiJson(input): ApiJson<OwnedInput>,
 ) -> ApiResult<Response> {
-    auth::require_csrf(&state, &headers, &session)?;
     let target =
         Target::check(&state, input.igdb_id, input.manual_title, input.platform_id).await?;
     let mut tx = state.pool.begin().await?;
@@ -925,12 +895,9 @@ pub(crate) struct RestoreInput {
 }
 pub(crate) async fn restore(
     State(state): State<Shared>,
-    session: auth::Session,
-    headers: HeaderMap,
     ApiPath(id): ApiPath<String>,
     ApiJson(input): ApiJson<RestoreInput>,
 ) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
     if !input.confirm {
         return Err(ApiError(
             StatusCode::CONFLICT,

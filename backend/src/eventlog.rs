@@ -3,7 +3,7 @@
 //! start entry included). They never contain secrets: no passphrase, session or CSRF token, cookie, address,
 //! token or password of a notification channel, and no IGDB access.
 
-use crate::{ApiError, ApiResult, Shared, auth, now, shops::Shop};
+use crate::{ApiError, ApiResult, Shared, now, shops::Shop};
 use axum::{
     Json,
     extract::{Query, State, rejection::QueryRejection},
@@ -213,7 +213,6 @@ const FILTER: &str = r"FROM event_log WHERE (?1 IS NULL OR level=?1)
 /// GET /api/v1/log?level=&q=&page=&per_page=: entries, newest first, and the number after filtering.
 pub(crate) async fn list(
     State(state): State<Shared>,
-    _: auth::Session,
     query: Result<Query<LogQuery>, QueryRejection>,
 ) -> ApiResult<Json<Value>> {
     let Query(query) = query.map_err(|_| BAD_FILTER)?;

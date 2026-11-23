@@ -1,15 +1,11 @@
 use crate::extract::{ApiJson, ApiPath};
 use crate::{
-    ApiError, ApiResult, Shared, auth,
+    ApiError, ApiResult, Shared,
     eventlog::{self, Area, Level},
     internal, now, pricing,
     shops::{self, Product, Shop, title_key},
 };
-use axum::{
-    Json,
-    extract::State,
-    http::{HeaderMap, StatusCode},
-};
+use axum::{Json, extract::State, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::{AssertSqlSafe, FromRow, SqlitePool};
@@ -520,7 +516,6 @@ async fn samples(
 
 pub(crate) async fn list(
     State(state): State<Shared>,
-    _: auth::Session,
     ApiPath(id): ApiPath<String>,
 ) -> ApiResult<Json<OffersView>> {
     let wish = wish(&state.pool, &id).await?;
@@ -721,12 +716,9 @@ pub(crate) struct AddLink {
 }
 pub(crate) async fn add_link(
     State(state): State<Shared>,
-    session: auth::Session,
     ApiPath(id): ApiPath<String>,
-    headers: HeaderMap,
     ApiJson(input): ApiJson<AddLink>,
 ) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
     let (shop, url) = shops::product_link(input.url.trim()).ok_or(BAD_URL)?;
     let enabled: bool =
         sqlx::query_scalar("SELECT enabled AND configured FROM source_settings WHERE id=?")
@@ -811,12 +803,9 @@ const NOT_A_KEY: ApiError = ApiError(
 );
 pub(crate) async fn review(
     State(state): State<Shared>,
-    session: auth::Session,
     ApiPath((id, link_id)): ApiPath<(String, i64)>,
-    headers: HeaderMap,
     ApiJson(input): ApiJson<Review>,
 ) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
     crate::wishlist::require_unowned(&state.pool, &id).await?;
     let wish = wish(&state.pool, &id).await?;
     let link = links(&state.pool, &id, now())
@@ -892,11 +881,8 @@ async fn log_review(state: &Shared, id: &str, link: i64, how: &str) {
 /// suggest the product for this wish again (`offer_link_block`); adding the link by hand lifts that.
 pub(crate) async fn remove_link(
     State(state): State<Shared>,
-    session: auth::Session,
     ApiPath((id, link_id)): ApiPath<(String, i64)>,
-    headers: HeaderMap,
 ) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
     crate::wishlist::require_unowned(&state.pool, &id).await?;
     let mut tx = state.pool.begin().await?;
     let blocked = sqlx::query(
@@ -930,11 +916,8 @@ const REFRESH_SPACING: i64 = 900;
 
 pub(crate) async fn refresh(
     State(state): State<Shared>,
-    session: auth::Session,
     ApiPath(id): ApiPath<String>,
-    headers: HeaderMap,
 ) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
     crate::wishlist::require_unowned(&state.pool, &id).await?;
     wish(&state.pool, &id).await?;
     let t = now();

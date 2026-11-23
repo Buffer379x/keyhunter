@@ -1,10 +1,6 @@
 use crate::extract::ApiJson;
-use crate::{ApiError, ApiResult, Shared, auth};
-use axum::{
-    Json,
-    extract::State,
-    http::{HeaderMap, StatusCode},
-};
+use crate::{ApiError, ApiResult, Shared};
+use axum::{Json, extract::State, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 
@@ -177,20 +173,14 @@ async fn load(state: &Shared) -> ApiResult<Settings> {
     })
 }
 
-pub(crate) async fn get_settings(
-    State(state): State<Shared>,
-    _: auth::Session,
-) -> ApiResult<Json<Settings>> {
+pub(crate) async fn get_settings(State(state): State<Shared>) -> ApiResult<Json<Settings>> {
     Ok(Json(load(&state).await?))
 }
 
 pub(crate) async fn put_settings(
     State(state): State<Shared>,
-    session: auth::Session,
-    headers: HeaderMap,
     ApiJson(input): ApiJson<Settings>,
 ) -> ApiResult<Json<Settings>> {
-    auth::require_csrf(&state, &headers, &session)?;
     let bad = || {
         ApiError(
             StatusCode::BAD_REQUEST,
@@ -348,14 +338,11 @@ fn stored_daily_jobs(source: &SourceSettings) -> Option<i64> {
 
 pub(crate) async fn put_igdb_credentials(
     State(state): State<Shared>,
-    session: auth::Session,
-    headers: HeaderMap,
     input: Result<
         Json<crate::catalog::provider::IgdbCredentials>,
         axum::extract::rejection::JsonRejection,
     >,
 ) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
     let Json(input) = input.map_err(|_| {
         ApiError(
             StatusCode::BAD_REQUEST,
@@ -377,12 +364,7 @@ pub(crate) async fn put_igdb_credentials(
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub(crate) async fn delete_igdb_credentials(
-    State(state): State<Shared>,
-    session: auth::Session,
-    headers: HeaderMap,
-) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
+pub(crate) async fn delete_igdb_credentials(State(state): State<Shared>) -> ApiResult<StatusCode> {
     state
         .catalog
         .update_credentials(None)

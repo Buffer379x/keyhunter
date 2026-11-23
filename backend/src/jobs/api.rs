@@ -7,7 +7,7 @@ use super::{
 };
 use crate::extract::ApiJson;
 use crate::{
-    ApiResult, DAY, Shared, auth,
+    ApiResult, DAY, Shared,
     eventlog::{self, Area, GAME_NAME, Level},
     now,
     shops::Shop,
@@ -15,7 +15,6 @@ use crate::{
 use axum::{
     Json,
     extract::{Query, State, rejection::QueryRejection},
-    http::HeaderMap,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -91,11 +90,8 @@ pub(super) async fn budget_status(pool: &SqlitePool, shop: Shop, t: i64) -> sqlx
 /// While paused only direct user actions run (requested refresh, first search of a new wish).
 pub(crate) async fn set_paused(
     State(state): State<Shared>,
-    session: auth::Session,
-    headers: HeaderMap,
     ApiJson(input): ApiJson<Value>,
 ) -> ApiResult<Json<Value>> {
-    auth::require_csrf(&state, &headers, &session)?;
     let Some(paused) = input["paused"].as_bool() else {
         return Err(crate::ApiError(
             axum::http::StatusCode::BAD_REQUEST,
@@ -141,10 +137,7 @@ pub(super) async fn backlog(
 }
 
 /// GET /api/v1/status/fetch: queue, budget, pauses and recent runs per shop.
-pub(crate) async fn status(
-    State(state): State<Shared>,
-    _: auth::Session,
-) -> ApiResult<Json<Value>> {
+pub(crate) async fn status(State(state): State<Shared>) -> ApiResult<Json<Value>> {
     let t = now();
     type ShopRow = (String, bool, Option<i64>, Option<String>, i64);
     let rows: Vec<ShopRow> = sqlx::query_as(
@@ -243,7 +236,6 @@ pub(crate) struct RunsQuery {
 /// GET /api/v1/status/fetch/runs?tone=&q=&page=&per_page=: the fetch history (30 days), newest first.
 pub(crate) async fn runs(
     State(state): State<Shared>,
-    _: auth::Session,
     query: Result<Query<RunsQuery>, QueryRejection>,
 ) -> ApiResult<Json<Value>> {
     let Query(query) = query.map_err(|_| eventlog::BAD_FILTER)?;

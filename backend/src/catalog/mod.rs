@@ -1,7 +1,7 @@
 pub mod contents;
 pub mod provider;
 use crate::extract::{ApiPath, ApiQuery};
-use crate::{ApiError, ApiResult, Shared, auth, internal, now};
+use crate::{ApiError, ApiResult, Shared, internal, now};
 use axum::{Json, extract::State, http::StatusCode};
 use provider::{CatalogError, CatalogGame};
 use serde::Deserialize;
@@ -143,7 +143,6 @@ fn igdb_id(text: &str) -> Option<i64> {
 
 pub(crate) async fn search(
     State(state): State<Shared>,
-    _: auth::Session,
     ApiQuery(query): ApiQuery<SearchQuery>,
 ) -> ApiResult<Json<Value>> {
     enabled(&state).await?;
@@ -229,7 +228,6 @@ pub(crate) struct PlatformQuery {
 }
 pub(crate) async fn game_detail(
     State(state): State<Shared>,
-    _: auth::Session,
     ApiPath(id): ApiPath<i64>,
     ApiQuery(query): ApiQuery<PlatformQuery>,
 ) -> ApiResult<Json<CatalogGame>> {
@@ -249,10 +247,7 @@ pub(crate) async fn game_detail(
     Ok(Json(game))
 }
 
-pub(crate) async fn source_status(
-    State(state): State<Shared>,
-    _: auth::Session,
-) -> ApiResult<Json<Value>> {
+pub(crate) async fn source_status(State(state): State<Shared>) -> ApiResult<Json<Value>> {
     let active: bool = sqlx::query_scalar("SELECT enabled FROM source_settings WHERE id='igdb'")
         .fetch_one(&state.pool)
         .await?;
@@ -274,7 +269,6 @@ const UNVERIFIED_CONTENTS_TTL: i64 = 900;
 
 pub(crate) async fn edition_comparison(
     State(state): State<Shared>,
-    _: auth::Session,
     ApiPath(id): ApiPath<i64>,
     ApiQuery(query): ApiQuery<PlatformQuery>,
 ) -> ApiResult<Json<Value>> {

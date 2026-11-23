@@ -7,13 +7,13 @@ use super::{
 };
 use crate::extract::ApiPath;
 use crate::{
-    ApiError, ApiResult, Shared, auth,
+    ApiError, ApiResult, Shared,
     eventlog::{self, Area, Level},
 };
 use axum::{
     Json,
     extract::{State, rejection::JsonRejection},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     response::{IntoResponse, Response},
 };
 use serde_json::{Value, json};
@@ -44,10 +44,7 @@ pub(super) fn view(channel: &Channel) -> Value {
 }
 
 /// GET /alerts/channels: every channel with its switch, visible settings and which secrets are stored.
-pub(crate) async fn list_channels(
-    State(state): State<Shared>,
-    _: auth::Session,
-) -> ApiResult<Json<Value>> {
+pub(crate) async fn list_channels(State(state): State<Shared>) -> ApiResult<Json<Value>> {
     let channels = state.notifier.channels(&state.pool).await?;
     Ok(Json(
         json!({"channels": channels.iter().map(view).collect::<Vec<_>>()}),
@@ -66,12 +63,9 @@ async fn channel_view(state: &Shared, kind: Kind) -> ApiResult<Json<Value>> {
 /// PUT /alerts/channels/{kind}: `{"enabled", "settings": {…}, "secrets": {…}}`; answers like one entry of the list.
 pub(crate) async fn put_channel(
     State(state): State<Shared>,
-    session: auth::Session,
     ApiPath(kind): ApiPath<String>,
-    headers: HeaderMap,
     input: Result<Json<ChannelInput>, JsonRejection>,
 ) -> ApiResult<Json<Value>> {
-    auth::require_csrf(&state, &headers, &session)?;
     let kind = Kind::from_id(&kind).ok_or(UNKNOWN)?;
     let Json(input) = input.map_err(|_| BAD_INPUT)?;
     let enabled = input.enabled;
@@ -93,11 +87,8 @@ pub(crate) async fn put_channel(
 /// DELETE /alerts/channels/{kind}: switch off and forget settings and secrets.
 pub(crate) async fn delete_channel(
     State(state): State<Shared>,
-    session: auth::Session,
     ApiPath(kind): ApiPath<String>,
-    headers: HeaderMap,
 ) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
     let kind = Kind::from_id(&kind).ok_or(UNKNOWN)?;
     state.notifier.remove(&state.pool, kind).await?;
     eventlog::record(
@@ -114,23 +105,9 @@ pub(crate) async fn delete_channel(
 /// switched off). 200 `{"ok": true}`, or 502 with the reason in `error`.
 pub(crate) async fn test_channel(
     State(state): State<Shared>,
-    session: auth::Session,
     ApiPath(kind): ApiPath<String>,
-    headers: HeaderMap,
-) -> Response {
-    test(&state, &session, &kind, &headers)
-        .await
-        .unwrap_or_else(IntoResponse::into_response)
-}
-
-async fn test(
-    state: &Shared,
-    session: &auth::Session,
-    kind: &str,
-    headers: &HeaderMap,
 ) -> ApiResult<Response> {
-    auth::require_csrf(state, headers, session)?;
-    let kind = Kind::from_id(kind).ok_or(UNKNOWN)?;
+    let kind = Kind::from_id(&kind).ok_or(UNKNOWN)?;
     let channels = state.notifier.channels(&state.pool).await?;
     let target = channels
         .into_iter()

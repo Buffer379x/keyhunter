@@ -1,15 +1,11 @@
 use crate::extract::ApiPath;
 use crate::{
-    ApiError, ApiResult, Shared, auth, catalog,
+    ApiError, ApiResult, Shared, catalog,
     eventlog::{self, Area, Level},
     now,
     wishlist::{self, WishlistItem},
 };
-use axum::{
-    Json,
-    extract::State,
-    http::{HeaderMap, StatusCode},
-};
+use axum::{Json, extract::State, http::StatusCode};
 use serde::Serialize;
 use std::time::Duration;
 
@@ -72,18 +68,14 @@ async fn snapshot(state: &Shared, id: &str) -> ApiResult<Prepared> {
 
 pub(crate) async fn get(
     State(state): State<Shared>,
-    _: auth::Session,
     ApiPath(id): ApiPath<String>,
 ) -> ApiResult<Json<Prepared>> {
     Ok(Json(snapshot(&state, &id).await?))
 }
 pub(crate) async fn prepare(
     State(state): State<Shared>,
-    session: auth::Session,
     ApiPath(id): ApiPath<String>,
-    headers: HeaderMap,
 ) -> ApiResult<Json<Prepared>> {
-    auth::require_csrf(&state, &headers, &session)?;
     // Its own task, so it finishes when the client leaves (navigation, reload, request timeout): a dropped request
     // kept the lease, and the game showed "Editionen werden vorbereitet …" for up to three minutes.
     let task = {

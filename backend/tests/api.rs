@@ -1540,10 +1540,8 @@ async fn responses_are_compressed_and_static_files_carry_cache_rules_perf03_perf
     );
 }
 
-/// Every API route of the router in `src/lib.rs` as (method, path), read from the source, so a new route is part of
-/// the matrix below without being listed by hand.
-fn api_routes() -> Vec<(String, String)> {
-    let source = include_str!("../src/lib.rs");
+/// The `.route(…)` calls of `source` as (method, path).
+fn routes_in(source: &str) -> Vec<(String, String)> {
     let mut routes = Vec::new();
     for (start, _) in source.match_indices(".route(") {
         let rest = &source[start + ".route(".len()..];
@@ -1562,10 +1560,7 @@ fn api_routes() -> Vec<(String, String)> {
             .0;
         let call = &rest[..end];
         let path = call.split('"').nth(1).unwrap();
-        if path.starts_with("/health/") {
-            continue;
-        }
-        for method in ["get", "post", "put", "delete"] {
+        for method in ["get", "post", "put", "delete", "patch"] {
             let token = format!("{method}(");
             let found = call.match_indices(&token).any(|(at, _)| {
                 at == 0 || matches!(call.as_bytes()[at - 1], b'.' | b':' | b'(' | b' ' | b'\n')
@@ -1576,6 +1571,37 @@ fn api_routes() -> Vec<(String, String)> {
         }
     }
     routes
+}
+
+/// The API routes of one router function in `src/lib.rs` (`public_api` or `protected_api`) as (method, path), read
+/// from the source, so a new route is part of the matrices below without being listed by hand.
+fn api_routes(function: &str) -> Vec<(String, String)> {
+    let source = include_str!("../src/lib.rs");
+    let start = source
+        .find(&format!("\nfn {function}("))
+        .unwrap_or_else(|| panic!("fn {function} in src/lib.rs"));
+    let body = &source[start..];
+    routes_in(&body[..body.find("\n}\n").unwrap()])
+}
+
+/// The routes that answer without a session; [`public_routes_answer_without_a_session_code03`] pins them.
+fn public_routes() -> Vec<(String, String)> {
+    api_routes("public_api")
+}
+
+/// The routes behind the session layer.
+fn protected_routes() -> Vec<(String, String)> {
+    api_routes("protected_api")
+}
+
+/// The URL of a route with every path parameter filled with `value`.
+fn url_of(path: &str, value: &str) -> String {
+    let mut url = String::from("/api/v1");
+    for part in path.split('/').skip(1) {
+        url.push('/');
+        url.push_str(if part.starts_with('{') { value } else { part });
+    }
+    url
 }
 
 /// A request with a raw body; answers status, content type and the JSON body (`Null` if it is none).
@@ -1643,10 +1669,10 @@ fn assert_api_error(route: &str, status: StatusCode, kind: &str, data: &Value) {
 async fn every_route_checks_the_session_first_and_answers_errors_as_german_json_code02() {
     let f = Fixture::new().await;
     let (cookie, csrf) = setup(&f).await;
-    let mut routes = api_routes();
+    let public = public_routes();
+    let mut routes = [public.clone(), protected_routes()].concat();
     assert!(routes.len() >= 45, "{routes:?}");
     assert!(routes.iter().all(|(_, path)| !path.contains("reset")));
-    let public = [("GET", "/setup"), ("POST", "/setup"), ("POST", "/session")];
     // Ending the session last, the one of this browser at the very end.
     routes.sort_by_key(|(method, path)| {
         (
@@ -1656,15 +1682,10 @@ async fn every_route_checks_the_session_first_and_answers_errors_as_german_json_
     });
     for (method, path) in &routes {
         let route = format!("{method} {path}");
-        let url = format!(
-            "/api/v1{}",
-            path.replace("{id}", "abc")
-                .replace("{link}", "abc")
-                .replace("{kind}", "abc")
-        );
+        let url = url_of(path, "abc");
         let (status, kind, data) =
             raw(&f.app, method, &url, "{", Some("application/json"), None).await;
-        if public.contains(&(method.as_str(), path.as_str())) {
+        if public.contains(&(method.clone(), path.clone())) {
             if method == "POST" {
                 assert_eq!(status, StatusCode::BAD_REQUEST, "{route}");
                 assert_api_error(&route, status, &kind, &data);
@@ -1690,45 +1711,42 @@ async fn every_route_checks_the_session_first_and_answers_errors_as_german_json_
     }
 }
 
-/// CODE-03, the CSRF and origin matrix: every state-changing route (POST, PUT, DELETE; the router has no PATCH) rejects
-/// a request with a valid session but no CSRF header, a wrong token or a foreign origin with 403 before it changes
-/// anything. The documented exceptions are the setup and the sign-in: they have no session yet, so no CSRF token, and
-/// are protected by the origin check alone (covered by `setup_requires_local_secret_and_is_single_use` and the
-/// sign-in tests).
+/// CODE-03, the CSRF and origin matrix: every state-changing route behind the session layer (POST, PUT, DELETE, PATCH)
+/// rejects a request with a valid session but no CSRF header, a wrong token or a foreign origin with 403 before it
+/// changes anything. Only the session layer checks, so a route outside it fails here. The documented exceptions are the
+/// setup and the sign-in: they have no session yet, so no CSRF token, and are protected by the origin check alone
+/// (covered by `setup_requires_local_secret_and_is_single_use` and the sign-in tests).
 #[tokio::test]
 async fn every_state_changing_route_needs_csrf_and_a_matching_origin_code03() {
     let f = Fixture::new().await;
     let (cookie, csrf) = setup(&f).await;
-    let routes: Vec<_> = api_routes()
+    let routes: Vec<_> = protected_routes()
         .into_iter()
         .filter(|(method, _)| method != "GET")
-        .filter(|route| {
-            !matches!(
-                (route.0.as_str(), route.1.as_str()),
-                ("POST", "/setup" | "/session")
-            )
-        })
         .collect();
     assert!(routes.len() >= 25, "{routes:?}");
     let before = state_snapshot(&f, &cookie).await;
     for (method, path) in &routes {
         let route = format!("{method} {path}");
-        let url = format!(
-            "/api/v1{}",
-            path.replace("{id}", "1")
-                .replace("{link}", "1")
-                .replace("{kind}", "ntfy")
-        );
+        let url = url_of(path, if path.contains("{kind}") { "ntfy" } else { "1" });
+        let forged = "Sicherheitsprüfung fehlgeschlagen. Seite neu laden.";
+        let foreign = "Anfrage abgewiesen: Die Adresse im Browser passt nicht zur App. Öffne KeyHunter über die IP-Adresse oder setze KEYHUNTER_ORIGIN auf die genutzte Adresse.";
         let attempts = [
-            ("no CSRF header", None, "http://localhost:3000"),
+            ("no CSRF header", None, "http://localhost:3000", forged),
             (
                 "wrong CSRF token",
                 Some("0".repeat(csrf.len())),
                 "http://localhost:3000",
+                forged,
             ),
-            ("foreign origin", Some(csrf.clone()), "https://evil.example"),
+            (
+                "foreign origin",
+                Some(csrf.clone()),
+                "https://evil.example",
+                foreign,
+            ),
         ];
-        for (what, token, origin) in attempts {
+        for (what, token, origin, message) in attempts {
             let mut req = Request::builder()
                 .method(method.as_str())
                 .uri(&url)
@@ -1749,10 +1767,145 @@ async fn every_state_changing_route_needs_csrf_and_a_matching_origin_code03() {
                 StatusCode::FORBIDDEN,
                 "{route} with {what}"
             );
+            let bytes = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+            let data: Value = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(
+                data,
+                json!({"error": message, "code": "forbidden"}),
+                "{route} with {what}"
+            );
         }
     }
     // Nothing changed: the session still works and the state is as before.
     assert_eq!(state_snapshot(&f, &cookie).await, before);
+}
+
+/// CODE-03: the session layer guards every route of the API but the public ones. Each route in `src/lib.rs` is either
+/// in `public_api`, in `protected_api` or a health check, and every method of every protected route answers 401 with the
+/// German JSON error without a session cookie and with a cookie whose session is gone, whatever the body.
+#[tokio::test]
+async fn every_protected_route_needs_a_session_code03() {
+    let f = Fixture::new().await;
+    let (public, protected) = (public_routes(), protected_routes());
+    assert!(protected.len() >= 45, "{protected:?}");
+    for route in routes_in(include_str!("../src/lib.rs")) {
+        assert!(
+            route.1.starts_with("/health/")
+                || public.contains(&route)
+                || protected.contains(&route),
+            "{route:?} is neither public nor behind the session layer"
+        );
+    }
+    let gone = format!("keyhunter_session={}", "ab".repeat(32));
+    for (method, path) in &protected {
+        let url = url_of(path, "1");
+        let mut methods = vec![method.as_str()];
+        if method == "GET" {
+            methods.push("HEAD");
+        }
+        for method in methods {
+            let route = format!("{method} {path}");
+            for (cookie, message) in [
+                (None, "Bitte anmelden."),
+                (Some(gone.as_str()), "Sitzung abgelaufen. Bitte anmelden."),
+            ] {
+                let mut req = Request::builder()
+                    .method(method)
+                    .uri(&url)
+                    .header("Content-Type", "application/json")
+                    .header("Origin", "http://localhost:3000");
+                if let Some(cookie) = cookie {
+                    req = req.header("Cookie", cookie);
+                }
+                let response = f
+                    .app
+                    .clone()
+                    .oneshot(req.body(Body::from("{")).unwrap())
+                    .await
+                    .unwrap();
+                assert_eq!(
+                    response.status(),
+                    StatusCode::UNAUTHORIZED,
+                    "{route} {cookie:?}"
+                );
+                if method != "HEAD" {
+                    let bytes = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+                    let data: Value = serde_json::from_slice(&bytes).unwrap();
+                    assert_eq!(
+                        data,
+                        json!({"error": message, "code": "unauthenticated"}),
+                        "{route} {cookie:?}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// CODE-03: without a session only the setup, the sign-in, the health checks and the app itself answer, and they still
+/// do. A new public route has to be added here on purpose.
+#[tokio::test]
+async fn public_routes_answer_without_a_session_code03() {
+    let f = Fixture::new().await;
+    let mut public = public_routes();
+    public.sort();
+    assert_eq!(
+        public,
+        [("GET", "/setup"), ("POST", "/session"), ("POST", "/setup")]
+            .map(|(m, p)| (m.to_string(), p.to_string()))
+    );
+    let get = |path: &'static str| raw(&f.app, "GET", path, "", None, None);
+    let (status, _, data) = get("/api/v1/setup").await;
+    assert_eq!((status, data), (StatusCode::OK, json!({"required": true})));
+    // The handlers run: a broken body is a 400 of the extractor, a wrong passphrase the sign-in's own 401.
+    for path in ["/api/v1/setup", "/api/v1/session"] {
+        let (status, _, data) =
+            raw(&f.app, "POST", path, "{", Some("application/json"), None).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{path}");
+        assert_eq!(data["code"], "invalid_request", "{path}");
+    }
+    let (status, _, data) = raw(
+        &f.app,
+        "POST",
+        "/api/v1/session",
+        r#"{"password":"wrong passphrase"}"#,
+        Some("application/json"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(data["error"], "Bitte zuerst die Einrichtung abschließen.");
+    setup(&f).await;
+    let (status, _, data) = get("/api/v1/setup").await;
+    assert_eq!((status, data), (StatusCode::OK, json!({"required": false})));
+    let (status, _, data) = raw(
+        &f.app,
+        "POST",
+        "/api/v1/session",
+        r#"{"password":"wrong passphrase"}"#,
+        Some("application/json"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(data["error"], "Anmeldung fehlgeschlagen.");
+    assert_eq!(get("/health/live").await.0, StatusCode::OK);
+    assert_eq!(get("/health/ready").await.0, StatusCode::OK);
+    // The app and a page of it (the single-page fallback serves the same index).
+    for path in ["/", "/wishlist"] {
+        let response = f
+            .app
+            .clone()
+            .oneshot(Request::get(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert!(path != "/" || response.status() == StatusCode::OK);
+        let bytes = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+        assert!(
+            String::from_utf8_lossy(&bytes).contains("KEYHUNTER"),
+            "{path}"
+        );
+    }
 }
 
 /// The parts of the state a state-changing route could touch.

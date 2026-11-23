@@ -301,13 +301,48 @@ async fn create_app_inner(
         edition_tracking::start(&state);
         alerts::start(&state.pool, notifier);
     }
-    // Without a session: the setup and the sign-in.
-    let public = Router::new()
+    let api = public_api()
+        .merge(protected_api(&state))
+        .fallback(api_not_found)
+        .method_not_allowed_fallback(method_not_allowed);
+    Ok(Router::new()
+        .nest(
+            "/api",
+            Router::new().nest("/v1", api).fallback(api_not_found),
+        )
+        .route(
+            "/health/live",
+            get(|| async { Json(json!({"status":"ok"})) }),
+        )
+        .route("/health/ready", get(ready))
+        .fallback_service(
+            ServeDir::new(&config.frontend_dir)
+                .not_found_service(ServeFile::new(config.frontend_dir.join("index.html"))),
+        )
+        // Innermost first: the body is read in full before the request takes a concurrency slot.
+        .layer(DefaultBodyLimit::max(BODY_LIMIT))
+        .layer(ConcurrencyLimitLayer::new(16))
+        .layer(middleware::from_fn(read_body))
+        .layer(middleware::from_fn(time_limit))
+        // JSON and static files (PERF-03); brotli at quality 4 stays cheap for the 460 KB script.
+        .layer(CompressionLayer::new().quality(CompressionLevel::Precise(4)))
+        .layer(middleware::from_fn(security_headers))
+        .with_state(state))
+}
+
+/// The API without a session: the setup and the sign-in. `tests/api.rs` reads the routes of this function and of
+/// [`protected_api`] from the source, so every route is part of its route matrices.
+fn public_api() -> Router<Shared> {
+    Router::new()
         .route("/setup", get(auth::setup_status).post(auth::setup))
-        .route("/session", post(auth::login));
-    // Everything else: the session is checked before any extractor reads the path, the query or the body, so a
-    // request without one gets 401 whatever it sends (CODE-02, SEC-06).
-    let protected = Router::new()
+        .route("/session", post(auth::login))
+}
+
+/// Everything else: the session is checked before any extractor reads the path, the query or the body, so a request
+/// without one gets 401 whatever it sends (CODE-02, SEC-06), and every state-changing method needs the CSRF token
+/// (CODE-03, [`auth::require_session`]). Handlers do not check again.
+fn protected_api(state: &Shared) -> Router<Shared> {
+    Router::new()
         .route("/session", delete(auth::logout))
         .route("/session/passphrase", put(auth::change_passphrase))
         .route("/sessions", delete(auth::logout_everywhere))
@@ -377,36 +412,9 @@ async fn create_app_inner(
             put(settings::put_igdb_credentials).delete(settings::delete_igdb_credentials),
         )
         .route_layer(middleware::from_fn_with_state(
-            Arc::clone(&state),
+            Arc::clone(state),
             auth::require_session,
-        ));
-    let api = public
-        .merge(protected)
-        .fallback(api_not_found)
-        .method_not_allowed_fallback(method_not_allowed);
-    Ok(Router::new()
-        .nest(
-            "/api",
-            Router::new().nest("/v1", api).fallback(api_not_found),
-        )
-        .route(
-            "/health/live",
-            get(|| async { Json(json!({"status":"ok"})) }),
-        )
-        .route("/health/ready", get(ready))
-        .fallback_service(
-            ServeDir::new(&config.frontend_dir)
-                .not_found_service(ServeFile::new(config.frontend_dir.join("index.html"))),
-        )
-        // Innermost first: the body is read in full before the request takes a concurrency slot.
-        .layer(DefaultBodyLimit::max(BODY_LIMIT))
-        .layer(ConcurrencyLimitLayer::new(16))
-        .layer(middleware::from_fn(read_body))
-        .layer(middleware::from_fn(time_limit))
-        // JSON and static files (PERF-03); brotli at quality 4 stays cheap for the 460 KB script.
-        .layer(CompressionLayer::new().quality(CompressionLevel::Precise(4)))
-        .layer(middleware::from_fn(security_headers))
-        .with_state(state))
+        ))
 }
 
 /// Result of [`reset_owner`].

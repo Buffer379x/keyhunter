@@ -25,26 +25,33 @@ pub(crate) struct Session {
     pub csrf_token: String,
 }
 
-/// Layer of the protected routes: checks the session before any extractor reads the path, the query or the body
-/// (CODE-02, SEC-06) and hands it to the handler as [`Session`]. A state-changing method also needs the origin and
-/// CSRF token here, so a forged request gets 403 before its body is parsed (CODE-03); handlers still check as well.
+/// Whether the checked origin of a state-changing request uses HTTPS, found by [`require_session`]; the `Secure` flag of
+/// the cookie that signing out clears.
+#[derive(Clone, Copy)]
+pub(crate) struct Https(pub bool);
+
+/// Layer of the protected routes (CODE-03), the only place that checks the sign-in: the session before any extractor
+/// reads the path, the query or the body (CODE-02, SEC-06), handed to the handler as [`Session`]. Every method but GET
+/// and HEAD also needs the origin and the CSRF token, so a forged request gets 403 before its body is parsed; the
+/// result of the origin check is handed on as [`Https`].
 pub(crate) async fn require_session(
     State(state): State<Shared>,
     mut req: Request,
     next: Next,
 ) -> Response {
-    match authenticate(&state, req.headers()).await {
-        Ok(session) => {
-            if !matches!(*req.method(), Method::GET | Method::HEAD)
-                && let Err(error) = require_csrf(&state, req.headers(), &session)
-            {
-                return error.into_response();
-            }
-            req.extensions_mut().insert(session);
-            next.run(req).await
-        }
-        Err(error) => error.into_response(),
+    let session = match authenticate(&state, req.headers()).await {
+        Ok(session) => session,
+        Err(error) => return error.into_response(),
+    };
+    if !matches!(*req.method(), Method::GET | Method::HEAD) {
+        let secure = match require_csrf(&state, req.headers(), &session) {
+            Ok(secure) => secure,
+            Err(error) => return error.into_response(),
+        };
+        req.extensions_mut().insert(Https(secure));
     }
+    req.extensions_mut().insert(session);
+    next.run(req).await
 }
 
 impl<S: Send + Sync> FromRequestParts<S> for Session {
@@ -56,6 +63,18 @@ impl<S: Send + Sync> FromRequestParts<S> for Session {
             .get::<Session>()
             .cloned()
             .ok_or(ApiError(StatusCode::UNAUTHORIZED, "Bitte anmelden."))
+    }
+}
+
+impl<S: Send + Sync> FromRequestParts<S> for Https {
+    type Rejection = ApiError;
+    /// Fails closed: only a checked state-changing request on a protected route has one.
+    async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, ApiError> {
+        parts
+            .extensions
+            .get::<Https>()
+            .copied()
+            .ok_or_else(internal)
     }
 }
 
@@ -136,11 +155,7 @@ async fn authenticate(state: &Shared, headers: &HeaderMap) -> ApiResult<Session>
     })
 }
 
-pub(crate) fn require_csrf(
-    state: &Shared,
-    headers: &HeaderMap,
-    session: &Session,
-) -> ApiResult<bool> {
+fn require_csrf(state: &Shared, headers: &HeaderMap, session: &Session) -> ApiResult<bool> {
     let secure = require_origin(state, headers)?;
     let supplied = headers
         .get("X-CSRF-Token")
@@ -427,9 +442,8 @@ pub(crate) fn sessions(count: usize) -> String {
 pub(crate) async fn logout(
     State(state): State<Shared>,
     session: Session,
-    headers: HeaderMap,
+    Https(secure): Https,
 ) -> ApiResult<Response> {
-    let secure = require_csrf(&state, &headers, &session)?;
     sqlx::query("DELETE FROM session WHERE token_hash = ?")
         .bind(session.token_hash)
         .execute(&state.pool)
@@ -441,10 +455,8 @@ pub(crate) async fn logout(
 /// DELETE /api/v1/sessions: ends every session, this one included (SEC-03).
 pub(crate) async fn logout_everywhere(
     State(state): State<Shared>,
-    session: Session,
-    headers: HeaderMap,
+    Https(secure): Https,
 ) -> ApiResult<Response> {
-    let secure = require_csrf(&state, &headers, &session)?;
     let active: Vec<bool> = sqlx::query_scalar("DELETE FROM session RETURNING expires_at > ?")
         .bind(now())
         .fetch_all(&state.pool)
@@ -474,7 +486,6 @@ pub(crate) async fn change_passphrase(
     headers: HeaderMap,
     ApiJson(input): ApiJson<PassphraseInput>,
 ) -> ApiResult<Json<Value>> {
-    require_csrf(&state, &headers, &session)?;
     check_strength(&input.new)?;
     let source = source(&state, peer, &headers);
     reserve_attempt(&state, source).await?;
