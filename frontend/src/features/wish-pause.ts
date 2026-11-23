@@ -14,3 +14,33 @@ export function pauseText(item: Pick<WishlistItem, 'paused' | 'paused_until'>): 
   if (!item.paused) return '';
   return item.paused_until ? `Abfragen pausiert bis ${date(item.paused_until)}` : 'Abfragen pausiert, bis du sie fortsetzt';
 }
+
+/** Why a wish carries the warning symbol (0.9.1): mappings to review under Zuordnungen, or a catalog choice that is not confirmed. */
+function reviewText(item: Pick<WishlistItem, 'review_count' | 'verification'>): string {
+  const parts: string[] = [];
+  const count = item.review_count ?? 0;
+  if (count > 0) parts.push(count === 1 ? '1 ungeprüfte Zuordnung' : `${count} ungeprüfte Zuordnungen`);
+  // A manual title has no catalog entry by choice; only a catalog choice that no longer matches is a task.
+  if (item.verification === 'needs_review') parts.push('Katalogzuordnung prüfen');
+  return parts.join(' · ');
+}
+
+interface WishFlag {
+  kind: 'cart' | 'paused' | 'review';
+  /** Accessible name. */
+  label: string;
+  /** Tooltip. */
+  title: string;
+}
+/**
+ * The symbols behind a wish's title (1.0.1, one list for the wishlist row and the cart): the basket when it lies in the cart
+ * (`showCart`; the cart itself leaves it out), the pause with its end, the warning for mappings to review.
+ */
+export function wishFlags(item: Pick<WishlistItem, 'in_cart' | 'paused' | 'paused_until' | 'review_count' | 'verification'>, showCart: boolean): WishFlag[] {
+  const flags: WishFlag[] = [];
+  if (showCart && item.in_cart) flags.push({ kind: 'cart', label: 'im Warenkorb', title: 'Liegt im Warenkorb' });
+  if (item.paused) flags.push({ kind: 'paused', label: pauseText(item), title: pauseText(item) });
+  const review = reviewText(item);
+  if (review) flags.push({ kind: 'review', label: review, title: `${review} · unter Zuordnungen` });
+  return flags;
+}

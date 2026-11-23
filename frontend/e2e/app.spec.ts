@@ -28,7 +28,7 @@ test('owner can set up, save service fees, use keyboard dialog, and log in again
   await expect(page.locator('.wishlist-page .page-head p')).toContainText('Zielland Deutschland');
   await navTo(page, 'Allgemein');
   await navTo(page, 'Key-Shops');
-  const eneba = page.getByRole('article', { name: 'Eneba' });
+  const eneba = page.getByRole('tabpanel', { name: /^Eneba/ });
   await eneba.getByRole('switch', { name: /Geschätzte Gebühren berücksichtigen/ }).click();
   await eneba.getByLabel('Geschätzte Gebühren (%)', { exact: true }).fill('2,50');
   await saveSettings(page);

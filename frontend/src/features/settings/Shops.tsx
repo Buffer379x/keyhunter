@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FetchShopStatus, Settings, SourceSettings } from '../../api';
-import { Help, Switch, TabPanel, Tabs } from '../../components';
+import { Help, Seg, Switch, TabPanel } from '../../components';
 import { parseFeePercent } from '../../fees';
 import { SettingsPanel } from './parts';
 import { DAILY_JOBS_MAX, DAILY_JOBS_MIN, intervalOptions, parseDailyJobs, shopTitle } from './format';
@@ -103,74 +103,68 @@ function ShopPanel({
   const feeInvalid = feeActive && parseFeePercent(feeText) === null;
   const intervalId = `${source.id}-interval`;
   return (
-    <SettingsPanel
-      as="article"
-      aria-label={name}
-      title={name}
-      aside={
+    <div className="form-grid">
+      <div className="set-actions">
         <Switch checked={source.enabled} onChange={enabled => change({ enabled })}>
           <span className="sr-only">{name} </span>Aktiv
         </Switch>
-      }
-    >
-      <div className="form-grid">
-        <div className="form-row">
-          <span className="with-help">
-            <label htmlFor={intervalId}>Produktseiten abfragen alle</label>
-            <Help label="Hilfe zum Intervall">
-              Empfohlen: 8 Stunden pro Produktseite; neue Produkte und manuelle Abfragen kommen früher dran. Bei Fehlern oder einer Pausenbitte des Shops wartet
-              KeyHunter automatisch. Ein Preis gilt als aktuell, bis er doppelt so alt ist wie sein Abfrageintervall, mindestens 24 Stunden lang.
-            </Help>
-          </span>
-          <select
-            id={intervalId}
-            className="set-w-200"
-            value={source.poll_interval_seconds}
-            onChange={event => change({ poll_interval_seconds: Number(event.target.value) })}
-          >
-            {intervalOptions(source.poll_interval_seconds).map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <DailyJobs source={source} status={status} change={change} />
-        <div className="form-row" role="group" aria-labelledby={`${source.id}-fee-title`}>
-          <span className="with-help">
-            <span id={`${source.id}-fee-title`}>Geschätzte Gebühren</span>
-            <FeeHelp />
-          </span>
-          <div className="set-fee">
-            <Switch checked={source.fee_estimation_enabled} disabled={!source.enabled} onChange={on => change({ fee_estimation_enabled: on })}>
-              <span className="sr-only">Geschätzte Gebühren berücksichtigen, </span>
-              {source.fee_estimation_enabled ? 'an' : 'aus'}
-            </Switch>
-            <span className="field set-fee-input">
-              <input
-                inputMode="decimal"
-                autoComplete="off"
-                aria-label="Geschätzte Gebühren (%)"
-                value={feeText}
-                disabled={!feeActive}
-                aria-invalid={feeInvalid && feeBlurred ? true : undefined}
-                aria-describedby={feeInvalid && feeBlurred ? `${source.id}-fee-help` : undefined}
-                onChange={event => editFee(source.id, event.target.value)}
-                onBlur={() => setFeeBlurred(true)}
-              />
-              <span className="muted" aria-hidden="true">
-                %
-              </span>
-            </span>
-          </div>
-          {feeInvalid && feeBlurred && (
-            <span id={`${source.id}-fee-help`} className="hint bad">
-              Bitte eine Zahl von 0 bis 100 mit höchstens zwei Nachkommastellen eingeben.
-            </span>
-          )}
-        </div>
       </div>
-    </SettingsPanel>
+      <div className="form-row">
+        <span className="with-help">
+          <label htmlFor={intervalId}>Produktseiten abfragen alle</label>
+          <Help label="Hilfe zum Intervall">
+            Empfohlen: 8 Stunden pro Produktseite; neue Produkte und manuelle Abfragen kommen früher dran. Bei Fehlern oder einer Pausenbitte des Shops wartet
+            KeyHunter automatisch. Ein Preis gilt als aktuell, bis er doppelt so alt ist wie sein Abfrageintervall, mindestens 24 Stunden lang.
+          </Help>
+        </span>
+        <select
+          id={intervalId}
+          className="set-w-200"
+          value={source.poll_interval_seconds}
+          onChange={event => change({ poll_interval_seconds: Number(event.target.value) })}
+        >
+          {intervalOptions(source.poll_interval_seconds).map(option => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <DailyJobs source={source} status={status} change={change} />
+      <div className="form-row" role="group" aria-labelledby={`${source.id}-fee-title`}>
+        <span className="with-help">
+          <span id={`${source.id}-fee-title`}>Geschätzte Gebühren</span>
+          <FeeHelp />
+        </span>
+        <div className="set-fee">
+          <Switch checked={source.fee_estimation_enabled} disabled={!source.enabled} onChange={on => change({ fee_estimation_enabled: on })}>
+            <span className="sr-only">Geschätzte Gebühren berücksichtigen, </span>
+            {source.fee_estimation_enabled ? 'an' : 'aus'}
+          </Switch>
+          <span className="field set-fee-input">
+            <input
+              inputMode="decimal"
+              autoComplete="off"
+              aria-label="Geschätzte Gebühren (%)"
+              value={feeText}
+              disabled={!feeActive}
+              aria-invalid={feeInvalid && feeBlurred ? true : undefined}
+              aria-describedby={feeInvalid && feeBlurred ? `${source.id}-fee-help` : undefined}
+              onChange={event => editFee(source.id, event.target.value)}
+              onBlur={() => setFeeBlurred(true)}
+            />
+            <span className="muted" aria-hidden="true">
+              %
+            </span>
+          </span>
+        </div>
+        {feeInvalid && feeBlurred && (
+          <span id={`${source.id}-fee-help`} className="hint bad">
+            Bitte eine Zahl von 0 bis 100 mit höchstens zwei Nachkommastellen eingeben.
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -196,20 +190,21 @@ export default function Shops({
   const [open, setOpen] = useState((shops.find(s => s.enabled) ?? shops[0])?.id ?? '');
   const current = shops.some(s => s.id === open) ? open : (shops[0]?.id ?? '');
   return (
-    <>
-      <Tabs
-        id="shops"
+    <SettingsPanel title="Key-Shops" titleId="shops-title">
+      <Seg
+        tabs="shops"
         label="Key-Shops"
-        className="shop-tabs"
+        className="box-seg"
+        wrap
         value={current}
         onChange={setOpen}
-        items={shops.map(source => ({ id: source.id, label: source.enabled ? shopTitle(source.id) : `${shopTitle(source.id)} · aus` }))}
+        options={shops.map(source => ({ value: source.id, label: source.enabled ? shopTitle(source.id) : `${shopTitle(source.id)} · aus` }))}
       />
       {shops.map(source => (
         <TabPanel key={source.id} id="shops" tab={source.id} value={current}>
           <ShopPanel source={source} status={status?.find(s => s.source === source.id)} feeText={feeDraft[source.id] ?? ''} edit={edit} editFee={editFee} />
         </TabPanel>
       ))}
-    </>
+    </SettingsPanel>
   );
 }

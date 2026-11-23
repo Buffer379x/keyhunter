@@ -3,11 +3,11 @@ import { Button, Icon, Notice, Reg } from '../components';
 import type { Link } from './offers-model';
 import { mismatchText } from './offers-model';
 import { money } from './price-format';
+import { availabilityNames } from './settings/format';
 import { countryData, regionCode } from './regions';
 import { shopNames } from './shop-names';
 
 const activationNames: Record<string, string> = { confirmed: 'bestätigt', blocked: 'im Zielland gesperrt', unknown: 'ungeklärt' };
-const availabilityNames: Record<string, string> = { in_stock: 'lieferbar', sold_out: 'ausverkauft', unknown: 'unbekannt' };
 
 /** Host and path of a shop link, so the owner sees where the button leads before opening it. */
 function linkParts(url: string): { host: string; path: string } {

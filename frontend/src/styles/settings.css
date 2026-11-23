@@ -367,9 +367,6 @@
   display: grid;
   gap: 14px;
 }
-.settings-page .col-tabs {
-  margin: -4px -4px 0;
-}
 .settings-page .col-tools {
   display: flex;
   flex-wrap: wrap;
@@ -377,12 +374,13 @@
   gap: 8px 10px;
   max-width: 420px;
 }
-/* Key-Shops (0.8.3): one tab per shop. */
-.settings-page .shop-tabs {
-  margin-bottom: -4px;
+/* (1.0.1) The segmented switch inside a box (Tabellenspalten, Kanäle, Key-Shops): room below, before the panel it switches. */
+.settings-page .box-seg {
+  margin-bottom: 12px;
+  justify-self: start;
 }
-.settings-page .shop-tabs .dot {
-  margin-right: 2px;
+.settings-page .inset .box-seg {
+  margin: 12px 12px 0;
 }
 /* (0.9.0) The HTTPS notice can be closed; it then stays closed in this browser. */
 .note .note-close {

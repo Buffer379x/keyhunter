@@ -8,7 +8,7 @@ test('settings separate key shops from games index and persist source intervals'
   await navTo(page, 'Allgemein');
   await navTo(page, 'Key-Shops');
   await expect(navItem(page, 'Key-Shops')).toHaveAttribute('aria-selected', 'true');
-  const eneba = page.getByRole('article', { name: 'Eneba', exact: true });
+  const eneba = page.getByRole('tabpanel', { name: /^Eneba/ });
   await expect(eneba.getByLabel('Produktseiten abfragen alle', { exact: true })).toHaveValue(String(8 * 3600));
   await expect(page.getByRole('region', { name: 'IGDB-Zugang' })).not.toBeVisible();
   await eneba.getByLabel('Produktseiten abfragen alle', { exact: true }).selectOption(String(2 * 3600));
@@ -18,7 +18,7 @@ test('settings separate key shops from games index and persist source intervals'
   // 0.7.4: every built-in shop is listed and switched with "Aktiv"; there is no adding or removing.
   // 0.8.3: one tab per shop; a shop that is off says so in its tab.
   await page.getByRole('tablist', { name: 'Key-Shops', exact: true }).getByRole('tab', { name: 'Driffle · aus', exact: true }).click();
-  const driffle = page.getByRole('article', { name: 'Driffle', exact: true });
+  const driffle = page.getByRole('tabpanel', { name: /^Driffle/ });
   await expect(driffle).toBeVisible();
   await expect(eneba).toBeHidden();
   await expect(driffle.getByRole('switch', { name: 'Driffle Aktiv' })).not.toBeChecked();

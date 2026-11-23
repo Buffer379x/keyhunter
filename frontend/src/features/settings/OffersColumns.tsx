@@ -25,7 +25,10 @@ export default function OffersColumns({ settings, edit }: { settings: Settings; 
         <Help label="Hilfe zu den Spalten der Angebote">
           <span>Spalten der Angebote auf der Seite eines Spiels. Oben steht die erste Spalte links.</span>
           <span>Warenkorb und „Zum Shop“ stehen immer am Ende, der Preis bleibt immer sichtbar.</span>
-          <span>Das Prüftempo (häufig, normal, selten) zeigt, wie oft KeyHunter ein Angebot prüft. Es ist keine Bewertung und standardmäßig ausgeblendet.</span>
+          <span>
+            Das Prüftempo (häufig, normal, selten) zeigt, wie oft KeyHunter ein Angebot prüft: häufig (grün) bei beständig günstigen Angeboten, selten (gelb)
+            bei beständig teuren oder ausverkauften. Der Score steht im Popup. Standardmäßig ausgeblendet.
+          </span>
         </Help>
         <Button
           size="sm"

@@ -1,5 +1,19 @@
 # Änderungen
 
+## 1.0.1 – 2026-11-23
+
+Kleine Verbesserungen nach dem Feedback zu 1.0: Prüftempo mit Score und Farbe, Symbole im Warenkorb, verständlicher Abrufstatus mit Jahr, einheitliche Umschalter und ein sauberes Favicon. Nur die Oberfläche ändert sich: keine Migration, beim Update ist nichts zu tun. Falls im Browser-Tab noch das alte Favicon erscheint, die Seite einmal mit Strg+F5 neu laden.
+
+### Geändert
+- **Prüftempo mit Score und Farbe:** In der Angebotstabelle (und auf den Karten) ist das Prüftempo jetzt ein farbiges Etikett: häufig grün, normal neutral, selten gelb. Ein Klick oder Tipp (am Rechner auch Überfahren) öffnet ein Popup mit dem Score von 0 bis 100, dem Tempo, dem Preistrend und dem geplanten Abfrageintervall. Die Hilfetexte erklären, was ein hoher und ein niedriger Score bedeutet.
+- **Warenkorb:** Hinter dem Titel zeigt der Warenkorb jetzt wie die Wunschliste das Pausensymbol und das Warndreieck für ungeprüfte Zuordnungen. Beide Listen nutzen dieselbe Komponente.
+- **Abrufstatus › Abrufe:** Die Spalte „Ziel“ heißt jetzt „Gefunden“, denn sie zeigt das Ergebnis der Abfrage: bei einer Produktseite „ab 12,99 €“ statt „1299 ct“ oder die Verfügbarkeit in Worten („ausverkauft“), bei einer Suche die Zahl der Treffer. Ältere Einträge werden beim Anzeigen umgewandelt.
+- **Zeitangaben mit Jahr:** Im Abrufstatus, im Log und an den übrigen Stellen steht jetzt das Jahr (23.11.2026, 14:05).
+- **Einheitlicher Umschalter:** Wo innerhalb eines Kastens umgeschaltet wird, gibt es jetzt denselben abgerundeten Umschalter wie beim Stufenfilter: Einstellungen › Tabellenspalten, Benachrichtigungen › Kanäle, Key-Shops und die Filter der Wunschliste (mit den Anzahlen). Key-Shops ist dabei wie Kanäle aufgebaut: ein Kasten „Key-Shops“ mit dem Umschalter oben (ausgeschaltete Shops mit „· aus“) und darunter dem Schalter „Aktiv“ und den Einstellungen des gewählten Shops.
+
+### Behoben
+- **Favicon:** Das Schlüsselloch war im 16- und 32-Pixel-Symbol zu einem Pilz geworden, und das Preisschild saß am rechten Rand. Beide Symbole folgen jetzt der Hauptzeichnung: Schild mittig, Spitze links, rundes Schlüsselloch mit schmalem Schaft.
+
 ## 1.0.0 – 2026-11-23
 
 KeyHunter 1.0: Die Wunschliste lässt sich aus der Exportdatei wieder einlesen, Sichern und Wiederherstellen sind dokumentiert und praktisch geprüft, und alle Fehler aus dem Release-Audit sind behoben und durch Tests abgesichert. Beim Update ist nichts zu tun: keine Migration, die Daten bleiben unverändert; als Rückweg genügt ein Kaltbackup des Datenordners (siehe `docs/operations.md`). Wer direkt von 0.9.1 oder älter kommt, findet unten die wichtigsten Verhaltensänderungen seit 0.9.1 zusammengefasst; die Einzelheiten stehen bei 0.9.2 bis 0.9.4. Gegenüber dem Release-Kandidaten 1.0.0-rc.1 ändert sich nur die Versionsnummer.

@@ -175,7 +175,10 @@ export function TabPanel({ id, tab, value, children }: { id: string; tab: string
 
 /**
  * Segmented control (`.seg`, pill group): choose exactly one option, e.g. "30 T | 90 T | 180 T".
- * Radio group semantics with arrow keys. Not for switching between panels, use Tabs for that.
+ * Radio group semantics with arrow keys. Since 1.0.1 it also switches the content of a box (Tabellenspalten, Kanäle, Key-Shops)
+ * and filters a list (Wunschliste): `tabs` (the base id, as for <Tabs>) turns it into a tablist for a <TabPanel id={tabs}>;
+ * `count` adds the mono count of a filter (null reserves its room, so nothing shifts when the numbers arrive); `wrap` lets the
+ * options wrap onto more lines instead of scrolling sideways, where there are many or long labels.
  */
 export function Seg<T extends string>({
   options,
@@ -183,12 +186,16 @@ export function Seg<T extends string>({
   onChange,
   label,
   className = '',
+  tabs,
+  wrap = false,
 }: {
-  options: { value: T; label: string; disabled?: boolean }[];
+  options: { value: T; label: string; disabled?: boolean; count?: number | null }[];
   value: T;
   onChange: (value: T) => void;
   label: string;
   className?: string;
+  tabs?: string;
+  wrap?: boolean;
 }) {
   const { onKeyDown, ref } = useArrowKeys(
     options.map(o => o.value),
@@ -197,21 +204,30 @@ export function Seg<T extends string>({
     id => onChange(id as T),
   );
   return (
-    <div role="radiogroup" aria-label={label} className={`seg ${className}`.trim()} onKeyDown={onKeyDown}>
-      {options.map(option => (
-        <button
-          key={option.value}
-          ref={ref(option.value)}
-          type="button"
-          role="radio"
-          aria-checked={option.value === value}
-          tabIndex={option.value === value ? 0 : -1}
-          disabled={option.disabled}
-          onClick={() => onChange(option.value)}
-        >
-          {option.label}
-        </button>
-      ))}
+    <div role={tabs ? 'tablist' : 'radiogroup'} aria-label={label} className={`seg${wrap ? ' wrap' : ''} ${className}`.trim()} onKeyDown={onKeyDown}>
+      {options.map(option => {
+        const selected = option.value === value;
+        return (
+          <button
+            key={option.value}
+            ref={ref(option.value)}
+            type="button"
+            {...(tabs
+              ? { role: 'tab', id: `${tabs}-tab-${option.value}`, 'aria-selected': selected, 'aria-controls': `${tabs}-panel-${option.value}` }
+              : { role: 'radio', 'aria-checked': selected })}
+            tabIndex={selected ? 0 : -1}
+            disabled={option.disabled}
+            onClick={() => onChange(option.value)}
+          >
+            {option.label}
+            {option.count !== undefined && (
+              <span className="mono" aria-hidden={option.count === null || undefined}>
+                {option.count ?? '\u00a0\u00a0'}
+              </span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }

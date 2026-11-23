@@ -34,8 +34,23 @@ type Tone = 'ok' | 'warn' | 'error' | 'off';
 const clock = (seconds: number) => new Date(seconds * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 /** "20:35 Uhr" within the next 20 hours, otherwise with the date ("21.11., 20:35 Uhr"). */
 const pauseEnd = (seconds: number, nowSeconds: number) => (seconds - nowSeconds < 20 * 3600 ? `${clock(seconds)} Uhr` : `${dateTimeText(seconds)} Uhr`);
+/** "23.11.2026, 14:05" (1.0.1: with the year, so an old entry is not read as a recent one). */
 export const dateTimeText = (seconds: number) =>
-  new Date(seconds * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  new Date(seconds * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+/** German word of a shop's availability value (shared with the link review). */
+export const availabilityNames: Record<string, string> = { in_stock: 'lieferbar', sold_out: 'ausverkauft', unknown: 'unbekannt' };
+
+/**
+ * What a past fetch found (`detail` of a run, written by jobs.rs): a product page stores the lowest price as "1299 ct" or its
+ * availability ("sold_out"), a search "Seite 1: 5 Produkte". Formatted on read, so old rows keep working; unknown text stays.
+ */
+export function foundText(detail: string | null, money: (cents: number) => string): string {
+  if (!detail) return '–';
+  const cents = /^(\d+) ct$/.exec(detail);
+  if (cents) return `ab ${money(Number(cents[1]))}`;
+  return availabilityNames[detail] ?? detail;
+}
 
 /** Short German name of an error code in `last_error` and `outcome`. */
 const outcomeNames: Record<string, string> = {

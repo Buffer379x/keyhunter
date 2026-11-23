@@ -32,7 +32,7 @@ async function removeAll(page: Page) {
   await expect(page.getByText(/^0 Spiele ·/)).toBeVisible();
 }
 const kpi = (page: Page, label: string) => page.locator('.kpi').filter({ has: page.locator('.label', { hasText: new RegExp(`^${label}$`) }) });
-const chip = (page: Page, name: string) => page.getByRole('group', { name: 'Filter', exact: true }).getByRole('button', { name: new RegExp(`^${name}`) });
+const chip = (page: Page, name: string) => page.getByRole('radiogroup', { name: 'Filter', exact: true }).getByRole('radio', { name: new RegExp(`^${name}`) });
 
 test('KPI tiles, filter chips, row details and row → game → back keep filter, sort and scroll', async ({ page }) => {
   const errors: string[] = [];
@@ -195,7 +195,7 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
   await expect(chip(page, 'Weltweit günstiger')).toHaveText('Weltweit günstiger1');
   await expect(chip(page, 'Ohne Preis')).toHaveText('Ohne Preis1');
   await chip(page, 'Ohne Preis').click();
-  await expect(chip(page, 'Ohne Preis')).toHaveAttribute('aria-pressed', 'true');
+  await expect(chip(page, 'Ohne Preis')).toHaveAttribute('aria-checked', 'true');
   await expect(wishlistRows(page)).toHaveCount(1);
   await expect(wishlistRows(page)).toContainText('Neuer Treffer');
   await chip(page, 'Weltweit günstiger').click();

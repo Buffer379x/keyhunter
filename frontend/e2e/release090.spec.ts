@@ -72,7 +72,7 @@ test('a wish is paused on its own for weeks or until resumed, and stays paused t
       .filter({ hasText: 'Premium' })
       .getByRole('img', { name: /pausiert/ }),
   ).toHaveCount(0);
-  await page.getByRole('button', { name: /^Pausiert/ }).click();
+  await page.getByRole('radio', { name: /^Pausiert/ }).click();
   await expect(wishlistRows(page)).toHaveCount(1);
 
   // Until resumed by hand, then resumed.
@@ -205,4 +205,16 @@ test('another EU target country follows the same rules and every label names it'
   await page.goto('/?view=cart');
   await expect(page.getByRole('radiogroup', { name: /^Preisgrundlage für / }).getByRole('radio')).toHaveText(['AT', 'INT']);
   await expect(page.getByRole('main')).not.toContainText(/\bDE\b/);
+});
+
+test('1.0.1: a paused wish in the cart shows the pause symbol behind its title, without a basket', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signInToFixture(page);
+  const id = (await (await write(page, 'POST', '/api/v1/wishlist', { igdb_id: 1001, platform_id: 169 })).json()).item.id;
+  expect((await write(page, 'POST', '/api/v1/cart', { wish_id: id })).status()).toBeLessThan(300);
+  expect((await write(page, 'PUT', `/api/v1/wishlist/${id}/pause`, { paused: true, until: null })).status()).toBeLessThan(300);
+  await navTo(page, 'Warenkorb');
+  const line = page.getByRole('table', { name: 'Spiele im Warenkorb', exact: true }).locator('tbody tr').first();
+  await expect(line.getByRole('img', { name: 'Abfragen pausiert, bis du sie fortsetzt', exact: true })).toBeVisible();
+  await expect(line.getByRole('img', { name: 'im Warenkorb' })).toHaveCount(0);
 });

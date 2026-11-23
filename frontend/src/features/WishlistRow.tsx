@@ -5,7 +5,7 @@ import { Cover, Icon, IconButton, Pill, Price, Reg, StatePill, formatPrice } fro
 import { relativeTime } from '../time';
 import { itemName, kindName, platformName } from './catalog-ui';
 import { countryData } from './regions';
-import { pauseText } from './wish-pause';
+import { WishFlags } from './WishFlags';
 import { badgeTitle } from './price-badge-text';
 import { WORLD_SHARE, sparkHeights } from './wishlist-model';
 import type { RowFacts } from './wishlist-model';
@@ -35,16 +35,6 @@ function subline(item: WishlistItem) {
   const game = item.game;
   const edition = !game ? 'Manuell' : (game.edition_name ?? (game.kind === 'base_game' ? 'Standard Edition' : kindName(game)));
   return `${edition} · ${platformName(item.platform_id)}${offerText(item)}`;
-}
-
-/** Why a row carries the warning symbol (0.9.1): mappings to review under Zuordnungen, or a catalog choice that is not confirmed. */
-function reviewText(item: WishlistItem): string {
-  const parts: string[] = [];
-  const count = item.review_count ?? 0;
-  if (count > 0) parts.push(count === 1 ? '1 ungeprüfte Zuordnung' : `${count} ungeprüfte Zuordnungen`);
-  // A manual title has no catalog entry by choice; only a catalog choice that no longer matches is a task.
-  if (item.verification === 'needs_review') parts.push('Katalogzuordnung prüfen');
-  return parts.join(' · ');
 }
 
 /** Observation time of the shown price (base price or estimated total). */
@@ -209,21 +199,7 @@ export default function WishlistRow({
               ) : (
                 <b>{title}</b>
               )}
-              {item.in_cart && (
-                <span className="in-cart" role="img" aria-label="im Warenkorb" title="Liegt im Warenkorb">
-                  <Icon name="cart" size={14} />
-                </span>
-              )}
-              {item.paused && (
-                <span className="wish-paused" role="img" aria-label={pauseText(item)} title={pauseText(item)}>
-                  <Icon name="pause" size={14} />
-                </span>
-              )}
-              {reviewText(item) && (
-                <span className="wish-review" role="img" aria-label={reviewText(item)} title={`${reviewText(item)} · unter Zuordnungen`}>
-                  <Icon name="alert" size={14} />
-                </span>
-              )}
+              <WishFlags item={item} showCart />
             </span>
             <small>{subline(item)}</small>
           </div>

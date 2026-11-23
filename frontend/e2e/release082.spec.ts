@@ -97,12 +97,18 @@ test('SCORE-03: the offers table hides the Prüftempo by default and shows häuf
   await openTab(page, 'Angebote');
   await expect(table.locator('thead th')).toHaveText([/^Prüftempo/, 'Shop', 'Region', 'Preis', /^vs\. /, 'Link']);
   const rows = table.locator('tbody tr');
-  await expect(rows.nth(0).locator('td').first()).toHaveText('häufig');
-  await expect(rows.nth(1).locator('td').first()).toHaveText('normal');
-  await expect(rows.nth(0).locator('td').first().locator('span[title]')).toHaveAttribute('title', /^Prüftempo häufig · meist günstig · Abfrage alle 4 h/);
+  const tag = (n: number) => rows.nth(n).locator('td').first().locator('.pill');
+  await expect(tag(0)).toHaveText('häufig');
+  await expect(tag(1)).toHaveText('normal');
+  // 1.0.1: the tag is coloured by the score (häufig green, normal neutral, selten amber) and its popup names the score.
+  await expect(tag(0)).toHaveClass(/\bok\b/);
+  await expect(tag(1)).not.toHaveClass(/\b(ok|warn)\b/);
+  const first = rows.nth(0).locator('td').first();
+  await first.getByRole('button', { name: /^Prüftempo häufig, Score \d+ von 100$/ }).click();
+  await expect(first.getByRole('tooltip')).toHaveText(/^Score \d+ von 100 · Prüftempo häufig · meist günstig · Abfrage alle 4 h/);
   // Unconfirmed: no Prüftempo.
   await expect(rows.nth(2).locator('td').first()).toHaveText('–');
-  // The explanation sits behind the "?" of the column head, and says it is no rating.
+  // The explanation sits behind the "?" of the column head, and says what a high and a low score mean.
   await table.getByRole('button', { name: 'Hilfe zum Prüftempo' }).hover();
-  await expect(page.getByRole('tooltip').filter({ hasText: 'keine Bewertung' })).toBeVisible();
+  await expect(page.getByRole('tooltip').filter({ hasText: 'beständig das günstigste' })).toBeVisible();
 });

@@ -8,6 +8,8 @@ import {
   summarize,
   reasonList,
   tempo,
+  tempoText,
+  tempoTone,
   validity,
   verdict,
   verdictText,
@@ -249,4 +251,16 @@ test('SCORE-03: the Prüftempo buckets are häufig from 70, selten up to 30, nor
   assert.deepEqual([100, 70, 69, 50, 31, 30, 0].map(tempo), ['häufig', 'häufig', 'normal', 'normal', 'normal', 'selten', 'selten']);
   assert.equal(tempo(null), null);
   assert.equal(tempo(undefined), null);
+});
+test('1.0.1: the Prüftempo tag is green for häufig, amber for selten and neutral between', () => {
+  assert.deepEqual(
+    [100, 50, 0].map(score => tempoTone(tempo(score)!)),
+    ['ok', 'default', 'warn'],
+  );
+});
+test('1.0.1: the Prüftempo popup names the score with the bucket, the trend and the interval', () => {
+  const fast = link(1, 'DE', 1000, [], { score: 82, check_every: 4 * 3600, cheap_score: 0.1 });
+  assert.equal(tempoText(fast, 'häufig'), 'Score 82 von 100 · Prüftempo häufig · meist günstig · Abfrage alle 4 h');
+  const sold = link(2, 'DE', 1000, [], { score: 0, check_every: 86400, cheap_score: 0.5, product: { ...fast.product!, availability: 'sold_out' } });
+  assert.match(tempoText(sold, 'selten'), /^Score 0 von 100 · Prüftempo selten · ausverkauft, seltener geprüft/);
 });

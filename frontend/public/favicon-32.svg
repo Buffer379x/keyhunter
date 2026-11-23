@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="KeyHunter">
-  <!-- Optical 32 px variant of the brand mark (1.0, DS-01 variant B): the same disc and wedge as favicon-16.svg, for the 32 px frame of favicon.ico and favicon-32.png. favicon.svg stays the master drawing. -->
+  <!-- Optical 32 px variant of the brand mark (1.0.1): the master drawing with the tag edges on whole pixels (x 4..27, y 7..25) and the key hole as in favicon.svg, a round head over a tapering stem. favicon.svg stays the master drawing. -->
   <rect width="32" height="32" rx="7" fill="#FF7A1A"/>
-  <path fill="#1B1004" fill-rule="evenodd" d="M2.392 15.481L9.392 6.281A.8 .8 0 0 1 10 6H28.2A.8 .8 0 0 1 29 6.8V25.2A.8 .8 0 0 1 28.2 26H10A.8 .8 0 0 1 9.392 25.719L2.392 16.519A.8 .8 0 0 1 2.392 15.481Z M20 9A5.6 5.6 0 0 1 22.2 19.75L23.6 23.5H16.4L17.8 19.75A5.6 5.6 0 0 1 20 9Z"/>
+  <path fill="#1B1004" fill-rule="evenodd" d="M4 16L11.4 7H27V25H11.4Z M17 16.5A3.3 3.3 0 1 1 20.6 16.5L21.6 21H16Z"/>
 </svg>

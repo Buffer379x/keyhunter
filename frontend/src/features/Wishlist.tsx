@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import type { AlertEvent, CatalogGame, EditionsView, PriceBadgeData, WishlistItem } from '../api';
 import { api, CART_CHANGED } from '../api';
 import { useFetchStatus } from '../fetch-status';
-import { Button, Chip, ConfirmDialog, EmptyState, Field, Help, Icon, Inset, Kpi, Notice, Panel, PanelHead, Seg, formatPrice } from '../components';
+import { Button, ConfirmDialog, EmptyState, Field, Help, Icon, Inset, Kpi, Notice, Panel, PanelHead, Seg, formatPrice } from '../components';
 import CatalogSearch from './CatalogSearch';
 import FirstSteps from './FirstSteps';
 import { openSection } from './settings/sections';
@@ -870,15 +870,15 @@ export default function Wishlist({
       )}
       <Panel aria-label="Spiele">
         <PanelHead>
-          <div className="chips" role="group" aria-label="Filter">
-            {chipLabels
+          <Seg
+            label="Filter"
+            wrap
+            value={chip}
+            onChange={setChip}
+            options={chipLabels
               .filter(([id]) => id !== 'pause' || (ready ? chipCounts.pause > 0 : hadPaused) || chip === 'pause')
-              .map(([id, label]) => (
-                <Chip key={id} pressed={chip === id} count={ready ? chipCounts[id] : null} disabled={!ready} onClick={() => setChip(id)}>
-                  {label}
-                </Chip>
-              ))}
-          </div>
+              .map(([id, label]) => ({ value: id, label, count: ready ? chipCounts[id] : null, disabled: !ready }))}
+          />
           <span className="spacer" />
           <Seg
             className="wl-basis"

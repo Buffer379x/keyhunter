@@ -235,6 +235,21 @@ export function tempo(score: number | null | undefined): Tempo | null {
 }
 
 /**
+ * Tone of the Prüftempo tag (1.0.1): a high score means the offer is steadily the cheapest of the game, so it is checked more
+ * often (green); a low one means steadily the most expensive or sold out (amber); between is neutral.
+ */
+export function tempoTone(speed: Tempo): 'ok' | 'default' | 'warn' {
+  return speed === 'häufig' ? 'ok' : speed === 'selten' ? 'warn' : 'default';
+}
+
+/** Text of the Prüftempo popup: the score, the bucket, the planned interval and the price trend behind it (offers::Link::score). */
+export function tempoText(link: Link, label: Tempo): string {
+  const every = link.check_every ? `Abfrage ${everyText(link.check_every)}` : null;
+  const state = link.product?.availability === 'sold_out' ? 'ausverkauft, seltener geprüft' : trendText(link);
+  return [`Score ${link.score} von 100`, `Prüftempo ${label}`, state, every].filter(Boolean).join(' · ');
+}
+
+/**
  * The first sentence of the review note: what does not match plainly (the server's `mismatch`, FUNC-01). A possible
  * namesake of another release year has no shop data to point at, so it gets its own sentence.
  */
