@@ -28,7 +28,7 @@ ENV KEYHUNTER_BIND=0.0.0.0:3000 \
     KEYHUNTER_FRONTEND_DIR=/app/frontend \
     RUST_LOG=keyhunter=info
 USER 10001:10001
-LABEL org.opencontainers.image.version="1.0.2" \
+LABEL org.opencontainers.image.version="1.1.0" \
       org.opencontainers.image.source="https://github.com/Buffer379x/keyhunter" \
       org.opencontainers.image.title="KeyHunter"
 WORKDIR /app
