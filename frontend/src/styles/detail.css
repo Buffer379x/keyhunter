@@ -92,7 +92,7 @@
 }
 .game-meta h1 {
   margin: 0;
-  font-size: 22px;
+  font-size: var(--t-display);
   font-weight: 500;
   letter-spacing: -0.015em;
   text-wrap: balance;
@@ -450,7 +450,7 @@
 }
 .matrix text {
   fill: var(--muted);
-  font: 400 10px var(--f-mono);
+  font: 400 var(--t-micro) var(--f-mono);
 }
 .matrix text.on {
   fill: var(--text);
@@ -499,7 +499,7 @@
   background: var(--world);
 }
 .tip .tip-reg {
-  font: 500 10px var(--f-mono);
+  font: 500 var(--t-micro) var(--f-mono);
   color: var(--muted);
 } /* (added) region of the worldwide price */
 .kpi.world .kpi-val b {

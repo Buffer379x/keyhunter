@@ -122,6 +122,7 @@ function Spark({ trend, code }: { trend: (number | null)[]; code: string }) {
  * the details button, the title or the cover. The cells are the visible columns in the order of the settings. When the list's
  * own box is narrow (wishlist.css, container query) the CSS turns the row into a card with a fixed layout: the prices carry
  * their label there (`data-label`, shown by the CSS only on the card), and the opener covers the whole card, so a tap anywhere on it opens the game (1.0).
+ * The warning triangle after the title lies above it and opens the Zuordnungen tab instead (1.1, PROD-03).
  */
 export default function WishlistRow({
   item,
@@ -135,6 +136,7 @@ export default function WishlistRow({
   targetDisabled,
   openRef,
   onOpen,
+  onReview,
 }: {
   item: WishlistItem;
   badge?: PriceBadgeData;
@@ -152,6 +154,8 @@ export default function WishlistRow({
   /** The element that opens the game (button, title or cover), so the list can give it the focus back after a visit. */
   openRef?: Ref<HTMLButtonElement>;
   onOpen: () => void;
+  /** The warning triangle: opens the game on the Zuordnungen tab (1.1, PROD-03). */
+  onReview: () => void;
 }) {
   const title = itemName(item);
   const world = facts.world;
@@ -199,7 +203,7 @@ export default function WishlistRow({
               ) : (
                 <b>{title}</b>
               )}
-              <WishFlags item={item} showCart />
+              <WishFlags item={item} showCart onReview={onReview} />
             </span>
             <small>{subline(item)}</small>
           </div>

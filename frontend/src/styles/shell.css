@@ -364,7 +364,7 @@
   display: none;
 }
 .kbd {
-  font: 400 10px/1 var(--f-mono);
+  font: 400 var(--t-micro)/1 var(--f-mono);
   color: var(--muted);
   border: 1px solid var(--line-2);
   border-radius: 4px;

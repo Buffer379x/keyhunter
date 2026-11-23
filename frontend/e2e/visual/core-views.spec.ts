@@ -509,5 +509,42 @@ for (const vp of viewports) {
       await settle(page);
       await expect(page).toHaveScreenshot(`wishlist-first-steps-${vp.name}.png`, { mask: masks(page) });
     });
+    // 1.1: the delivery cards of the alarms (only below 720 px): title and price, time, then the status with the channel line over the full width.
+    if (vp.name === '390')
+      test('alerts deliveries', async ({ page }) => {
+        await prepare(page);
+        await page.route('**/api/v1/alerts', r =>
+          r.request().method() !== 'GET'
+            ? r.continue()
+            : r.fulfill({
+                json: {
+                  configured: true,
+                  channels: ['Telegram', 'E-Mail'],
+                  rules: [],
+                  events: [
+                    {
+                      id: 1,
+                      wish_id: null,
+                      state: 'sent',
+                      observed_at: now - 2 * H,
+                      sent_at: now - 2 * H + 60,
+                      cents: 1290,
+                      attempts: 3,
+                      deliveries: [
+                        { channel: 'telegram', name: 'Telegram', state: 'sent', attempts: 1, error: null },
+                        { channel: 'email', name: 'E-Mail', state: 'failed', attempts: 3, error: 'SMTP: permanent error (535)' },
+                      ],
+                    },
+                  ],
+                },
+              }),
+        );
+        await page.goto('/?view=alerts');
+        const deliveries = page.getByRole('table', { name: 'Letzte Zustellungen' });
+        await expect(deliveries.locator('.delivery-channels')).toBeVisible();
+        await deliveries.scrollIntoViewIfNeeded();
+        await settle(page);
+        await expect(page).toHaveScreenshot(`alerts-deliveries-${vp.name}.png`, { mask: masks(page) });
+      });
   });
 }
