@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { signInToFixture } from '../helpers';
+import { fetchBudget, signInToFixture } from '../helpers';
 import { withState } from '../offer-state';
 
 // Visual regression of the seven core views at three viewports. Run only through deploy/visual-check.sh.
@@ -88,7 +88,7 @@ const fetchStatus = {
       last_success_at: now - 60,
       last_error: null,
       paused_until: null,
-      budget: {
+      budget: fetchBudget({
         used: 64,
         limit: 500,
         limit_source: 'setting',
@@ -96,7 +96,7 @@ const fetchStatus = {
         pace_seconds: 170,
         next_at: now + 170,
         by_hour: [3, 4, 3, 2, 3, 4, 5, 4, 5, 6, 6, 5, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-      },
+      }),
       backlog: { due: 14, requested: 3, products: 9, searches: 5 },
       oldest_due_at: now - 1500,
       next_due_at: now + 900,
@@ -108,7 +108,7 @@ const fetchStatus = {
       last_success_at: now - 7200,
       last_error: 'rate_limited',
       paused_until: now + 2400,
-      budget: {
+      budget: fetchBudget({
         used: 41,
         limit: 120,
         limit_source: 'env',
@@ -116,7 +116,7 @@ const fetchStatus = {
         pace_seconds: 540,
         next_at: now + 2400,
         by_hour: [2, 2, 3, 3, 3, 4, 3, 4, 4, 5, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-      },
+      }),
       backlog: { due: 6, requested: 0, products: 4, searches: 2 },
       oldest_due_at: now - 5400,
       next_due_at: now + 3200,
@@ -191,7 +191,7 @@ async function mockPrices(page: Page) {
     if (r.request().method() !== 'GET') return r.continue();
     const rows = await (await r.fetch()).json();
     ids.splice(0, ids.length, ...rows.map((x: { id: string }) => x.id));
-    await r.fulfill({ json: rows.map((x: object) => ({ ...x, price_badge: badge })) });
+    await r.fulfill({ json: rows.map((x: object) => ({ ...x, price_badge: badge, offer_count: offers.offer_count })) });
   });
   await page.route('**/api/v1/wishlist/*/alert', r =>
     r.request().method() === 'GET'
@@ -210,12 +210,17 @@ async function prepare(page: Page): Promise<string> {
   await signInToFixture(page);
   let rows = await (await page.request.get('/api/v1/wishlist')).json();
   if (!rows.length) {
+    // The new game opens and asks the server to prepare its editions. Leaving the page before the answer drops that
+    // request half way and the server keeps the preparation "running" for three minutes: every detail view in that time
+    // would show "Editionen werden vorbereitet …". So wait for the answer first.
+    const answered = page.waitForResponse(r => r.request().method() === 'POST' && /\/wishlist\/[^/]+\/editions$/.test(new URL(r.url()).pathname));
     await page.getByRole('searchbox', { name: 'Nach Spielen suchen', exact: true }).fill('forza');
     await page
       .getByRole('region', { name: 'Suchergebnisse' })
       .getByRole('button', { name: 'Forza Horizon 5 (Xbox Series X|S) vormerken', exact: true })
       .click();
     await expect(page).toHaveURL(/[?&]item=/);
+    await answered;
     rows = await (await page.request.get('/api/v1/wishlist')).json();
   }
   return rows[0].id;
@@ -250,7 +255,8 @@ const wishRows = Array.from({ length: 32 }, (_, i) => {
     in_cart: n % 9 === 0,
     paused: n % 13 === 0,
     paused_until: null,
-    offer_count: kind === 0 ? 0 : kind + 1,
+    // The count follows the badge: rows without any price (kinds 0 and 3) have no offers.
+    offer_count: price ? kind + 1 : 0,
     review_count: n % 11 === 0 ? 2 : 0,
     price_badge: price
       ? { ...badge, cents, world: kind === 2 ? null : { ...badge.world, cents: Math.round(cents * 0.6) }, stale: kind === 4 }
@@ -295,6 +301,8 @@ const cartOffer = (cents: number, region: string, stale = false) => ({
   region,
   observed_at: now - 2 * H,
   stale,
+  fits_target: true,
+  activation: 'confirmed',
 });
 const cartEntry = (n: number, title: string, source: string | null, scope: 'home' | 'world', offers: object) => ({
   id: n.toString(16).padStart(32, '0'),
@@ -360,6 +368,19 @@ async function settle(page: Page) {
   await page.waitForTimeout(300); // charts and lazy rows finish painting
 }
 
+/**
+ * Opens a game and waits for its editions to be settled: the page asks the server to prepare them on every open, and
+ * while another request still holds the preparation the answer is "preparing" and the hint "Editionen werden vorbereitet …"
+ * shows until the next poll (3 s). A fixed pause could capture it; waiting for the answer and for the hint to go cannot.
+ */
+async function openGame(page: Page, query: string) {
+  const answered = page.waitForResponse(r => r.request().method() === 'POST' && /\/wishlist\/[^/]+\/editions$/.test(new URL(r.url()).pathname));
+  await page.goto(`/?${query}`);
+  await page.getByRole('tablist', { name: 'Spieldetails' }).waitFor();
+  await answered;
+  await expect(page.getByText('Editionen werden vorbereitet …')).toHaveCount(0, { timeout: 15_000 });
+}
+
 const viewports = [
   { name: '1440', width: 1440, height: 900 },
   { name: '1024', width: 1024, height: 768 },
@@ -387,8 +408,7 @@ for (const vp of viewports) {
     const detail = (tab: string, file: string) =>
       test(`wishlist ${tab || 'preis'}`, async ({ page }) => {
         const id = await prepare(page);
-        await page.goto(`/?item=${id}${tab ? `&tab=${tab}` : ''}`);
-        await page.getByRole('tablist', { name: 'Spieldetails' }).waitFor();
+        await openGame(page, `item=${id}${tab ? `&tab=${tab}` : ''}`);
         await settle(page);
         await expect(page).toHaveScreenshot(`${file}-${vp.name}.png`, { mask: masks(page) });
       });
@@ -462,8 +482,7 @@ for (const vp of viewports) {
     test('offers many rows', async ({ page }) => {
       const id = await prepare(page);
       await page.route('**/api/v1/wishlist/*/offers', r => (r.request().method() === 'GET' ? r.fulfill({ json: manyOffers }) : r.continue()));
-      await page.goto(`/?item=${id}&tab=angebote`);
-      await page.getByRole('tablist', { name: 'Spieldetails' }).waitFor();
+      await openGame(page, `item=${id}&tab=angebote`);
       await expect(page.getByRole('table', { name: 'Angebote nach Preis' }).getByRole('cell', { name: 'Brasilien', exact: true })).toBeVisible();
       await settle(page);
       await expect(page).toHaveScreenshot(`angebote-many-${vp.name}.png`, { mask: masks(page) });
