@@ -246,9 +246,22 @@ pub(crate) enum Added {
     InLibrary(String),
 }
 
-/// The one path onto the wishlist, for the add dialog and the import (PROD-01). With `dry_run` everything is decided
-/// the same way but rolled back, so a preview and the import that follows agree.
-pub(crate) async fn add_wish(state: &Shared, input: AddInput, dry_run: bool) -> ApiResult<Added> {
+/// How [`add_wish`] puts a game on the list.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AddMode {
+    /// The add dialog: the first search is a direct user action and starts at once.
+    ByHand,
+    /// An import: the first search waits for its turn in the shop's pacing, so a restore of many wishes leaves
+    /// the daily budget to the regular checks (P2).
+    Import,
+    /// The preview of an import: decided the same way, then rolled back.
+    DryRun,
+}
+
+/// The one path onto the wishlist, for the add dialog and the import (PROD-01). A dry run decides everything the
+/// same way but rolls back, so a preview and the import that follows agree. The search job is written in the same
+/// transaction as the wish, so an interrupted request never leaves a wish without one (P3).
+pub(crate) async fn add_wish(state: &Shared, input: AddInput, mode: AddMode) -> ApiResult<Added> {
     if let (Some(id), None) = (input.igdb_id, &input.manual_title) {
         let existing = sqlx::query(items_sql!(
             " WHERE g.igdb_id = ? AND w.platform_id = ? AND w.state='wished'"
@@ -302,13 +315,15 @@ pub(crate) async fn add_wish(state: &Shared, input: AddInput, dry_run: bool) -> 
             .await?;
     }
     let created = inserted.rows_affected() == 1 || moved;
-    if dry_run {
+    if mode == AddMode::DryRun {
         tx.rollback().await?;
         return Ok(Added::Wish {
             item: Box::new(item),
             created,
         });
     }
+    let direct = mode == AddMode::ByHand;
+    crate::jobs::queue_search(&mut tx, &item.id, direct).await?;
     tx.commit().await?;
     if created {
         let game = eventlog::game(&state.pool, &item.id).await;
@@ -320,7 +335,7 @@ pub(crate) async fn add_wish(state: &Shared, input: AddInput, dry_run: bool) -> 
         )
         .await;
     }
-    crate::jobs::schedule_wish(&state.pool, &item.id).await?;
+    crate::jobs::attach_candidates(&state.pool, &item.id, direct).await;
     Ok(Added::Wish {
         item: Box::new(item),
         created,
@@ -334,7 +349,7 @@ pub(crate) async fn add(
     ApiJson(input): ApiJson<AddInput>,
 ) -> ApiResult<Response> {
     auth::require_csrf(&state, &headers, &session)?;
-    Ok(match add_wish(&state, input, false).await? {
+    Ok(match add_wish(&state, input, AddMode::ByHand).await? {
         Added::InLibrary(title) => (
             StatusCode::CONFLICT,
             Json(serde_json::json!({"error":format!("„{title}“ ist bereits in deiner Bibliothek. Wirklich fortfahren?"),"code":"owned_game"})),
@@ -384,8 +399,8 @@ struct ImportResult {
 }
 
 /// POST /api/v1/wishlist/import: the file of the export, each entry through [`add_wish`] like a wish added by hand
-/// (PROD-01). It only adds: nothing is removed or overwritten, a game in the library stays there, and a second
-/// import of the same file adds nothing.
+/// (PROD-01), except that the first searches wait for the shop's pacing (P2). It only adds: nothing is removed or
+/// overwritten, a game in the library stays there, and a second import of the same file adds nothing.
 pub(crate) async fn import(
     State(state): State<Shared>,
     session: auth::Session,
@@ -481,7 +496,11 @@ async fn import_entry(
             platform_id,
             confirm_owned: false,
         },
-        dry_run,
+        if dry_run {
+            AddMode::DryRun
+        } else {
+            AddMode::Import
+        },
     )
     .await;
     Ok(match added {

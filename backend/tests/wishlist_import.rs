@@ -11,6 +11,7 @@ use keyhunter::{
     create_app_with_catalog,
 };
 use serde_json::{Value, json};
+use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};
 use std::sync::Arc;
 use tower::ServiceExt;
 
@@ -59,7 +60,7 @@ impl CatalogProvider for Provider {
 }
 
 struct Fixture {
-    _dir: tempfile::TempDir,
+    dir: tempfile::TempDir,
     app: Router,
     cookie: String,
     csrf: String,
@@ -93,7 +94,7 @@ impl Fixture {
         )
         .await;
         Self {
-            _dir: dir,
+            dir,
             app,
             cookie: cookie.unwrap().split(';').next().unwrap().into(),
             csrf: session["csrf_token"].as_str().unwrap().into(),
@@ -118,6 +119,14 @@ impl Fixture {
             json!({"version":1,"items":items,"dry_run":dry_run}),
         )
         .await
+    }
+    /// A second connection to the app's database, to look at its jobs.
+    async fn db(&self) -> SqlitePool {
+        SqlitePool::connect_with(
+            SqliteConnectOptions::new().filename(self.dir.path().join("data/keyhunter.db")),
+        )
+        .await
+        .unwrap()
     }
     /// The wishlist as the export writes it: title, platform, IGDB id.
     async fn wishlist(&self) -> Vec<Value> {
@@ -423,4 +432,137 @@ async fn a_confirmed_mapping_survives_an_import_of_the_same_game() {
     let after = f.call("GET", "/api/v1/wishlist", Value::Null).await.1;
     assert_eq!(before[0]["id"], wish["item"]["id"]);
     assert_eq!(after, before, "the existing wish is not touched");
+}
+
+/// P2: the first searches of imported wishes are not direct user actions (`initial=0`), so the shop's pacing spreads
+/// them over the day (the scheduler side: `imported_wishes_search_paced_and_leave_the_budget_to_regular_checks` in
+/// jobs.rs). A game added by hand still searches at once.
+#[tokio::test]
+async fn imported_wishes_wait_for_pacing_but_a_game_added_by_hand_does_not() {
+    let f = Fixture::new().await;
+    let items: Vec<Value> = (0..300)
+        .map(|i| entry(&format!("Imported Game {i}"), "Xbox One", None))
+        .collect();
+    for chunk in items.chunks(100) {
+        let (status, result) = f.import(json!(chunk), false).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(result["counts"]["added"], 100);
+    }
+    let (status, _) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"manual_title":"By Hand","platform_id":49}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let db = f.db().await;
+    let searches: Vec<(String, i64, i64)> = sqlx::query_as(
+        "SELECT g.manual_title='By Hand',j.initial,COUNT(*) FROM shop_job j JOIN wishlist_item w ON w.id=j.wish_id
+        JOIN game g ON g.id=w.game_id GROUP BY 1,2 ORDER BY 1",
+    )
+    .fetch_all(&db)
+    .await
+    .unwrap()
+    .into_iter()
+    .map(|(hand, initial, count): (bool, i64, i64)| {
+        (if hand { "hand" } else { "import" }.to_string(), initial, count)
+    })
+    .collect();
+    assert_eq!(
+        searches,
+        [("import".into(), 0, 300), ("hand".into(), 1, 1)],
+        "one search per wish; only the one added by hand is a direct user action"
+    );
+}
+
+/// P3: the search job is written in the transaction of the wish. When it cannot be written (here: a trigger stands in
+/// for a time limit or a client that went away), the wish is not kept either, so no wish is left without its search
+/// and a second import adds it again.
+#[tokio::test]
+async fn a_wish_is_never_kept_without_its_search() {
+    let f = Fixture::new().await;
+    let db = f.db().await;
+    sqlx::query(
+        "CREATE TRIGGER no_search BEFORE INSERT ON shop_job WHEN NEW.wish_id IS NOT NULL
+        BEGIN SELECT RAISE(ABORT,'interrupted'); END",
+    )
+    .execute(&db)
+    .await
+    .unwrap();
+    let items = json!([entry("Lost Game", "Xbox One", None)]);
+    let (status, _) = f.import(items.clone(), false).await;
+    assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+    let (status, _) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"manual_title":"Other Game","platform_id":49}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+    assert!(f.wishlist().await.is_empty(), "no wish without a search");
+
+    sqlx::query("DROP TRIGGER no_search")
+        .execute(&db)
+        .await
+        .unwrap();
+    let (_, result) = f.import(items, false).await;
+    assert_eq!(result["counts"]["added"], 1);
+    let without: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM wishlist_item w WHERE NOT EXISTS(SELECT 1 FROM shop_job j WHERE j.wish_id=w.id)",
+    )
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(without, 0);
+}
+
+/// P4: the body limit is read before the session is checked, so the import's 128 KiB need a session cookie;
+/// without one the usual 16 KiB apply.
+#[tokio::test]
+async fn the_larger_import_body_needs_a_session_cookie() {
+    let f = Fixture::new().await;
+    let items: Vec<Value> = (0..100)
+        .map(|i| {
+            entry(
+                &format!("A rather long game title number {i:03} {}", "x".repeat(120)),
+                "Xbox One",
+                None,
+            )
+        })
+        .collect();
+    let body = json!({"version":1,"items":items,"dry_run":true});
+    let size = body.to_string().len();
+    assert!(size > 16 * 1024 && size < 128 * 1024, "{size}");
+    let stranger = |cookie: Option<&'static str>| {
+        send(
+            &f.app,
+            "POST",
+            "/api/v1/wishlist/import",
+            body.clone(),
+            cookie,
+            None,
+        )
+    };
+    let (status, error, _) = stranger(None).await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+    assert_eq!(error["code"], "too_large");
+    let (status, _, _) = stranger(Some("keyhunter_session=forged")).await;
+    assert_eq!(
+        status,
+        StatusCode::PAYLOAD_TOO_LARGE,
+        "a malformed cookie counts as none"
+    );
+    // A well-formed cookie gets the larger limit; the session layer still refuses an unknown one.
+    let (status, _, _) = stranger(Some(concat!(
+        "keyhunter_session=",
+        "0123456789abcdef0123456789abcdef",
+        "0123456789abcdef0123456789abcdef"
+    )))
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (status, result) = f.import(json!(body["items"]), true).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(result["counts"]["added"], 100);
 }

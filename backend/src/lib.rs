@@ -509,13 +509,15 @@ async fn time_limit(req: Request<Body>, next: Next) -> Response {
             .into_response()
         })
 }
-/// Reads the whole request body (at most [`BODY_LIMIT`], [`IMPORT_BODY_LIMIT`] for the import) within [`BODY_TIMEOUT`] before the request reaches the
+/// Reads the whole request body (at most [`BODY_LIMIT`]) within [`BODY_TIMEOUT`] before the request reaches the
 /// concurrency limit and the handler, so a client that sends its body slowly or never holds nothing that a
-/// sign-in or any other request needs (SEC-02).
+/// sign-in or any other request needs (SEC-02). The import may send [`IMPORT_BODY_LIMIT`], but only with a session
+/// cookie: the body is read before the session layer runs, so without one a stranger gets no more than anywhere else.
 async fn read_body(req: Request<Body>, next: Next) -> Response {
     use axum::body::HttpBody;
     let (parts, mut body) = req.into_parts();
-    let limit = if parts.uri.path() == IMPORT_PATH {
+    let limit = if parts.uri.path() == IMPORT_PATH && auth::session_cookie(&parts.headers).is_some()
+    {
         IMPORT_BODY_LIMIT
     } else {
         BODY_LIMIT

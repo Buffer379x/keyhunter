@@ -5,9 +5,9 @@
 //!
 //! | class | jobs | paced |
 //! |---|---|---|
-//! | 0 | refresh requested by the user, first search of a new wish (not of a preview) | no |
+//! | 0 | refresh requested by the user, first search of a wish added by hand (not of a preview or an import) | no |
 //! | 1 | price of an active wish that is in stock (any region; the target country is not preferred), search continuation pages | yes, unless a direct user action (below) |
-//! | 2 | repeated search of an active wish | yes, unless a direct user action |
+//! | 2 | repeated search of an active wish, first search of an imported wish | yes, unless a direct user action |
 //! | 3 | price of an active wish that is sold out or has no price | yes, unless a direct user action |
 //! | 4 | edition previews | yes (a requested refresh is class 0) |
 //! | 5 | shop-wide discovery | yes |
@@ -29,14 +29,17 @@
 //!
 //! **Direct user actions** ([`bypass`]) skip pacing (never the budget). A job is one when its item is
 //! a wish (not a preview, owned or deleted item; class 0 excepted) and
-//! - it is class 0 (requested refresh of any item, first search of a new wish), or
-//! - it is a search with `initial=1`: every page and retry of the first search of a new wish or
+//! - it is class 0 (requested refresh of any item, first search of a wish added by hand), or
+//! - it is a search with `initial=1`: every page and retry of the first search of a wish added by hand or
 //!   of a search run started by a requested refresh, until its last page is stored, or
 //! - it is a product with `initial=1` whose link has no observation yet: the first price fetch of a
 //!   link created by a user action (saving, restoring or refreshing a wish, adding a link by hand)
 //!   or found by a search run that itself bypassed pacing. The flag clears after that first run.
 //!
-//! Links attached at start-up or after a shop-wide discovery are never direct user actions.
+//! Links attached at start-up or after a shop-wide discovery are never direct user actions, and neither is an
+//! import (`POST /api/v1/wishlist/import`, P2): its wishes are queued with `initial=0`, so their first searches
+//! (class 2) and the links they find wait for their turn, and restoring hundreds of wishes cannot spend a day's
+//! budget at once. "Jetzt prüfen" on an imported wish is a requested refresh like any other.
 
 use crate::extract::ApiJson;
 use crate::{
@@ -260,7 +263,7 @@ fn class(window: &str) -> String {
         "CASE
     WHEN j.requested_at>{window} THEN 0
     WHEN t.state='preview' THEN 4
-    WHEN j.wish_id IS NOT NULL AND j.checked_at IS NULL THEN 0
+    WHEN j.wish_id IS NOT NULL AND j.checked_at IS NULL AND j.initial=1 THEN 0
     WHEN j.link_id IS NULL AND j.wish_id IS NULL THEN 5
     WHEN j.link_id IS NOT NULL THEN CASE WHEN j.relevance=1 THEN 1 ELSE 3 END
     WHEN j.search_page>1 THEN 1
@@ -1011,16 +1014,33 @@ async fn attach_items(
     Ok(())
 }
 
-/// Queue the search and the indexed candidates of an item a user saved, restored, refreshed
-/// or previewed. New jobs are direct user actions (they bypass pacing only for wishes).
-pub(crate) async fn schedule_wish(pool: &SqlitePool, id: &str) -> sqlx::Result<()> {
-    sqlx::query("INSERT OR IGNORE INTO shop_job(source,wish_id,due,initial) SELECT 'eneba',id,?,1 FROM wishlist_item w WHERE id=? AND w.state!='owned'")
-        .bind(now()).bind(id).execute(pool).await?;
+/// Queue the search of an item in the caller's transaction, so a wish never exists without one (P3). `direct` marks it
+/// as a direct user action (module docs); the search of an imported wish is not one.
+pub(crate) async fn queue_search(
+    conn: &mut sqlx::SqliteConnection,
+    id: &str,
+    direct: bool,
+) -> sqlx::Result<()> {
+    sqlx::query("INSERT OR IGNORE INTO shop_job(source,wish_id,due,initial) SELECT 'eneba',id,?,? FROM wishlist_item w WHERE id=? AND w.state!='owned'")
+        .bind(now()).bind(direct).bind(id).execute(conn).await?;
+    Ok(())
+}
+
+/// Link the indexed candidates of every shop to an item; `direct` as for [`queue_search`]. A failure or an
+/// interrupted request is no loss: the next start or discovery attaches them again.
+pub(crate) async fn attach_candidates(pool: &SqlitePool, id: &str, direct: bool) {
     for shop in Shop::ALL {
-        if let Err(error) = attach_wish(pool, shop, id, true).await {
+        if let Err(error) = attach_wish(pool, shop, id, direct).await {
             attach_failed(pool, shop, &error).await;
         }
     }
+}
+
+/// Queue the search and the indexed candidates of an item a user saved, restored, refreshed
+/// or previewed. New jobs are direct user actions (they bypass pacing only for wishes).
+pub(crate) async fn schedule_wish(pool: &SqlitePool, id: &str) -> sqlx::Result<()> {
+    queue_search(&mut *pool.acquire().await?, id, true).await?;
+    attach_candidates(pool, id, true).await;
     Ok(())
 }
 
@@ -2229,7 +2249,8 @@ mod tests {
             .execute(pool)
             .await
             .unwrap();
-            sqlx::query("INSERT INTO shop_job(source,wish_id,due) VALUES('eneba',?,?)")
+            // Saved by hand like `schedule_wish` does it (P2: only then the first search is a direct user action).
+            sqlx::query("INSERT INTO shop_job(source,wish_id,due,initial) VALUES('eneba',?,?,1)")
                 .bind(id)
                 .bind(T0)
                 .execute(pool)
@@ -2678,6 +2699,115 @@ mod tests {
                 .await
                 .unwrap()
                 .is_none()
+        );
+    }
+
+    /// P2: an import queues the first searches of its wishes without the direct-action flag. Restoring 300 wishes
+    /// then takes one paced slot at a time instead of the whole budget at once, the regular price checks keep
+    /// running through the day, and a game added by hand still searches at once.
+    #[tokio::test]
+    async fn imported_wishes_search_paced_and_leave_the_budget_to_regular_checks() {
+        use crate::shops::eneba::SearchPage;
+        const T0: i64 = 1_800_000_000 - 1_800_000_000 % DAY;
+        const BUDGET: i64 = 300;
+        let pool = memory().await;
+        let t = T0 + 3600;
+        // An existing wish whose in-stock price is due now; discovery is far off.
+        add_item(&pool, "old", "wished").await;
+        let price = add_link(&pool, "old", 0, t).await;
+        sqlx::query("UPDATE shop_job SET relevance=1 WHERE link_id=?")
+            .bind(price)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE shop_job SET due=? WHERE wish_id IS NULL AND link_id IS NULL")
+            .bind(T0 + 10 * DAY)
+            .execute(&pool)
+            .await
+            .unwrap();
+        for n in 0..300 {
+            let id = format!("imported{n}");
+            add_item(&pool, &id, "wished").await;
+            queue_search(&mut pool.acquire().await.unwrap(), &id, false)
+                .await
+                .unwrap();
+        }
+        sqlx::query("UPDATE shop_job SET due=? WHERE wish_id LIKE 'imported%'")
+            .bind(t)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let run = |job: Job, token: &'static str, at: i64| {
+            let pool = pool.clone();
+            async move {
+                let work = if job.link_id.is_some() {
+                    Work::Product(Box::new(priced(true)))
+                } else {
+                    Work::Search(SearchPage {
+                        urls: vec![],
+                        next_page: None,
+                    })
+                };
+                complete(&pool, Shop::Eneba, &job, token, Ok(work), at, at, 1)
+                    .await
+                    .unwrap();
+            }
+        };
+
+        let first = claim(&pool, Shop::Eneba, "i0", t, BUDGET)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(!first.bypass, "an imported search is paced");
+        run(first, "i0", t).await;
+        assert!(
+            claim(&pool, Shop::Eneba, "i1", t, BUDGET)
+                .await
+                .unwrap()
+                .is_none(),
+            "the other 299 imported searches wait for their slots"
+        );
+
+        // A game added by hand searches at once, also while the import is paced.
+        add_item(&pool, "hand", "wished").await;
+        schedule_wish(&pool, "hand").await.unwrap();
+        let hand = claim(&pool, Shop::Eneba, "h1", t, BUDGET)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!((hand.wish_id.as_deref(), hand.bypass), (Some("hand"), true));
+        run(hand, "h1", t).await;
+
+        // The rest of the day: the worker claims whatever pacing allows.
+        let (mut at, mut searches, mut prices, mut most_at_once) = (t + 1, 0, 0, 0);
+        while at < T0 + DAY {
+            let mut at_once = 0;
+            while let Some(job) = claim(&pool, Shop::Eneba, "ww", at, BUDGET).await.unwrap() {
+                assert!(!job.bypass);
+                at_once += 1;
+                if job.link_id == Some(price) {
+                    prices += 1;
+                } else {
+                    searches += 1;
+                }
+                run(job, "ww", at).await;
+            }
+            most_at_once = most_at_once.max(at_once);
+            let paced: i64 =
+                sqlx::query_scalar("SELECT paced_until FROM shop_state WHERE source='eneba'")
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap();
+            at = paced.max(at + 60);
+        }
+        assert_eq!(most_at_once, 1, "one paced job per slot");
+        assert!(
+            prices >= 2,
+            "the regular price check keeps its 8-hour interval: {prices}"
+        );
+        assert!(
+            searches > 250,
+            "the imported searches use the rest of the budget: {searches}"
         );
     }
 

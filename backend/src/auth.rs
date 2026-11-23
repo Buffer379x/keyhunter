@@ -104,8 +104,9 @@ fn checked_transport(config: &crate::config::Config, headers: &HeaderMap) -> Opt
     Some(secure)
 }
 
-async fn authenticate(state: &Shared, headers: &HeaderMap) -> ApiResult<Session> {
-    let token = headers
+/// The well-formed session token of the request's cookie, not yet checked against the database.
+pub(crate) fn session_cookie(headers: &HeaderMap) -> Option<&str> {
+    headers
         .get(header::COOKIE)
         .and_then(|h| h.to_str().ok())
         .and_then(|h| {
@@ -113,7 +114,11 @@ async fn authenticate(state: &Shared, headers: &HeaderMap) -> ApiResult<Session>
                 .find_map(|item| item.trim().strip_prefix("keyhunter_session="))
         })
         .filter(|t| t.len() == 64 && t.bytes().all(|c| c.is_ascii_hexdigit()))
-        .ok_or(ApiError(StatusCode::UNAUTHORIZED, "Bitte anmelden."))?;
+}
+
+async fn authenticate(state: &Shared, headers: &HeaderMap) -> ApiResult<Session> {
+    let token =
+        session_cookie(headers).ok_or(ApiError(StatusCode::UNAUTHORIZED, "Bitte anmelden."))?;
     let token_hash = hex::encode(digest(token));
     let csrf: Option<String> = sqlx::query_scalar(
         "SELECT csrf_token FROM session WHERE token_hash = ? AND expires_at > ?",
