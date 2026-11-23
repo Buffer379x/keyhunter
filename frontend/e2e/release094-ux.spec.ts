@@ -270,7 +270,7 @@ test.describe('setup, 1366 px', () => {
     const help = page.getByRole('button', { name: 'Hilfe zum Einrichtungscode', exact: true });
     await help.click();
     await expect(page.getByRole('tooltip')).toContainText('/mnt/user/appdata/keyhunter/bootstrap-token');
-    await expect(page.getByRole('tooltip')).toContainText('docker exec KeyHunter cat /data/bootstrap-token');
+    await expect(page.getByRole('tooltip')).toContainText('docker exec KeyHunter /app/keyhunter --setup-code');
   });
 });
 

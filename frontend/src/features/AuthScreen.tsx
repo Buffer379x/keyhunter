@@ -110,7 +110,7 @@ function AuthForm({
                   nie im Log.
                 </span>
                 <span>Unraid: /mnt/user/appdata/keyhunter/bootstrap-token (der Ordner aus „App data“).</span>
-                <span>Im Terminal des Docker-Hosts: docker exec KeyHunter cat /data/bootstrap-token</span>
+                <span>Im Terminal des Docker-Hosts: docker exec KeyHunter /app/keyhunter --setup-code</span>
               </Help>
             </span>
             <input id="setup-token" type="password" autoComplete="off" value={token} onChange={e => setToken(e.target.value)} required spellCheck={false} />
