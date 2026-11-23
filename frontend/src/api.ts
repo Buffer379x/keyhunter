@@ -133,7 +133,26 @@ export interface LibraryItem extends WishlistItem {
   acquired_at: number;
 }
 export type SourceStatuses = Record<string, { state: string; enabled: boolean; configured?: boolean; last_success_at: number | null; retry_at: number | null }>;
-export async function api<T>(path: string, method = 'GET', body?: unknown, csrf?: string, signal?: AbortSignal): Promise<T> {
+/** CSRF token of the signed-in session; empty while signed out. Every request that changes something sends it. */
+let csrfToken = '';
+export function setCsrf(token: string) {
+  csrfToken = token;
+}
+const sessionEndListeners = new Set<(error: HttpError) => void>();
+/**
+ * Calls `listener` when a request of a signed-in session answers 401: the session ended (expired, signed out elsewhere).
+ * The shell shows the sign-in; the token is gone by then, so a burst of 401s reports once. Returns the unsubscribe.
+ */
+export function onSessionEnd(listener: (error: HttpError) => void): () => void {
+  sessionEndListeners.add(listener);
+  return () => sessionEndListeners.delete(listener);
+}
+
+/** A 401: the session ended and the shell already shows the sign-in, so the caller reports nothing. */
+export const sessionEnded = (error: unknown) => error instanceof HttpError && error.status === 401;
+
+export async function api<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
+  const csrf = method === 'GET' ? '' : csrfToken;
   let response: Response;
   try {
     response = await fetch(`/api/v1${path}`, {
@@ -148,7 +167,14 @@ export async function api<T>(path: string, method = 'GET', body?: unknown, csrf?
     throw new HttpError(0, 'Verbindung unterbrochen. Bitte erneut versuchen.');
   }
   const data = response.status === 204 ? null : await response.json().catch(() => null);
-  if (!response.ok) throw new HttpError(response.status, data?.error ?? 'Die Anfrage konnte nicht abgeschlossen werden.', data?.code);
+  if (!response.ok) {
+    const error = new HttpError(response.status, data?.error ?? 'Die Anfrage konnte nicht abgeschlossen werden.', data?.code);
+    if (response.status === 401 && csrfToken) {
+      csrfToken = '';
+      for (const listener of sessionEndListeners) listener(error);
+    }
+    throw error;
+  }
   return data as T;
 }
 

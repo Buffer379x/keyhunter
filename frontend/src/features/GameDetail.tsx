@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { CatalogGame, PriceBadgeData, WishlistItem } from '../api';
+import type { CatalogGame } from '../api';
 import { Button, Cover, Icon, Notice, Panel, Pill, StatePill, TabPanel, Tabs } from '../components';
 import AlarmTab from './AlarmTab';
 import EditionComparison, { editionName } from './EditionComparison';
@@ -17,53 +17,27 @@ import { itemName, platformName } from './catalog-ui';
 import { countryData } from './regions';
 import { useOffersView } from './useOffersView';
 import { PAUSE_WEEKS, pauseEnd, pauseText, weeksText } from './wish-pause';
-
-const tabIds = ['preis', 'angebote', 'verlauf', 'editionen', 'alarm', 'zuordnungen'] as const;
-export type TabId = (typeof tabIds)[number];
-/** The tab of a URL (`?tab=`); "infos" is the name of the Zuordnungen tab before 1.0 (PROD-03), so old links keep working. */
-export function parseTab(value: string | null | undefined): TabId | null {
-  const id = value === 'infos' ? 'zuordnungen' : value;
-  return !!id && (tabIds as readonly string[]).includes(id) ? (id as TabId) : null;
-}
+import type { TabId } from '../route';
+import type { OpenWish } from './useWishDetail';
 
 type Props = {
-  item: WishlistItem;
-  viewed: WishlistItem;
-  preview: boolean;
-  variants: CatalogGame[];
-  editionItems: WishlistItem[];
-  editionError: string;
-  badges: Record<string, PriceBadgeData>;
-  csrf: string;
+  /** The open wish: its editions, tab, actions and their state (useWishDetail). */
+  wish: OpenWish;
   targetCountry: string | null;
   targetLabel: string;
-  tab: TabId;
-  purchasing: boolean;
-  onTab: (tab: TabId) => void;
-  onPurchase: () => void;
-  onRemove: () => void;
-  /** Put the wish into the shopping cart or take it out (0.8.0). */
-  carting: boolean;
-  onCart: () => void;
-  /** Pause the wish's checks until `until` (unix seconds; null: until resumed), or resume them with false (0.9.0). */
-  pausing: boolean;
-  onPause: (until: number | null | false) => void;
-  /** An offer from the Angebote tab into the cart: its shop and price scope (0.8.1). */
-  onCartOffer: (source: string, scope: 'home' | 'world') => void;
+  /** Order and hidden columns of the offers table (0.8.2). */
   offersColumns?: string[];
   offersHidden?: string[];
-  onView: (game: CatalogGame) => void;
-  onClearPreview: () => void;
-  onBadge: (id: string, badge: PriceBadgeData) => void;
   onSettings: () => void;
-  onError: (error: unknown) => void;
+  /** The alert rule as read or saved here, so the list's target column stays current. */
   onRule: (id: string, rule: Rule | null) => void;
 };
 
 /** Game detail (design v4): head panel with cover, edition and actions, then the tabs Preis · Angebote · Verlauf · Editionen · Alarm · Zuordnungen. */
 export default function GameDetail(props: Props) {
-  const { item, viewed, preview, csrf, onError, onRule } = props;
-  const alert = useAlertRule(item.id, csrf, onError);
+  const { wish, onRule } = props;
+  const { item, viewed, preview } = wish;
+  const alert = useAlertRule(item.id);
   useEffect(() => {
     if (alert.ready) onRule(item.id, alert.rule);
   }, [alert.ready, alert.rule, item.id, onRule]);
@@ -107,6 +81,7 @@ function StatusPill({
 }
 
 function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
+  const { wish, targetCountry, targetLabel, offersColumns, offersHidden, onSettings, alert, rule } = props;
   const {
     item,
     viewed,
@@ -115,9 +90,6 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
     editionItems,
     editionError,
     badges,
-    csrf,
-    targetCountry,
-    targetLabel,
     tab,
     purchasing,
     carting,
@@ -125,20 +97,14 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
     pausing,
     onPause,
     onCartOffer,
-    offersColumns,
-    offersHidden,
     onTab,
     onPurchase,
     onRemove,
     onView,
     onClearPreview,
     onBadge,
-    onSettings,
-    onError,
-    alert,
-    rule,
-  } = props;
-  const state = useOffersView(viewed.id, csrf, onError, onBadge);
+  } = wish;
+  const state = useOffersView(viewed.id, onBadge);
   const { view } = state;
   const [basis, setBasis] = useState<Basis>('base');
   const code = (targetCountry ?? view?.target_country ?? '').toUpperCase();
@@ -413,7 +379,7 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
         )}
       </TabPanel>
       <TabPanel id="gd" tab="alarm" value={tab}>
-        <AlarmTab id={item.id} alert={alert} editionName={savedName} code={code || 'Zielland'} hasEstimates={hasEstimates} onError={onError} />
+        <AlarmTab id={item.id} alert={alert} editionName={savedName} code={code || 'Zielland'} hasEstimates={hasEstimates} />
       </TabPanel>
       <TabPanel id="gd" tab="zuordnungen" value={tab}>
         <InfosTab item={item} game={game} state={state} />

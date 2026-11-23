@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, CART_CHANGED, HttpError } from './api';
+import { api, CART_CHANGED, HttpError, onSessionEnd, setCsrf } from './api';
 import type { Settings, SourceStatuses } from './api';
-import Wishlist, { returnToList } from './features/Wishlist';
-import type { TabId } from './features/GameDetail';
+import Wishlist from './features/Wishlist';
 import Library from './features/Library';
 import Cart from './features/Cart';
 import CatalogSearch from './features/CatalogSearch';
@@ -11,36 +10,31 @@ import PriceAlerts from './features/PriceAlerts';
 import SettingsPage from './features/SettingsPage';
 import AuthScreen from './features/AuthScreen';
 import { Brand, Button, Icon, IconButton, Toaster } from './components';
-import { notify } from './notify';
+import { notifyError } from './notify';
 import type { IconName } from './components';
 import FetchStatus from './FetchStatus';
+import { usePolled } from './usePolled';
 import { mediaQuery } from './breakpoints';
 import { useMediaQuery } from './useMediaQuery';
 import { useSettingsDraft } from './features/settings/draft';
 import UnsavedDialog from './features/settings/UnsavedDialog';
 import { appVersion } from './version';
-import { routeSection, sectionLabel } from './features/settings/sections';
+import { sectionLabel } from './features/settings/sections';
+import { navigate, onRouteChange, returnToList, useRoute } from './route';
+import type { Page, TabId } from './route';
 import type { Section } from './features/settings/sections';
-
-type Page = 'wishlist' | 'settings' | 'alerts' | 'library' | 'cart';
-function routePage(): Page {
-  const view = new URL(window.location.href).searchParams.get('view');
-  return view === 'settings' || view === 'alerts' || view === 'library' || view === 'cart' ? view : 'wishlist';
-}
 
 type Screen = 'loading' | 'setup' | 'login' | 'ready' | 'offline';
 const errorText = (error: unknown) => (error instanceof Error ? error.message : 'Ein Fehler ist aufgetreten.');
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('loading');
-  const [csrf, setCsrf] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [libraryAddOpen, setLibraryAddOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [wishlistRevision, setWishlistRevision] = useState(0);
-  const [page, setPage] = useState<Page>(routePage);
-  const [section, setSection] = useState<Section>(routeSection);
+  const { page, section } = useRoute();
   const [gameTitle, setGameTitle] = useState<string | null>(null);
   const [wishlistCount, setWishlistCount] = useState<number | null>(null);
   const [libraryCount, setLibraryCount] = useState<number | null>(null);
@@ -119,7 +113,8 @@ export default function App() {
       setBusy(false);
     }
   }
-  const resetSession = () => {
+  /** The session ended: back to the sign-in, with the server's message after a 401 (none after "Abmelden"). */
+  const endSession = useCallback((message = '') => {
     setCsrf('');
     setWishlistCount(null);
     setLibraryCount(null);
@@ -129,75 +124,50 @@ export default function App() {
     setAddOpen(false);
     setLibraryAddOpen(false);
     setNavOpen(false);
-  };
-  /** The session ended on purpose ("Abmelden", "Überall abmelden"): back to the sign-in. */
-  const signedOut = () => {
-    resetSession();
-    setPage('wishlist');
+    setError(message);
     setScreen('login');
-    window.history.replaceState(null, '', window.location.pathname);
+  }, []);
+  // Any request that answers 401 ends the session (api.ts); the page stays in the URL for the next sign-in.
+  useEffect(() => onSessionEnd(e => endSession(e.message)), [endSession]);
+  /** The session ended on purpose ("Abmelden", "Überall abmelden"): the sign-in, then the wishlist. */
+  const signedOut = () => {
+    endSession();
+    navigate({}, { replace: true, reset: true });
   };
   async function logout() {
     setBusy(true);
     setError('');
     try {
-      await api('/session', 'DELETE', undefined, csrf);
+      await api('/session', 'DELETE');
       signedOut();
     } catch (e) {
-      handleProtectedError(e);
+      notifyError(e);
     } finally {
       setBusy(false);
     }
   }
-  // On the signed-in app an error is a popup (0.9.1); the sign-in screen shows its own.
-  const handleProtectedError = useCallback((e: unknown) => {
-    if (!(e instanceof HttpError && e.status === 401)) {
-      notify(errorText(e), 'error');
-      return;
-    }
-    setError(errorText(e));
-    if (e instanceof HttpError && e.status === 401) {
-      setCsrf('');
-      setWishlistCount(null);
-      setSearchOpen(false);
-      setAddOpen(false);
-      setScreen('login');
-    }
-  }, []);
-  const auto = useSettingsDraft({ csrf, onSaved: refreshSources, onProtectedError: handleProtectedError });
+  const auto = useSettingsDraft({ onSaved: refreshSources });
   const savedCountry = auto.saved?.target_country ?? null;
   /** Go to a page (and settings section). `add` opens the wishlist's add dialog on arrival. */
-  const navigate = useCallback(
+  const openPage = useCallback(
     (next: Page, nextSection: Section = 'general', add = false) => {
-      const go = () => {
-        setSearchOpen(false);
-        setAddOpen(add);
-        setNavOpen(false);
-        setPage(next);
-        setSection(nextSection);
-        setError('');
-        const url = new URL(window.location.href);
-        url.hash = '';
-        if (next === 'settings') {
-          url.searchParams.set('view', 'settings');
-          refreshSources();
-          if (nextSection === 'general') url.searchParams.delete('section');
-          else url.searchParams.set('section', nextSection);
-          document.getElementById('main-content')?.scrollTo?.({ top: 0 });
-        } else if (next === 'alerts' || next === 'library' || next === 'cart') url.searchParams.set('view', next);
-        else url.searchParams.delete('view');
-        if (next !== 'settings') url.searchParams.delete('section');
-        // The game is a page of its own below the wishlist: every navigation entry leads to a list, never to the last game.
-        url.searchParams.delete('item');
-        url.searchParams.delete('tab');
-        if (url.href !== window.location.href) {
-          window.history.pushState(null, '', url);
-          if (page === 'wishlist' && next === 'wishlist') window.dispatchEvent(new PopStateEvent('popstate'));
-        }
-      };
-      go();
+      setSearchOpen(false);
+      setNavOpen(false);
+      setError('');
+      if (next === 'settings') {
+        refreshSources();
+        document.getElementById('main-content')?.scrollTo?.({ top: 0 });
+      }
+      // The game is a page of its own below the wishlist: every navigation entry leads to a list, never to the last game.
+      navigate({
+        view: next === 'wishlist' ? null : next,
+        section: next === 'settings' && nextSection !== 'general' ? nextSection : null,
+        item: null,
+        tab: null,
+      });
+      setAddOpen(add);
     },
-    [refreshSources, page],
+    [refreshSources],
   );
   // Leaving the settings (also with browser back) with unsaved changes asks whether to save or discard them.
   const lastSection = useRef<Section>(section);
@@ -209,30 +179,22 @@ export default function App() {
     if (page === 'settings') setLeaving(null);
     wasSettings.current = page === 'settings';
   }, [page, auto.dirty]);
-  useEffect(() => {
-    const restore = () => {
-      setPage(routePage());
-      setSection(routeSection());
-      setSearchOpen(false);
-      setAddOpen(false);
-      setNavOpen(false);
-    };
-    window.addEventListener('popstate', restore);
-    return () => window.removeEventListener('popstate', restore);
-  }, []);
+  // Browser back/forward and a link to another page or settings tab close the search, the add dialog and the drawer.
+  useEffect(
+    () =>
+      onRouteChange((next, previous, browser) => {
+        if (!browser && next.page === previous.page && next.section === previous.section) return;
+        setSearchOpen(false);
+        setAddOpen(false);
+        setNavOpen(false);
+      }),
+    [],
+  );
   const openSearch = useCallback(() => setSearchOpen(true), []);
   const closeSearch = useCallback(() => setSearchOpen(false), []);
   /** A game on its page below the wishlist (search, library, cart); `tab` opens one tab directly (the cart's warning triangle, PROD-03). */
   const showGame = useCallback((item: WishlistItem, tab?: TabId) => {
-    const url = new URL(window.location.href);
-    url.hash = '';
-    url.searchParams.delete('view');
-    url.searchParams.delete('section');
-    url.searchParams.delete('filter');
-    url.searchParams.set('item', item.id);
-    if (tab) url.searchParams.set('tab', tab);
-    if (url.href !== window.location.href) window.history.pushState(null, '', url);
-    setPage('wishlist');
+    navigate({ view: null, section: null, filter: null, item: item.id, tab });
     setError('');
     setWishlistRevision(n => n + 1);
   }, []);
@@ -241,20 +203,13 @@ export default function App() {
    * dialog belongs to the wishlist, so open that page first. */
   function openAdd() {
     if (page === 'library') setLibraryAddOpen(true);
-    else if (page !== 'wishlist') navigate('wishlist', 'general', true);
+    else if (page !== 'wishlist') openPage('wishlist', 'general', true);
     else setAddOpen(true);
   }
-  /** Breadcrumb "Wunschliste" in the game view: back to the list without a selection; URL-bound views follow through popstate. */
+  /** Breadcrumb "Wunschliste" in the game view: back to the list without a selection. */
   function backToList() {
-    if (returnToList()) return; // Opened from the list: go back, so the list keeps its place.
-    const url = new URL(window.location.href);
-    url.searchParams.delete('item');
-    url.searchParams.delete('tab');
-    url.hash = '';
-    if (url.href !== window.location.href) {
-      window.history.pushState(null, '', url);
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    }
+    // Opened from the list: go back, so the list keeps its place.
+    if (!returnToList()) navigate({ item: null, tab: null });
   }
   useEffect(() => {
     function keyboard(event: KeyboardEvent) {
@@ -294,7 +249,7 @@ export default function App() {
   useEffect(() => {
     if (!drawer) setNavOpen(false);
   }, [drawer]);
-  const openSettings = useCallback((next: Section = 'general') => navigate('settings', next), [navigate]);
+  const openSettings = useCallback((next: Section = 'general') => openPage('settings', next), [openPage]);
   // Counts in the navigation (CODE-08): one small read after sign-in, on every page change and whenever the wishlist
   // or the cart changes. The open list page reports its own count, so a read in flight never overwrites it.
   useEffect(() => {
@@ -302,20 +257,15 @@ export default function App() {
     window.addEventListener(CART_CHANGED, changed);
     return () => window.removeEventListener(CART_CHANGED, changed);
   }, []);
-  useEffect(() => {
-    if (screen !== 'ready') return;
-    const controller = new AbortController();
-    api<{ wishlist: number; cart: number; library: number; alerts: number }>('/counts', 'GET', undefined, undefined, controller.signal)
-      .then(counts => {
-        if (controller.signal.aborted) return;
-        if (page !== 'wishlist') setWishlistCount(counts.wishlist);
-        if (page !== 'cart') setCartCount(counts.cart);
-        if (page !== 'library') setLibraryCount(counts.library);
-        setAlertCount(counts.alerts);
-      })
-      .catch(() => {});
-    return () => controller.abort();
-  }, [screen, page, wishlistSize, cartRevision]);
+  usePolled<{ wishlist: number; cart: number; library: number; alerts: number }>(screen === 'ready' ? '/counts' : null, {
+    restart: [page, wishlistSize, cartRevision],
+    onData: counts => {
+      if (page !== 'wishlist') setWishlistCount(counts.wishlist);
+      if (page !== 'cart') setCartCount(counts.cart);
+      if (page !== 'library') setLibraryCount(counts.library);
+      setAlertCount(counts.alerts);
+    },
+  });
 
   const countryNames = useMemo(() => new Intl.DisplayNames(['de'], { type: 'region' }), []);
   const countries = useMemo(
@@ -382,7 +332,7 @@ export default function App() {
           title={`KeyHunter ${appVersion}`}
           onClick={event => {
             event.preventDefault();
-            navigate('wishlist');
+            openPage('wishlist');
           }}
         >
           <Brand />
@@ -398,7 +348,7 @@ export default function App() {
                 type="button"
                 className="nav-item"
                 aria-current={page === item.page ? 'page' : undefined}
-                onClick={() => navigate(item.page)}
+                onClick={() => openPage(item.page)}
               >
                 <Icon name={item.icon} />
                 {item.label}
@@ -410,7 +360,7 @@ export default function App() {
           </div>
         </nav>
         <div className="side-foot">
-          <FetchStatus csrf={csrf} onOpen={() => openSettings('status')} />
+          <FetchStatus onOpen={() => openSettings('status')} />
           {/* 0.8.3: the settings are one page with tabs; the sidebar keeps only these two buttons below the fetch status. */}
           <div className="side-actions">
             <IconButton
@@ -443,16 +393,8 @@ export default function App() {
             {crumbs}
           </nav>
           <div className="top-right">
-            <CatalogSearch
-              inline
-              csrf={csrf}
-              open={searchOpen}
-              onOpen={openSearch}
-              onClose={closeSearch}
-              onAdded={selectSearchResult}
-              onError={handleProtectedError}
-            />
-            <IconButton className="hide-sm" label="Preisalarme" onClick={() => navigate('alerts')}>
+            <CatalogSearch inline open={searchOpen} onOpen={openSearch} onClose={closeSearch} onAdded={selectSearchResult} />
+            <IconButton className="hide-sm" label="Preisalarme" onClick={() => openPage('alerts')}>
               <Icon name="bell" />
             </IconButton>
             <Button variant="primary" className="hide-sm" onClick={openAdd}>
@@ -469,7 +411,6 @@ export default function App() {
           {page === 'wishlist' ? (
             <Wishlist
               key={wishlistRevision}
-              csrf={csrf}
               targetCountry={savedCountry}
               columns={auto.saved?.wishlist_columns}
               hidden={auto.saved?.wishlist_hidden}
@@ -484,30 +425,25 @@ export default function App() {
               onTitle={setGameTitle}
               onSettings={() => openSettings()}
               onCountChange={reportWishlistCount}
-              onError={handleProtectedError}
             />
           ) : page === 'library' ? (
             <Library
-              csrf={csrf}
               addOpen={libraryAddOpen}
               onAddOpen={setLibraryAddOpen}
               onRestored={selectSearchResult}
-              onOpenWishlist={() => navigate('wishlist')}
+              onOpenWishlist={() => openPage('wishlist')}
               onCountChange={setLibraryCount}
-              onError={handleProtectedError}
             />
           ) : page === 'cart' ? (
             <Cart
-              csrf={csrf}
               targetCountry={savedCountry ?? ''}
               onOpen={selectSearchResult}
               onReview={item => showGame(item, 'zuordnungen')}
-              onOpenWishlist={() => navigate('wishlist')}
+              onOpenWishlist={() => openPage('wishlist')}
               onCountChange={setCartCount}
-              onError={handleProtectedError}
             />
           ) : page === 'alerts' ? (
-            <PriceAlerts csrf={csrf} targetCountry={savedCountry} targetLabel={targetLabel ?? 'Zielland'} onError={handleProtectedError} />
+            <PriceAlerts targetCountry={savedCountry} targetLabel={targetLabel ?? 'Zielland'} />
           ) : (
             auto.settings && (
               <SettingsPage
@@ -515,12 +451,10 @@ export default function App() {
                 onSection={openSettings}
                 settings={auto.settings}
                 auto={auto}
-                csrf={csrf}
                 busy={busy}
                 countries={countries}
                 sourceStatus={sourceStatus}
                 onSourcesChanged={refreshSources}
-                onError={handleProtectedError}
                 onLogout={() => void logout()}
                 onSignedOut={signedOut}
               />
@@ -544,7 +478,7 @@ export default function App() {
         onBack={() => {
           const back = leaving ?? 'general';
           setLeaving(null);
-          navigate('settings', back);
+          openPage('settings', back);
         }}
       />
     </div>

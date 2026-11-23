@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { FormEvent } from 'react';
-import { api, HttpError } from '../../api';
+import { api, sessionEnded } from '../../api';
 import { notify } from '../../notify';
+import { usePolled } from '../../usePolled';
 import type { ChannelView } from '../../api';
 import { Button, ConfirmDialog, Help, Icon, Notice, Pill, Seg, Switch, TabPanel } from '../../components';
 import { SettingsPanel } from './parts';
@@ -28,17 +29,7 @@ function status(view: ChannelView) {
 }
 
 /** Form of one channel: its fields, the switch (saves at once), "Speichern", "Test senden" (saves first when changed) and "Entfernen". */
-function ChannelForm({
-  view,
-  csrf,
-  onChange,
-  onError,
-}: {
-  view: ChannelView;
-  csrf: string;
-  onChange: (next: ChannelView) => void;
-  onError: (error: unknown) => void;
-}) {
+function ChannelForm({ view, onChange }: { view: ChannelView; onChange: (next: ChannelView) => void }) {
   const [values, setValues] = useState(() => channelValues(view));
   const [busy, setBusy] = useState<'' | 'save' | 'test' | 'remove'>('');
   const [error, setError] = useState('');
@@ -55,8 +46,8 @@ function ChannelForm({
       notify(await action());
     } catch (exception) {
       const text = exception instanceof Error ? exception.message : 'Die Anfrage konnte nicht abgeschlossen werden.';
-      if (exception instanceof HttpError && exception.status === 401) onError(exception);
-      else if (kind === 'remove') setError(text);
+      if (sessionEnded(exception)) return;
+      if (kind === 'remove') setError(text);
       else notify(text, 'error');
     } finally {
       setBusy('');
@@ -67,7 +58,7 @@ function ChannelForm({
     onChange(next);
     return next;
   }
-  const store = async (enabled: boolean) => show(await api<ChannelView>(path, 'PUT', channelBody(view, values, enabled), csrf));
+  const store = async (enabled: boolean) => show(await api<ChannelView>(path, 'PUT', channelBody(view, values, enabled)));
   function save(event: FormEvent) {
     event.preventDefault();
     void run('save', async () => {
@@ -83,12 +74,12 @@ function ChannelForm({
   const test = () =>
     void run('test', async () => {
       if (dirty) await store(view.enabled);
-      await api(`${path}/test`, 'POST', undefined, csrf);
+      await api(`${path}/test`, 'POST');
       return `Testnachricht über ${view.name} gesendet.`;
     });
   const remove = () =>
     void run('remove', async () => {
-      await api(path, 'DELETE', undefined, csrf);
+      await api(path, 'DELETE');
       setConfirm(false);
       const data = await api<{ channels: ChannelView[] }>('/alerts/channels');
       const next = data.channels.find(c => c.kind === view.kind);
@@ -186,27 +177,21 @@ function ChannelForm({
  * Benachrichtigungen (0.9.0): one tab per built-in channel, like Key-Shops. Several channels can be active at once; an alert
  * goes to every active one. Secrets are write-only (GET /alerts/channels only says whether one is stored).
  */
-export default function Notifications({ csrf, onError }: { csrf: string; onError: (error: unknown) => void }) {
+export default function Notifications() {
   const [channels, setChannels] = useState<ChannelView[] | null>(null);
   const [failed, setFailed] = useState('');
   const [open, setOpen] = useState('');
   const [revision, setRevision] = useState(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    api<{ channels: ChannelView[] }>('/alerts/channels', 'GET', undefined, undefined, controller.signal)
-      .then(data => {
-        if (!controller.signal.aborted) {
-          setChannels(data.channels);
-          setFailed('');
-        }
-      })
-      .catch(error => {
-        if (controller.signal.aborted) return;
-        if (error instanceof HttpError && error.status === 401) onError(error);
-        else setFailed(error instanceof Error ? error.message : 'Kanäle konnten nicht geladen werden.');
-      });
-    return () => controller.abort();
-  }, [revision, onError]);
+  usePolled<{ channels: ChannelView[] }>('/alerts/channels', {
+    restart: [revision],
+    onData: data => {
+      setChannels(data.channels);
+      setFailed('');
+    },
+    onError: error => {
+      if (!sessionEnded(error)) setFailed(error instanceof Error ? error.message : 'Kanäle konnten nicht geladen werden.');
+    },
+  });
   const replace = useCallback((next: ChannelView) => setChannels(current => current?.map(c => (c.kind === next.kind ? next : c)) ?? null), []);
   const active = channels?.filter(c => c.active).map(c => c.name) ?? [];
   const current = channels?.some(c => c.kind === open) ? open : ((channels?.find(c => c.active) ?? channels?.[0])?.kind ?? '');
@@ -257,7 +242,7 @@ export default function Notifications({ csrf, onError }: { csrf: string; onError
           )
         : channels.map(c => (
             <TabPanel key={c.kind} id="channels" tab={c.kind} value={current}>
-              <ChannelForm view={c} csrf={csrf} onChange={replace} onError={onError} />
+              <ChannelForm view={c} onChange={replace} />
             </TabPanel>
           ))}
     </SettingsPanel>
