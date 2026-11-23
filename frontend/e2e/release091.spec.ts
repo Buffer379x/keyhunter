@@ -165,8 +165,9 @@ test('the list counts the offers after edition and platform and marks mappings t
   const rows = wishlistRows(page);
   await expect(rows.first()).toContainText(/Xbox Series X\|S \(38 Angebote\)/); // RESP-10: the platform instead of the year
   await expect(rows.nth(1)).toContainText(/\(1 Angebot\)/);
-  await expect(rows.first().getByRole('img', { name: '2 ungeprüfte Zuordnungen', exact: true })).toBeVisible();
-  await expect(rows.nth(1).getByRole('img', { name: /Zuordnung/ })).toHaveCount(0);
+  // 1.1 (PROD-03): the warning is a button that opens the Zuordnungen tab.
+  await expect(rows.first().getByRole('button', { name: /^2 ungeprüfte Zuordnungen von .+ prüfen$/ })).toBeVisible();
+  await expect(rows.nth(1).getByRole('button', { name: /Zuordnung/ })).toHaveCount(0);
 });
 
 test('the search popup keeps its layout when the systems arrive on the first open', async ({ page }) => {

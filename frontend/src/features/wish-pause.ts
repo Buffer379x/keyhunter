@@ -15,14 +15,22 @@ export function pauseText(item: Pick<WishlistItem, 'paused' | 'paused_until'>): 
   return item.paused_until ? `Abfragen pausiert bis ${date(item.paused_until)}` : 'Abfragen pausiert, bis du sie fortsetzt';
 }
 
+type ReviewFacts = Pick<WishlistItem, 'review_count' | 'verification'>;
+const countText = (count: number) => (count === 1 ? '1 ungeprüfte Zuordnung' : `${count} ungeprüfte Zuordnungen`);
 /** Why a wish carries the warning symbol (0.9.1): mappings to review under Zuordnungen, or a catalog choice that is not confirmed. */
-function reviewText(item: Pick<WishlistItem, 'review_count' | 'verification'>): string {
+function reviewText(item: ReviewFacts): string {
   const parts: string[] = [];
   const count = item.review_count ?? 0;
-  if (count > 0) parts.push(count === 1 ? '1 ungeprüfte Zuordnung' : `${count} ungeprüfte Zuordnungen`);
+  if (count > 0) parts.push(countText(count));
   // A manual title has no catalog entry by choice; only a catalog choice that no longer matches is a task.
   if (item.verification === 'needs_review') parts.push('Katalogzuordnung prüfen');
   return parts.join(' · ');
+}
+/** Accessible name of the warning button (1.1, PROD-03), which opens the Zuordnungen tab: "2 ungeprüfte Zuordnungen von Halo prüfen". */
+export function reviewAction(item: ReviewFacts, title: string): string {
+  const count = item.review_count ?? 0;
+  const what = [count > 0 ? countText(count) : '', item.verification === 'needs_review' ? 'Katalogzuordnung' : ''].filter(Boolean).join(' und ');
+  return `${what} von ${title} prüfen`;
 }
 
 interface WishFlag {

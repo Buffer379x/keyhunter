@@ -43,6 +43,8 @@ interface Props {
   /** Target country code ("DE"), or "" without one. */
   targetCountry: string;
   onOpen: (item: WishlistItem) => void;
+  /** The warning triangle of a line: the game on its Zuordnungen tab (1.1, PROD-03). */
+  onReview: (item: WishlistItem) => void;
   onOpenWishlist: () => void;
   /** The number of entries for the navigation, after each read. */
   onCountChange: (count: number) => void;
@@ -53,7 +55,7 @@ interface Props {
  * Warenkorb (0.8.0): wishes the owner plans to buy together, with the total without and with the estimated fees, split by
  * shop. Each wish is in it once; "Gekauft" or deleting the wish takes it out.
  */
-export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onCountChange, onError }: Props) {
+export default function Cart({ csrf, targetCountry, onOpen, onReview, onOpenWishlist, onCountChange, onError }: Props) {
   const [entries, setEntries] = useState<CartEntry[] | null>(null);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
   const [loadError, setLoadError] = useState('');
@@ -202,7 +204,7 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onCo
                                 <button type="button" className="title-open" title="Details öffnen" onClick={() => onOpen(line.item)}>
                                   <b>{name}</b>
                                 </button>
-                                <WishFlags item={line.item} />
+                                <WishFlags item={line.item} onReview={() => onReview(line.item)} />
                               </span>
                               {/* RESP-10: the same game for two systems stays apart */}
                               <small>{platformName(line.item.platform_id)}</small>
