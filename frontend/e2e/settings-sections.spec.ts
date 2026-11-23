@@ -106,7 +106,7 @@ test('settings stay a draft until Speichern; an invalid fee is not sent, says so
   await signInToFixture(page);
   await navTo(page, 'Allgemein');
   await navTo(page, 'Key-Shops');
-  const eneba = page.getByRole('article', { name: 'Eneba', exact: true });
+  const eneba = page.getByRole('tabpanel', { name: /^Eneba/ });
   const fee = eneba.getByLabel('Geschätzte Gebühren (%)', { exact: true });
   const feeSwitch = eneba.getByRole('switch', { name: /Geschätzte Gebühren berücksichtigen/ });
   if (!(await feeSwitch.isChecked())) await feeSwitch.click();
@@ -141,7 +141,7 @@ test('settings stay a draft until Speichern; an invalid fee is not sent, says so
 test('leaving the settings with unsaved changes asks to save, discard or go back', async ({ page }) => {
   await signInToFixture(page);
   await navTo(page, 'Key-Shops');
-  const eneba = page.getByRole('article', { name: 'Eneba', exact: true });
+  const eneba = page.getByRole('tabpanel', { name: /^Eneba/ });
   const interval = eneba.getByLabel('Produktseiten abfragen alle', { exact: true });
   const before = await interval.inputValue();
   const other = await interval
@@ -264,7 +264,7 @@ test('Abrufe pro Tag saves a valid number with the settings, keeps an invalid on
   });
   await signInToFixture(page);
   await navTo(page, 'Key-Shops');
-  const eneba = page.getByRole('article', { name: 'Eneba', exact: true });
+  const eneba = page.getByRole('tabpanel', { name: /^Eneba/ });
   const field = eneba.getByLabel('Abrufe pro Tag (höchstens)', { exact: true });
   await expect(field).toHaveValue('500');
   await expect(field).toHaveAttribute('placeholder', '500');

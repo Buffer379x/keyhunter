@@ -60,7 +60,7 @@ test('the settings are tabs behind the symbol button below the fetch status; bot
   await navTo(page, 'Key-Shops');
   await expect(navItem(page, 'Key-Shops')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('tablist', { name: 'Key-Shops', exact: true }).getByRole('tab')).toHaveCount(2);
-  await expect(page.getByRole('article')).toHaveCount(1);
+  await expect(page.locator('[id^="shops-panel-"]:not([hidden])')).toHaveCount(1);
 });
 
 test('explanations sit behind the same help symbol and open on hover, focus and tap', async ({ page }) => {
