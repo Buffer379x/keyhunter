@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test';
 
-// Two projects: "e2e" (everything except e2e/visual) and "visual" (screenshot comparison, run only through
+// Projects: "e2e" (everything except e2e/visual and e2e/priced), "priced" (a server with seeded prices) and "visual" (screenshot comparison, run only through
 // deploy/visual-check.sh inside the pinned Playwright image so fonts and rendering are always the same).
 export default defineConfig({
   testDir: './e2e',
@@ -14,7 +14,9 @@ export default defineConfig({
   },
   reporter: 'list',
   projects: [
-    { name: 'e2e', testIgnore: /visual\// },
+    { name: 'e2e', testIgnore: /(visual|priced)\// },
+    // Against a server seeded with price data (KEYHUNTER_FIXTURE_PRICES=1), no route mocks (FUNC-06); deploy/browser-check.sh.
+    { name: 'priced', testMatch: /priced\/.*\.spec\.ts/ },
     // A short WebKit run of the responsive checks (1.0), in the pinned Playwright image only (deploy/browser-check.sh).
     { name: 'webkit', testMatch: /release094-responsive\.spec\.ts/, use: { browserName: 'webkit', channel: undefined } },
     {
