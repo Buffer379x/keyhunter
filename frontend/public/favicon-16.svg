@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" role="img" aria-label="KeyHunter">
-  <!-- Optical 16 px variant of the brand mark (1.0, DS-01 variant B "Loch und Keil"): tag edges on whole pixels (y 3..13), the key hole as a 6 px disc with a short wedge, so it reads as a hole and not as a "1". -->
+  <!-- Optical 16 px variant of the brand mark (1.0.1): the master drawing on whole pixels. The tag sits centred (x 2..14, y 3..13, point on the left), the key hole keeps the master's proportions: a round head (r 2.25) over a tapering stem, centred in the tag. -->
   <rect width="16" height="16" rx="3.5" fill="#FF7A1A"/>
-  <path fill="#1B1004" fill-rule="evenodd" d="M0.5 8L4.5 3H15V13H4.5Z M10 4A3 3 0 0 1 11.2 9.75L12.2 12H7.8L8.8 9.75A3 3 0 0 1 10 4Z"/>
+  <path fill="#1B1004" fill-rule="evenodd" d="M2 8L6 3H14V13H6Z M10 4.5A2.25 2.25 0 0 1 11.41 8.5L12 11H8L8.59 8.5A2.25 2.25 0 0 1 10 4.5Z"/>
 </svg>
