@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Base images are pinned by tag and digest (SEC-10). To update: pick the new tag, `docker pull <tag>`, read the digest with
 # `docker image inspect <tag> --format '{{index .RepoDigests 0}}'` and replace both here; Dependabot proposes the same.
-FROM node:24.22.1-bookworm-slim@sha256:be8204d4bd327363357f532187b752ff62759c31bedf98e9e18fc08c9cbd605c AS frontend
+FROM node:26.13.1-bookworm-slim@sha256:5df79989ed685e09f0a98019db4cebfb22fb9df1a53c0161664a011f7ff6b0f1 AS frontend
 WORKDIR /build/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -28,7 +28,7 @@ ENV KEYHUNTER_BIND=0.0.0.0:3000 \
     KEYHUNTER_FRONTEND_DIR=/app/frontend \
     RUST_LOG=keyhunter=info
 USER 10001:10001
-LABEL org.opencontainers.image.version="1.0.1" \
+LABEL org.opencontainers.image.version="1.0.2" \
       org.opencontainers.image.source="https://github.com/Buffer379x/keyhunter" \
       org.opencontainers.image.title="KeyHunter"
 WORKDIR /app

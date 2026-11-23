@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, CART_CHANGED } from '../api';
 import type { LibraryItem, WishlistItem } from '../api';
-import { Button, ConfirmDialog, Cover, EmptyState, Field, Icon, IconButton, Notice, PageHeading, Panel, Seg } from '../components';
+import { Button, ConfirmDialog, Cover, EmptyState, Field, Icon, IconButton, Inset, Notice, PageHeading, Panel, PanelHead, Seg } from '../components';
 import { itemName, platformName } from './catalog-ui';
 import CatalogSearch from './CatalogSearch';
 import { libraryItems } from './library-sort';
@@ -162,12 +162,61 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
         sub={sub}
         help="Gekaufte Spiele. KeyHunter fragt für sie keine Preise mehr ab; der gespeicherte Preisverlauf bleibt erhalten."
         actions={
-          <>
-            <IconButton className="lib-add" label="Spiel zur Bibliothek hinzufügen" onClick={() => onAddOpen(true)}>
-              <Icon name="plus" />
-            </IconButton>
+          <IconButton className="lib-add" label="Spiel zur Bibliothek hinzufügen" onClick={() => onAddOpen(true)}>
+            <Icon name="plus" />
+          </IconButton>
+        }
+      />
+      {loadError && (
+        <Notice error>
+          {loadError}
+          <Button size="sm" onClick={() => setReload(n => n + 1)}>
+            Erneut laden
+          </Button>
+        </Notice>
+      )}
+      {empty ? (
+        <Panel>
+          <EmptyState
+            icon="library"
+            title="Noch keine Spiele in der Bibliothek"
+            action={
+              <div className="lib-empty-actions">
+                <Button variant="primary" onClick={() => onAddOpen(true)}>
+                  <Icon name="plus" />
+                  Spiel hinzufügen
+                </Button>
+                <Button onClick={onOpenWishlist}>Zur Wunschliste</Button>
+              </div>
+            }
+          >
+            Füge gekaufte Spiele direkt hinzu, oder markiere sie auf der Wunschliste als gekauft; dann bleibt ihr Preisverlauf erhalten.
+          </EmptyState>
+        </Panel>
+      ) : (
+        !loadError && (
+          /* (1.0.2) In a box like the wishlist: the tools in its head, the games on the inner surface. */
+          <Panel aria-label="Gekaufte Spiele" className="lib-panel">
             {items.length > 0 && (
-              <>
+              <PanelHead className="lib-tools-row">
+                <Seg
+                  label="Bibliothek sortieren"
+                  value={sort}
+                  onChange={order}
+                  options={[
+                    { value: 'name', label: 'A–Z' },
+                    { value: 'added', label: 'Zuletzt gekauft' },
+                  ]}
+                />
+                <div className="seg lib-view" role="group" aria-label="Ansicht">
+                  <button type="button" aria-pressed={view === 'tiles'} aria-label="Kacheln" title="Kacheln" onClick={() => show('tiles')}>
+                    <Icon name="tiles" size={15} />
+                  </button>
+                  <button type="button" aria-pressed={view === 'rows'} aria-label="Liste" title="Liste" onClick={() => show('rows')}>
+                    <Icon name="rows" size={15} />
+                  </button>
+                </div>
+                <span className="spacer" />
                 <Field icon="search" className="lib-q">
                   <input
                     type="search"
@@ -186,23 +235,6 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
                     </option>
                   ))}
                 </select>
-                <Seg
-                  label="Bibliothek sortieren"
-                  value={sort}
-                  onChange={order}
-                  options={[
-                    { value: 'name', label: 'A–Z' },
-                    { value: 'added', label: 'Zuletzt gekauft' },
-                  ]}
-                />
-                <div className="seg lib-view" role="group" aria-label="Ansicht">
-                  <button type="button" aria-pressed={view === 'tiles'} aria-label="Kacheln" title="Kacheln" onClick={() => show('tiles')}>
-                    <Icon name="tiles" size={15} />
-                  </button>
-                  <button type="button" aria-pressed={view === 'rows'} aria-label="Liste" title="Liste" onClick={() => show('rows')}>
-                    <Icon name="rows" size={15} />
-                  </button>
-                </div>
                 <IconButton
                   className={`lib-lock${unlocked ? ' open' : ''}`}
                   aria-pressed={unlocked}
@@ -211,85 +243,56 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
                 >
                   <Icon name={unlocked ? 'unlock' : 'lock'} />
                 </IconButton>
-              </>
+              </PanelHead>
             )}
-          </>
-        }
-      />
-      {loadError && (
-        <Notice error>
-          {loadError}
-          <Button size="sm" onClick={() => setReload(n => n + 1)}>
-            Erneut laden
-          </Button>
-        </Notice>
-      )}
-      {loading && (
-        <>
-          <p className="sr-only" role="status">
-            Bibliothek wird geladen …
-          </p>
-          <ul className={`lib lib-skeleton${view === 'rows' ? ' rows' : ''}`} aria-hidden="true">
-            {[0, 1, 2, 3, 4, 5].map(n => (
-              <li key={n} className="lib-item">
-                <span className="lib-ghost ghost-cover" />
-                <span className="lib-ghost line" />
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-      {empty && (
-        <Panel>
-          <EmptyState
-            icon="library"
-            title="Noch keine Spiele in der Bibliothek"
-            action={
-              <div className="lib-empty-actions">
-                <Button variant="primary" onClick={() => onAddOpen(true)}>
-                  <Icon name="plus" />
-                  Spiel hinzufügen
-                </Button>
-                <Button onClick={onOpenWishlist}>Zur Wunschliste</Button>
-              </div>
-            }
-          >
-            Füge gekaufte Spiele direkt hinzu, oder markiere sie auf der Wunschliste als gekauft; dann bleibt ihr Preisverlauf erhalten.
-          </EmptyState>
-        </Panel>
-      )}
-      {!loading && items.length > 0 && visible.length === 0 && (
-        <Panel>
-          <p className="empty">Kein Spiel passt zu diesem Filter.</p>
-        </Panel>
-      )}
-      {!loading && visible.length > 0 && (
-        <ul className={`lib${view === 'rows' ? ' rows' : ''}`} aria-label="Meine Spiele">
-          {visible.map(item => {
-            const name = itemName(item);
-            return (
-              <li key={item.id} className="lib-item">
-                <div className="lib-cover">
-                  <Cover size="fluid" src={item.game?.cover_url} title={name} />
-                  {unlocked && (
-                    <div className="lib-tools">
-                      <IconButton label={`${name} zurück in die Wunschliste`} onClick={() => ask('restore', item)}>
-                        <Icon name="undo" />
-                      </IconButton>
-                      <IconButton variant="danger" label={`${name} aus der Bibliothek entfernen`} onClick={() => ask('remove', item)}>
-                        <Icon name="trash" />
-                      </IconButton>
-                    </div>
-                  )}
-                </div>
-                <div className="lib-info">
-                  <b title={name}>{name}</b>
-                  <span className="lib-sub">{platformName(item.platform_id)}</span>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+            <Inset className="lib-wrap">
+              {loading ? (
+                <>
+                  <p className="sr-only" role="status">
+                    Bibliothek wird geladen …
+                  </p>
+                  <ul className={`lib lib-skeleton${view === 'rows' ? ' rows' : ''}`} aria-hidden="true">
+                    {[0, 1, 2, 3, 4, 5].map(n => (
+                      <li key={n} className="lib-item">
+                        <span className="lib-ghost ghost-cover" />
+                        <span className="lib-ghost line" />
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : visible.length === 0 ? (
+                <p className="empty">Kein Spiel passt zu diesem Filter.</p>
+              ) : (
+                <ul className={`lib${view === 'rows' ? ' rows' : ''}`} aria-label="Meine Spiele">
+                  {visible.map(item => {
+                    const name = itemName(item);
+                    return (
+                      <li key={item.id} className="lib-item">
+                        <div className="lib-cover">
+                          <Cover size="fluid" src={item.game?.cover_url} title={name} />
+                          {unlocked && (
+                            <div className="lib-tools">
+                              <IconButton label={`${name} zurück in die Wunschliste`} onClick={() => ask('restore', item)}>
+                                <Icon name="undo" />
+                              </IconButton>
+                              <IconButton variant="danger" label={`${name} aus der Bibliothek entfernen`} onClick={() => ask('remove', item)}>
+                                <Icon name="trash" />
+                              </IconButton>
+                            </div>
+                          )}
+                        </div>
+                        <div className="lib-info">
+                          <b title={name}>{name}</b>
+                          <span className="lib-sub">{platformName(item.platform_id)}</span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Inset>
+          </Panel>
+        )
       )}
       <CatalogSearch target="library" open={addOpen} csrf={csrf} items={items} onClose={closeAdd} onAdded={added} onError={onError} />
       <ConfirmDialog

@@ -162,7 +162,7 @@ pub(crate) const BAD_FILTER: ApiError = ApiError(
 pub(crate) fn paging(page: Option<i64>, per_page: Option<i64>) -> (i64, i64) {
     (
         page.unwrap_or(1).clamp(1, 1_000_000),
-        per_page.unwrap_or(50).clamp(10, 200),
+        per_page.unwrap_or(25).clamp(10, 200),
     )
 }
 
@@ -297,7 +297,7 @@ mod tests {
         );
         assert!(pattern(Some(&"x".repeat(201))).is_err());
         assert!(pattern(Some(&"x".repeat(200))).is_ok());
-        assert_eq!(paging(None, None), (1, 50));
+        assert_eq!(paging(None, None), (1, 25));
         assert_eq!(paging(Some(0), Some(5)), (1, 10));
         assert_eq!(paging(Some(3), Some(500)), (3, 200));
         assert!(matches!(choice(Some(""), &["ok"]), Ok(None)));

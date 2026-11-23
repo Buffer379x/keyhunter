@@ -10,6 +10,7 @@ export function SettingsPanel({
   title,
   titleId,
   aside,
+  tools,
   children,
   as,
   className = '',
@@ -19,6 +20,8 @@ export function SettingsPanel({
   title: ReactNode;
   titleId?: string;
   aside?: ReactNode;
+  /** (1.0.2) A row between the head and the inset, on the panel surface like the Log's filter: the switch of a box. */
+  tools?: ReactNode;
   children?: ReactNode;
   as?: ElementType;
   className?: string;
@@ -28,7 +31,7 @@ export function SettingsPanel({
 }) {
   return (
     <Panel as={as} className={className} aria-labelledby={rest['aria-label'] ? undefined : titleId} {...rest}>
-      <PanelHead>
+      <PanelHead className={tools ? 'paged-title' : undefined}>
         <Label as="h2" tone="soft" id={titleId}>
           {title}
         </Label>
@@ -39,6 +42,7 @@ export function SettingsPanel({
           </>
         )}
       </PanelHead>
+      {tools && <PanelHead className="box-tools">{tools}</PanelHead>}
       <Inset className={insetClassName}>{children}</Inset>
     </Panel>
   );

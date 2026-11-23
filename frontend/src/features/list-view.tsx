@@ -31,7 +31,7 @@ function readPage(key: string): number {
  * in this browser, the page for this session. A new filter, search or page size goes back to page 1. `filters` are the
  * allowed filter values; an unknown stored one falls back to `fallback`.
  */
-export function useListView<F extends string>(key: string, filters: readonly F[], fallback: F, defaultPerPage = 50) {
+export function useListView<F extends string>(key: string, filters: readonly F[], fallback: F, defaultPerPage = 25) {
   const [initial] = useState(() => read(key));
   const [filter, setFilterValue] = useState<F>(() => (filters.includes(initial.filter as F) ? (initial.filter as F) : fallback));
   const [text, setText] = useState(() => (typeof initial.text === 'string' ? initial.text : ''));

@@ -190,16 +190,20 @@ export default function Shops({
   const [open, setOpen] = useState((shops.find(s => s.enabled) ?? shops[0])?.id ?? '');
   const current = shops.some(s => s.id === open) ? open : (shops[0]?.id ?? '');
   return (
-    <SettingsPanel title="Key-Shops" titleId="shops-title">
-      <Seg
-        tabs="shops"
-        label="Key-Shops"
-        className="box-seg"
-        wrap
-        value={current}
-        onChange={setOpen}
-        options={shops.map(source => ({ value: source.id, label: source.enabled ? shopTitle(source.id) : `${shopTitle(source.id)} · aus` }))}
-      />
+    <SettingsPanel
+      title="Key-Shops"
+      titleId="shops-title"
+      tools={
+        <Seg
+          tabs="shops"
+          label="Key-Shops"
+          wrap
+          value={current}
+          onChange={setOpen}
+          options={shops.map(source => ({ value: source.id, label: source.enabled ? shopTitle(source.id) : `${shopTitle(source.id)} · aus` }))}
+        />
+      }
+    >
       {shops.map(source => (
         <TabPanel key={source.id} id="shops" tab={source.id} value={current}>
           <ShopPanel source={source} status={status?.find(s => s.source === source.id)} feeText={feeDraft[source.id] ?? ''} edit={edit} editFee={editFee} />

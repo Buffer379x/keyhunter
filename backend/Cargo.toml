@@ -1,23 +1,23 @@
 [package]
 name = "keyhunter"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2024"
 publish = false
 
 [dependencies]
 anyhow = "1"
 async-trait = "0.1"
-argon2 = "0.5.3"
+argon2 = "0.6.0"
 axum = "0.8"
-getrandom = "0.3"
+getrandom = "0.4"
 hex = "0.4"
 lettre = { version = "0.11", default-features = false, features = ["builder", "hostname", "smtp-transport", "tokio1-rustls", "aws-lc-rs", "rustls-platform-verifier"] }
 httpdate = "1"
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "form"] }
-scraper = "0.25"
+scraper = "0.29"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sha2 = "0.10"
+sha2 = "0.11"
 sqlx = { version = "0.9.1", default-features = false, features = ["runtime-tokio", "sqlite", "migrate", "macros"] }
 subtle = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "time", "sync"] }

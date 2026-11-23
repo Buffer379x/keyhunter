@@ -276,6 +276,10 @@
   overflow: visible;
   border-radius: var(--r-lg);
 }
+/* (1.0.2) On an inner surface the group takes the darker panel surface, so it stands out as it does on a panel (Log). */
+.inset .seg {
+  background: var(--panel);
+}
 .seg button[aria-checked='true'],
 .seg button[aria-selected='true'],
 .seg button[aria-pressed='true'] {

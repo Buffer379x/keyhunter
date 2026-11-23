@@ -224,7 +224,23 @@ export default function Notifications({ csrf, onError }: { csrf: string; onError
     </>
   );
   return (
-    <SettingsPanel title="Kanäle" titleId="channels-title" aside={aside}>
+    <SettingsPanel
+      title="Kanäle"
+      titleId="channels-title"
+      aside={aside}
+      tools={
+        channels && (
+          <Seg
+            tabs="channels"
+            label="Benachrichtigungskanäle"
+            wrap
+            value={current}
+            onChange={setOpen}
+            options={channels.map(c => ({ value: c.kind, label: c.active ? c.name : `${c.name} · aus` }))}
+          />
+        )
+      }
+    >
       {failed && (
         <Notice error>
           {failed}{' '}
@@ -233,30 +249,17 @@ export default function Notifications({ csrf, onError }: { csrf: string; onError
           </Button>
         </Notice>
       )}
-      {!channels ? (
-        !failed && (
-          <p className="hint" role="status">
-            Kanäle werden geladen …
-          </p>
-        )
-      ) : (
-        <>
-          <Seg
-            tabs="channels"
-            label="Benachrichtigungskanäle"
-            className="box-seg"
-            wrap
-            value={current}
-            onChange={setOpen}
-            options={channels.map(c => ({ value: c.kind, label: c.active ? c.name : `${c.name} · aus` }))}
-          />
-          {channels.map(c => (
+      {!channels
+        ? !failed && (
+            <p className="hint" role="status">
+              Kanäle werden geladen …
+            </p>
+          )
+        : channels.map(c => (
             <TabPanel key={c.kind} id="channels" tab={c.kind} value={current}>
               <ChannelForm view={c} csrf={csrf} onChange={replace} onError={onError} />
             </TabPanel>
           ))}
-        </>
-      )}
     </SettingsPanel>
   );
 }

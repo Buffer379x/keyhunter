@@ -5,7 +5,7 @@ use crate::{
     internal, now, random_token,
     throttle::{self, Limit, Peer},
 };
-use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier, password_hash::SaltString};
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use axum::{
     Json,
     extract::{FromRequestParts, Request, State},
@@ -208,10 +208,10 @@ async fn hash_passphrase(state: &Shared, password: String) -> ApiResult<String> 
         .map_err(|_| internal())?;
     tokio::task::spawn_blocking(move || {
         let _permit = permit;
-        let random = random_token().map_err(|_| ())?;
-        let salt = SaltString::encode_b64(&random.as_bytes()[..32]).map_err(|_| ())?;
+        let mut salt = [0u8; 16];
+        getrandom::fill(&mut salt).map_err(|_| ())?;
         Argon2::default()
-            .hash_password(password.as_bytes(), &salt)
+            .hash_password_with_salt(password.as_bytes(), &salt)
             .map(|h| h.to_string())
             .map_err(|_| ())
     })

@@ -15,7 +15,14 @@ const levelPill = {
   error: { tone: 'danger', icon: 'alert', text: 'Fehler' },
 } as const;
 const when = (seconds: number) =>
-  new Date(seconds * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  new Date(seconds * 1000).toLocaleString('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 
 /** Einstellungen › Log (0.8.3): what happened in KeyHunter in the last 7 days, newest first, by level and full text. */
 export default function Log() {

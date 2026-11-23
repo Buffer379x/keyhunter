@@ -9,6 +9,17 @@
   width: auto;
   max-width: 200px;
 }
+/* (1.0.2) The games sit in a box like the wishlist: tools in its head, covers on the inner surface. */
+.library-page .lib-tools-row {
+  gap: 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.library-page .lib-wrap {
+  padding: 14px;
+}
+.library-page .lib-wrap > .empty {
+  margin: 0;
+}
 .library-page .lib {
   list-style: none;
   margin: 0;
@@ -187,6 +198,10 @@
   .library-page .lib {
     grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
     gap: 14px 10px;
+  }
+  /* (1.0.2) Less room inside the box, so three covers still fit next to each other on a 390 px phone. */
+  .library-page .lib-wrap {
+    padding: 10px;
   }
   .library-page .lib-add {
     display: inline-flex;

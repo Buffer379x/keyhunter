@@ -63,9 +63,9 @@ test('settings use the content width up to a readable maximum and share the app 
       content: rect.width - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight),
     };
   });
-  // The settings use the content width up to the page maximum of the prototype (1320 px) and never overflow it.
+  // The settings use the content width up to the page maximum (1920 px since 1.0.2, before 1320 px) and never overflow it.
   expect(dimensions.main).toBeCloseTo(dimensions.available, 0);
-  expect(dimensions.layout).toBeCloseTo(Math.min(dimensions.content, 1320), 0);
+  expect(dimensions.layout).toBeCloseTo(Math.min(dimensions.content, 1920), 0);
   const settingsLabel = page.locator('.settings-page .form-row label').first();
   for (const el of [page.locator('.settings-page .page-head h1'), settingsLabel, settingsCountry(page), navItem(page, 'Key-Shops')]) {
     expect(await el.evaluate(el => getComputedStyle(el).fontFamily)).toBe(family);

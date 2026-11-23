@@ -18,7 +18,7 @@ import { countryData } from './regions';
 import { useOffersView } from './useOffersView';
 import { PAUSE_WEEKS, pauseEnd, pauseText, weeksText } from './wish-pause';
 
-export const tabIds = ['preis', 'angebote', 'verlauf', 'editionen', 'alarm', 'zuordnungen'] as const;
+const tabIds = ['preis', 'angebote', 'verlauf', 'editionen', 'alarm', 'zuordnungen'] as const;
 export type TabId = (typeof tabIds)[number];
 /** The tab of a URL (`?tab=`); "infos" is the name of the Zuordnungen tab before 1.0 (PROD-03), so old links keep working. */
 export function parseTab(value: string | null | undefined): TabId | null {

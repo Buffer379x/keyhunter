@@ -3011,7 +3011,7 @@ async fn fetch_runs_carry_their_game_and_can_be_filtered_searched_and_paged() {
     assert_eq!(s, StatusCode::OK, "{all}");
     assert_eq!(all["total"], 15);
     assert_eq!(all["page"], 1);
-    assert_eq!(all["per_page"], 50);
+    assert_eq!(all["per_page"], 25);
     let newest = &all["runs"][0];
     assert_eq!(newest["game"], "Example");
     assert_eq!(newest["region"], "Global");
