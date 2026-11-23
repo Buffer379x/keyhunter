@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, HttpError } from '../../api';
+import { api } from '../../api';
 import type { Settings } from '../../api';
 import { formatFeePercent, parseFeePercent } from '../../fees';
 
@@ -15,15 +15,7 @@ const feeDrafts = (data: Settings) => Object.fromEntries(data.sources.map(source
  * - A change made while saving is kept: the draft stays dirty with it.
  * `saved` is the last state the server confirmed; every other page reads only that.
  */
-export function useSettingsDraft({
-  csrf,
-  onSaved,
-  onProtectedError,
-}: {
-  csrf: string;
-  onSaved: (saved: Settings) => void;
-  onProtectedError: (error: unknown) => void;
-}) {
+export function useSettingsDraft({ onSaved }: { onSaved: (saved: Settings) => void }) {
   const [settings, setSettingsState] = useState<Settings | null>(null);
   const [saved, setSavedState] = useState<Settings | null>(null);
   const [feeDraft, setFeeDraft] = useState<Record<string, string>>({});
@@ -34,8 +26,8 @@ export function useSettingsDraft({
   const fees = useRef<Record<string, string>>({});
   const version = useRef(0);
   const savedVersion = useRef(0);
-  const latest = useRef({ csrf, onSaved, onProtectedError });
-  latest.current = { csrf, onSaved, onProtectedError };
+  const latest = useRef({ onSaved });
+  latest.current = { onSaved };
 
   const adopt = useCallback((data: Settings) => {
     draft.current = data;
@@ -80,7 +72,6 @@ export function useSettingsDraft({
   );
 
   const failed = useCallback((e: unknown) => {
-    if (e instanceof HttpError && e.status === 401) latest.current.onProtectedError(e);
     setError(e instanceof Error ? e.message : 'Einstellungen konnten nicht gespeichert werden.');
     setState('error');
   }, []);
@@ -104,7 +95,7 @@ export function useSettingsDraft({
     setState('saving');
     setError('');
     try {
-      const result = await api<Settings>('/settings', 'PUT', { ...snapshot, sources }, latest.current.csrf);
+      const result = await api<Settings>('/settings', 'PUT', { ...snapshot, sources });
       savedVersion.current = sentVersion;
       base.current = result;
       setSavedState(result);

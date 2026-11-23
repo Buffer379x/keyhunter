@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, HttpError } from '../api';
+import { api, sessionEnded } from '../api';
 import type { AlertDelivery, PriceBadgeData, WishlistItem } from '../api';
 import { Button, Cover, EmptyState, Icon, StatePill, Inset, Label, Notice, PageHeading, Panel, PanelHead, Pill, Price } from '../components';
 import { alarmRows } from './alerts-model';
@@ -10,7 +10,7 @@ import { relativeTime } from '../time';
 import { money } from './price-format';
 import { channelLine } from './settings/channels';
 import { openSection } from './settings/sections';
-import { notify } from '../notify';
+import { notify, notifyError } from '../notify';
 
 export type Rule = { mode: 'target' | 'low'; basis: 'base' | 'estimate'; target_cents: number | null; enabled: boolean };
 type RuleView = Rule & { wish_id: string; title: string; delivery: string | null };
@@ -76,7 +76,7 @@ export const targetReached = (rule: Rule | null | undefined, cents: number | nul
 };
 
 /** The alert rule of one wishlist item (GET/PUT/DELETE /wishlist/{id}/alert). */
-export function useAlertRule(id: string, csrf: string, onError: (error: unknown) => void) {
+export function useAlertRule(id: string) {
   const [rule, setRule] = useState<Rule | null>(null);
   const [channels, setChannels] = useState<string[]>([]);
   const [ready, setReady] = useState(false);
@@ -86,7 +86,7 @@ export function useAlertRule(id: string, csrf: string, onError: (error: unknown)
     const controller = new AbortController();
     setReady(false);
     setRule(null);
-    void api<{ rule: Rule | null; channels?: string[] }>(path, 'GET', undefined, undefined, controller.signal)
+    void api<{ rule: Rule | null; channels?: string[] }>(path, 'GET', undefined, controller.signal)
       .then(data => {
         if (controller.signal.aborted) return;
         setChannels(data.channels ?? []);
@@ -96,22 +96,22 @@ export function useAlertRule(id: string, csrf: string, onError: (error: unknown)
       .catch(err => {
         if (!controller.signal.aborted) {
           setError(err instanceof Error ? err.message : 'Alarmregel konnte nicht geladen werden.');
-          onError(err);
+          notifyError(err);
         }
       });
     return () => controller.abort();
-  }, [path, onError]);
+  }, [path]);
   const save = useCallback(
     async (next: Rule) => {
-      await api(path, 'PUT', next, csrf);
+      await api(path, 'PUT', next);
       setRule(next);
     },
-    [path, csrf],
+    [path],
   );
   const remove = useCallback(async () => {
-    await api(path, 'DELETE', undefined, csrf);
+    await api(path, 'DELETE');
     setRule(null);
-  }, [path, csrf]);
+  }, [path]);
   return { rule, channels, ready, error, save, remove };
 }
 export type AlertState = ReturnType<typeof useAlertRule>;
@@ -140,17 +140,7 @@ function AlarmStatus({ row, mode }: { row: AlarmRow; mode: Rule['mode'] }) {
 }
 
 /** Preisalarme (prototype viewAlarms): every target sorted by distance, each row opens the alarm tab of the game. Channel test and delivery log below. */
-export default function PriceAlerts({
-  csrf,
-  targetCountry,
-  targetLabel,
-  onError,
-}: {
-  csrf: string;
-  targetCountry: string | null;
-  targetLabel: string;
-  onError: (error: unknown) => void;
-}) {
+export default function PriceAlerts({ targetCountry, targetLabel }: { targetCountry: string | null; targetLabel: string }) {
   const [loadError, setLoadError] = useState('');
   const [data, setData] = useState<Overview | null>(null);
   const [badges, setBadges] = useState<Record<string, PriceBadgeData>>({});
@@ -162,25 +152,24 @@ export default function PriceAlerts({
     let cancel = () => {};
     async function load() {
       try {
-        const current = await api<Overview>('/alerts', 'GET', undefined, undefined, controller.signal);
+        const current = await api<Overview>('/alerts', 'GET', undefined, controller.signal);
         if (controller.signal.aborted) return;
         setData(current);
         setLoadError('');
         if (current.configured && current.events.some(row => row.state === 'pending')) cancel = whenVisible(() => void load(), 5000);
       } catch (error) {
         if (controller.signal.aborted) return;
-        if (error instanceof HttpError && error.status === 401) onError(error);
-        else setLoadError(error instanceof Error ? error.message : 'Preisalarme konnten nicht geladen werden.');
+        if (!sessionEnded(error)) setLoadError(error instanceof Error ? error.message : 'Preisalarme konnten nicht geladen werden.');
       }
     }
     void load();
-    api<Record<string, PriceBadgeData>>('/wishlist/price-badges', 'GET', undefined, undefined, controller.signal)
+    api<Record<string, PriceBadgeData>>('/wishlist/price-badges', 'GET', undefined, controller.signal)
       .then(rows => {
         if (!controller.signal.aborted) setBadges(rows);
       })
       .catch(() => {});
     // Covers and editions for the game column.
-    api<WishlistItem[]>('/wishlist', 'GET', undefined, undefined, controller.signal)
+    api<WishlistItem[]>('/wishlist', 'GET', undefined, controller.signal)
       .then(rows => {
         if (!controller.signal.aborted) setItems(Object.fromEntries(rows.map(row => [row.id, row])));
       })
@@ -189,15 +178,15 @@ export default function PriceAlerts({
       controller.abort();
       cancel();
     };
-  }, [reload, onError]);
+  }, [reload]);
   async function testChannel() {
     setBusy(true);
     try {
-      await api('/alerts/test', 'POST', undefined, csrf);
+      await api('/alerts/test', 'POST');
       notify('Testnachricht zur Zustellung vorgemerkt.');
       setReload(n => n + 1);
     } catch (error) {
-      onError(error);
+      notifyError(error);
     } finally {
       setBusy(false);
     }

@@ -37,7 +37,7 @@ export default function EditionComparison({ gameId, platformId, games, savedId, 
     const controller = new AbortController();
     setData(null);
     setError('');
-    void api<{ editions: Content[] }>(`/catalog/games/${gameId}/edition-comparison?platform=${platformId}`, 'GET', undefined, undefined, controller.signal)
+    void api<{ editions: Content[] }>(`/catalog/games/${gameId}/edition-comparison?platform=${platformId}`, 'GET', undefined, controller.signal)
       .then(result => {
         if (!controller.signal.aborted) setData(result.editions);
       })

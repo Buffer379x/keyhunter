@@ -38,7 +38,7 @@ export function usePaged<T extends Paged, F extends string>(path: string, filter
     if (filter) params.set(filterName, filter);
     if (query) params.set('q', query);
     const load = () => {
-      api<T>(`${path}?${params}`, 'GET', undefined, undefined, controller.signal)
+      api<T>(`${path}?${params}`, 'GET', undefined, controller.signal)
         .then(next => {
           if (controller.signal.aborted) return;
           setData(next);

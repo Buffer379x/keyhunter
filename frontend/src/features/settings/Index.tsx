@@ -9,17 +9,13 @@ export default function Index({
   edit,
   igdbState,
   igdbConfigured,
-  csrf,
   onChanged,
-  onError,
 }: {
   settings: Settings;
   edit: SettingsDraft['edit'];
   igdbState: string | undefined;
   igdbConfigured: boolean | undefined;
-  csrf: string;
   onChanged: () => void;
-  onError: (error: unknown) => void;
 }) {
   const igdb = settings.sources.find(s => s.id === 'igdb');
   return (
@@ -29,9 +25,7 @@ export default function Index({
         configured={igdbConfigured}
         enabled={igdb?.enabled ?? true}
         onEnabledChange={enabled => edit(current => ({ ...current, sources: current.sources.map(s => (s.id === 'igdb' ? { ...s, enabled } : s)) }))}
-        csrf={csrf}
         onChanged={onChanged}
-        onError={onError}
       />
       <SettingsPanel
         title="Editionsinhalte von Microsoft / Xbox"

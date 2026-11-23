@@ -1,23 +1,21 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { api, HttpError } from '../../api';
+import { api, sessionEnded } from '../../api';
 import { notify } from '../../notify';
 import { Button, ConfirmDialog, Help, Icon, Notice } from '../../components';
 import Backup from './Backup';
 import { SettingsPanel } from './parts';
 
 type Props = {
-  csrf: string;
   busy: boolean;
   onLogout: () => void;
   /** Every session ended ("Überall abmelden"): back to the sign-in. */
   onSignedOut: () => void;
-  onError: (error: unknown) => void;
 };
 
 const sessions = (count: number) => `${count} ${count === 1 ? 'Sitzung' : 'Sitzungen'}`;
 
-export default function System({ csrf, busy, onLogout, onSignedOut, onError }: Props) {
+export default function System({ busy, onLogout, onSignedOut }: Props) {
   const [changing, setChanging] = useState(false);
   const [confirmEverywhere, setConfirmEverywhere] = useState(false);
   const [ending, setEnding] = useState(false);
@@ -40,12 +38,11 @@ export default function System({ csrf, busy, onLogout, onSignedOut, onError }: P
     }
     setChanging(true);
     try {
-      const { ended_sessions: ended } = await api<{ ended_sessions: number }>('/session/passphrase', 'PUT', { current, new: next }, csrf);
+      const { ended_sessions: ended } = await api<{ ended_sessions: number }>('/session/passphrase', 'PUT', { current, new: next });
       form.reset();
       notify(ended > 0 ? `Passphrase geändert, ${sessions(ended)} auf anderen Geräten beendet.` : 'Passphrase geändert.');
     } catch (e) {
-      if (e instanceof HttpError && e.status === 401) onError(e);
-      else notify(e instanceof Error ? e.message : 'Die Passphrase konnte nicht geändert werden.', 'error');
+      if (!sessionEnded(e)) notify(e instanceof Error ? e.message : 'Die Passphrase konnte nicht geändert werden.', 'error');
     } finally {
       setChanging(false);
     }
@@ -55,12 +52,11 @@ export default function System({ csrf, busy, onLogout, onSignedOut, onError }: P
     setEnding(true);
     setEndError('');
     try {
-      await api('/sessions', 'DELETE', undefined, csrf);
+      await api('/sessions', 'DELETE');
       setConfirmEverywhere(false);
       onSignedOut();
     } catch (e) {
-      if (e instanceof HttpError && e.status === 401) onError(e);
-      else setEndError(e instanceof Error ? e.message : 'Die Sitzungen konnten nicht beendet werden.');
+      if (!sessionEnded(e)) setEndError(e instanceof Error ? e.message : 'Die Sitzungen konnten nicht beendet werden.');
     } finally {
       setEnding(false);
     }
@@ -122,7 +118,7 @@ export default function System({ csrf, busy, onLogout, onSignedOut, onError }: P
           </div>
         </form>
       </SettingsPanel>
-      <Backup csrf={csrf} onError={onError} />
+      <Backup />
       <ConfirmDialog
         open={confirmEverywhere}
         title="Überall abmelden?"

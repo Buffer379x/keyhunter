@@ -23,10 +23,9 @@ import { itemName } from './catalog-ui';
 import { badgePollDelay, whenVisible } from '../poll';
 import { columnOrder, openMode, visibleColumns } from './wishlist-columns';
 import type { WishlistColumn } from './wishlist-columns';
-import { notify } from '../notify';
+import { notify, notifyError } from '../notify';
 
 interface Props {
-  csrf: string;
   targetCountry: string | null;
   targetLabel: string;
   /** Column order, hidden columns and what opens the game page, from the settings (missing = defaults). */
@@ -46,7 +45,6 @@ interface Props {
   onTitle: (title: string | null) => void;
   onSettings: () => void;
   onCountChange: (count: number) => void;
-  onError: (error: unknown) => void;
 }
 
 /**
@@ -127,7 +125,6 @@ const emptyFoot = <span aria-hidden="true">{'\u00a0'}</span>;
  * The list state (filter, sort, scroll position) survives a visit to a game; browser back returns to the same place.
  */
 export default function Wishlist({
-  csrf,
   targetCountry,
   targetLabel,
   columns,
@@ -142,7 +139,6 @@ export default function Wishlist({
   onTitle,
   onSettings,
   onCountChange,
-  onError,
 }: Props) {
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -251,7 +247,7 @@ export default function Wishlist({
     let cancel = () => {};
     async function prepare(method = 'POST') {
       try {
-        const data = await api<EditionsView>(`/wishlist/${selected!.id}/editions`, method, method === 'POST' ? {} : undefined, csrf, controller.signal);
+        const data = await api<EditionsView>(`/wishlist/${selected!.id}/editions`, method, method === 'POST' ? {} : undefined, controller.signal);
         if (controller.signal.aborted) return;
         setEditionItems(data.items);
         setEditionError(data.error ?? (data.preparing ? 'Editionen werden vorbereitet …' : ''));
@@ -267,7 +263,7 @@ export default function Wishlist({
       cancel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only when the selected game's identity changes, not on every field of `selected`
-  }, [selected?.id, selected?.game?.igdb_id, selected?.platform_id, csrf, updateBadges]);
+  }, [selected?.id, selected?.game?.igdb_id, selected?.platform_id, updateBadges]);
   function chooseEdition(game: CatalogGame) {
     if (!selected) return;
     if (game.igdb_id === selected.game?.igdb_id) setPreview(null);
@@ -288,13 +284,7 @@ export default function Wishlist({
     async function readPrices() {
       let delay = badgePollDelay([]);
       try {
-        const data = await api<Record<string, PriceBadgeData>>(
-          `/wishlist/price-badges?anchor=${selected?.id ?? ''}`,
-          'GET',
-          undefined,
-          undefined,
-          controller.signal,
-        );
+        const data = await api<Record<string, PriceBadgeData>>(`/wishlist/price-badges?anchor=${selected?.id ?? ''}`, 'GET', undefined, controller.signal);
         if (!controller.signal.aborted) {
           updateBadges(data);
           delay = badgePollDelay(Object.values(data));
@@ -314,7 +304,7 @@ export default function Wishlist({
   // Alarm targets ("Ziel" column, "Ziel erreicht") and the delivery log ("Alarm gesendet"), read once; the open detail keeps the rules current.
   useEffect(() => {
     const controller = new AbortController();
-    void api<{ rules: (Rule & { wish_id: string })[]; events?: AlertEvent[]; configured?: boolean }>('/alerts', 'GET', undefined, undefined, controller.signal)
+    void api<{ rules: (Rule & { wish_id: string })[]; events?: AlertEvent[]; configured?: boolean }>('/alerts', 'GET', undefined, controller.signal)
       .then(data => {
         if (controller.signal.aborted) return;
         setAlerts(Object.fromEntries(data.rules.map(rule => [rule.wish_id, rule])));
@@ -340,12 +330,12 @@ export default function Wishlist({
     } catch (e) {
       if (generation === loadGeneration.current) {
         setListError(e instanceof Error ? e.message : 'Wunschliste konnte nicht geladen werden.');
-        onError(e);
+        notifyError(e);
       }
     } finally {
       if (generation === loadGeneration.current) setLoading(false);
     }
-  }, [onCountChange, onError, updateBadges]);
+  }, [onCountChange, updateBadges]);
   useEffect(() => {
     void load();
     const generation = loadGeneration;
@@ -462,7 +452,7 @@ export default function Wishlist({
     setRemoving(true);
     setRemoveError('');
     try {
-      await api(`/wishlist/${encodeURIComponent(removeItem.id)}`, 'DELETE', undefined, csrf);
+      await api(`/wishlist/${encodeURIComponent(removeItem.id)}`, 'DELETE');
       ++loadGeneration.current;
       const next = items.filter(item => item.id !== removeItem.id);
       setItems(next);
@@ -477,7 +467,7 @@ export default function Wishlist({
       setRemoveItem(null);
     } catch (e) {
       setRemoveError(e instanceof Error ? e.message : 'Entfernen fehlgeschlagen.');
-      onError(e);
+      notifyError(e);
     } finally {
       setRemoving(false);
     }
@@ -489,13 +479,13 @@ export default function Wishlist({
     const inCart = !!selected.in_cart;
     setCarting(true);
     try {
-      if (inCart) await api(`/cart/${encodeURIComponent(selected.id)}`, 'DELETE', undefined, csrf);
-      else await api('/cart', 'POST', { wish_id: selected.id }, csrf);
+      if (inCart) await api(`/cart/${encodeURIComponent(selected.id)}`, 'DELETE');
+      else await api('/cart', 'POST', { wish_id: selected.id });
       setItems(current => current.map(item => (item.id === selected.id ? { ...item, in_cart: !inCart } : item)));
       window.dispatchEvent(new Event(CART_CHANGED));
       notify(inCart ? `${itemName(selected)} ist nicht mehr im Warenkorb.` : `${itemName(selected)} liegt jetzt im Warenkorb.`);
     } catch (error) {
-      onError(error);
+      notifyError(error);
     } finally {
       setCarting(false);
     }
@@ -510,12 +500,11 @@ export default function Wishlist({
         `/wishlist/${encodeURIComponent(selected.id)}/pause`,
         'PUT',
         until === false ? { paused: false } : { paused: true, until },
-        csrf,
       );
       setItems(current => current.map(item => (item.id === selected.id ? { ...item, paused: next.paused, paused_until: next.paused_until } : item)));
       notify(until === false ? `Die Abfragen für ${itemName(selected)} laufen wieder.` : `${itemName(selected)}: ${pauseText(next)}.`);
     } catch (error) {
-      onError(error);
+      notifyError(error);
     } finally {
       setPausing(false);
     }
@@ -525,14 +514,14 @@ export default function Wishlist({
     if (!selected || preview || carting) return;
     setCarting(true);
     try {
-      if (selected.in_cart) await api(`/cart/${encodeURIComponent(selected.id)}`, 'PUT', { source, scope }, csrf);
-      else await api('/cart', 'POST', { wish_id: selected.id, source, scope }, csrf);
+      if (selected.in_cart) await api(`/cart/${encodeURIComponent(selected.id)}`, 'PUT', { source, scope });
+      else await api('/cart', 'POST', { wish_id: selected.id, source, scope });
       setItems(current => current.map(item => (item.id === selected.id ? { ...item, in_cart: true } : item)));
       window.dispatchEvent(new Event(CART_CHANGED));
       const shop = shopNames[source] ?? source;
       notify(`${itemName(selected)} liegt im Warenkorb: ${shop}, ${scope === 'home' ? `Preis ${targetCountry?.toUpperCase() || 'Zielland'}` : 'Preis INT'}.`);
     } catch (error) {
-      onError(error);
+      notifyError(error);
     } finally {
       setCarting(false);
     }
@@ -542,7 +531,7 @@ export default function Wishlist({
     setPurchasing(true);
     setPurchaseError('');
     try {
-      await api(`/wishlist/${selected.id}/purchase`, 'POST', {}, csrf);
+      await api(`/wishlist/${selected.id}/purchase`, 'POST', {});
       ++loadGeneration.current;
       const next = items.filter(item => item.id !== selected.id);
       setItems(next);
@@ -556,7 +545,7 @@ export default function Wishlist({
       requestAnimationFrame(() => listHeading.current?.focus({ preventScroll: true }));
     } catch (error) {
       setPurchaseError(error instanceof Error ? error.message : 'Verschieben fehlgeschlagen.');
-      onError(error);
+      notifyError(error);
     } finally {
       setPurchasing(false);
     }
@@ -664,7 +653,7 @@ export default function Wishlist({
 
   const dialogs = (
     <>
-      <CatalogSearch open={addOpen} csrf={csrf} items={items} onClose={closeSearch} onAdded={added} onError={onError} />
+      <CatalogSearch open={addOpen} items={items} onClose={closeSearch} onAdded={added} />
       <ConfirmDialog
         open={removeItem !== null}
         title="Titel entfernen?"
@@ -709,7 +698,6 @@ export default function Wishlist({
           editionItems={editionItems}
           editionError={editionError}
           badges={badges}
-          csrf={csrf}
           targetCountry={targetCountry}
           targetLabel={targetLabel}
           tab={tab}
@@ -734,7 +722,6 @@ export default function Wishlist({
           onClearPreview={() => setPreview(null)}
           onBadge={updateBadge}
           onSettings={onSettings}
-          onError={onError}
           onRule={updateRule}
         />
         {dialogs}

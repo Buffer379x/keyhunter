@@ -39,7 +39,7 @@ function describe(shop: FetchShopStatus, nowSeconds: number): { tone: Tone; text
  * part is a button that opens Einstellungen › Abrufstatus. The status comes from the app's one poller (`useFetchStatus`),
  * refreshed at once after a pause or resume. Shows nothing until the API answered or without shops.
  */
-export default function FetchStatus({ csrf, onOpen }: { csrf: string; onOpen: () => void }) {
+export default function FetchStatus({ onOpen }: { onOpen: () => void }) {
   const { data } = useFetchStatus();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -49,7 +49,7 @@ export default function FetchStatus({ csrf, onOpen }: { csrf: string; onOpen: ()
     setBusy(true);
     setError('');
     try {
-      await api('/status/fetch/pause', 'POST', { paused: paused === null }, csrf);
+      await api('/status/fetch/pause', 'POST', { paused: paused === null });
       window.dispatchEvent(new Event(FETCH_STATUS_CHANGED));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Konnte nicht umgeschaltet werden.');

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, CART_CHANGED, HttpError } from './api';
+import { api, CART_CHANGED, HttpError, onSessionEnd, setCsrf } from './api';
 import type { Settings, SourceStatuses } from './api';
 import Wishlist, { returnToList } from './features/Wishlist';
 import type { TabId } from './features/GameDetail';
@@ -11,7 +11,7 @@ import PriceAlerts from './features/PriceAlerts';
 import SettingsPage from './features/SettingsPage';
 import AuthScreen from './features/AuthScreen';
 import { Brand, Button, Icon, IconButton, Toaster } from './components';
-import { notify } from './notify';
+import { notifyError } from './notify';
 import type { IconName } from './components';
 import FetchStatus from './FetchStatus';
 import { mediaQuery } from './breakpoints';
@@ -33,7 +33,6 @@ const errorText = (error: unknown) => (error instanceof Error ? error.message : 
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('loading');
-  const [csrf, setCsrf] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [libraryAddOpen, setLibraryAddOpen] = useState(false);
@@ -119,7 +118,8 @@ export default function App() {
       setBusy(false);
     }
   }
-  const resetSession = () => {
+  /** The session ended: back to the sign-in, with the server's message after a 401 (none after "Abmelden"). */
+  const endSession = useCallback((message = '') => {
     setCsrf('');
     setWishlistCount(null);
     setLibraryCount(null);
@@ -129,42 +129,30 @@ export default function App() {
     setAddOpen(false);
     setLibraryAddOpen(false);
     setNavOpen(false);
-  };
-  /** The session ended on purpose ("Abmelden", "Überall abmelden"): back to the sign-in. */
-  const signedOut = () => {
-    resetSession();
-    setPage('wishlist');
+    setError(message);
     setScreen('login');
+  }, []);
+  // Any request that answers 401 ends the session (api.ts); the page stays in the URL for the next sign-in.
+  useEffect(() => onSessionEnd(e => endSession(e.message)), [endSession]);
+  /** The session ended on purpose ("Abmelden", "Überall abmelden"): the sign-in, then the wishlist. */
+  const signedOut = () => {
+    endSession();
+    setPage('wishlist');
     window.history.replaceState(null, '', window.location.pathname);
   };
   async function logout() {
     setBusy(true);
     setError('');
     try {
-      await api('/session', 'DELETE', undefined, csrf);
+      await api('/session', 'DELETE');
       signedOut();
     } catch (e) {
-      handleProtectedError(e);
+      notifyError(e);
     } finally {
       setBusy(false);
     }
   }
-  // On the signed-in app an error is a popup (0.9.1); the sign-in screen shows its own.
-  const handleProtectedError = useCallback((e: unknown) => {
-    if (!(e instanceof HttpError && e.status === 401)) {
-      notify(errorText(e), 'error');
-      return;
-    }
-    setError(errorText(e));
-    if (e instanceof HttpError && e.status === 401) {
-      setCsrf('');
-      setWishlistCount(null);
-      setSearchOpen(false);
-      setAddOpen(false);
-      setScreen('login');
-    }
-  }, []);
-  const auto = useSettingsDraft({ csrf, onSaved: refreshSources, onProtectedError: handleProtectedError });
+  const auto = useSettingsDraft({ onSaved: refreshSources });
   const savedCountry = auto.saved?.target_country ?? null;
   /** Go to a page (and settings section). `add` opens the wishlist's add dialog on arrival. */
   const navigate = useCallback(
@@ -305,7 +293,7 @@ export default function App() {
   useEffect(() => {
     if (screen !== 'ready') return;
     const controller = new AbortController();
-    api<{ wishlist: number; cart: number; library: number; alerts: number }>('/counts', 'GET', undefined, undefined, controller.signal)
+    api<{ wishlist: number; cart: number; library: number; alerts: number }>('/counts', 'GET', undefined, controller.signal)
       .then(counts => {
         if (controller.signal.aborted) return;
         if (page !== 'wishlist') setWishlistCount(counts.wishlist);
@@ -410,7 +398,7 @@ export default function App() {
           </div>
         </nav>
         <div className="side-foot">
-          <FetchStatus csrf={csrf} onOpen={() => openSettings('status')} />
+          <FetchStatus onOpen={() => openSettings('status')} />
           {/* 0.8.3: the settings are one page with tabs; the sidebar keeps only these two buttons below the fetch status. */}
           <div className="side-actions">
             <IconButton
@@ -443,15 +431,7 @@ export default function App() {
             {crumbs}
           </nav>
           <div className="top-right">
-            <CatalogSearch
-              inline
-              csrf={csrf}
-              open={searchOpen}
-              onOpen={openSearch}
-              onClose={closeSearch}
-              onAdded={selectSearchResult}
-              onError={handleProtectedError}
-            />
+            <CatalogSearch inline open={searchOpen} onOpen={openSearch} onClose={closeSearch} onAdded={selectSearchResult} />
             <IconButton className="hide-sm" label="Preisalarme" onClick={() => navigate('alerts')}>
               <Icon name="bell" />
             </IconButton>
@@ -469,7 +449,6 @@ export default function App() {
           {page === 'wishlist' ? (
             <Wishlist
               key={wishlistRevision}
-              csrf={csrf}
               targetCountry={savedCountry}
               columns={auto.saved?.wishlist_columns}
               hidden={auto.saved?.wishlist_hidden}
@@ -484,30 +463,25 @@ export default function App() {
               onTitle={setGameTitle}
               onSettings={() => openSettings()}
               onCountChange={reportWishlistCount}
-              onError={handleProtectedError}
             />
           ) : page === 'library' ? (
             <Library
-              csrf={csrf}
               addOpen={libraryAddOpen}
               onAddOpen={setLibraryAddOpen}
               onRestored={selectSearchResult}
               onOpenWishlist={() => navigate('wishlist')}
               onCountChange={setLibraryCount}
-              onError={handleProtectedError}
             />
           ) : page === 'cart' ? (
             <Cart
-              csrf={csrf}
               targetCountry={savedCountry ?? ''}
               onOpen={selectSearchResult}
               onReview={item => showGame(item, 'zuordnungen')}
               onOpenWishlist={() => navigate('wishlist')}
               onCountChange={setCartCount}
-              onError={handleProtectedError}
             />
           ) : page === 'alerts' ? (
-            <PriceAlerts csrf={csrf} targetCountry={savedCountry} targetLabel={targetLabel ?? 'Zielland'} onError={handleProtectedError} />
+            <PriceAlerts targetCountry={savedCountry} targetLabel={targetLabel ?? 'Zielland'} />
           ) : (
             auto.settings && (
               <SettingsPage
@@ -515,12 +489,10 @@ export default function App() {
                 onSection={openSettings}
                 settings={auto.settings}
                 auto={auto}
-                csrf={csrf}
                 busy={busy}
                 countries={countries}
                 sourceStatus={sourceStatus}
                 onSourcesChanged={refreshSources}
-                onError={handleProtectedError}
                 onLogout={() => void logout()}
                 onSignedOut={signedOut}
               />

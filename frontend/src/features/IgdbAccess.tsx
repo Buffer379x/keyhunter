@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { api, HttpError } from '../api';
+import { api, sessionEnded } from '../api';
 import { notify } from '../notify';
 import { Button, ConfirmDialog, Help, Notice, Pill, Switch } from '../components';
 import type { IconName, PillTone } from '../ui';
@@ -12,9 +12,7 @@ interface Props {
   configured: boolean | undefined;
   enabled: boolean;
   onEnabledChange: (enabled: boolean) => void;
-  csrf: string;
   onChanged: () => void;
-  onError: (error: unknown) => void;
 }
 
 const chips: Record<string, { tone: PillTone; text: string; icon: IconName }> = {
@@ -27,7 +25,7 @@ const chips: Record<string, { tone: PillTone; text: string; icon: IconName }> = 
   unavailable: { tone: 'warn', text: 'Nicht erreichbar', icon: 'alert' },
 };
 
-export default function IgdbAccess({ state, configured, enabled, onEnabledChange, csrf, onChanged, onError }: Props) {
+export default function IgdbAccess({ state, configured, enabled, onEnabledChange, onChanged }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [confirmRemoval, setConfirmRemoval] = useState(false);
@@ -43,13 +41,13 @@ export default function IgdbAccess({ state, configured, enabled, onEnabledChange
         }
       : undefined;
     try {
-      await api('/settings/igdb', method, body, csrf);
+      await api('/settings/igdb', method, body);
       notify(method === 'PUT' ? 'IGDB-Zugang gespeichert und geprüft.' : 'IGDB-Zugang entfernt.');
       setConfirmRemoval(false);
       onChanged();
     } catch (exception) {
-      if (exception instanceof HttpError && exception.status === 401) onError(exception);
-      else if (method === 'DELETE') setError(exception instanceof Error ? exception.message : 'IGDB-Zugang konnte nicht geändert werden.');
+      if (sessionEnded(exception)) return;
+      if (method === 'DELETE') setError(exception instanceof Error ? exception.message : 'IGDB-Zugang konnte nicht geändert werden.');
       else notify(exception instanceof Error ? exception.message : 'IGDB-Zugang konnte nicht geändert werden.', 'error');
     } finally {
       form?.reset();

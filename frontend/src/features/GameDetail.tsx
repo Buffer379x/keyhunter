@@ -34,7 +34,6 @@ type Props = {
   editionItems: WishlistItem[];
   editionError: string;
   badges: Record<string, PriceBadgeData>;
-  csrf: string;
   targetCountry: string | null;
   targetLabel: string;
   tab: TabId;
@@ -56,14 +55,13 @@ type Props = {
   onClearPreview: () => void;
   onBadge: (id: string, badge: PriceBadgeData) => void;
   onSettings: () => void;
-  onError: (error: unknown) => void;
   onRule: (id: string, rule: Rule | null) => void;
 };
 
 /** Game detail (design v4): head panel with cover, edition and actions, then the tabs Preis · Angebote · Verlauf · Editionen · Alarm · Zuordnungen. */
 export default function GameDetail(props: Props) {
-  const { item, viewed, preview, csrf, onError, onRule } = props;
-  const alert = useAlertRule(item.id, csrf, onError);
+  const { item, viewed, preview, onRule } = props;
+  const alert = useAlertRule(item.id);
   useEffect(() => {
     if (alert.ready) onRule(item.id, alert.rule);
   }, [alert.ready, alert.rule, item.id, onRule]);
@@ -115,7 +113,6 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
     editionItems,
     editionError,
     badges,
-    csrf,
     targetCountry,
     targetLabel,
     tab,
@@ -134,11 +131,10 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
     onClearPreview,
     onBadge,
     onSettings,
-    onError,
     alert,
     rule,
   } = props;
-  const state = useOffersView(viewed.id, csrf, onError, onBadge);
+  const state = useOffersView(viewed.id, onBadge);
   const { view } = state;
   const [basis, setBasis] = useState<Basis>('base');
   const code = (targetCountry ?? view?.target_country ?? '').toUpperCase();
@@ -413,7 +409,7 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
         )}
       </TabPanel>
       <TabPanel id="gd" tab="alarm" value={tab}>
-        <AlarmTab id={item.id} alert={alert} editionName={savedName} code={code || 'Zielland'} hasEstimates={hasEstimates} onError={onError} />
+        <AlarmTab id={item.id} alert={alert} editionName={savedName} code={code || 'Zielland'} hasEstimates={hasEstimates} />
       </TabPanel>
       <TabPanel id="gd" tab="zuordnungen" value={tab}>
         <InfosTab item={item} game={game} state={state} />

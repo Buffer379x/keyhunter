@@ -29,13 +29,11 @@ interface Props {
   section: Section;
   settings: Settings;
   auto: SettingsDraft;
-  csrf: string;
   countries: { code: string; name: string }[];
   sourceStatus: SourceStatuses | null;
   busy: boolean;
   onSection: (section: Section) => void;
   onSourcesChanged: () => void;
-  onError: (error: unknown) => void;
   onLogout: () => void;
   /** Every session ended ("Überall abmelden"). */
   onSignedOut: () => void;
@@ -93,20 +91,7 @@ function SaveBar({ auto }: { auto: SettingsDraft }) {
   );
 }
 
-export default function SettingsPage({
-  section,
-  settings,
-  auto,
-  csrf,
-  countries,
-  sourceStatus,
-  busy,
-  onSection,
-  onSourcesChanged,
-  onError,
-  onLogout,
-  onSignedOut,
-}: Props) {
+export default function SettingsPage({ section, settings, auto, countries, sourceStatus, busy, onSection, onSourcesChanged, onLogout, onSignedOut }: Props) {
   const fetched = useFetchStatus(section === 'shops' || section === 'status');
   const [httpsSeen, setHttpsSeen] = useState(readSeen);
   const dismissHttps = () => {
@@ -157,17 +142,9 @@ export default function SettingsPage({
             {id === 'general' && <General settings={settings} countries={countries} edit={auto.edit} />}
             {id === 'shops' && <Shops settings={settings} feeDraft={auto.feeDraft} edit={auto.edit} editFee={auto.editFee} status={fetched.data?.shops} />}
             {id === 'index' && (
-              <Index
-                settings={settings}
-                edit={auto.edit}
-                igdbState={igdbState}
-                igdbConfigured={sourceStatus?.igdb?.configured}
-                csrf={csrf}
-                onChanged={onSourcesChanged}
-                onError={onError}
-              />
+              <Index settings={settings} edit={auto.edit} igdbState={igdbState} igdbConfigured={sourceStatus?.igdb?.configured} onChanged={onSourcesChanged} />
             )}
-            {id === 'notifications' && <Notifications csrf={csrf} onError={onError} />}
+            {id === 'notifications' && <Notifications />}
             {id === 'status' && (
               <FetchPanel
                 data={fetched.data}
@@ -178,7 +155,7 @@ export default function SettingsPage({
               />
             )}
             {id === 'log' && <Log />}
-            {id === 'system' && <System csrf={csrf} busy={busy} onLogout={onLogout} onSignedOut={onSignedOut} onError={onError} />}
+            {id === 'system' && <System busy={busy} onLogout={onLogout} onSignedOut={onSignedOut} />}
           </div>
         </TabPanel>
       ))}
