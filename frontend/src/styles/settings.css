@@ -329,7 +329,8 @@
 .settings-page .paged-title {
   border-bottom: 1px solid var(--line);
 }
-.settings-page .paged-tools {
+.settings-page .paged-tools,
+.settings-page .box-tools {
   gap: 10px;
   border-bottom: 1px solid var(--line);
 }
@@ -373,14 +374,6 @@
   align-items: flex-end;
   gap: 8px 10px;
   max-width: 420px;
-}
-/* (1.0.1) The segmented switch inside a box (Tabellenspalten, Kanäle, Key-Shops): room below, before the panel it switches. */
-.settings-page .box-seg {
-  margin-bottom: 12px;
-  justify-self: start;
-}
-.settings-page .inset .box-seg {
-  margin: 12px 12px 0;
 }
 /* (0.9.0) The HTTPS notice can be closed; it then stays closed in this browser. */
 .note .note-close {

@@ -15,8 +15,12 @@ function TableColumns({ settings, edit }: { settings: Settings; edit: SettingsDr
     { id: 'offers', label: 'Angebote', body: <OffersColumns settings={settings} edit={edit} /> },
   ];
   return (
-    <SettingsPanel title="Tabellenspalten" titleId="general-columns-title" insetClassName="col-panel">
-      <Seg tabs="columns" label="Tabelle" className="box-seg" value={table} onChange={setTable} options={tabs.map(({ id, label }) => ({ value: id, label }))} />
+    <SettingsPanel
+      title="Tabellenspalten"
+      titleId="general-columns-title"
+      insetClassName="col-panel"
+      tools={<Seg tabs="columns" label="Tabelle" value={table} onChange={setTable} options={tabs.map(({ id, label }) => ({ value: id, label }))} />}
+    >
       {tabs.map(tab => (
         <TabPanel key={tab.id} id="columns" tab={tab.id} value={table}>
           {tab.body}

@@ -278,14 +278,15 @@
   outline: none;
 }
 .content > .notice {
-  max-width: 1320px;
-  margin: 0 auto 16px;
+  max-width: 1920px;
+  margin: 0 0 16px;
 }
 
 /* Page layout helpers for the content area */
+/* Left-aligned next to the sidebar, so a wide window adds no gap between menu and content. */
 .page {
-  max-width: 1320px;
-  margin: 0 auto;
+  max-width: 1920px;
+  margin: 0;
   display: grid;
   gap: 16px;
 }

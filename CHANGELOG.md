@@ -1,5 +1,19 @@
 # Änderungen
 
+## 1.0.2 – 2026-11-23
+
+Feinschliff nach dem Feedback zu 1.0.1 und alle offenen Updates der Abhängigkeiten. Keine Migration, beim Update ist nichts zu tun. Vorhandene Passphrasen gelten weiter.
+
+### Geändert
+- **Mehr Platz auf breiten Fenstern:** Der Inhalt steht jetzt direkt neben dem Menü, statt auf großen Bildschirmen mittig mit einer Lücke links. Er nutzt die Breite bis 1920 Pixel.
+- **Bibliothek in einer Box:** Wie die Wunschliste steht die Bibliothek jetzt in einem Kasten. Sortierung, Ansicht, Suche, System und das Schloss sitzen in dessen Kopfzeile, die Spiele auf der Innenfläche.
+- **Umschalter wie im Log:** In Tabellenspalten, Benachrichtigungen › Kanäle und Key-Shops sitzt der Umschalter jetzt in einer eigenen Zeile auf dem Kasten, nicht mehr auf der gleichfarbigen Innenfläche. Umschalter, die innerhalb einer Innenfläche bleiben (etwa „Detailseite öffnen über“), heben sich mit dem dunkleren Hintergrund ab.
+- **25 Einträge pro Seite** sind jetzt Standard für Wunschliste, Log und Abrufe. Wer eine andere Seitengröße gewählt hat, behält sie.
+- **Abhängigkeiten aktualisiert:** argon2 0.6 (Passphrasen-Hashing; bestehende Passphrasen bleiben gültig), sha2 0.11, getrandom 0.4, scraper 0.29, Node 26 im Build, knip 6, @types/node 26, außerdem die GitHub Actions checkout, setup-node und upload-artifact.
+
+### Behoben
+- **Log mit Jahr:** Die Zeit im Log zeigt jetzt das vollständige Datum mit Jahr (23.11.2026, 14:05:09). In 1.0.1 fehlte es dort noch.
+
 ## 1.0.1 – 2026-11-23
 
 Kleine Verbesserungen nach dem Feedback zu 1.0: Prüftempo mit Score und Farbe, Symbole im Warenkorb, verständlicher Abrufstatus mit Jahr, einheitliche Umschalter und ein sauberes Favicon. Nur die Oberfläche ändert sich: keine Migration, beim Update ist nichts zu tun. Falls im Browser-Tab noch das alte Favicon erscheint, die Seite einmal mit Strg+F5 neu laden.

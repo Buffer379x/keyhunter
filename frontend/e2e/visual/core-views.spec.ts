@@ -475,7 +475,7 @@ for (const vp of viewports) {
       await page.route('**/api/v1/wishlist', r => (r.request().method() === 'GET' ? r.fulfill({ json: wishRows }) : r.continue()));
       await page.goto('/');
       await expect(page.getByRole('main').getByRole('heading', { name: 'Wunschliste', level: 1 })).toBeVisible();
-      await expect(page.locator('table.wl tbody tr')).toHaveCount(32);
+      await expect(page.locator('table.wl tbody tr')).toHaveCount(25); // the first page at the default size of 25 (1.0.2)
       await settle(page);
       await expect(page).toHaveScreenshot(`wishlist-long-${vp.name}.png`, { mask: masks(page) });
     });
