@@ -490,6 +490,7 @@ impl Notifier {
     }
 }
 
+/// Body of `PUT /alerts/channels/{kind}`, saved by [`Notifier::save`].
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct ChannelInput {
