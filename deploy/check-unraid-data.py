@@ -69,7 +69,9 @@ with tempfile.TemporaryDirectory(prefix="unraid-data-", dir=test_dir) as folder:
     no_volume = f"keyhunter-no-volume-{os.getpid()}:local"
 
     def helper(script):
-        return docker("run", "--rm", "--user", "0:0", "--network", "none", "-v", mount, HELPER, "sh", "-ec", script)
+        # Only its output: Docker's own messages on stderr (such as a pull) are no part of the answer.
+        return subprocess.run(["docker", "run", "--rm", "--user", "0:0", "--network", "none", "-v", mount, HELPER,
+                               "sh", "-ec", script], check=True, capture_output=True, text=True).stdout.strip()
 
     def unraid_start(*extra):
         return subprocess.run(["docker", "run", "--rm", "--network", "none", "-v", mount, *options, *extra,
@@ -79,6 +81,8 @@ with tempfile.TemporaryDirectory(prefix="unraid-data-", dir=test_dir) as folder:
         return "http://" + docker("inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", name) + ":3000"
 
     try:
+        # A fresh runner has no helper image yet; pull it before the first check.
+        docker("pull", "-q", HELPER)
         docker("network", "create", "--internal", name)
         network = True
         docker("run", "-d", "--name", name, "--network", name, "--health-interval", "1s",
