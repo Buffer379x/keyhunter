@@ -1114,6 +1114,39 @@ mod tests {
         assert!(!older.takes_key(&key("forza horizon 5", &[169])));
     }
 
+    /// 1.1.1: a bundle without a parent game (IGDB lists "Final Fantasy VII Remake Intergrade" this way) is matched by its
+    /// own title only. It never takes the keys of the game it contains, nor that game the bundle's keys.
+    #[test]
+    fn a_bundle_is_matched_by_its_own_title_only() {
+        let intergrade = Wish::from_parts(
+            169,
+            None,
+            Some(catalog(
+                "Final Fantasy VII Remake Intergrade",
+                "bundle",
+                &[169],
+                None,
+            )),
+        );
+        let bundle_key = key("final fantasy vii remake intergrade", &[169]);
+        assert!(intergrade.auto_matches(&bundle_key, &[]));
+        let remake_key = key("final fantasy vii remake", &[169]);
+        assert!(!intergrade.auto_matches(&remake_key, &[]));
+        assert_eq!(intergrade.mismatches(&remake_key, &[]), [Mismatch::Title]);
+        let remake = Wish::from_parts(
+            169,
+            None,
+            Some(catalog(
+                "Final Fantasy VII Remake",
+                "base_game",
+                &[169],
+                None,
+            )),
+        );
+        assert!(!remake.auto_matches(&bundle_key, &[]));
+        assert_eq!(remake.mismatches(&bundle_key, &[]), [Mismatch::Title]);
+    }
+
     #[test]
     fn score_follows_the_check_interval_factor() {
         let mut link = Link::fixture(1, "confirmed", None, Some(1));
