@@ -7,7 +7,6 @@ table.offers .shop {
 }
 table.offers small {
   display: block;
-  font-size: var(--t-xs);
 }
 .table-wrap:focus-visible {
   outline-offset: -2px;

@@ -17,10 +17,6 @@
   display: grid;
   min-width: 0;
 }
-.alerts-page .game-cell small {
-  color: var(--muted);
-  font-size: var(--t-xs);
-}
 .alerts-page .alarm-title {
   color: var(--text);
   font-weight: 500;

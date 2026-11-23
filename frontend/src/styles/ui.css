@@ -190,7 +190,7 @@
   height: 18px;
   padding: 0 4px;
   border-radius: 4px;
-  font: 500 10px/1 var(--f-mono);
+  font: 500 var(--t-micro)/1 var(--f-mono);
   letter-spacing: 0.04em;
   color: var(--text-2);
   background: var(--panel-3);
@@ -549,7 +549,7 @@
   width: 72px;
   height: 96px;
   border-radius: var(--r-md);
-  font-size: 18px;
+  font-size: var(--t-title);
 }
 .cover.fluid {
   width: 100%;
@@ -691,7 +691,7 @@ tbody tr.click:hover td {
   font-variant-numeric: tabular-nums;
 }
 .big-price small {
-  font-size: 0.55em;
+  font-size: var(--t-title);
   color: var(--text-2);
   margin-left: 2px;
 }
@@ -804,7 +804,7 @@ tbody tr.click:hover td {
     padding: 10px 12px;
   }
   .kpi-val b {
-    font-size: 20px;
+    font-size: var(--t-title);
   }
   .ticks {
     display: none;
@@ -872,7 +872,6 @@ tbody tr.click:hover td {
 .help-pop b,
 .help-pop strong {
   color: var(--text);
-  font-weight: 600;
 }
 .form-row > .with-help {
   display: flex;

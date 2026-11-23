@@ -126,7 +126,6 @@ table.wl th .th-sort:focus-visible {
 }
 .game-cell small {
   color: var(--muted);
-  font-size: var(--t-xs);
 }
 table.wl td.c-target {
   white-space: nowrap;

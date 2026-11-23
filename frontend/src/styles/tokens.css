@@ -44,7 +44,7 @@
   /* Type */
   --f-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --f-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
-  --t-micro: 10px; /* 1.0 (DS-10): the smallest cover initials and chart axis labels */
+  --t-micro: 10px; /* DS-10: the smallest cover initials, chart axis labels, region codes, key hints */
   --t-label: 11px;
   --t-xs: 12px;
   --t-sm: 13px;
@@ -53,7 +53,7 @@
   --t-title: 20px;
   --t-kpi: 24px;
   --t-price: 34px;
-  --t-display: 22px; /* 1.0 (DS-10): initials of a large cover */
+  --t-display: 22px; /* DS-10: the game title on its page, initials of a large cover */
 
   /* Shape and size */
   --r-sm: 6px;
