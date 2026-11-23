@@ -7,6 +7,7 @@ pub mod config;
 mod edition_tracking;
 mod eventlog;
 mod extract;
+pub mod health;
 mod history;
 mod jobs;
 mod notify;
