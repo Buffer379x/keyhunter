@@ -1,8 +1,8 @@
 # Änderungen
 
-## 1.0.0-rc.1 – 2026-11-23
+## 1.0.0 – 2026-11-23
 
-Release-Kandidat für KeyHunter 1.0: Die Wunschliste lässt sich aus der Exportdatei wieder einlesen, Sichern und Wiederherstellen sind dokumentiert und praktisch geprüft, und alle Fehler aus dem Release-Audit sind behoben und durch Tests abgesichert. Beim Update ist nichts zu tun: keine Migration, die Daten bleiben unverändert. Der Kandidat erscheint nur unter `ghcr.io/buffer379x/keyhunter:1.0.0-rc.1`; `latest` bleibt bei 0.9.4, Unraid bietet ihn also nicht als Update an. Er ist für die Abnahme in einem Testcontainer gedacht (`docs/release-1.0-acceptance.md`). Wer direkt von 0.9.1 oder älter kommt, findet unten die wichtigsten Verhaltensänderungen seit 0.9.1 zusammengefasst; die Einzelheiten stehen bei 0.9.2 bis 0.9.4.
+KeyHunter 1.0: Die Wunschliste lässt sich aus der Exportdatei wieder einlesen, Sichern und Wiederherstellen sind dokumentiert und praktisch geprüft, und alle Fehler aus dem Release-Audit sind behoben und durch Tests abgesichert. Beim Update ist nichts zu tun: keine Migration, die Daten bleiben unverändert; als Rückweg genügt ein Kaltbackup des Datenordners (siehe `docs/operations.md`). Wer direkt von 0.9.1 oder älter kommt, findet unten die wichtigsten Verhaltensänderungen seit 0.9.1 zusammengefasst; die Einzelheiten stehen bei 0.9.2 bis 0.9.4. Gegenüber dem Release-Kandidaten 1.0.0-rc.1 ändert sich nur die Versionsnummer.
 
 ### Neu
 - **Sichern & Wiederherstellen** (Einstellungen › System): Die Wunschliste lässt sich aus der Exportdatei wieder einlesen. Vor dem Hinzufügen zeigt ein Dialog, wie viele Spiele neu sind, schon auf der Liste oder in der Bibliothek stehen, dem Katalog unbekannt oder ungültig sind. Der Import geht pro Eintrag denselben Weg wie das Vormerken von Hand, löscht und überschreibt nichts und lässt bestätigte Zuordnungen unberührt; ein zweiter Import derselben Datei ändert nichts. Importierte Spiele werden im normalen Abruftempo gesucht, damit ein großer Import nicht das Budget eines ganzen Tages verbraucht; **Jetzt prüfen** sucht ein einzelnes sofort, ein von Hand hinzugefügtes Spiel wird wie bisher sofort gesucht. Der Export zog dafür aus „Allgemein“ in dieses Panel. Das Fragezeichen erklärt die vollständige Sicherung (Datenverzeichnis, Sicherungen vor Migrationen, Kaltbackup).
@@ -41,6 +41,7 @@ Release-Kandidat für KeyHunter 1.0: Die Wunschliste lässt sich aus der Exportd
 - Das Frontend verlässt sich auf die Felder, die der Server immer sendet; die Ersatzwerte für ältere Server sind entfernt.
 - Basisimages im Dockerfile per Digest festgelegt, Dependabot für Cargo, npm, Docker und GitHub Actions.
 - Release-Kandidaten (etwa `1.0.0-rc.1`) erscheinen als eigenes Image unter ihrer Versionsnummer und verschieben `latest` nie.
+- Abnahme am Release-Kandidaten 1.0.0-rc.1 mit den Parametern des Unraid-Templates bestanden: Installation von 0.9.4, Update, Neustart, Anmeldung, Export und Import, Kaltbackup, `--reset-owner`, Rollback und Neuinstallation; die Parserprüfung fand bei Eneba und Driffle Produkte mit Preisen.
 
 ## 0.9.4 – 2026-11-23
 
