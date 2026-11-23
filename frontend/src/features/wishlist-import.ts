@@ -31,6 +31,50 @@ export function parseWishlistFile(text: string): { items: unknown[] } | { error:
   return { items: file.items };
 }
 
+/**
+ * The key the server compares entries by (`import_entry` in wishlist.rs): the platform and the IGDB id, else the title
+ * with collapsed spaces in lower case. Null for an entry the server rejects before it compares (not the export's
+ * format, no title, unsupported platform).
+ */
+function entryKey(item: unknown, platforms: readonly string[]): string | null {
+  if (typeof item !== 'object' || item === null) return null;
+  const { title, platform, igdb_id: id } = item as { title?: unknown; platform?: unknown; igdb_id?: unknown };
+  if (typeof platform !== 'string' || !platforms.includes(platform)) return null;
+  if (title !== undefined && title !== null && typeof title !== 'string') return null;
+  if (id !== undefined && id !== null && !Number.isSafeInteger(id)) return null;
+  if (typeof id === 'number') return `${platform}\n${id}`;
+  if (typeof title !== 'string') return null;
+  return `${platform}\n${title.split(/\s+/).filter(Boolean).join(' ').toLowerCase()}`;
+}
+
+/**
+ * Sends the entries in requests of IMPORT_CHUNK and merges the reports. The server finds a repeated entry only within
+ * one request, so a repeat is not sent but reported the way the server reports it: the preview and the import then
+ * agree for a file of any length. `platforms` are the names the server accepts.
+ */
+export async function importInChunks(items: unknown[], platforms: readonly string[], send: (chunk: unknown[]) => Promise<ImportReport>): Promise<ImportReport> {
+  const seen = new Set<string>();
+  const repeated = items.map(item => {
+    const key = entryKey(item, platforms);
+    if (key === null) return false;
+    if (seen.has(key)) return true;
+    seen.add(key);
+    return false;
+  });
+  const sent = items.filter((_, index) => !repeated[index]);
+  const reports: ImportReport[] = [];
+  for (let start = 0; start < sent.length; start += IMPORT_CHUNK) reports.push(await send(sent.slice(start, start + IMPORT_CHUNK)));
+  const merged = mergeReports(reports);
+  const answers = merged.results[Symbol.iterator]();
+  const results = items.map((item, index): ImportEntryResult => {
+    if (!repeated[index]) return answers.next().value as ImportEntryResult;
+    const { title, platform } = item as { title?: string | null; platform: string };
+    return { title: title ?? '', platform, status: 'existing', message: 'Steht in der Datei mehrfach.' };
+  });
+  merged.counts.existing += repeated.filter(Boolean).length;
+  return { counts: merged.counts, results };
+}
+
 export function mergeReports(reports: ImportReport[]): ImportReport {
   const counts: Record<ImportStatus, number> = { added: 0, existing: 0, library: 0, unknown: 0, invalid: 0 };
   for (const report of reports) for (const status of Object.keys(counts) as ImportStatus[]) counts[status] += report.counts[status];

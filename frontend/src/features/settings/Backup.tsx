@@ -5,7 +5,8 @@ import type { WishlistItem } from '../../api';
 import { notify } from '../../notify';
 import { Button, ConfirmDialog, Help, Icon, Notice } from '../../components';
 import { downloadJson, wishlistExport } from '../wishlist-export';
-import { IMPORT_CHUNK, IMPORT_MAX_BYTES, importSummary, mergeReports, parseWishlistFile } from '../wishlist-import';
+import { IMPORT_MAX_BYTES, importInChunks, importSummary, parseWishlistFile } from '../wishlist-import';
+import { PLATFORMS, platformName } from '../catalog-ui';
 import type { ImportReport, ImportStatus } from '../wishlist-import';
 import { appVersion } from '../../version';
 import { Facts, SettingsPanel } from './parts';
@@ -28,12 +29,10 @@ const rows: { status: ImportStatus; label: string }[] = [
 const SHOWN_PROBLEMS = 6;
 
 /** Sends the entries in parts; with `dryRun` the server only reports what would happen. */
-async function importWishlist(items: unknown[], dryRun: boolean, csrf: string): Promise<ImportReport> {
-  const reports: ImportReport[] = [];
-  for (let start = 0; start < items.length; start += IMPORT_CHUNK) {
-    reports.push(await api<ImportReport>('/wishlist/import', 'POST', { version: 1, items: items.slice(start, start + IMPORT_CHUNK), dry_run: dryRun }, csrf));
-  }
-  return mergeReports(reports);
+function importWishlist(items: unknown[], dryRun: boolean, csrf: string): Promise<ImportReport> {
+  return importInChunks(items, PLATFORMS.map(platformName), chunk =>
+    api<ImportReport>('/wishlist/import', 'POST', { version: 1, items: chunk, dry_run: dryRun }, csrf),
+  );
 }
 
 /** Einstellungen › System › Sichern & Wiederherstellen (PROD-01): export and import of the wishlist, and where the full backup lives. */
@@ -132,7 +131,13 @@ export default function Backup({ csrf, onError }: Props) {
           <div className="set-row">
             <div className="with-help">
               <h3 className="set-row-title">Wunschliste importieren</h3>
-              <Help label="Hilfe zum Import">Wähle eine Datei aus dem Export. Vor dem Hinzufügen siehst du, was passiert.</Help>
+              <Help label="Hilfe zum Import">
+                <span>Wähle eine Datei aus dem Export. Vor dem Hinzufügen siehst du, was passiert.</span>
+                <span>
+                  Die Shops durchsucht KeyHunter danach im normalen Abruftempo, nicht alle Spiele auf einmal: So bleibt das Tagesbudget für die übrigen Preise.
+                  Mit „Jetzt prüfen“ suchst du ein Spiel sofort.
+                </span>
+              </Help>
             </div>
             <input
               ref={file}
