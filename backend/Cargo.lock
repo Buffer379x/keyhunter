@@ -1163,6 +1163,7 @@ dependencies = [
  "hex",
  "httpdate",
  "lettre",
+ "libc",
  "reqwest",
  "scraper",
  "serde",
