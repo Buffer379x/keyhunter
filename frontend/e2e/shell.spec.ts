@@ -86,7 +86,9 @@ test('phone layout: no breadcrumbs, the search fills the top bar and the drawer 
   await expect(page.getByRole('navigation', { name: 'Pfad' })).toBeHidden();
   const search = page.getByRole('searchbox', { name: 'Nach Spielen suchen', exact: true });
   const box = await search.boundingBox();
-  expect(box!.width).toBeGreaterThan(250);
+  expect(box!.width).toBeGreaterThan(200);
+  // 1.0 (RESP-16): adding stays one tap away next to the search, as a symbol button.
+  await expect(page.getByRole('banner').getByRole('button', { name: 'Spiel hinzufügen', exact: true })).toBeVisible();
   await navTo(page, 'Bibliothek');
   await expect(page.getByRole('navigation', { name: 'Hauptnavigation' })).toBeHidden();
   await expect(page.getByRole('heading', { name: 'Bibliothek', level: 1, exact: true })).toBeVisible();

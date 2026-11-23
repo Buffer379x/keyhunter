@@ -125,7 +125,7 @@
 .catalog-attribution {
   margin: 6px 8px 4px;
   font-size: var(--t-label);
-  color: var(--faint);
+  color: var(--muted);
 }
 
 /* The add dialog: panel surface, head row like .panel-head, search and results in an inset */

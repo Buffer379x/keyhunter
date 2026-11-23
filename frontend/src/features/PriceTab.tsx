@@ -93,7 +93,7 @@ export default function PriceTab({ view, rows, summary, basis, onBasis, hasEstim
             <span className="spacer" />
             {hasEstimates && <BasisSwitch basis={basis} onChange={onBasis} />}
             {asOf !== null && (
-              <span className="mono faint stand" title={`${dateTime(asOf)} · ${relativeTime(asOf)}`}>
+              <span className="mono muted stand" title={`${dateTime(asOf)} · ${relativeTime(asOf)}`}>
                 {stand(asOf)}
               </span>
             )}
@@ -185,7 +185,7 @@ export default function PriceTab({ view, rows, summary, basis, onBasis, hasEstim
                 )}
               </div>
               <div className="compare-side world">
-                <Label>Günstigste Region · weltweit</Label>
+                <Label>Günstigste Region · INT</Label>
                 {world ? (
                   <>
                     <BigPrice cents={world.price} world />
@@ -431,7 +431,7 @@ export function Legend({ code, target, targetLabel }: { code: string; target: nu
       </span>
       <span>
         <i className="w" />
-        Weltweit
+        INT
       </span>
       {target !== null && (
         <span>

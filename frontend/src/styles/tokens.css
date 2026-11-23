@@ -19,8 +19,10 @@
   /* Text */
   --text: #edeae6;
   --text-2: #bdb8b1;
-  --muted: #8d8780;
-  --faint: #625d58;
+  /* 1.0 (DS-02): --muted reaches 4.5 : 1 on every surface (4.6 on --panel-3). --faint stays below that (3.1–4.1 : 1):
+     for decoration, disabled controls and large text only. */
+  --muted: #99938c;
+  --faint: #7d7770;
 
   /* Accent: orange means you (brand, your action, your target country and target price) */
   --accent: #ff7a1a;

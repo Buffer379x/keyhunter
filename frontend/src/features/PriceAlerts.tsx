@@ -42,7 +42,7 @@ const deliveryChip = (state: string) => (
 const channelStates: Record<string, string> = { pending: 'wartet', sent: 'zugestellt', failed: 'fehlgeschlagen', cancelled: 'verworfen' };
 /** "Telegram zugestellt · E-Mail fehlgeschlagen (HTTP 401 · Unauthorized)". */
 const deliveryLine = (deliveries: AlertDelivery[]) => (
-  <small className="faint delivery-channels">
+  <small className="muted delivery-channels">
     {deliveries.map((d, i) => (
       <span key={d.channel}>
         {i > 0 && ' · '}
@@ -350,7 +350,7 @@ export default function PriceAlerts({
                     <tr key={event.id}>
                       <td className="mono c-time" title={new Date(at * 1000).toLocaleString('de-DE')}>
                         {relativeTime(at)}
-                        {event.attempts > 1 && <span className="faint"> · {event.attempts} Versuche</span>}
+                        {event.attempts > 1 && <span className="muted"> · {event.attempts} Versuche</span>}
                       </td>
                       <td className="c-game">{event.wish_id ? (ruleOf(event.wish_id)?.title ?? 'Ehemaliger Wunschlisteneintrag') : 'Testnachricht'}</td>
                       <td className="r mono c-price">{event.cents !== null ? money(event.cents) : '–'}</td>

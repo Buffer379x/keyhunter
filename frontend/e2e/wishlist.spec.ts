@@ -158,7 +158,7 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
   // KPI tiles
   await expect(kpi(page, 'Wünsche').locator('.kpi-val')).toHaveText('3Spiele');
   await expect(kpi(page, 'Wünsche').locator('.kpi-foot')).toHaveText('2 mit Preis1 offen');
-  await expect(kpi(page, 'Ziel erreicht').locator('.kpi-val')).toHaveText('1Spiele');
+  await expect(kpi(page, 'Ziel erreicht').locator('.kpi-val')).toHaveText('1Spiel'); // 1.0: singular (RESP-18)
   await expect(kpi(page, 'Ziel erreicht').locator('.kpi-foot')).toHaveText('+1 seit gesternAlarm gesendet');
   await expect(kpi(page, 'Ziel erreicht').locator('.ticks i')).toHaveCount(9);
   await expect(kpi(page, 'Weltweit günstiger').locator('.kpi-val')).toHaveText('1ab 20 %');

@@ -101,7 +101,7 @@ export default function EditionComparison({ gameId, platformId, games, savedId, 
                 </span>
                 <span className="ed-price hide-sm">
                   {world ? <Price cents={world.cents} tone="world" /> : <span className="price-missing">–</span>}
-                  <span className="label">Welt</span>
+                  <span className="label">INT</span>
                 </span>
                 {isSaved ? (
                   <Pill tone="hot" icon="heart">

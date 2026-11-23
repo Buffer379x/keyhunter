@@ -440,6 +440,10 @@ export default function App() {
               <Icon name="plus" />
               Spiel hinzufügen
             </Button>
+            {/* 1.0: on the phone the same action as a symbol button, so adding stays one tap away with a filled list. */}
+            <IconButton variant="primary" className="show-sm" label="Spiel hinzufügen" onClick={openAdd}>
+              <Icon name="plus" />
+            </IconButton>
           </div>
         </header>
         <main id="main-content" className="content" tabIndex={-1}>

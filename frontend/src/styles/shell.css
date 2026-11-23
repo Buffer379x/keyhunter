@@ -76,7 +76,7 @@
 }
 .nav-group > .label {
   padding: 0 10px 6px;
-  color: var(--faint);
+  color: var(--muted);
 }
 .nav-item {
   display: flex;
@@ -112,7 +112,7 @@
 .nav-item .count {
   margin-left: auto;
   font: 400 var(--t-xs) var(--f-mono);
-  color: var(--faint);
+  color: var(--muted);
 }
 .side-foot {
   margin-top: auto;
@@ -271,6 +271,9 @@
 .menu-btn {
   display: none;
 }
+.top-right .show-sm {
+  display: none;
+}
 
 .content {
   position: relative; /* containing block for absolutely positioned descendants, so they scroll and clip with the page */
@@ -340,6 +343,11 @@
 }
 .search-box:focus-within {
   border-color: var(--line-2);
+}
+/* 1.0 (DS-03): the same 2 px orange ring as every other control (the inner input has outline: none). */
+.search-box:has(:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .search-box svg {
   width: 15px;
@@ -499,9 +507,23 @@
     width: auto;
     min-width: 0;
   }
+  /* (1.0) Two lines: title and close button on top, the platform choice over the full width below. */
+  .search-pop-head {
+    flex-wrap: wrap;
+  }
+  .search-pop-head .label {
+    flex: 1;
+  }
+  .search-pop-head .spacer {
+    display: none;
+  }
   .search-pop-head .search-platform {
     order: 1;
     flex: 1 0 100%;
+  }
+  .search-platform select {
+    flex: 1;
+    width: auto;
   }
   .top-right {
     flex: 1;
@@ -514,9 +536,65 @@
   .kbd {
     display: none;
   }
+  .top-right .show-sm {
+    display: grid;
+  }
 }
+/*
+ * Touch (1.0, RESP-09): on a coarse pointer every control is at least 44 × 44 px (WCAG 2.5.5, Apple/Google guidance).
+ * min-width/min-height instead of width/height, so the local size rules of the features (28, 30, 32 px) stay as they are for
+ * the mouse and are simply outgrown here. The "?" keeps its 22 px footprint: negative margins around a 44 px hit area.
+ * Mouse and keyboard layouts do not change.
+ */
 @media (pointer: coarse) {
   .kbd {
     display: none;
+  }
+  .btn,
+  .chip,
+  .seg button,
+  .tabs button,
+  .nav-item,
+  .switch,
+  .field,
+  .search-box,
+  .text-button,
+  :where(input:not([type='checkbox']):not([type='radio']), select),
+  .popover-panel [role='menuitem'],
+  table.wl th .th-sort,
+  .crumbs button {
+    min-height: 44px;
+  }
+  .icon-btn,
+  table.wl th .th-sort {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  /* Short labels ("DE", "INT") stay pills instead of circles. */
+  .seg button {
+    min-width: 56px;
+  }
+  :is(.field, .search-box) :is(input, select) {
+    min-height: 0;
+  }
+  /* The box is a div, not a label: the input itself fills its height. */
+  .search-box input {
+    align-self: stretch;
+  }
+  :is(.panel-foot, .facts, .note) .text-button {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  summary {
+    padding-block: 13px;
+  }
+  .help-btn {
+    min-width: 44px;
+    min-height: 44px;
+    margin: -11px;
+  }
+  .form-row > .with-help .help-btn {
+    margin: -12px;
   }
 }

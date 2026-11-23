@@ -63,7 +63,7 @@ export default function WishlistColumns({ settings, edit }: { settings: Settings
         label="Spaltenreihenfolge der Wunschliste"
         name={name}
         shown={shown}
-        note={column => column === 'open' && mode !== 'button' && <small className="faint"> · nur mit Button</small>}
+        note={column => column === 'open' && mode !== 'button' && <small className="muted"> · nur mit Button</small>}
         disabled={column => column === opener || (column === 'open' && mode !== 'button')}
         lockedTitle={column => (column === opener ? 'Öffnet die Detailseite, bleibt sichtbar' : undefined)}
         onToggle={toggle}

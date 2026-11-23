@@ -47,7 +47,7 @@
   color: var(--ok);
 }
 .alerts-page .save.none {
-  color: var(--faint);
+  color: var(--muted);
 }
 .alerts-page td.mono {
   white-space: nowrap;

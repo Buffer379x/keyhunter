@@ -120,7 +120,7 @@ test('edition previews keep the saved version, offers keep price order and histo
   const chart = page.getByRole('img', { name: /^Preisverlauf .* und weltweit, 30 Tage$/ });
   await expect(chart).toBeVisible();
   // One column per day; days without a valid measurement stay empty, nothing is interpolated.
-  const data = page.locator('.matrix table.sr-only tbody tr');
+  const data = page.locator('.matrix .sr-only table tbody tr'); // 1.0: the box is visually hidden, not the table (RESP-04)
   await expect(data).toHaveCount(30);
   await expect(data.nth(29)).toContainText('12,00');
   await expect(data.nth(29)).toContainText('9,00');
@@ -131,7 +131,7 @@ test('edition previews keep the saved version, offers keep price order and histo
   await page.keyboard.press('End');
   const tip = page.locator('.matrix .tip');
   await expect(tip).toContainText('12,00');
-  await expect(tip).toContainText(/Weltweit\s*GL\s*9,00/);
+  await expect(tip).toContainText(/INT\s*GL\s*9,00/); // 1.0: one name for the cheapest region worldwide (RESP-18)
   await expect(tip).toContainText(/Differenz\s*−3,00/);
   await page.keyboard.press('Escape');
   await expect(tip).toHaveCount(0);

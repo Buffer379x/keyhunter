@@ -1,7 +1,7 @@
 /*
  * Wishlist page (features/Wishlist.tsx, WishlistRow.tsx), ported 1:1 from the design v4 prototype
  * (docs/modernization/design-v4/preview.html, viewWishlist): page head, KPI tiles, filter panel and the `table.wl` table,
- * which becomes a list of cards up to 720 px. Tokens only. Additions the prototype does not show are marked "(added)".
+ * which becomes a list of cards when the list is narrow (container query, 1.0). Tokens only. Additions the prototype does not show are marked "(added)".
  */
 .wishlist-page h1:focus {
   outline: none;
@@ -153,14 +153,36 @@ table.wl .row-open:hover:not(:disabled) {
   border-color: var(--accent);
 }
 
-/* Up to 720 px the rows become cards (prototype `table.wl`) */
+/* Fee switch and filter share one line under the chips (0.7.3). */
 @media (max-width: 720px) {
-  /* Fee switch and filter share one line under the chips (0.7.3). */
   .wishlist-page .wl-q {
     flex: 1 1 120px;
     width: auto;
     min-width: 0;
   }
+}
+
+/*
+ * (1.0) Width tiers by the list's own box (container query), not by the window: with the sidebar a 1024 px window leaves
+ * the list less room (≈ 730 px) than a 768 px tablet. The full table needs ≈ 980 px.
+ *   ≥ 980 px     the full table
+ *   800–979 px   the table without "Ziel" and "14 Tage" (sorting by Ziel stays in the head)
+ *   < 800 px     cards (prototype `table.wl` on the phone): title over the full width, the two prices with their label,
+ *                the status pills below; the opener covers the whole card, so a tap anywhere opens the game.
+ *   < 560 px     the prices move under the title.
+ */
+.wishlist-page .wl-wrap {
+  container: wl / inline-size;
+}
+@container wl (800px <= width < 980px) {
+  table.wl :is(th, td):is(.c-target, .c-trend) {
+    display: none;
+  }
+  .game-cell {
+    min-width: 200px;
+  }
+}
+@container wl (width < 800px) {
   /* (added, 0.6.2) The headers stay as a row of sort buttons above the cards. */
   table.wl,
   table.wl tbody,
@@ -173,9 +195,8 @@ table.wl .row-open:hover:not(:disabled) {
   table.wl thead tr {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px 14px;
-    padding: 10px 12px;
-    grid-template-areas: none;
+    gap: 0 14px;
+    padding: 4px 12px;
   }
   table.wl thead th {
     padding: 0;
@@ -188,19 +209,28 @@ table.wl .row-open:hover:not(:disabled) {
   table.wl thead th.no-sort {
     display: none;
   }
+  table.wl th .th-sort {
+    min-height: 32px;
+  }
   table.wl th.r .th-sort {
     flex-direction: row;
   }
-  table.wl tr {
+  table.wl tbody tr {
+    position: relative;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    grid-template-areas: 'g p d' 'w s d';
-    gap: 8px 10px;
+    align-items: start;
+    grid-template-columns: minmax(0, 1fr) minmax(96px, auto) minmax(96px, auto) auto;
+    grid-template-areas: 'g p w d' 's s s s';
+    gap: 0 16px;
     padding: 12px;
     border-bottom: 1px solid var(--line);
+    cursor: pointer;
   }
-  table.wl tr:last-child {
+  table.wl tbody tr:last-child {
     border-bottom: 0;
+  }
+  table.wl tbody tr:hover {
+    background: var(--panel-3);
   }
   table.wl td {
     border: 0;
@@ -211,30 +241,63 @@ table.wl .row-open:hover:not(:disabled) {
   }
   table.wl td.c-de {
     grid-area: p;
-    text-align: right;
+    text-align: left;
   }
   table.wl td.c-world {
     grid-area: w;
   }
   table.wl td.c-status {
     grid-area: s;
-    text-align: right;
+    margin-top: 8px;
+  }
+  table.wl td.c-status:empty {
+    display: none;
   }
   table.wl td.c-more {
     grid-area: d;
-    align-self: center;
     width: auto;
   }
-  table.wl td.c-save,
-  table.wl td.c-target,
-  table.wl td.c-trend {
+  table.wl :is(td.c-save, td.c-target, td.c-trend) {
     display: none;
   }
-  .game-cell {
+  table.wl tr.no-prices :is(td.c-de, td.c-world) {
+    display: none;
+  }
+  table.wl td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font: 500 var(--t-label)/1.3 var(--f-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+  table.wl .game-cell {
     min-width: 0;
+    align-items: flex-start;
   }
   .wl-status {
-    justify-content: flex-end;
+    justify-content: flex-start;
+  }
+  /* The opener stretches over the card (it stays the one focusable element); the card shows its focus. */
+  table.wl tbody tr :is(.row-open, .title-open, .cover-open)::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+  table.wl tbody tr:has(:is(.row-open, .title-open, .cover-open):focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+}
+@container wl (width < 560px) {
+  table.wl tbody tr {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-areas: 'g g d' 'p w w' 's s s';
+    column-gap: 12px;
+  }
+  table.wl :is(td.c-de, td.c-world) {
+    margin-top: 10px;
   }
 }
 

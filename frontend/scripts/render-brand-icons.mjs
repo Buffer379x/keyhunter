@@ -1,7 +1,7 @@
 // Renders the raster brand icons from the approved SVGs in public/ with the installed Playwright (Chromium).
 // Run: npm run brand:icons   (from frontend/). Output is committed next to the SVGs, so the build needs no browser.
 //   favicon-16.png   16 x 16   optical 16 px variant (favicon-16.svg, tag edges on whole pixels)
-//   favicon-32.png   32 x 32   primary mark (favicon.svg)
+//   favicon-32.png   32 x 32   optical 32 px variant (favicon-32.svg; 1.0: same key hole as the 16 px variant)
 //   keyhunter-appicon-512.png  512 x 512  app icon (keyhunter-appicon.svg, rounded corners, transparent outside)
 //   keyhunter-appicon-192.png  192 x 192  same app icon for the web app manifest
 //   favicon.ico                16 + 32 px, PNG-compressed entries built from the two favicon PNGs
@@ -21,7 +21,7 @@ if (appleSvg === appicon) throw new Error('appicon background rect not found');
 
 const jobs = [
   { file: 'favicon-16.png', svg: await svg('favicon-16.svg'), size: 16, background: 'transparent' },
-  { file: 'favicon-32.png', svg: await svg('favicon.svg'), size: 32, background: 'transparent' },
+  { file: 'favicon-32.png', svg: await svg('favicon-32.svg'), size: 32, background: 'transparent' },
   { file: 'keyhunter-appicon-512.png', svg: appicon, size: 512, background: 'transparent' },
   { file: 'keyhunter-appicon-192.png', svg: appicon, size: 192, background: 'transparent' },
   { file: 'apple-touch-icon.png', svg: appleSvg, size: 180, background: INK },

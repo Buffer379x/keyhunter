@@ -145,7 +145,7 @@ const gameText = (game: string | null, region: string | null) =>
   game ? (
     <>
       <b>{game}</b>
-      {region && <span className="faint"> · {region}</span>}
+      {region && <span className="muted"> · {region}</span>}
     </>
   ) : (
     <span className="faint">–</span>

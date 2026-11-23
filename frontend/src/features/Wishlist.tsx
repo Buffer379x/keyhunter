@@ -46,24 +46,26 @@ interface Props {
 
 /**
  * Sortable column header: the first click sorts in the column's natural direction, the second reverses it, the third returns to
- * "newest first". `aria-sort` tells screen readers the state; up to 720 px the headers become a row of sort buttons above the cards.
+ * "newest first". `aria-sort` tells screen readers the state; on the cards (narrow list) the headers become a row of sort buttons above them.
  */
 function SortHeader({
   id,
   sort,
   onSort,
   right = false,
+  className = '',
   children,
 }: {
   id: SortKey;
   sort: WishlistSort;
   onSort: (key: SortKey) => void;
   right?: boolean;
+  className?: string;
   children: string;
 }) {
   const active = sort.key === id;
   return (
-    <th className={right ? 'r' : undefined} aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+    <th className={`${className}${right ? ' r' : ''}`.trim() || undefined} aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
       <button
         type="button"
         className={`th-sort${active ? ' on' : ''}`}
@@ -579,42 +581,42 @@ export default function Wishlist({
   const order = visibleColumns(columnOrder(columns), hidden, mode);
   const headers: Record<WishlistColumn, ReactNode> = {
     game: (
-      <SortHeader key="game" id="title" sort={sort} onSort={sortBy}>
+      <SortHeader key="game" id="title" className="c-game" sort={sort} onSort={sortBy}>
         Spiel
       </SortHeader>
     ),
     price: (
-      <SortHeader key="price" id="price" sort={sort} onSort={sortBy} right>
+      <SortHeader key="price" id="price" className="c-de" sort={sort} onSort={sortBy} right>
         {priceLabel}
       </SortHeader>
     ),
     world: (
-      <SortHeader key="world" id="world" sort={sort} onSort={sortBy}>
+      <SortHeader key="world" id="world" className="c-world" sort={sort} onSort={sortBy}>
         Preis INT
       </SortHeader>
     ),
     save: (
-      <SortHeader key="save" id="save" sort={sort} onSort={sortBy} right>
+      <SortHeader key="save" id="save" className="c-save" sort={sort} onSort={sortBy} right>
         Ersparnis
       </SortHeader>
     ),
     target: (
-      <SortHeader key="target" id="target" sort={sort} onSort={sortBy} right>
+      <SortHeader key="target" id="target" className="c-target" sort={sort} onSort={sortBy} right>
         Ziel
       </SortHeader>
     ),
     status: (
-      <SortHeader key="status" id="status" sort={sort} onSort={sortBy}>
+      <SortHeader key="status" id="status" className="c-status" sort={sort} onSort={sortBy}>
         Status
       </SortHeader>
     ),
     trend: (
-      <th key="trend" className="no-sort">
+      <th key="trend" className="no-sort c-trend">
         14 Tage
       </th>
     ),
     open: (
-      <th key="open" className="no-sort">
+      <th key="open" className="no-sort c-more">
         <span className="sr-only">Öffnen</span>
       </th>
     ),
@@ -723,7 +725,7 @@ export default function Wishlist({
           <Kpi
             label="Wünsche"
             value={count(items.length)}
-            unit="Spiele"
+            unit={items.length === 1 ? 'Spiel' : 'Spiele'}
             ticks={addedTicks(items)}
             foot={
               <>
@@ -735,7 +737,7 @@ export default function Wishlist({
           <Kpi
             label="Ziel erreicht"
             value={count(reachedCount)}
-            unit="Spiele"
+            unit={reachedCount === 1 ? 'Spiel' : 'Spiele'}
             ticks={reached.ticks}
             foot={
               !reached.since && !sentToday ? (
@@ -824,7 +826,7 @@ export default function Wishlist({
           </Field>
           <PageSize value={view.perPage} onChange={view.setPerPage} />
         </PanelHead>
-        <Inset className="table-wrap">
+        <Inset className="table-wrap wl-wrap">
           {loading ? (
             <p className="empty" role="status">
               Wunschliste wird geladen …

@@ -20,7 +20,7 @@ export async function openTab(page: Page, name: string) {
 }
 /** The wishlist table (list page). */
 export const wishlistTable = (page: Page) => page.getByRole('table', { name: 'Vorgemerkte Spiele', exact: true });
-/** Rows of the wishlist table (one per game; cards up to 720 px). */
+/** Rows of the wishlist table (one per game; cards when the list is narrow). */
 export const wishlistRows = (page: Page) => wishlistTable(page).locator('tbody tr');
 /** The details button of a wishlist row: the only way to open the game from the list (the row is not clickable). */
 export const detailsButton = (row: Locator) => row.getByRole('button', { name: /^Details zu / });

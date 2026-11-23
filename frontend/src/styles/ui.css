@@ -138,7 +138,7 @@
   color: var(--text);
 }
 .chip .mono {
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--t-label);
 }
 .pill {
@@ -281,6 +281,11 @@
 .field:focus-within {
   border-color: var(--line-2);
 }
+/* 1.0 (DS-03): text fields show the same 2 px orange ring as every other control (the inner input has outline: none). */
+.field:has(:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .field svg {
   width: 14px;
   height: 14px;
@@ -405,8 +410,49 @@
   border-bottom-color: var(--accent);
 }
 .tabs .mono {
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--t-label);
+}
+/* (1.0) A tab bar wider than its box (phone): a fade with a chevron on each side that hides tabs (ui/Tabs.tsx). The fade takes
+   the surface the bar stands on: the page, a panel or an inset. */
+.tabs-box {
+  position: relative;
+  min-width: 0;
+  --tabs-bg: var(--ground);
+}
+.panel .tabs-box {
+  --tabs-bg: var(--panel);
+}
+.inset .tabs-box {
+  --tabs-bg: var(--panel-2);
+}
+.tabs-more {
+  position: absolute;
+  top: 0;
+  bottom: 1px;
+  width: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  border: 0;
+  color: var(--text-2);
+  z-index: 1;
+}
+.tabs-more.end {
+  right: 0;
+  justify-content: flex-end;
+  background: linear-gradient(to right, transparent, var(--tabs-bg) 55%);
+}
+.tabs-more.start {
+  left: 0;
+  justify-content: flex-start;
+  background: linear-gradient(to left, transparent, var(--tabs-bg) 55%);
+}
+.tabs-more.start svg {
+  transform: rotate(180deg);
+}
+.tabs-more:hover {
+  color: var(--accent);
 }
 
 /* Panels */
@@ -521,7 +567,7 @@ th {
   font: 500 var(--t-label)/1.2 var(--f-mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--faint);
+  color: var(--muted);
   padding: 10px 12px;
   border-bottom: 1px solid var(--line);
   white-space: nowrap;

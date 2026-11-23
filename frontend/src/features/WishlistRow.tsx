@@ -150,8 +150,9 @@ function Spark({ trend, code }: { trend: (number | null)[]; code: string }) {
 /**
  * One row of the wishlist table (`table.wl`): game, target-country price, Preis INT (cheapest region worldwide), saving,
  * alarm target, status, 14-day sparkline and the details button. Exactly one element opens the game, chosen in the settings:
- * the details button, the title or the cover (the row itself is not clickable). The cells are the visible columns in the
- * order of the settings; up to 720 px the CSS turns the row into a card with a fixed layout.
+ * the details button, the title or the cover. The cells are the visible columns in the order of the settings. When the list's
+ * own box is narrow (wishlist.css, container query) the CSS turns the row into a card with a fixed layout: the prices carry
+ * their label there (`data-label`, shown by the CSS only on the card), and the opener covers the whole card, so a tap anywhere on it opens the game (1.0).
  */
 export default function WishlistRow({
   item,
@@ -207,6 +208,8 @@ export default function WishlistRow({
   const worldShop = world?.source ? (shopNames[world.source] ?? world.source) : '';
   const worldOther = world ? ` ${otherText(facts, world.other, worldShop) ?? ''}`.trimEnd() : '';
   const cover = <GameCover small src={item.game?.cover_url} title={title} />;
+  /** No price on either side yet: the card shows only the status pill, not the same statement a second time in the price cells (1.0). */
+  const noPrices = facts.price === null && world === null && !!badge && badge.state !== 'price';
   const cells: Record<WishlistColumn, ReactNode> = {
     game: (
       <td key="game" className="c-game">
@@ -252,6 +255,7 @@ export default function WishlistRow({
       <td
         key="price"
         className="c-de r"
+        data-label={code ? `Preis ${code}` : 'Preis'}
         title={
           feesUnknown
             ? `Gebühren unbekannt: Für ${badgeShop || 'diesen Shop'} ist keine Gebührenschätzung eingestellt (Einstellungen › Key-Shops).`
@@ -264,14 +268,14 @@ export default function WishlistRow({
             {origin && <div className="wl-sub">{origin}</div>}
           </>
         ) : feesUnknown ? (
-          <span className="wl-note faint">Gebühren unbekannt</span>
+          <span className="wl-note muted">Gebühren unbekannt</span>
         ) : (
           <span className="faint">–</span>
         )}
       </td>
     ),
     world: (
-      <td key="world" className="c-world">
+      <td key="world" className="c-world" data-label="Preis INT">
         {worldCheaper ? (
           <>
             <div
@@ -298,7 +302,7 @@ export default function WishlistRow({
         ) : facts.price !== null ? (
           <span className="faint">–</span>
         ) : (
-          <span className="wl-note faint">{feesUnknown ? 'Gebühren unbekannt' : missingWorld(badge)}</span>
+          <span className="wl-note muted">{feesUnknown ? 'Gebühren unbekannt' : missingWorld(badge)}</span>
         )}
       </td>
     ),
@@ -307,7 +311,7 @@ export default function WishlistRow({
         {facts.saving !== null ? (
           <>
             <span className={`save${facts.share! >= WORLD_SHARE - 1e-9 ? ' big' : ''}`}>−{formatPrice(facts.saving)}</span>
-            <div className="save-pct faint mono">−{Math.round(facts.share! * 100)} %</div>
+            <div className="save-pct muted mono">−{Math.round(facts.share! * 100)} %</div>
           </>
         ) : (
           <span className="save none">–</span>
@@ -343,5 +347,9 @@ export default function WishlistRow({
       </td>
     ),
   };
-  return <tr data-id={item.id}>{columns.map(column => cells[column])}</tr>;
+  return (
+    <tr data-id={item.id} className={noPrices ? 'no-prices' : undefined}>
+      {columns.map(column => cells[column])}
+    </tr>
+  );
 }

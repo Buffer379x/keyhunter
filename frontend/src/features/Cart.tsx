@@ -256,7 +256,7 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onCo
                               {line.stale && <div className="wl-sub">zuletzt bekannt</div>}
                             </>
                           ) : (
-                            <span className="wl-note faint">
+                            <span className="wl-note muted">
                               {line.item.scope === 'home' ? `Kein ${homeLabel}` : 'Kein Angebot'}
                               {line.item.source ? ` bei ${shopName(line.item.source)}` : ''}
                             </span>
@@ -268,7 +268,7 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onCo
                           ) : line.fee !== null ? (
                             <span className="mono">+{formatPrice(line.fee)}</span>
                           ) : (
-                            <span className="wl-note faint" title={`Für ${shopName(line.source)} ist keine Gebührenschätzung eingestellt`}>
+                            <span className="wl-note muted" title={`Für ${shopName(line.source)} ist keine Gebührenschätzung eingestellt`}>
                               unbekannt
                             </span>
                           )}
@@ -301,7 +301,7 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onCo
                   <li key={shop.source}>
                     <div className="cart-shop-head">
                       <b>{shopName(shop.source)}</b>
-                      <span className="faint">{games(shop.count)}</span>
+                      <span className="muted">{games(shop.count)}</span>
                       <span className="mono">{formatPrice(shop.total)}</span>
                     </div>
                     <dl className="cart-split">

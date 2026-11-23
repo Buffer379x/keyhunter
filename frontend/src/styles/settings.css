@@ -92,7 +92,12 @@
 .note a,
 .note .text-button {
   color: var(--accent-2);
-  min-height: 0;
+}
+/* In running text the button keeps the line; with a touch pointer it keeps the 44 px of shell.css (RESP-09). */
+@media not all and (pointer: coarse) {
+  .note .text-button {
+    min-height: 0;
+  }
 }
 .settings-page > .note,
 .settings-page .set-panel > .note {
@@ -257,7 +262,7 @@
 }
 .settings-page .col-order .col-pos {
   width: 16px;
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--t-xs);
   text-align: right;
 }
