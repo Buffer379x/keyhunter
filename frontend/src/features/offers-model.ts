@@ -1,6 +1,6 @@
 // Pure model of the offers view: rows in price order, the target-country best price against the cheapest
 // region worldwide, the validity of each offer and the verdict on the detour. No React, no DOM, so it can be unit-tested.
-export type Quote = { id: string; seller: string | null; base_cents: number; estimated_total_cents: number | null };
+type Quote = { id: string; seller: string | null; base_cents: number; estimated_total_cents: number | null };
 export type Link = {
   id: number;
   source: string;
@@ -50,7 +50,7 @@ export type HistoryPoint = {
   /** End of the validity of the winning observation (its link's freshness limit, at least 24 h). */
   fresh_until?: number | null;
 };
-export type PriceBadgeLike = {
+type PriceBadgeLike = {
   cents: number | null;
   state: string;
   observed_at: number | null;
@@ -163,7 +163,7 @@ export function offerRows(view: OffersView | null, basis: Basis): OfferRow[] {
   return rows.sort((a, b) => order(a) - order(b) || Number(b.eligible) - Number(a.eligible) || a.link.id - b.link.id);
 }
 
-export type Excluded = { count: number; reasons: string[]; example: OfferRow | null };
+type Excluded = { count: number; reasons: string[]; example: OfferRow | null };
 export type Summary = {
   /** Best price that counts in the target country (null: none), and the offer behind it. */
   targetCents: number | null;

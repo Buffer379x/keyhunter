@@ -38,7 +38,7 @@ export function dayStart(now: number, back: number): number {
   return date.getTime() / 1000;
 }
 
-export type Cell = { cents: number; region: string | null } | null;
+type Cell = { cents: number; region: string | null } | null;
 export type Column = {
   /** Days back from today of the first and the last day in the column (0 = today). */
   fromBack: number;

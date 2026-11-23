@@ -82,7 +82,7 @@ export interface PriceBadgeData {
   with_fees?: FeeView;
 }
 /** Cheapest current offer of any region. `cents` is the compared amount (base price, or estimated total in `with_fees`). */
-export interface WorldBest {
+interface WorldBest {
   cents: number;
   source?: string;
   region: string | null;
@@ -94,7 +94,7 @@ export interface WorldBest {
   /** Activation of the offer in the target country. */
   activation: 'confirmed' | 'blocked' | 'unknown';
 }
-export interface FeeView {
+interface FeeView {
   cents: number | null;
   /** Base price of the offer behind `cents`. */
   base_cents: number | null;
@@ -183,7 +183,7 @@ export interface FetchShopStatus {
   worker_seen_at: number | null;
 }
 /** One row of the job log: kind is 'product' | 'search' | 'discovery', outcome is 'ok' or an error code (network, not_found, rate_limited, access_denied, invalid_response). */
-export interface FetchRun {
+interface FetchRun {
   source: string;
   kind: string;
   wish_id: string | null;
@@ -221,7 +221,7 @@ export interface Paged {
   per_page: number;
 }
 export type LogLevel = 'info' | 'warn' | 'error';
-export interface LogEntry {
+interface LogEntry {
   id: number;
   at: number;
   level: LogLevel;
@@ -233,7 +233,7 @@ export interface LogPage extends Paged {
   entries: LogEntry[];
 }
 /** GET /status/fetch/runs: the fetch runs with the game they were for. */
-export interface RunEntry extends FetchRun {
+interface RunEntry extends FetchRun {
   id: number;
   game: string | null;
   region: string | null;
