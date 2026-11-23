@@ -1206,7 +1206,7 @@ dependencies = [
 
 [[package]]
 name = "keyhunter"
-version = "0.9.4"
+version = "1.0.0-rc.1"
 dependencies = [
  "anyhow",
  "argon2",
