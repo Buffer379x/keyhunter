@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { api } from '../api';
+import { usePolled } from '../usePolled';
 import { notify } from '../notify';
 import type { AlertOverview } from '../api';
 import { Button, Help, Icon, Inset, Label, Notice, Panel, PanelHead, Seg, Switch } from '../components';
@@ -61,17 +61,11 @@ export default function AlarmTab({
     setEnabled(rule.enabled);
     setTarget(rule.target_cents !== null ? (rule.target_cents / 100).toFixed(2).replace('.', ',') : '');
   }, [ready, rule]);
-  useEffect(() => {
-    const controller = new AbortController();
-    void api<AlertOverview>('/alerts', 'GET', undefined, controller.signal)
-      .then(data => {
-        if (!controller.signal.aborted) setEvents(data.events.filter(event => event.wish_id === id));
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setEvents([]);
-      });
-    return () => controller.abort();
-  }, [id, reload]);
+  usePolled<AlertOverview>('/alerts', {
+    restart: [id, reload],
+    onData: data => setEvents(data.events.filter(event => event.wish_id === id)),
+    onError: () => setEvents([]),
+  });
 
   async function run(action: () => Promise<void>, success: string) {
     setBusy(true);

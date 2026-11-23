@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { api, sessionEnded } from '../api';
 import { notify } from '../notify';
 import type { PriceBadgeData } from '../api';
-import { badgePollDelay, whenVisible } from '../poll';
+import { BADGE_POLL_MS, refreshing } from '../poll';
+import { usePolled } from '../usePolled';
 import type { OffersView } from './offers-model';
 
 /**
@@ -11,36 +12,22 @@ import type { OffersView } from './offers-model';
  */
 export function useOffersView(id: string, onBadge?: (id: string, badge: PriceBadgeData) => void) {
   const path = `/wishlist/${encodeURIComponent(id)}/offers`;
-  const [view, setView] = useState<OffersView | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [reload, setReload] = useState(0);
-  const latest = useRef(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    const generation = ++latest.current;
-    let cancel = () => {};
-    async function load() {
-      try {
-        const data = await api<OffersView>(path, 'GET', undefined, controller.signal);
-        if (controller.signal.aborted || generation !== latest.current) return;
-        setView(data);
-        if (data.price_badge) onBadge?.(id, data.price_badge as PriceBadgeData);
-        setError('');
-        cancel = whenVisible(() => void load(), badgePollDelay([data.price_badge]));
-      } catch (e) {
-        if (controller.signal.aborted) return;
-        if (sessionEnded(e)) return;
-        setError(e instanceof Error ? e.message : 'Angebote konnten nicht geladen werden.');
-        cancel = whenVisible(() => void load(), 10000);
-      }
-    }
-    void load();
-    return () => {
-      controller.abort();
-      cancel();
-    };
-  }, [path, reload, onBadge, id]);
+  const view = usePolled<OffersView>(path, {
+    every: BADGE_POLL_MS,
+    fastWhen: data => refreshing([data.price_badge]),
+    retry: 10_000,
+    restart: [reload],
+    onData: data => {
+      if (data.price_badge) onBadge?.(id, data.price_badge as PriceBadgeData);
+      setError('');
+    },
+    onError: e => {
+      if (!sessionEnded(e)) setError(e instanceof Error ? e.message : 'Angebote konnten nicht geladen werden.');
+    },
+  });
   const write = useCallback(
     async (endpoint: string, method: string, body: unknown, success = '') => {
       setBusy(true);

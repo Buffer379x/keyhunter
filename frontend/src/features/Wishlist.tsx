@@ -20,7 +20,8 @@ import { shopNames } from './shop-names';
 import { PageSize, Pager, pageCount, useListView } from './list-view';
 import type { ChipFilter, PriceBasis, Row, RowFacts } from './wishlist-model';
 import { itemName } from './catalog-ui';
-import { badgePollDelay, whenVisible } from '../poll';
+import { BADGE_POLL_MS, badgePollDelay, refreshing } from '../poll';
+import { usePolled } from '../usePolled';
 import { columnOrder, openMode, visibleColumns } from './wishlist-columns';
 import type { WishlistColumn } from './wishlist-columns';
 import { notify, notifyError } from '../notify';
@@ -206,47 +207,28 @@ export default function Wishlist({
     [],
   );
 
-  useEffect(() => {
-    if (!items.length) return;
-    const controller = new AbortController();
-    let cancel = () => {};
-    // The list just read carries the badges of this target country (PERF-06): the first poll waits a full interval.
-    const fresh = listRead.current;
-    listRead.current = null;
-    const skipFirst = fresh?.items === items && fresh.target === targetCountry;
-    async function readPrices() {
-      let delay = badgePollDelay([]);
-      try {
-        const data = await api<Record<string, PriceBadgeData>>(`/wishlist/price-badges?anchor=${selected?.id ?? ''}`, 'GET', undefined, controller.signal);
-        if (!controller.signal.aborted) {
-          updateBadges(data);
-          delay = badgePollDelay(Object.values(data));
-        }
-      } catch {
-        /* Retain saved badges during a failed local read. */
-      }
-      if (!controller.signal.aborted) cancel = whenVisible(() => void readPrices(), delay);
-    }
-    if (skipFirst) cancel = whenVisible(() => void readPrices(), badgePollDelay(items.map(item => item.price_badge)));
-    else void readPrices();
-    return () => {
-      controller.abort();
-      cancel();
-    };
-  }, [items, targetCountry, updateBadges, selected?.id]);
+  // Badges of every wish, again after each change of the list (a failed read keeps the saved ones).
+  usePolled<Record<string, PriceBadgeData>>(items.length ? `/wishlist/price-badges?anchor=${selected?.id ?? ''}` : null, {
+    every: BADGE_POLL_MS,
+    fastWhen: data => refreshing(Object.values(data)),
+    retry: BADGE_POLL_MS,
+    restart: [items, targetCountry],
+    // The list just read carries the badges of this target country (PERF-06): the first read waits a full interval.
+    wait: () => {
+      const fresh = listRead.current;
+      listRead.current = null;
+      return fresh?.items === items && fresh.target === targetCountry ? badgePollDelay(items.map(item => item.price_badge)) : 0;
+    },
+    onData: updateBadges,
+  });
   // Alarm targets ("Ziel" column, "Ziel erreicht") and the delivery log ("Alarm gesendet"), read once; the open detail keeps the rules current.
-  useEffect(() => {
-    const controller = new AbortController();
-    void api<{ rules: (Rule & { wish_id: string })[]; events?: AlertEvent[]; configured?: boolean }>('/alerts', 'GET', undefined, controller.signal)
-      .then(data => {
-        if (controller.signal.aborted) return;
-        setAlerts(Object.fromEntries(data.rules.map(rule => [rule.wish_id, rule])));
-        setEvents(data.events ?? null);
-        setChannel(data.configured ?? null);
-      })
-      .catch(() => {});
-    return () => controller.abort();
-  }, []);
+  usePolled<{ rules: (Rule & { wish_id: string })[]; events?: AlertEvent[]; configured?: boolean }>('/alerts', {
+    onData: data => {
+      setAlerts(Object.fromEntries(data.rules.map(rule => [rule.wish_id, rule])));
+      setEvents(data.events ?? null);
+      setChannel(data.configured ?? null);
+    },
+  });
   const closeSearch = useCallback(() => onAddOpen(false), [onAddOpen]);
 
   const load = useCallback(async () => {

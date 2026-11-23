@@ -52,14 +52,29 @@ function declared(file: string, name: string): ts.Type {
   return checker.getDeclaredTypeOfSymbol(symbol);
 }
 
-/** The types of every `api<T>('<path>', …)` call in src with this literal path. */
+/**
+ * The types of every `api<T>('<path>', …)` and `usePolled<T>('<path>', …)` call in src with this literal path (also as the
+ * path of `cond ? '<path>' : null`).
+ */
 function calls(path: string): ts.Type[] {
   const found: ts.Type[] = [];
+  const literal = (node: ts.Expression | undefined): string | undefined =>
+    !node
+      ? undefined
+      : ts.isStringLiteralLike(node)
+        ? node.text
+        : ts.isConditionalExpression(node) && node.whenFalse.kind === ts.SyntaxKind.NullKeyword
+          ? literal(node.whenTrue)
+          : undefined;
   const visit = (node: ts.Node) => {
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'api' && node.typeArguments?.length === 1) {
-      const first = node.arguments[0];
-      if (first && ts.isStringLiteralLike(first) && first.text === path) found.push(checker.getTypeFromTypeNode(node.typeArguments[0]));
-    }
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      ['api', 'usePolled'].includes(node.expression.text) &&
+      node.typeArguments?.length === 1 &&
+      literal(node.arguments[0]) === path
+    )
+      found.push(checker.getTypeFromTypeNode(node.typeArguments[0]));
     ts.forEachChild(node, visit);
   };
   for (const file of program.getSourceFiles()) if (file.fileName.startsWith(resolve(root, 'src') + '/')) visit(file);

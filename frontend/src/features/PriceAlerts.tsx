@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, sessionEnded } from '../api';
 import type { AlertDelivery, PriceBadgeData, WishlistItem } from '../api';
 import { Button, Cover, EmptyState, Icon, StatePill, Inset, Label, Notice, PageHeading, Panel, PanelHead, Pill, Price } from '../components';
 import { alarmRows } from './alerts-model';
 import { platformName } from './catalog-ui';
 import type { AlarmRow } from './alerts-model';
-import { whenVisible } from '../poll';
+import { usePolled } from '../usePolled';
 import { relativeTime } from '../time';
 import { money } from './price-format';
 import { channelLine } from './settings/channels';
@@ -136,43 +136,22 @@ function AlarmStatus({ row, mode }: { row: AlarmRow; mode: Rule['mode'] }) {
 /** Preisalarme (prototype viewAlarms): every target sorted by distance, each row opens the alarm tab of the game. Channel test and delivery log below. */
 export default function PriceAlerts({ targetCountry, targetLabel }: { targetCountry: string | null; targetLabel: string }) {
   const [loadError, setLoadError] = useState('');
-  const [data, setData] = useState<Overview | null>(null);
-  const [badges, setBadges] = useState<Record<string, PriceBadgeData>>({});
-  const [items, setItems] = useState<Record<string, WishlistItem>>({});
   const [busy, setBusy] = useState(false);
   const [reload, setReload] = useState(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    let cancel = () => {};
-    async function load() {
-      try {
-        const current = await api<Overview>('/alerts', 'GET', undefined, controller.signal);
-        if (controller.signal.aborted) return;
-        setData(current);
-        setLoadError('');
-        if (current.configured && current.events.some(row => row.state === 'pending')) cancel = whenVisible(() => void load(), 5000);
-      } catch (error) {
-        if (controller.signal.aborted) return;
-        if (!sessionEnded(error)) setLoadError(error instanceof Error ? error.message : 'Preisalarme konnten nicht geladen werden.');
-      }
-    }
-    void load();
-    api<Record<string, PriceBadgeData>>('/wishlist/price-badges', 'GET', undefined, controller.signal)
-      .then(rows => {
-        if (!controller.signal.aborted) setBadges(rows);
-      })
-      .catch(() => {});
-    // Covers and editions for the game column.
-    api<WishlistItem[]>('/wishlist', 'GET', undefined, controller.signal)
-      .then(rows => {
-        if (!controller.signal.aborted) setItems(Object.fromEntries(rows.map(row => [row.id, row])));
-      })
-      .catch(() => {});
-    return () => {
-      controller.abort();
-      cancel();
-    };
-  }, [reload]);
+  // Read again every 5 s only while a delivery waits.
+  const data = usePolled<Overview>('/alerts', {
+    fastWhen: current => !!current.configured && current.events.some(row => row.state === 'pending'),
+    fast: 5000,
+    restart: [reload],
+    onData: () => setLoadError(''),
+    onError: error => {
+      if (!sessionEnded(error)) setLoadError(error instanceof Error ? error.message : 'Preisalarme konnten nicht geladen werden.');
+    },
+  });
+  const badges = usePolled<Record<string, PriceBadgeData>>('/wishlist/price-badges', { restart: [reload] }) ?? {};
+  // Covers and editions for the game column.
+  const wishes = usePolled<WishlistItem[]>('/wishlist', { restart: [reload] });
+  const items = useMemo(() => Object.fromEntries((wishes ?? []).map(row => [row.id, row])), [wishes]);
   async function testChannel() {
     setBusy(true);
     try {

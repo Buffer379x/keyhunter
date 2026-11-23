@@ -13,6 +13,7 @@ import { Brand, Button, Icon, IconButton, Toaster } from './components';
 import { notifyError } from './notify';
 import type { IconName } from './components';
 import FetchStatus from './FetchStatus';
+import { usePolled } from './usePolled';
 import { mediaQuery } from './breakpoints';
 import { useMediaQuery } from './useMediaQuery';
 import { useSettingsDraft } from './features/settings/draft';
@@ -256,20 +257,15 @@ export default function App() {
     window.addEventListener(CART_CHANGED, changed);
     return () => window.removeEventListener(CART_CHANGED, changed);
   }, []);
-  useEffect(() => {
-    if (screen !== 'ready') return;
-    const controller = new AbortController();
-    api<{ wishlist: number; cart: number; library: number; alerts: number }>('/counts', 'GET', undefined, controller.signal)
-      .then(counts => {
-        if (controller.signal.aborted) return;
-        if (page !== 'wishlist') setWishlistCount(counts.wishlist);
-        if (page !== 'cart') setCartCount(counts.cart);
-        if (page !== 'library') setLibraryCount(counts.library);
-        setAlertCount(counts.alerts);
-      })
-      .catch(() => {});
-    return () => controller.abort();
-  }, [screen, page, wishlistSize, cartRevision]);
+  usePolled<{ wishlist: number; cart: number; library: number; alerts: number }>(screen === 'ready' ? '/counts' : null, {
+    restart: [page, wishlistSize, cartRevision],
+    onData: counts => {
+      if (page !== 'wishlist') setWishlistCount(counts.wishlist);
+      if (page !== 'cart') setCartCount(counts.cart);
+      if (page !== 'library') setLibraryCount(counts.library);
+      setAlertCount(counts.alerts);
+    },
+  });
 
   const countryNames = useMemo(() => new Intl.DisplayNames(['de'], { type: 'region' }), []);
   const countries = useMemo(

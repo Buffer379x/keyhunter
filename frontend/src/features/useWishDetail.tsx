@@ -3,7 +3,7 @@ import type { CatalogGame, EditionsView, PriceBadgeData, WishlistItem } from '..
 import { api, CART_CHANGED } from '../api';
 import { ConfirmDialog, Notice } from '../components';
 import { notify, notifyError } from '../notify';
-import { whenVisible } from '../poll';
+import { usePolled } from '../usePolled';
 import { fromList, listDepth, navigate, useRoute } from '../route';
 import type { TabId } from '../route';
 import { itemName } from './catalog-ui';
@@ -41,32 +41,26 @@ export function useWishDetail(selected: WishlistItem | undefined, { targetCountr
   const [purchaseError, setPurchaseError] = useState('');
   const updateBadge = useCallback((id: string, badge: PriceBadgeData) => updateBadges({ [id]: badge }), [updateBadges]);
 
+  // A new game starts without editions and without a preview.
+  const identity = [selected?.id, selected?.game?.igdb_id, selected?.platform_id] as const;
   useEffect(() => {
     setPreview(null);
     setEditionItems([]);
     setEditionError('');
-    if (!selected?.game) return;
-    const controller = new AbortController();
-    let cancel = () => {};
-    async function prepare(method = 'POST') {
-      try {
-        const data = await api<EditionsView>(`/wishlist/${selected!.id}/editions`, method, method === 'POST' ? {} : undefined, controller.signal);
-        if (controller.signal.aborted) return;
-        setEditionItems(data.items);
-        setEditionError(data.error ?? (data.preparing ? 'Editionen werden vorbereitet …' : ''));
-        updateBadges(Object.fromEntries(data.items.flatMap(item => (item.price_badge ? [[item.id, item.price_badge]] : []))));
-        if (data.preparing) cancel = whenVisible(() => void prepare('GET'), 3000);
-      } catch (error) {
-        if (!controller.signal.aborted) setEditionError(error instanceof Error ? error.message : 'Editionen konnten nicht geladen werden.');
-      }
-    }
-    void prepare();
-    return () => {
-      controller.abort();
-      cancel();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only when the selected game's identity changes, not on every field of `selected`
-  }, [selected?.id, selected?.game?.igdb_id, selected?.platform_id, updateBadges]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the game's identity, not every field of `selected`
+  }, identity);
+  // The server prepares the editions on the first open (POST), then the page reads every 3 s while it works.
+  usePolled<EditionsView>(selected?.game ? `/wishlist/${selected.id}/editions` : null, {
+    start: { method: 'POST', body: {} },
+    fastWhen: data => data.preparing,
+    restart: identity,
+    onData: data => {
+      setEditionItems(data.items);
+      setEditionError(data.error ?? (data.preparing ? 'Editionen werden vorbereitet …' : ''));
+      updateBadges(Object.fromEntries(data.items.flatMap(item => (item.price_badge ? [[item.id, item.price_badge]] : []))));
+    },
+    onError: error => setEditionError(error instanceof Error ? error.message : 'Editionen konnten nicht geladen werden.'),
+  });
 
   function chooseEdition(game: CatalogGame) {
     if (!selected) return;

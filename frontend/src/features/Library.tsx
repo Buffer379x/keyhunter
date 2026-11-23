@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { api, CART_CHANGED } from '../api';
 import type { LibraryItem, WishlistItem } from '../api';
 import { Button, ConfirmDialog, Cover, EmptyState, Field, Icon, IconButton, Inset, Notice, PageHeading, Panel, PanelHead, Seg } from '../components';
@@ -6,6 +6,7 @@ import { itemName, platformName } from './catalog-ui';
 import CatalogSearch from './CatalogSearch';
 import { libraryItems } from './library-sort';
 import { notify, notifyError } from '../notify';
+import { usePolled } from '../usePolled';
 
 type Order = 'added' | 'name';
 type View = 'tiles' | 'rows';
@@ -92,28 +93,24 @@ export default function Library({ addOpen, onAddOpen, onRestored, onOpenWishlist
     notify(created ? `${itemName(entry)} ist jetzt in der Bibliothek.` : `${itemName(entry)} ist bereits in der Bibliothek.`);
   }
 
-  useEffect(() => {
-    const controller = new AbortController();
+  usePolled<LibraryItem[]>('/library', {
+    restart: [reload],
+    onData: rows => {
+      setItems(rows);
+      onCountChange(rows.length);
+      setLoading(false);
+    },
+    onError: e => {
+      setLoadError(e instanceof Error ? e.message : 'Bibliothek konnte nicht geladen werden.');
+      notifyError(e);
+      setLoading(false);
+    },
+  });
+  const retry = () => {
     setLoading(true);
     setLoadError('');
-    api<LibraryItem[]>('/library', 'GET', undefined, controller.signal)
-      .then(rows => {
-        if (!controller.signal.aborted) {
-          setItems(rows);
-          onCountChange(rows.length);
-        }
-      })
-      .catch(e => {
-        if (!controller.signal.aborted) {
-          setLoadError(e instanceof Error ? e.message : 'Bibliothek konnte nicht geladen werden.');
-          notifyError(e);
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [onCountChange, reload]);
+    setReload(n => n + 1);
+  };
 
   const ask = useCallback((kind: 'restore' | 'remove', item: LibraryItem) => {
     setError('');
@@ -168,7 +165,7 @@ export default function Library({ addOpen, onAddOpen, onRestored, onOpenWishlist
       {loadError && (
         <Notice error>
           {loadError}
-          <Button size="sm" onClick={() => setReload(n => n + 1)}>
+          <Button size="sm" onClick={retry}>
             Erneut laden
           </Button>
         </Notice>

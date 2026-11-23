@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { api, CART_CHANGED, sessionEnded } from '../api';
 import { notifyError } from '../notify';
 import type { WishlistItem } from '../api';
@@ -21,7 +21,7 @@ import {
   Seg,
   formatPrice,
 } from '../components';
-import { whenVisible } from '../poll';
+import { usePolled } from '../usePolled';
 import { itemName, platformName } from './catalog-ui';
 import { cartSums, entryShop } from './cart-model';
 import type { CartEntry, CartLine, CartScope } from './cart-model';
@@ -61,31 +61,21 @@ export default function Cart({ targetCountry, onOpen, onReview, onOpenWishlist, 
   const [reload, setReload] = useState(0);
   const code = targetCountry.toUpperCase();
 
-  useEffect(() => {
-    const controller = new AbortController();
-    let cancel = () => {};
-    async function load() {
-      try {
-        // Games come into the cart only from the wishlist (0.9.0: no picker here any more).
-        const cart = await api<CartEntry[]>('/cart', 'GET', undefined, controller.signal);
-        if (controller.signal.aborted) return;
-        setEntries(cart);
-        onCountChange(cart.length);
-        setLoadedAt(Date.now());
-        setLoadError('');
-      } catch (e) {
-        if (controller.signal.aborted) return;
-        if (sessionEnded(e)) return;
-        setLoadError(e instanceof Error ? e.message : 'Warenkorb konnte nicht geladen werden.');
-      }
-      cancel = whenVisible(() => void load(), REFRESH_MS);
-    }
-    void load();
-    return () => {
-      controller.abort();
-      cancel();
-    };
-  }, [reload, onCountChange]);
+  // Games come into the cart only from the wishlist (0.9.0: no picker here any more).
+  usePolled<CartEntry[]>('/cart', {
+    every: REFRESH_MS,
+    retry: REFRESH_MS,
+    restart: [reload],
+    onData: cart => {
+      setEntries(cart);
+      onCountChange(cart.length);
+      setLoadedAt(Date.now());
+      setLoadError('');
+    },
+    onError: e => {
+      if (!sessionEnded(e)) setLoadError(e instanceof Error ? e.message : 'Warenkorb konnte nicht geladen werden.');
+    },
+  });
 
   const change = useCallback(async (method: 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown) => {
     setBusy(true);

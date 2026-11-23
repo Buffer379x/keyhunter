@@ -1,8 +1,13 @@
 import type { PriceBadgeData } from './api';
 
+/** Prices and badges are read again once a minute, every 3 s while a fetch the owner asked for runs. */
+export const BADGE_POLL_MS = 60_000;
+export const FAST_POLL_MS = 3000;
+type Badge = Pick<PriceBadgeData, 'pending' | 'refreshing'> | null | undefined;
 // Fast only while a fetch the owner triggered runs; a backlog of due checks (`pending` only) is the normal state (PERF-02).
-export function badgePollDelay(badges: (Pick<PriceBadgeData, 'pending' | 'refreshing'> | null | undefined)[]): number {
-  return badges.some(badge => badge?.refreshing) ? 3000 : 60000;
+export const refreshing = (badges: Badge[]) => badges.some(badge => badge?.refreshing);
+export function badgePollDelay(badges: Badge[]): number {
+  return refreshing(badges) ? FAST_POLL_MS : BADGE_POLL_MS;
 }
 
 // Run `task` after `ms`, but not while the tab is hidden: a hidden tab waits until it is shown

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, sessionEnded } from '../../api';
 import { notify } from '../../notify';
+import { usePolled } from '../../usePolled';
 import type { ChannelView } from '../../api';
 import { Button, ConfirmDialog, Help, Icon, Notice, Pill, Seg, Switch, TabPanel } from '../../components';
 import { SettingsPanel } from './parts';
@@ -181,21 +182,16 @@ export default function Notifications() {
   const [failed, setFailed] = useState('');
   const [open, setOpen] = useState('');
   const [revision, setRevision] = useState(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    api<{ channels: ChannelView[] }>('/alerts/channels', 'GET', undefined, controller.signal)
-      .then(data => {
-        if (!controller.signal.aborted) {
-          setChannels(data.channels);
-          setFailed('');
-        }
-      })
-      .catch(error => {
-        if (controller.signal.aborted) return;
-        if (!sessionEnded(error)) setFailed(error instanceof Error ? error.message : 'Kanäle konnten nicht geladen werden.');
-      });
-    return () => controller.abort();
-  }, [revision]);
+  usePolled<{ channels: ChannelView[] }>('/alerts/channels', {
+    restart: [revision],
+    onData: data => {
+      setChannels(data.channels);
+      setFailed('');
+    },
+    onError: error => {
+      if (!sessionEnded(error)) setFailed(error instanceof Error ? error.message : 'Kanäle konnten nicht geladen werden.');
+    },
+  });
   const replace = useCallback((next: ChannelView) => setChannels(current => current?.map(c => (c.kind === next.kind ? next : c)) ?? null), []);
   const active = channels?.filter(c => c.active).map(c => c.name) ?? [];
   const current = channels?.some(c => c.kind === open) ? open : ((channels?.find(c => c.active) ?? channels?.[0])?.kind ?? '');
