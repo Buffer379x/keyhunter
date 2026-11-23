@@ -461,11 +461,16 @@ fn dead_link(result: &Result<Work, ShopError>, link: bool, previous: i64) -> (i6
     match result {
         Err(ShopError::NotFound | ShopError::Parse) if link => {
             let dead = (previous + 1).min(20);
-            (dead, if dead >= DEAD_AFTER { DEAD_BACKOFF } else { 1 })
+            (dead, dead_backoff(dead))
         }
         Err(_) => (previous, 1),
         Ok(_) => (0, 1),
     }
+}
+
+/// Factor of the interval of a product link with `dead` dead results in a row; the demand estimate uses it too.
+fn dead_backoff(dead: i64) -> i64 {
+    if dead >= DEAD_AFTER { DEAD_BACKOFF } else { 1 }
 }
 
 /// 1 = in stock with a price, 2 = sold out or without a price (claim class 3, see the module table).
@@ -1023,16 +1028,16 @@ pub(crate) async fn schedule_wish(pool: &SqlitePool, id: &str) -> sqlx::Result<(
 ///
 /// Uses the scheduler's own rules: the [`queued`] filter (no owned or rejected items, previews
 /// only while watched and viewed in the last 14 days, nothing without an active wish), the
-/// effective adaptive interval ([`effective_interval`], stored price-trend pace) and the repeat delay of
+/// effective adaptive interval ([`effective_interval`], stored price-trend pace, [`dead_backoff`] of dead links) and the repeat delay of
 /// each kind ([`Kind::repeat_after`]). One-off work (first searches, continuation pages, new links,
 /// retries) is not part of the steady state and therefore not counted.
 pub(crate) async fn demand(pool: &SqlitePool, shop: Shop, t: i64) -> sqlx::Result<f64> {
-    type Group = (Option<i64>, Option<String>, bool, i64, f64, i64);
+    type Group = (Option<i64>, Option<String>, bool, i64, f64, i64, i64);
     let groups: Vec<Group> = sqlx::query_as(AssertSqlSafe(format!(
-        "SELECT MIN(j.link_id),MIN(j.wish_id),COALESCE(t.state,'wished')='preview',s.poll_interval_seconds,j.pace,COUNT(*)
+        "SELECT MIN(j.link_id),MIN(j.wish_id),COALESCE(t.state,'wished')='preview',s.poll_interval_seconds,j.pace,MIN(j.dead_failures,{DEAD_AFTER}),COUNT(*)
         FROM shop_job j JOIN source_settings s ON s.id=j.source LEFT JOIN offer_link l ON l.id=j.link_id {ITEM}
         WHERE j.source=?1 AND s.enabled AND s.configured AND {}
-        GROUP BY j.link_id IS NOT NULL,j.wish_id IS NOT NULL,3,4,5",
+        GROUP BY j.link_id IS NOT NULL,j.wish_id IS NOT NULL,3,4,5,6",
         queued()
     )))
     .bind(shop.id())
@@ -1041,10 +1046,15 @@ pub(crate) async fn demand(pool: &SqlitePool, shop: Shop, t: i64) -> sqlx::Resul
     .await?;
     Ok(groups
         .into_iter()
-        .map(|(link, wish, preview, interval, pace, count)| {
+        .map(|(link, wish, preview, interval, pace, dead, count)| {
             let kind = Kind::of(link, wish.as_deref());
             let pace = if kind == Kind::Product { pace } else { 1.0 };
-            let interval = effective_interval(interval, preview, pace);
+            let backoff = if kind == Kind::Product {
+                dead_backoff(dead)
+            } else {
+                1
+            };
+            let interval = effective_interval(interval, preview, pace) * backoff;
             let period = if kind == Kind::Discovery {
                 shop.discovery_every(interval)
             } else {
@@ -3438,6 +3448,52 @@ mod tests {
         // Searches and discoveries never count as dead links.
         assert_eq!(dead_link(&Err(ShopError::Parse), false, 9), (9, 1));
         assert_eq!(dead_link(&Err(ShopError::Network), true, 6), (6, 1));
+    }
+
+    /// FUNC-13 follow-up: the demand behind "Abrufe heute" counts a dead link with the same stretched interval as the
+    /// scheduler, so the per-shop "zu knapp" is not raised by checks that no longer happen.
+    #[tokio::test]
+    async fn demand_counts_dead_links_with_the_backed_off_interval_func13() {
+        let pool = memory().await;
+        add_item(&pool, "w", "wished").await;
+        add_link(&pool, "w", 0, 0).await;
+        let dead = add_link(&pool, "w", 1, 0).await;
+        let interval: i64 = sqlx::query_scalar(
+            "SELECT poll_interval_seconds FROM source_settings WHERE id='eneba'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let per_day = DAY as f64 / interval as f64;
+        // Two product checks and the shop's discovery.
+        let base = demand(&pool, Shop::Eneba, 0).await.unwrap();
+        assert!(base > 2.0 * per_day, "{base}");
+        for failures in [DEAD_AFTER - 1, DEAD_AFTER, 20] {
+            sqlx::query("UPDATE shop_job SET dead_failures=? WHERE link_id=?")
+                .bind(failures)
+                .bind(dead)
+                .execute(&pool)
+                .await
+                .unwrap();
+            let expected = base - per_day + per_day / dead_backoff(failures) as f64;
+            assert_eq!(
+                demand(&pool, Shop::Eneba, 0).await.unwrap(),
+                expected,
+                "{failures}"
+            );
+        }
+        let (_, backoff) = dead_link(&Err(ShopError::NotFound), true, DEAD_AFTER - 1);
+        assert_eq!(backoff, DEAD_BACKOFF, "the scheduler uses the same factor");
+        sqlx::query("UPDATE shop_job SET dead_failures=0 WHERE link_id=?")
+            .bind(dead)
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            demand(&pool, Shop::Eneba, 0).await.unwrap(),
+            base,
+            "recovered"
+        );
     }
 
     /// FUNC-01: a same-titled game of another year keeps a found product pending, and the update leaves every mapping

@@ -388,4 +388,206 @@ mod tests {
         }
         assert!(public_ip("1.1.1.1".parse().unwrap()));
     }
+
+    // FUNC-07: the HTTP classes are tested through `fetch` against a loopback server.
+    // `fetch` takes the client as a parameter, so no production seam is needed; the
+    // address check lives in `Session::open` and is covered separately below.
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    /// Serves `response` once per connection, forever; returns the base URL.
+    async fn mock_server(response: Vec<u8>) -> Url {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut socket, _)) = listener.accept().await else {
+                    return;
+                };
+                let response = response.clone();
+                tokio::spawn(async move {
+                    let mut buf = [0u8; 2048];
+                    let _ = socket.read(&mut buf).await;
+                    let _ = socket.write_all(&response).await;
+                    let _ = socket.shutdown().await;
+                });
+            }
+        });
+        Url::parse(&format!("http://127.0.0.1:{port}/page")).unwrap()
+    }
+
+    fn response(status: &str, headers: &[(&str, String)], body: &[u8]) -> Vec<u8> {
+        let mut out = format!("HTTP/1.1 {status}\r\n").into_bytes();
+        for (name, value) in headers {
+            out.extend(format!("{name}: {value}\r\n").bytes());
+        }
+        out.extend(
+            format!(
+                "Content-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            )
+            .bytes(),
+        );
+        out.extend_from_slice(body);
+        out
+    }
+
+    fn test_client() -> Client {
+        Client::builder()
+            .no_proxy()
+            .redirect(Policy::none())
+            .timeout(Duration::from_millis(400))
+            .build()
+            .unwrap()
+    }
+
+    async fn get(status: &str, headers: &[(&str, String)]) -> Result<String, ShopError> {
+        let url = mock_server(response(status, headers, b"")).await;
+        fetch(&test_client(), &url, 1024, false).await
+    }
+
+    fn retry_after(value: String) -> [(&'static str, String); 1] {
+        [("Retry-After", value)]
+    }
+
+    #[tokio::test]
+    async fn throttle_responses_honour_retry_after_within_bounds() {
+        let day = crate::DAY;
+        for (status, header, expected) in [
+            ("429 Too Many Requests", Some("600".to_string()), 600),
+            ("503 Service Unavailable", Some("120".to_string()), 120),
+            ("429 Too Many Requests", Some("5".to_string()), 60),
+            (
+                "429 Too Many Requests",
+                Some("999999999".to_string()),
+                7 * day,
+            ),
+            ("429 Too Many Requests", None, THROTTLE_WITHOUT_RETRY_AFTER),
+            (
+                "503 Service Unavailable",
+                None,
+                THROTTLE_WITHOUT_RETRY_AFTER,
+            ),
+            (
+                "429 Too Many Requests",
+                Some("garbage".to_string()),
+                THROTTLE_WITHOUT_RETRY_AFTER,
+            ),
+            // An HTTP date in the past means "now": clamped to the minimum.
+            (
+                "429 Too Many Requests",
+                Some("Mon, 01 Jan 2001 00:00:00 GMT".to_string()),
+                60,
+            ),
+        ] {
+            let headers: Vec<_> = header.into_iter().flat_map(retry_after).collect();
+            assert!(
+                matches!(get(status, &headers).await, Err(ShopError::Throttled(wait)) if wait == expected),
+                "{status} {headers:?}"
+            );
+        }
+        let date = httpdate::fmt_http_date(SystemTime::now() + Duration::from_secs(3600));
+        match get("429 Too Many Requests", &retry_after(date)).await {
+            Err(ShopError::Throttled(wait)) => assert!((3590..=3600).contains(&wait), "{wait}"),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn status_codes_map_to_denied_not_found_and_network() {
+        for status in [
+            "401 Unauthorized",
+            "403 Forbidden",
+            "301 Moved Permanently",
+            "302 Found",
+        ] {
+            let headers = [("Location", "https://example.com/".to_string())];
+            assert!(
+                matches!(get(status, &headers).await, Err(ShopError::Denied)),
+                "{status}"
+            );
+        }
+        assert!(matches!(
+            get("404 Not Found", &[]).await,
+            Err(ShopError::NotFound)
+        ));
+        for status in [
+            "500 Internal Server Error",
+            "502 Bad Gateway",
+            "418 I'm a teapot",
+        ] {
+            assert!(
+                matches!(get(status, &[]).await, Err(ShopError::Network)),
+                "{status}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn body_limit_fails_whole_reads_and_truncates_prefix_reads() {
+        let url = mock_server(response("200 OK", &[], "äöü0123456789".as_bytes())).await;
+        let client = test_client();
+        assert_eq!(
+            fetch(&client, &url, 1024, false).await.unwrap(),
+            "äöü0123456789"
+        );
+        assert!(matches!(
+            fetch(&client, &url, 12, false).await,
+            Err(ShopError::Parse)
+        ));
+        // Prefix mode keeps what fits and never splits a multi-byte character.
+        assert_eq!(fetch(&client, &url, 5, true).await.unwrap(), "äö");
+        assert_eq!(fetch(&client, &url, 8, true).await.unwrap(), "äöü01");
+    }
+
+    #[tokio::test]
+    async fn a_silent_server_times_out_as_network_error() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = Url::parse(&format!("http://{}/page", listener.local_addr().unwrap())).unwrap();
+        let held = tokio::spawn(async move {
+            let _connection = listener.accept().await;
+            sleep_until(Instant::now() + Duration::from_secs(5)).await;
+        });
+        assert!(matches!(
+            fetch(&test_client(), &url, 1024, false).await,
+            Err(ShopError::Network)
+        ));
+        held.abort();
+    }
+
+    #[tokio::test]
+    async fn robots_txt_goes_through_the_same_classification() {
+        let client = test_client();
+        let url = |response| mock_server(response);
+        let ok = url(response(
+            "200 OK",
+            &[],
+            b"User-agent: *\nDisallow: /private\nCrawl-delay: 4",
+        ))
+        .await;
+        let robots = Robots::from_response(fetch(&client, &ok, 128 * 1024, false).await).unwrap();
+        assert!(!robots.allows("/private"));
+        assert_eq!(robots.delay, 4);
+        // 404 allows everything; throttling, denial and server errors stop the shop.
+        let missing = url(response("404 Not Found", &[], b"")).await;
+        assert!(Robots::from_response(fetch(&client, &missing, 1024, false).await).is_ok());
+        for status in [
+            "429 Too Many Requests",
+            "403 Forbidden",
+            "500 Internal Server Error",
+        ] {
+            let failing = url(response(status, &[], b"")).await;
+            assert!(Robots::from_response(fetch(&client, &failing, 1024, false).await).is_err());
+        }
+    }
+
+    #[tokio::test]
+    async fn the_normal_constructor_refuses_loopback_addresses() {
+        // A literal address needs no DNS; the real session must never reach loopback.
+        for host in ["127.0.0.1", "localhost"] {
+            assert!(
+                matches!(Session::open(host).await, Err(ShopError::Denied)),
+                "{host}"
+            );
+        }
+    }
 }

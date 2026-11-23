@@ -9,7 +9,7 @@ use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier, password_ha
 use axum::{
     Json,
     extract::{FromRequestParts, Request, State},
-    http::{HeaderMap, HeaderValue, StatusCode, header, request::Parts, uri::Authority},
+    http::{HeaderMap, HeaderValue, Method, StatusCode, header, request::Parts, uri::Authority},
     middleware::Next,
     response::{IntoResponse, Response},
 };
@@ -26,7 +26,8 @@ pub(crate) struct Session {
 }
 
 /// Layer of the protected routes: checks the session before any extractor reads the path, the query or the body
-/// (CODE-02, SEC-06) and hands it to the handler as [`Session`].
+/// (CODE-02, SEC-06) and hands it to the handler as [`Session`]. A state-changing method also needs the origin and
+/// CSRF token here, so a forged request gets 403 before its body is parsed (CODE-03); handlers still check as well.
 pub(crate) async fn require_session(
     State(state): State<Shared>,
     mut req: Request,
@@ -34,6 +35,11 @@ pub(crate) async fn require_session(
 ) -> Response {
     match authenticate(&state, req.headers()).await {
         Ok(session) => {
+            if !matches!(*req.method(), Method::GET | Method::HEAD)
+                && let Err(error) = require_csrf(&state, req.headers(), &session)
+            {
+                return error.into_response();
+            }
             req.extensions_mut().insert(session);
             next.run(req).await
         }

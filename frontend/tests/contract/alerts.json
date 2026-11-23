@@ -1,0 +1,231 @@
+{
+  "endpoint": "GET /alerts",
+  "shape": {
+    "fields": {
+      "channels": {
+        "required": true,
+        "shape": {
+          "items": {
+            "kind": "unknown"
+          },
+          "kind": "array"
+        }
+      },
+      "configured": {
+        "required": true,
+        "shape": {
+          "kind": "scalar",
+          "types": [
+            "boolean"
+          ]
+        }
+      },
+      "events": {
+        "required": true,
+        "shape": {
+          "items": {
+            "fields": {
+              "attempts": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "number"
+                  ]
+                }
+              },
+              "cents": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "number"
+                  ]
+                }
+              },
+              "deliveries": {
+                "required": true,
+                "shape": {
+                  "items": {
+                    "fields": {
+                      "attempts": {
+                        "required": true,
+                        "shape": {
+                          "kind": "scalar",
+                          "types": [
+                            "number"
+                          ]
+                        }
+                      },
+                      "channel": {
+                        "required": true,
+                        "shape": {
+                          "kind": "scalar",
+                          "types": [
+                            "string"
+                          ]
+                        }
+                      },
+                      "error": {
+                        "required": true,
+                        "shape": {
+                          "kind": "scalar",
+                          "nullable": true,
+                          "types": [
+                            "string"
+                          ]
+                        }
+                      },
+                      "name": {
+                        "required": true,
+                        "shape": {
+                          "kind": "scalar",
+                          "types": [
+                            "string"
+                          ]
+                        }
+                      },
+                      "state": {
+                        "required": true,
+                        "shape": {
+                          "kind": "scalar",
+                          "types": [
+                            "string"
+                          ]
+                        }
+                      }
+                    },
+                    "kind": "object"
+                  },
+                  "kind": "array"
+                }
+              },
+              "id": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "number"
+                  ]
+                }
+              },
+              "observed_at": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "number"
+                  ]
+                }
+              },
+              "sent_at": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "number"
+                  ]
+                }
+              },
+              "state": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "string"
+                  ]
+                }
+              },
+              "wish_id": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "string"
+                  ]
+                }
+              }
+            },
+            "kind": "object"
+          },
+          "kind": "array"
+        }
+      },
+      "rules": {
+        "required": true,
+        "shape": {
+          "items": {
+            "fields": {
+              "basis": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "string"
+                  ]
+                }
+              },
+              "delivery": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "string"
+                  ]
+                }
+              },
+              "enabled": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "boolean"
+                  ]
+                }
+              },
+              "mode": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "string"
+                  ]
+                }
+              },
+              "target_cents": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "number"
+                  ]
+                }
+              },
+              "title": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "string"
+                  ]
+                }
+              },
+              "wish_id": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "string"
+                  ]
+                }
+              }
+            },
+            "kind": "object"
+          },
+          "kind": "array"
+        }
+      }
+    },
+    "kind": "object"
+  }
+}
