@@ -28,7 +28,17 @@ async fn main() -> Result<()> {
             );
             return Ok(());
         }
-        _ => bail!("Unknown arguments {args:?}. Usage: keyhunter [--reset-owner]"),
+        // Parser canary (PROD-13): by hand only, with consent; see deploy/parser-canary.sh.
+        [flag, links @ ..] if flag == "--canary" => {
+            let consent = std::env::var(keyhunter::canary::CONSENT_VARIABLE).ok();
+            if !keyhunter::canary::run(links, consent.as_deref()).await? {
+                std::process::exit(1);
+            }
+            return Ok(());
+        }
+        _ => bail!(
+            "Unknown arguments {args:?}. Usage: keyhunter [--reset-owner | --canary <product-link>...]"
+        ),
     }
     let bind = config.bind;
     let app = create_app(config).await?;

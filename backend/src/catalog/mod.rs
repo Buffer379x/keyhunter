@@ -15,6 +15,17 @@ pub(crate) const ALL_PLATFORMS: i64 = 0;
 pub(crate) fn platform_valid(id: i64) -> bool {
     PLATFORMS.contains(&id)
 }
+/// The names the wishlist export writes for [`PLATFORMS`] (`platformName` of the frontend); the import reads them back.
+pub(crate) fn platform_by_name(name: &str) -> Option<i64> {
+    [
+        (169, "Xbox Series X|S"),
+        (49, "Xbox One"),
+        (12, "Xbox 360"),
+        (11, "Xbox"),
+    ]
+    .into_iter()
+    .find_map(|(id, known)| (known == name).then_some(id))
+}
 /// A game is on the searched system, or on any supported one for [`ALL_PLATFORMS`].
 fn on_platform(game: &CatalogGame, platform: i64) -> bool {
     game.platforms

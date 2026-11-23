@@ -1,9 +1,7 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { api } from '../../api';
-import type { Settings, WishlistItem } from '../../api';
-import { Button, Help, Icon, TabPanel, Tabs } from '../../components';
-import { downloadJson, wishlistExport } from '../wishlist-export';
+import type { Settings } from '../../api';
+import { Help, Icon, TabPanel, Tabs } from '../../components';
 import { SettingsPanel } from './parts';
 import type { SettingsDraft } from './draft';
 import WishlistColumns from './WishlistColumns';
@@ -39,31 +37,16 @@ export default function General({
   settings,
   countries,
   edit,
-  onError,
 }: {
   settings: Settings;
   countries: { code: string; name: string }[];
   edit: SettingsDraft['edit'];
-  onError: (error: unknown) => void;
 }) {
-  const [exporting, setExporting] = useState(false);
   const confirmed = settings.confirmed_activation_countries ?? [];
   const nameOf = (code: string) => countries.find(c => c.code === code)?.name ?? code;
   const target = settings.target_country;
   const unconfirmed = target !== null && !confirmed.includes(target);
 
-  async function exportList() {
-    setExporting(true);
-    try {
-      const rows = await api<WishlistItem[]>('/wishlist');
-      downloadJson('keyhunter-wunschliste.json', wishlistExport(rows));
-    } catch (e) {
-      onError(e);
-    } finally {
-      // a popup (0.9.1)
-      setExporting(false);
-    }
-  }
   return (
     <>
       <SettingsPanel title="Region und Anzeige" titleId="general-region-title">
@@ -109,21 +92,6 @@ export default function General({
       </SettingsPanel>
 
       <TableColumns settings={settings} edit={edit} />
-
-      <SettingsPanel title="Export" titleId="general-export-title">
-        <div className="form-grid">
-          <div className="set-row">
-            <div className="with-help">
-              <h3 className="set-row-title">Wunschliste exportieren</h3>
-              <Help label="Hilfe zum Export">Titel, Plattform, IGDB-ID, Art und Prüfstatus als JSON-Datei.</Help>
-            </div>
-            <Button loading={exporting} onClick={() => void exportList()}>
-              <Icon name="download" />
-              Exportieren
-            </Button>
-          </div>
-        </div>
-      </SettingsPanel>
     </>
   );
 }

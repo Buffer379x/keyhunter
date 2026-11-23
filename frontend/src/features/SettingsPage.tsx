@@ -154,7 +154,7 @@ export default function SettingsPage({
       {sections.map(({ id }) => (
         <TabPanel key={id} id="settings" tab={id} value={section}>
           <div id="settings-panel" className="set-panel" data-section={id}>
-            {id === 'general' && <General settings={settings} countries={countries} edit={auto.edit} onError={onError} />}
+            {id === 'general' && <General settings={settings} countries={countries} edit={auto.edit} />}
             {id === 'shops' && <Shops settings={settings} feeDraft={auto.feeDraft} edit={auto.edit} editFee={auto.editFee} status={fetched.data?.shops} />}
             {id === 'index' && (
               <Index

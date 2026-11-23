@@ -86,6 +86,7 @@ const shapes = {
     </>
   ),
   download: <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />,
+  upload: <path d="M12 15V4M7 9l5-5 5 5M5 20h14" />,
   cart: (
     <>
       <path d="M3 4h2.5l2.2 10.5h10.6L20.5 7H6.6" />

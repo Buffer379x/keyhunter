@@ -1,5 +1,6 @@
 mod alerts;
 mod auth;
+pub mod canary;
 mod cart;
 pub mod catalog;
 pub mod config;
@@ -48,6 +49,9 @@ use tower_http::{
 
 /// Largest request body (all bodies are small JSON documents).
 const BODY_LIMIT: usize = 16 * 1024;
+/// The wishlist import takes the file of the export (PROD-01); the page sends it in parts of 100 entries.
+const IMPORT_PATH: &str = "/api/v1/wishlist/import";
+const IMPORT_BODY_LIMIT: usize = 128 * 1024;
 /// A request body must arrive completely within this time (SEC-02).
 const BODY_TIMEOUT: Duration = Duration::from_secs(15);
 /// Longest time for a whole request, above the slowest handlers (IGDB: 10 s per call and token refresh).
@@ -318,6 +322,10 @@ async fn create_app_inner(
         .route("/status/fetch/runs", get(jobs::runs))
         .route("/log", get(eventlog::list))
         .route("/wishlist", get(wishlist::list).post(wishlist::add))
+        .route(
+            "/wishlist/import",
+            post(wishlist::import).layer(DefaultBodyLimit::max(IMPORT_BODY_LIMIT)),
+        )
         .route("/library", get(wishlist::library).post(wishlist::add_owned))
         .route("/wishlist/{id}/purchase", post(wishlist::purchase))
         .route("/library/{id}/restore", post(wishlist::restore))
@@ -500,12 +508,17 @@ async fn time_limit(req: Request<Body>, next: Next) -> Response {
             .into_response()
         })
 }
-/// Reads the whole request body (at most [`BODY_LIMIT`]) within [`BODY_TIMEOUT`] before the request reaches the
+/// Reads the whole request body (at most [`BODY_LIMIT`], [`IMPORT_BODY_LIMIT`] for the import) within [`BODY_TIMEOUT`] before the request reaches the
 /// concurrency limit and the handler, so a client that sends its body slowly or never holds nothing that a
 /// sign-in or any other request needs (SEC-02).
 async fn read_body(req: Request<Body>, next: Next) -> Response {
     use axum::body::HttpBody;
     let (parts, mut body) = req.into_parts();
+    let limit = if parts.uri.path() == IMPORT_PATH {
+        IMPORT_BODY_LIMIT
+    } else {
+        BODY_LIMIT
+    };
     let read = async {
         let mut bytes = Vec::new();
         while let Some(frame) =
@@ -513,7 +526,7 @@ async fn read_body(req: Request<Body>, next: Next) -> Response {
         {
             let frame = frame.map_err(|_| extract::UNREADABLE)?;
             if let Ok(data) = frame.into_data() {
-                if bytes.len() + data.len() > BODY_LIMIT {
+                if bytes.len() + data.len() > limit {
                     return Err(extract::TOO_LARGE);
                 }
                 bytes.extend_from_slice(&data);

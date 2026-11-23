@@ -3,8 +3,8 @@ import type { FormEvent } from 'react';
 import { api, HttpError } from '../../api';
 import { notify } from '../../notify';
 import { Button, ConfirmDialog, Help, Icon, Notice } from '../../components';
-import { appVersion } from '../../version';
-import { Facts, SettingsPanel } from './parts';
+import Backup from './Backup';
+import { SettingsPanel } from './parts';
 
 type Props = {
   csrf: string;
@@ -122,29 +122,7 @@ export default function System({ csrf, busy, onLogout, onSignedOut, onError }: P
           </div>
         </form>
       </SettingsPanel>
-      <SettingsPanel
-        title="Daten und Backup"
-        titleId="backup-title"
-        aside={
-          <Help label="Hilfe zum Backup">
-            Für ein vollständiges Backup den Container stoppen und das Datenverzeichnis sichern. Die Datenbank darf nicht auf einer Netzwerkfreigabe liegen.
-          </Help>
-        }
-      >
-        <Facts
-          items={[
-            {
-              label: 'Sicherung',
-              value: (
-                <>
-                  automatisch vor jeder Migration in <code>&lt;Daten&gt;/backups</code>
-                </>
-              ),
-            },
-            { label: 'Version', value: <span className="mono app-version">{appVersion}</span> },
-          ]}
-        />
-      </SettingsPanel>
+      <Backup csrf={csrf} onError={onError} />
       <ConfirmDialog
         open={confirmEverywhere}
         title="Überall abmelden?"
