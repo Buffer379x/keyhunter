@@ -43,10 +43,18 @@ pub struct CatalogGame {
 }
 
 impl CatalogGame {
+    /// Products a wish can be saved for. A bundle without a parent game (1.1.1) is sold as one key like a game, so it is
+    /// saved and matched by its own title; it never stands in for the games it contains.
     pub fn selection_allowed(&self) -> bool {
         matches!(
             self.kind.as_str(),
-            "base_game" | "edition" | "remake" | "remaster" | "port" | "standalone_expansion"
+            "base_game"
+                | "edition"
+                | "remake"
+                | "remaster"
+                | "port"
+                | "standalone_expansion"
+                | "bundle"
         )
     }
 }
@@ -809,6 +817,7 @@ mod tests {
             ("Remaster", "remaster"),
             ("Remake", "remake"),
             ("Main Game", "base_game"),
+            ("Bundle", "bundle"),
         ] {
             let raw: RawGame = serde_json::from_value(
                 json!({"id":12,"name":"Example","game_type":{"type":source}}),
