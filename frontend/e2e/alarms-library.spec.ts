@@ -87,7 +87,7 @@ test('Preisalarme lists every target sorted by distance and a row opens the alar
   await expect(rows.nth(2)).toContainText('Kein Preis');
   await expect(rows.nth(3)).toContainText('Neuer Tiefstpreis');
   // Without a cover the game keeps a coloured cover with its initials.
-  await expect(rows.nth(0).locator('.cover-initials')).toHaveText('FH');
+  await expect(rows.nth(0).locator('.cover')).toHaveText('FH');
   await expect(page.getByRole('table', { name: 'Letzte Zustellungen' })).toContainText('Forza Horizon 5');
   await page.setViewportSize({ width: 390, height: 844 });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -139,7 +139,7 @@ test('Bibliothek shows covers with the title only, and keeps the restore action'
   await expect(items.first().locator('img')).toHaveAttribute('src', /halo\.svg$/);
   await expect(items.nth(1).locator('.lib-info b')).toHaveText('Lies of P');
   await expect(items.first().locator('.lib-sub')).toHaveText('Xbox Series X|S');
-  await expect(items.nth(1).locator('.cover-initials')).toHaveText('LO');
+  await expect(items.nth(1).locator('.cover')).toHaveText('LO');
   // Restore and delete sit on the cover and only show after the lock in the page head is opened.
   const restore = items.first().getByRole('button', { name: 'Halo Infinite zurück in die Wunschliste', exact: true });
   await expect(restore).toHaveCount(0);

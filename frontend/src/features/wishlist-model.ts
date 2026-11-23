@@ -198,6 +198,11 @@ interface FetchKpi {
   ticks: number[];
   /** The owner paused the automatic checks (0.7.0). */
   paused: boolean;
+  /**
+   * Shops whose daily demand is above their own limit (PROD-14). Per shop, not summed: a shop with room to spare cannot run
+   * the checks of another one.
+   */
+  short: string[];
 }
 /** "Abrufe heute" summed over the enabled shops; demand and the hourly ticks only when the backend reports them. */
 export function fetchKpi(status: FetchStatusResponse | null, nowMs = Date.now()): FetchKpi | null {
@@ -217,7 +222,12 @@ export function fetchKpi(status: FetchStatusResponse | null, nowMs = Date.now())
     let total = 0;
     ticks = perHour.slice(0, end + 1).map(value => (total += value));
   }
-  return { used, limit, demand, ticks, paused: !!status?.paused_at };
+  const short = shops
+    .filter(
+      shop => typeof shop.budget.demand_per_day === 'number' && Number.isFinite(shop.budget.demand_per_day) && shop.budget.demand_per_day > shop.budget.limit,
+    )
+    .map(shop => shop.source);
+  return { used, limit, demand, ticks, paused: !!status?.paused_at, short };
 }
 
 /** Was an alarm (not a test message) delivered today (local day)? */

@@ -15,6 +15,8 @@ export default defineConfig({
   reporter: 'list',
   projects: [
     { name: 'e2e', testIgnore: /visual\// },
+    // A short WebKit run of the responsive checks (1.0), in the pinned Playwright image only (deploy/browser-check.sh).
+    { name: 'webkit', testMatch: /release094-responsive\.spec\.ts/, use: { browserName: 'webkit', channel: undefined } },
     {
       name: 'visual',
       testMatch: /visual\/.*\.spec\.ts/,

@@ -488,6 +488,55 @@
   min-width: 0;
 }
 
+/* Cover (ui/Cover.tsx, DS-09): the prototype's `.cover`, one component for every list, the game page and the library.
+   Without an image the initials on a gradient whose hue comes from the title (--hue); saturation and lightness are tokens. */
+.cover {
+  display: grid;
+  place-items: center;
+  flex: none;
+  overflow: hidden;
+  width: 34px;
+  height: 44px;
+  border: 1px solid var(--cover-line);
+  border-radius: 5px;
+  background: var(--panel-3);
+  font: 600 var(--t-label)/1 var(--f-sans);
+  letter-spacing: 0.02em;
+  color: var(--cover-text);
+}
+.cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cover.initials {
+  background: linear-gradient(150deg, hsl(var(--hue) var(--cover-from)), hsl(calc(var(--hue) + 30) var(--cover-to)));
+}
+.cover.xs {
+  width: 30px;
+  height: 40px;
+  font-size: var(--t-micro);
+}
+.cover.md {
+  width: 48px;
+  height: 64px;
+  border-radius: var(--r-sm);
+}
+.cover.lg {
+  width: 72px;
+  height: 96px;
+  border-radius: var(--r-md);
+  font-size: 18px;
+}
+.cover.fluid {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 4;
+  border-radius: var(--r-md);
+  font-size: var(--t-display);
+}
+
 /* KPI tiles */
 .kpis {
   display: grid;

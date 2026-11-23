@@ -9,7 +9,7 @@ test('price badge is permanent and its region setting persists', async ({ page }
   await expect(page.getByRole('heading', { name: 'Forza Horizon 5', exact: true, level: 1 })).toBeVisible();
   await navTo(page, 'Wunschliste');
   const row = wishlistRows(page).first();
-  await expect(row.locator('.c-world')).toHaveText('Noch nicht abgefragt');
+  await expect(row.locator('.c-world')).toHaveText('–'); // DS-04: the reason stands only in the status column
   await expect(row.locator('.c-status')).toHaveText(/^(Noch nicht abgefragt|Wird gesucht …)$/);
   const rows = await (await page.request.get('/api/v1/wishlist')).json();
   let price: number | null = 1234;
@@ -36,7 +36,7 @@ test('price badge is permanent and its region setting persists', async ({ page }
   price = null;
   // Without a fetch the owner triggered the badges reload once a minute (PERF-02; 30 s before 0.9.2).
   await page.clock.fastForward(61000);
-  await expect(row.locator('.c-world')).toHaveText('In keinem Shop gefunden');
+  await expect(row.locator('.c-world')).toHaveText('–');
   await expect(row.locator('.c-status')).toHaveText('Kein Angebot');
   await navTo(page, 'Allgemein');
   // Since 0.6.1 the list always compares the target country with the cheapest region worldwide.
@@ -55,6 +55,8 @@ test('purchase and restore move the saved edition; owned family additions requir
   await search.fill('forza');
   await results.getByRole('button', { name: 'Forza Horizon 5 (Xbox Series X|S) vormerken', exact: true }).click();
   await page.getByRole('button', { name: 'Gekauft', exact: true }).click();
+  // RESP-13: "Gekauft" asks first.
+  await page.getByRole('dialog', { name: 'Als gekauft markieren?' }).getByRole('button', { name: 'In die Bibliothek verschieben', exact: true }).click();
   await expect(page.getByText(/^0 Spiele ·/)).toBeVisible();
   await navTo(page, 'Bibliothek');
   const library = page.getByRole('list', { name: 'Meine Spiele' });

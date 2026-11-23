@@ -1,4 +1,4 @@
-import { BigPrice, Button, Help, Icon, Inset, Label, Panel, PanelHead, Pill, Reg, Seg } from '../components';
+import { BigPrice, Button, Help, Icon, Inset, Label, Panel, PanelHead, Pill, Reg, Seg, StatePill } from '../components';
 import { relativeTime } from '../time';
 import { countryData, regionCode } from './regions';
 import { dailyStats } from './history-model';
@@ -130,25 +130,11 @@ export default function PriceTab({ view, rows, summary, basis, onBasis, hasEstim
                   </span>
                 )}
                 <div className="chips">
-                  {targetCents !== null && (
-                    <Pill tone="ok" icon="check">
-                      in {code} aktivierbar
-                    </Pill>
-                  )}
-                  {targetCents !== null && reached && (
-                    <Pill tone="hot" icon="target">
-                      Ziel erreicht
-                    </Pill>
-                  )}
-                  {targetCents === null && view?.last_known && (
-                    <Pill tone="dim" icon="clock">
-                      Veraltet · {relativeTime(view.last_known.observed_at)}
-                    </Pill>
-                  )}
+                  {targetCents !== null && <StatePill state="valid">in {code} aktivierbar</StatePill>}
+                  {targetCents !== null && reached && <StatePill state="reached" />}
+                  {targetCents === null && view?.last_known && <StatePill state="stale">Veraltet · {relativeTime(view.last_known.observed_at)}</StatePill>}
                   {targetCents === null && !view?.last_known && summary.pricedCount > 0 && (
-                    <Pill tone="dim" icon="minus">
-                      {summary.currentCount === 0 ? 'Kein aktueller Preis' : `nichts in ${code} gültig`}
-                    </Pill>
+                    <StatePill state="missing">{summary.currentCount === 0 ? 'Kein aktueller Preis' : `Nichts in ${code} gültig`}</StatePill>
                   )}
                 </div>
                 {targetRow ? (
@@ -243,7 +229,7 @@ export default function PriceTab({ view, rows, summary, basis, onBasis, hasEstim
                   </Button>
                 )}
                 {view && !rows.length && !searching && (
-                  <Button variant="ghost" onClick={() => onTab('infos')}>
+                  <Button variant="ghost" onClick={() => onTab('zuordnungen')}>
                     Produktlink ergänzen
                   </Button>
                 )}

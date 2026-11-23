@@ -34,6 +34,8 @@ cd frontend && npx playwright install chromium && cd ..
 sh deploy/browser-check.sh
 ```
 
+`deploy/browser-check.sh` prüft danach die Layouts zusätzlich in WebKit, im Playwright-Image per Docker. `KEYHUNTER_SKIP_WEBKIT=1` überspringt diesen Teil.
+
 GitHub Actions führt die Prüfungen mit synthetischen Daten aus. [Architektur](docs/architecture.md) · [Abhängigkeiten](docs/dependencies.md)
 
 Änderungen je Version: [CHANGELOG](CHANGELOG.md).

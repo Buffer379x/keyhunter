@@ -4,47 +4,6 @@
  * The Angebote table lives in offers.css. Tokens only.
  */
 
-/* Cover image (also used by the wishlist rows) */
-.gcover {
-  display: block;
-  flex: none;
-  overflow: hidden;
-  border-radius: var(--radius-md);
-  background:
-    radial-gradient(circle at 30% 20%, var(--color-accent-bg), transparent 60%), linear-gradient(160deg, var(--color-overlay-hover), var(--color-raised) 70%);
-  box-shadow: inset 0 0 0 1px var(--color-border-strong);
-}
-.gcover img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.gcover-title {
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 100%;
-  padding: var(--space-2);
-  overflow: hidden;
-  color: var(--color-text-soft);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  line-height: 1.2;
-  text-align: center;
-  overflow-wrap: anywhere;
-}
-.gcover.small {
-  border-radius: var(--radius-sm);
-}
-.gcover.small .gcover-title {
-  padding: 0;
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  letter-spacing: 0.04em;
-  color: var(--color-text-muted);
-}
-
 /* Popover ("⋯" menu) (added: the prototype shows a toast instead) */
 .popover {
   position: relative;
@@ -124,16 +83,6 @@
   align-items: flex-start;
   padding: 16px;
   flex-wrap: wrap;
-}
-.game-head .game-cover {
-  width: 72px;
-  height: 96px;
-  border-radius: 8px;
-}
-.game-head .game-cover .gcover-title {
-  font: 600 18px/1 var(--f-sans);
-  letter-spacing: 0.02em;
-  color: var(--text-2);
 }
 .game-meta {
   flex: 1;

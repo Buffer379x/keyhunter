@@ -11,18 +11,6 @@
   aspect-ratio: 191 / 32;
   width: auto;
 }
-.key-mark {
-  width: 48px;
-  height: 48px;
-  color: var(--accent);
-}
-.key-mark.small {
-  width: 33px;
-  height: 33px;
-}
-.key-mark-fill {
-  fill: var(--accent);
-}
 .brand-tile {
   fill: var(--accent);
 }
@@ -118,7 +106,10 @@
   margin-top: auto;
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   gap: 8px;
+  /* PERF-05: room for the fetch status card (two shops) before it has loaded, so the footer does not move when it appears. */
+  min-height: 175px;
 }
 /* (0.8.3) Einstellungen and Abmelden as two symbol buttons below the fetch status, each half the width. */
 .side-actions {

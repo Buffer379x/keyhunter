@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, CART_CHANGED } from '../api';
 import type { LibraryItem, WishlistItem } from '../api';
-import { Button, ConfirmDialog, EmptyState, Field, Icon, IconButton, Notice, PageHeading, Panel, Seg } from '../components';
-import { Cover, itemName, platformName } from './catalog-ui';
+import { Button, ConfirmDialog, Cover, EmptyState, Field, Icon, IconButton, Notice, PageHeading, Panel, Seg } from '../components';
+import { itemName, platformName } from './catalog-ui';
 import CatalogSearch from './CatalogSearch';
 import { libraryItems } from './library-sort';
 import { notify } from '../notify';
@@ -232,7 +232,7 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
           <ul className={`lib lib-skeleton${view === 'rows' ? ' rows' : ''}`} aria-hidden="true">
             {[0, 1, 2, 3, 4, 5].map(n => (
               <li key={n} className="lib-item">
-                <span className="lib-ghost cover" />
+                <span className="lib-ghost ghost-cover" />
                 <span className="lib-ghost line" />
               </li>
             ))}
@@ -270,7 +270,7 @@ export default function Library({ csrf, addOpen, onAddOpen, onRestored, onOpenWi
             return (
               <li key={item.id} className="lib-item">
                 <div className="lib-cover">
-                  <Cover src={item.game?.cover_url ?? null} title={name} large />
+                  <Cover size="fluid" src={item.game?.cover_url} title={name} />
                   {unlocked && (
                     <div className="lib-tools">
                       <IconButton label={`${name} zurück in die Wunschliste`} onClick={() => ask('restore', item)}>

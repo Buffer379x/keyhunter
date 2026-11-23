@@ -44,6 +44,7 @@
   /* Type */
   --f-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --f-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --t-micro: 10px; /* 1.0 (DS-10): the smallest cover initials and chart axis labels */
   --t-label: 11px;
   --t-xs: 12px;
   --t-sm: 13px;
@@ -52,6 +53,7 @@
   --t-title: 20px;
   --t-kpi: 24px;
   --t-price: 34px;
+  --t-display: 22px; /* 1.0 (DS-10): initials of a large cover */
 
   /* Shape and size */
   --r-sm: 6px;
@@ -66,6 +68,9 @@
   /* Game covers (prototype `.cover`): hairline over the image and the initials when there is none */
   --cover-line: rgb(255 255 255 / 0.06);
   --cover-text: rgb(255 255 255 / 0.85);
+  /* Saturation and lightness of the two gradient stops of a cover without an image; the hue comes from the title (ui/Cover.tsx). */
+  --cover-from: 38% 30%;
+  --cover-to: 30% 14%;
 
   /* Layers */
   --z-sticky: 10;
@@ -80,21 +85,4 @@
   --bp-sm: 720px;
   --bp-md: 900px;
   --bp-lg: 1180px;
-
-  /*
-   * Legacy aliases for screens that are not rebuilt on design v4 yet. They resolve to the tokens above.
-   * Do not use them in new code; delete each one when nothing references it any more.
-   */
-  --color-raised: var(--panel-2);
-  --color-overlay-hover: var(--line-2);
-  --color-border-strong: var(--line-2);
-  --color-text-soft: var(--text-2);
-  --color-text-muted: var(--muted);
-  --color-accent-bg: var(--accent-bg);
-  --font-mono: var(--f-mono);
-  --text-sm: var(--t-sm);
-  --weight-semibold: 500;
-  --space-2: 8px;
-  --radius-sm: var(--r-sm);
-  --radius-md: var(--r-md);
 }

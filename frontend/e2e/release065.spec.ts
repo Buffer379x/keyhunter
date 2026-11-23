@@ -54,7 +54,7 @@ test('the order of the wishlist columns is chosen in the settings, and the detai
     .first()
     .getByRole('button', { name: /^Details zu / })
     .boundingBox())!;
-  const cover = (await first.nth(1).locator('.gcover').boundingBox())!;
+  const cover = (await first.nth(1).locator('.cover').boundingBox())!;
   expect(open.x + open.width).toBeLessThanOrEqual(cover.x);
 
   await navTo(page, 'Allgemein');
@@ -125,7 +125,7 @@ test('the price trend shows the steadily cheapest region and each product its ch
   await page.route('**/api/v1/wishlist/*/offers', route => (route.request().method() === 'GET' ? route.fulfill({ json: view }) : route.continue()));
   await page.reload();
   await expect(page.locator('#why-list .trend')).toContainText('Meist am günstigsten: Argentinien · wird deshalb öfter abgefragt');
-  await openTab(page, 'Infos');
+  await openTab(page, 'Zuordnungen'); // PROD-03: until 1.0 "Infos"
   const match = (name: string) => page.locator('.match').filter({ hasText: name });
   await expect(match('Argentina').locator('.match-pace')).toHaveText('Abfrage alle 13 h · meist günstig');
   await expect(match('Turkey').locator('.match-pace')).toHaveText('Abfrage alle 46 h · meist teuer');

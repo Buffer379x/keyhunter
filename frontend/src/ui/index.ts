@@ -1,7 +1,8 @@
 export { Icon } from './Icon';
 export type { IconName } from './Icon';
 export { Button, IconButton } from './Button';
-export { Chip, Pill, Reg } from './Chip';
+export { Chip, Pill, Reg, StatePill } from './Chip';
+export { Cover } from './Cover';
 export type { PillTone } from './Chip';
 export { Price, BigPrice, formatPrice } from './Price';
 export { Tabs, TabPanel, Seg } from './Tabs';

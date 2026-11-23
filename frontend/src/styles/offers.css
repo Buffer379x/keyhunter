@@ -9,9 +9,6 @@ table.offers small {
   display: block;
   font-size: var(--t-xs);
 }
-table.offers .seen.stale {
-  color: var(--warn);
-}
 .table-wrap:focus-visible {
   outline-offset: -2px;
 }

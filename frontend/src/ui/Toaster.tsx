@@ -44,7 +44,8 @@ export function Toaster() {
     };
   }, [schedule]);
   return (
-    <div className="toaster" aria-label="Meldungen">
+    // A named region (RESP-20): the popups live outside the page's landmarks.
+    <section className="toaster" aria-label="Meldungen">
       <div role="status" aria-live="polite" className="toaster-list">
         {items
           .filter(i => i.tone !== 'error')
@@ -59,7 +60,7 @@ export function Toaster() {
             <Toast key={item.id} item={item} close={close} hold={() => window.clearTimeout(timers.current.get(item.id))} resume={() => schedule(item)} />
           ))}
       </div>
-    </div>
+    </section>
   );
 }
 

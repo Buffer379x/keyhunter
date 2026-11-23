@@ -53,7 +53,8 @@ export default function Log() {
         perPage={list.perPage}
         onPerPage={list.setPerPage}
       />
-      <Inset className="table-wrap">
+      {/* RESP-20: a table that scrolls sideways can be reached and scrolled with the keyboard */}
+      <Inset className="table-wrap" tabIndex={0} role="region" aria-label="Ereignistabelle">
         {!data ? (
           <p className="hint set-pad" role="status">
             {list.failed ? 'Das Log konnte nicht gelesen werden.' : 'Log wird geladen …'}

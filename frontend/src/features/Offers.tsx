@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, EmptyState, Help, Icon, IconButton, Inset, Label, Panel, PanelHead, Pill, Price, Reg, Switch } from '../components';
+import { Button, EmptyState, Help, Icon, IconButton, Inset, Label, Panel, PanelHead, Pill, Price, Reg, StatePill, Switch } from '../components';
 import { relativeTime } from '../time';
 import { regionCode } from './regions';
 import { dateTime, money } from './price-format';
@@ -62,16 +62,16 @@ function tempoTitle(row: OfferRow, label: string) {
   return [`Prüftempo ${label}`, state, every].filter(Boolean).join(' · ');
 }
 
+/** When the offer was last seen; a stale time in the grey clock pill of "Veraltet" (DS-04), none as "–" (the validity says why). */
 function Seen({ row }: { row: OfferRow }) {
   const at = row.link.observed_at;
-  if (!at) return <span className="muted">noch nicht abgefragt</span>;
-  const stale = row.link.stale || row.link.reasons?.includes('stale');
-  return (
-    <time className={stale ? 'seen stale' : 'seen'} dateTime={new Date(at * 1000).toISOString()} title={dateTime(at)}>
-      {stale ? 'veraltet · ' : ''}
+  if (!at) return <span className="save none">–</span>;
+  const time = (
+    <time dateTime={new Date(at * 1000).toISOString()} title={dateTime(at)}>
       {relativeTime(at)}
     </time>
   );
+  return row.link.stale || row.link.reasons?.includes('stale') ? <StatePill state="stale">{time}</StatePill> : time;
 }
 
 /**
@@ -316,7 +316,7 @@ export default function OffersTab({
             </span>
           ))}
           {reviewCount > 0 && (
-            <button type="button" className="text-button" onClick={() => onTab('infos')}>
+            <button type="button" className="text-button" onClick={() => onTab('zuordnungen')}>
               {reviewCount} {reviewCount === 1 ? 'Zuordnung' : 'Zuordnungen'} prüfen
             </button>
           )}

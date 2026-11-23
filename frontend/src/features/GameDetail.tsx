@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { CatalogGame, PriceBadgeData, WishlistItem } from '../api';
-import { Button, Icon, Notice, Panel, Pill, TabPanel, Tabs } from '../components';
+import { Button, Cover, Icon, Notice, Panel, Pill, StatePill, TabPanel, Tabs } from '../components';
 import AlarmTab from './AlarmTab';
 import EditionComparison, { editionName } from './EditionComparison';
-import GameCover from './GameCover';
 import HistoryTab from './HistoryTab';
 import InfosTab, { reviewLinks } from './InfosTab';
 import OffersTab from './Offers';
@@ -19,9 +18,13 @@ import { countryData } from './regions';
 import { useOffersView } from './useOffersView';
 import { PAUSE_WEEKS, pauseEnd, pauseText, weeksText } from './wish-pause';
 
-export const tabIds = ['preis', 'angebote', 'verlauf', 'editionen', 'alarm', 'infos'] as const;
+export const tabIds = ['preis', 'angebote', 'verlauf', 'editionen', 'alarm', 'zuordnungen'] as const;
 export type TabId = (typeof tabIds)[number];
-export const isTab = (value: string | null | undefined): value is TabId => !!value && (tabIds as readonly string[]).includes(value);
+/** The tab of a URL (`?tab=`); "infos" is the name of the Zuordnungen tab before 1.0 (PROD-03), so old links keep working. */
+export function parseTab(value: string | null | undefined): TabId | null {
+  const id = value === 'infos' ? 'zuordnungen' : value;
+  return !!id && (tabIds as readonly string[]).includes(id) ? (id as TabId) : null;
+}
 
 type Props = {
   item: WishlistItem;
@@ -57,7 +60,7 @@ type Props = {
   onRule: (id: string, rule: Rule | null) => void;
 };
 
-/** Game detail (design v4): head panel with cover, edition and actions, then the tabs Preis · Angebote · Verlauf · Editionen · Alarm · Infos. */
+/** Game detail (design v4): head panel with cover, edition and actions, then the tabs Preis · Angebote · Verlauf · Editionen · Alarm · Zuordnungen. */
 export default function GameDetail(props: Props) {
   const { item, viewed, preview, csrf, onError, onRule } = props;
   const alert = useAlertRule(item.id, csrf, onError);
@@ -90,28 +93,15 @@ function StatusPill({
   const target = ruleTarget(rule);
   const cents = rule?.basis === 'estimate' ? view.best_estimate : view.best_base;
   if (summary.targetCents === null) {
-    if (searching && summary.pricedCount === 0)
-      return (
-        <Pill tone="dim" icon="refresh">
-          Wird gesucht …
-        </Pill>
-      );
-    if (failed)
-      return (
-        <Pill tone="danger" icon="alert">
-          Abruf fehlgeschlagen
-        </Pill>
-      );
+    if (searching && summary.pricedCount === 0) return <StatePill state="searching" />;
+    if (failed) return <StatePill state="error" />;
     return (
-      <Pill tone="dim">{summary.pricedCount === 0 ? 'Kein Angebot' : summary.currentCount === 0 ? 'Kein aktueller Preis' : `Nichts in ${code} gültig`}</Pill>
+      <StatePill state="missing">
+        {summary.pricedCount === 0 ? 'Kein Angebot' : summary.currentCount === 0 ? 'Kein aktueller Preis' : `Nichts in ${code} gültig`}
+      </StatePill>
     );
   }
-  if (targetReached(rule, cents))
-    return (
-      <Pill tone="ok" icon="check">
-        Ziel erreicht
-      </Pill>
-    );
+  if (targetReached(rule, cents)) return <StatePill state="reached" />;
   if (target !== null && rule?.enabled && cents !== null) return <Pill>{money(cents - target)} über Ziel</Pill>;
   return null;
 }
@@ -163,10 +153,8 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
   const savedName = item.game ? editionName(item.game) : itemName(item);
   const viewedName = game ? editionName(game) : itemName(viewed);
   const target = ruleTarget(rule);
-  const platforms = game
-    ? [...game.platforms].sort((a, b) => Number(b.id === item.platform_id) - Number(a.id === item.platform_id)).map(p => p.name)
-    : [platformName(item.platform_id)];
-  const meta = [...platforms.slice(0, 3), year(game)].filter(Boolean).join(' · ');
+  // The wish's own platform, not every system of the game (RESP-10): "Xbox One · 2021".
+  const meta = [platformName(item.platform_id), year(game)].filter(Boolean).join(' · ');
   const itemOf = (g: CatalogGame) => (g.igdb_id === item.game?.igdb_id ? item : editionItems.find(it => it.game?.igdb_id === g.igdb_id));
   const badgeOf = (g: CatalogGame) => {
     const it = itemOf(g);
@@ -179,7 +167,8 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
     { id: 'verlauf', label: 'Verlauf' },
     { id: 'editionen', label: 'Editionen', count: item.game ? variants.length : null },
     { id: 'alarm', label: 'Alarm' },
-    { id: 'infos', label: 'Infos', count: reviews > 0 ? reviews : null },
+    // PROD-03: the facts and the shop mappings to review; named after the task, the count shows what is open.
+    { id: 'zuordnungen', label: 'Zuordnungen', count: reviews > 0 ? reviews : null },
   ];
   const go = (id: string) => onTab(id as TabId);
   const loading =
@@ -193,7 +182,7 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
     <section className="page game-detail" aria-labelledby="game-title">
       <Panel>
         <div className="game-head">
-          <GameCover small className="game-cover" src={game?.cover_url} title={itemName(viewed)} />
+          <Cover size="lg" src={game?.cover_url} title={itemName(viewed)} />
           <div className="game-meta">
             <span className="label">{meta}</span>
             <h1 id="game-title">{itemName(viewed)}</h1>
@@ -216,15 +205,13 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
                   ))}
                 </select>
               ) : (
-                <Pill tone="warn" icon="alert">
-                  Manuell · ungeprüft
-                </Pill>
+                <StatePill state="review">Manuell · ungeprüft</StatePill>
               )}
               <StatusPill view={view} summary={summary} failed={fetchFailed(view, rows)} rule={rule} searching={searching} code={code || 'Zielland'} />
               {item.paused && (
-                <Pill tone="warn" icon="pause" className="pause-pill">
+                <StatePill state="paused" className="pause-pill">
                   {pauseText(item)}
-                </Pill>
+                </StatePill>
               )}
             </div>
             {editionError && <span className="hint">{editionError}</span>}
@@ -428,7 +415,7 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
       <TabPanel id="gd" tab="alarm" value={tab}>
         <AlarmTab id={item.id} alert={alert} editionName={savedName} code={code || 'Zielland'} hasEstimates={hasEstimates} onError={onError} />
       </TabPanel>
-      <TabPanel id="gd" tab="infos" value={tab}>
+      <TabPanel id="gd" tab="zuordnungen" value={tab}>
         <InfosTab item={item} game={game} state={state} />
       </TabPanel>
     </section>

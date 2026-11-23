@@ -38,11 +38,12 @@ async function openDrawer(page: Page) {
   const menu = page.getByRole('button', { name: 'Menü öffnen', exact: true });
   if (await menu.isVisible()) await menu.click();
 }
+/** The sidebar: a landmark, or a modal dialog while it is the open drawer (1.0, RESP-08). */
+const sidebar = (page: Page) => page.getByRole('complementary', { name: 'Seitenleiste' }).or(page.getByRole('dialog', { name: 'Seitenleiste' }));
 /** Tabs of the settings page (0.8.3; before, entries of the sidebar). */
 const SETTINGS_TABS = ['Allgemein', 'Key-Shops', 'Spieleindex', 'Benachrichtigungen', 'Abrufstatus', 'Log', 'System'];
 /** The symbol button "Einstellungen" below the fetch status in the sidebar. */
-export const settingsButton = (page: Page) =>
-  page.getByRole('complementary', { name: 'Seitenleiste' }).getByRole('button', { name: 'Einstellungen', exact: true });
+export const settingsButton = (page: Page) => sidebar(page).getByRole('button', { name: 'Einstellungen', exact: true });
 /**
  * Go to a page of the sidebar navigation ("Wunschliste", "Preisalarme", …), opening the drawer on narrow screens; a settings
  * tab ("Allgemein", "Key-Shops", …) opens the settings with the sidebar button first and then picks the tab.
@@ -68,7 +69,7 @@ export const navItem = (page: Page, name: string) =>
 /** "Abmelden" in the sidebar footer. */
 export async function signOut(page: Page) {
   await openDrawer(page);
-  await page.getByRole('complementary', { name: 'Seitenleiste' }).getByRole('button', { name: 'Abmelden', exact: true }).click();
+  await sidebar(page).getByRole('button', { name: 'Abmelden', exact: true }).click();
 }
 /** The target country select of the open settings page (the sidebar has its own one). */
 export const settingsCountry = (page: Page) => page.getByRole('main').getByLabel('Zielland', { exact: true });

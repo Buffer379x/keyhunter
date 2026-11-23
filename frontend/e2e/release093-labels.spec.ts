@@ -171,7 +171,7 @@ test('RESP-14: the cart marks an INT offer that is not safely activatable in the
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0).locator('.cart-risk')).toContainText('Aktivierung in DE ungeklärt');
   await expect(rows.nth(1).locator('.cart-risk')).toHaveCount(0);
-  await rows.nth(0).getByRole('button', { name: 'Hilfe zur Aktivierung für Forza Horizon 5' }).focus();
+  await rows.nth(0).getByRole('button', { name: 'Hilfe zur Aktivierung für Forza Horizon 5' }).click(); // RESP-20: focus alone no longer opens it
   await expect(page.getByRole('tooltip').filter({ hasText: 'nicht sicher sagen' })).toBeVisible();
   // The totals stay (12,90 + 28,90), the unsafe part is named apart.
   const totals = page.getByRole('list', { name: 'Nach Shops' }).locator('..').getByRole('group', { name: 'Summe' }).or(page.locator('dl[aria-label="Summe"]'));
