@@ -17,14 +17,7 @@ import { itemName, platformName } from './catalog-ui';
 import { countryData } from './regions';
 import { useOffersView } from './useOffersView';
 import { PAUSE_WEEKS, pauseEnd, pauseText, weeksText } from './wish-pause';
-
-const tabIds = ['preis', 'angebote', 'verlauf', 'editionen', 'alarm', 'zuordnungen'] as const;
-export type TabId = (typeof tabIds)[number];
-/** The tab of a URL (`?tab=`); "infos" is the name of the Zuordnungen tab before 1.0 (PROD-03), so old links keep working. */
-export function parseTab(value: string | null | undefined): TabId | null {
-  const id = value === 'infos' ? 'zuordnungen' : value;
-  return !!id && (tabIds as readonly string[]).includes(id) ? (id as TabId) : null;
-}
+import type { TabId } from '../route';
 
 type Props = {
   item: WishlistItem;

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Help, Icon, IconButton, Inset, Label, Panel, PanelHead, StatePill } from '../components';
-import { openSection } from './settings/sections';
+import { openSection } from '../route';
 import type { Section } from './settings/sections';
 
 const DISMISSED = 'keyhunter.firstSteps.dismissed';

@@ -6,9 +6,9 @@ import { useFetchStatus } from '../fetch-status';
 import { Button, ConfirmDialog, EmptyState, Field, Help, Icon, Inset, Kpi, Notice, Panel, PanelHead, Seg, formatPrice } from '../components';
 import CatalogSearch from './CatalogSearch';
 import FirstSteps from './FirstSteps';
-import { openSection } from './settings/sections';
-import GameDetail, { parseTab } from './GameDetail';
-import type { TabId } from './GameDetail';
+import { fromList, listDepth, navigate, onRouteChange, openSection, returnToList, useRoute } from '../route';
+import type { TabId } from '../route';
+import GameDetail from './GameDetail';
 import WishlistRow from './WishlistRow';
 import { mergeBadges } from './price-badges';
 import type { Rule } from './PriceAlerts';
@@ -86,26 +86,6 @@ const BASIS_KEY = 'keyhunter.wishlist.basis';
 const PAUSED_KEY = 'keyhunter.wishlist.has-paused';
 /** Key-shops the list filter knows by name (IGDB is a catalog, not a shop). */
 const SHOP_NAMES = Object.fromEntries(Object.entries(shopNames).filter(([id]) => id !== 'igdb'));
-/**
- * History state of a game opened from the list: the number of history entries since the list (opening the game plus
- * every tab change). "Zur Wunschliste" goes back that many steps, so the list entry with its scroll position is reused.
- */
-const FROM_LIST = 'keyhunter.wishlist';
-const listDepth = () => Number((window.history.state as Record<string, unknown> | null)?.[FROM_LIST]) || 0;
-/** Return from a game opened from the list by going back in history (the breadcrumb uses it too). False for a deep link. */
-export function returnToList(): boolean {
-  const depth = listDepth();
-  if (depth) window.history.go(-depth);
-  return depth > 0;
-}
-const routeTab = (): TabId => {
-  const url = new URL(window.location.href);
-  const tab = parseTab(url.searchParams.get('tab'));
-  if (tab) return tab;
-  return url.hash === '#alert-editor-title' ? 'alarm' : 'preis';
-};
-const routeSelection = () => new URL(window.location.href).searchParams.get('item');
-const routeFilter = () => new URL(window.location.href).searchParams.get('filter') ?? '';
 const scroller = () => document.getElementById('main-content');
 type AlertRules = Record<string, Rule>;
 const CHIPS: ChipFilter[] = ['alle', 'ziel', 'welt', 'offen', 'pause'];
@@ -148,8 +128,11 @@ export default function Wishlist({
   const view = useListView<ChipFilter>('keyhunter.list.wishlist', CHIPS, 'alle');
   const chip = view.filter;
   const setChip = view.setFilter;
-  const [filter, setFilter] = useState(() => routeFilter() || view.text);
-  const [selectedId, setSelectedId] = useState<string | null>(routeSelection);
+  // The open game and its tab come from the URL; the filter starts from it and follows browser back/forward.
+  const route = useRoute();
+  const selectedId = route.item;
+  const tab = route.tab;
+  const [filter, setFilter] = useState(() => route.filter || view.text);
   const [preview, setPreview] = useState<WishlistItem | null>(null);
   // Prices without or with the estimated shop fees (0.7.3); a view choice of this browser, like the sort.
   const [basis, setBasis] = useState<PriceBasis>(() => {
@@ -191,7 +174,6 @@ export default function Wishlist({
   // Request budget for the "Abrufe heute" tile, from the app's one fetch-status poller (shared with the sidebar card).
   const { data: fetchStatus } = useFetchStatus();
   const [editionItems, setEditionItems] = useState<WishlistItem[]>([]);
-  const [tab, setTab] = useState<TabId>(routeTab);
   const [editionError, setEditionError] = useState('');
   const [removeItem, setRemoveItem] = useState<WishlistItem | null>(null);
   const [purchasing, setPurchasing] = useState(false);
@@ -239,7 +221,6 @@ export default function Wishlist({
   // Editions of the open game (prepared on the server on first open).
   useEffect(() => {
     setPreview(null);
-    setTab(routeTab());
     setEditionItems([]);
     setEditionError('');
     if (!selected?.game) return;
@@ -343,15 +324,13 @@ export default function Wishlist({
       ++generation.current;
     };
   }, [load]);
-  useEffect(() => {
-    function restore() {
-      setTab(routeTab());
-      setSelectedId(routeSelection());
-      setFilter(routeFilter());
-    }
-    window.addEventListener('popstate', restore);
-    return () => window.removeEventListener('popstate', restore);
-  }, []);
+  useEffect(
+    () =>
+      onRouteChange((next, _previous, browser) => {
+        if (browser) setFilter(next.filter);
+      }),
+    [],
+  );
   useEffect(() => {
     if (!removeItem && focusListAfterRemove.current) {
       focusListAfterRemove.current = false;
@@ -389,43 +368,21 @@ export default function Wishlist({
     const depth = showingDetail.current ? (listDepth() ? listDepth() + 1 : 0) : 1;
     if (!showingDetail.current) listScroll.current = scroller()?.scrollTop ?? 0;
     returnFocus.current = showingDetail.current ? null : id;
-    setSelectedId(id);
-    const url = new URL(window.location.href);
-    url.hash = '';
-    url.searchParams.delete('view');
-    url.searchParams.set('item', id);
-    if (tab && tab !== 'preis') url.searchParams.set('tab', tab);
-    else url.searchParams.delete('tab');
-    if (url.href !== window.location.href) window.history.pushState(depth ? { [FROM_LIST]: depth } : null, '', url);
+    navigate({ view: null, item: id, tab: tab && tab !== 'preis' ? tab : null }, { state: fromList(depth) });
   }
   /** Back to the list: a game opened from the list goes back in history (filter, sort and scroll are kept); a deep link pushes the list. */
   function closeDetail() {
-    setSelectedId(null);
-    if (returnToList()) return;
-    const url = new URL(window.location.href);
-    url.hash = '';
-    url.searchParams.delete('item');
-    url.searchParams.delete('tab');
-    if (url.href !== window.location.href) window.history.pushState(null, '', url);
+    if (!returnToList()) navigate({ item: null, tab: null });
   }
   function changeTab(value: TabId) {
-    setTab(value);
-    const url = new URL(window.location.href);
-    url.hash = '';
-    if (value === 'preis') url.searchParams.delete('tab');
-    else url.searchParams.set('tab', value);
-    if (selected) url.searchParams.set('item', selected.id);
     const depth = listDepth();
-    if (url.href !== window.location.href) window.history.pushState(depth ? { [FROM_LIST]: depth + 1 } : null, '', url);
+    navigate({ tab: value === 'preis' ? null : value, item: selected?.id }, { state: fromList(depth ? depth + 1 : 0) });
   }
   function filterList(value: string) {
     setFilter(value);
     view.setText(value);
     view.setPage(1);
-    const url = new URL(window.location.href);
-    if (value) url.searchParams.set('filter', value);
-    else url.searchParams.delete('filter');
-    window.history.replaceState(window.history.state, '', url);
+    navigate({ filter: value || null }, { replace: true });
   }
   function sortBy(key: SortKey) {
     const value = nextSort(sort, key);

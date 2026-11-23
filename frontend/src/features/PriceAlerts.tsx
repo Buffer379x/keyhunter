@@ -9,7 +9,7 @@ import { whenVisible } from '../poll';
 import { relativeTime } from '../time';
 import { money } from './price-format';
 import { channelLine } from './settings/channels';
-import { openSection } from './settings/sections';
+import { navigate, openSection } from '../route';
 import { notify, notifyError } from '../notify';
 
 export type Rule = { mode: 'target' | 'low'; basis: 'base' | 'estimate'; target_cents: number | null; enabled: boolean };
@@ -116,15 +116,9 @@ export function useAlertRule(id: string) {
 }
 export type AlertState = ReturnType<typeof useAlertRule>;
 
-/** In-app link to the alarm tab of a wishlist item: the wishlist reads ?item and ?tab, App follows the URL through popstate. */
+/** In-app link to the alarm tab of a wishlist item. */
 const alarmHref = (id: string) => `?item=${encodeURIComponent(id)}&tab=alarm`;
-function openAlarm(id: string) {
-  const url = new URL(window.location.href);
-  url.search = alarmHref(id);
-  url.hash = '';
-  window.history.pushState(null, '', url);
-  window.dispatchEvent(new PopStateEvent('popstate'));
-}
+const openAlarm = (id: string) => navigate({ item: id, tab: 'alarm' }, { reset: true });
 
 function AlarmStatus({ row, mode }: { row: AlarmRow; mode: Rule['mode'] }) {
   if (row.reached) return <StatePill state="reached" />;
