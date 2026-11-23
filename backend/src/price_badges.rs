@@ -600,6 +600,10 @@ pub(crate) async fn shop_offers(
     Ok(result)
 }
 
+/// The wishes and the watched previews that get a badge. The watched previews are an uncorrelated list, built once per
+/// request: as a correlated `EXISTS(…)` SQLite walked every active wish for each preview (as in the scheduler, 1.1.1).
+pub(crate) const BADGE_IDS: &str = "SELECT w.id FROM wishlist_item w WHERE w.state!='owned' AND (w.state='wished' OR w.id IN(SELECT e.track_id FROM edition_watch e JOIN wishlist_item a ON a.id=e.wish_id WHERE (?1 IS NULL OR a.id=?1) AND a.state='wished'))";
+
 #[derive(Deserialize)]
 pub(crate) struct BadgeQuery {
     /// An empty anchor requests only the wishlist. No parameter includes all watched editions.
@@ -611,7 +615,10 @@ pub(crate) async fn list(
     ApiQuery(query): ApiQuery<BadgeQuery>,
 ) -> ApiResult<Json<BTreeMap<String, PriceBadge>>> {
     let target = offers::target(&state.pool).await?;
-    let ids:Vec<String>=sqlx::query_scalar("SELECT w.id FROM wishlist_item w WHERE w.state!='owned' AND (w.state='wished' OR EXISTS(SELECT 1 FROM edition_watch e JOIN wishlist_item a ON a.id=e.wish_id WHERE e.track_id=w.id AND (?1 IS NULL OR a.id=?1) AND a.state='wished'))").bind(query.anchor).fetch_all(&state.pool).await?;
+    let ids: Vec<String> = sqlx::query_scalar(BADGE_IDS)
+        .bind(query.anchor)
+        .fetch_all(&state.pool)
+        .await?;
     Ok(Json(load_many(&state, &ids, &target).await?))
 }
 

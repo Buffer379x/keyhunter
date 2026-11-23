@@ -1622,6 +1622,8 @@ async fn preview_watch_check_runs_once_per_statement() {
     for sql in scheduler_statements() {
         assert_evaluated_once(&pool, &sql, "ew").await;
     }
+    // The price badges of the wishlist use the same check.
+    assert_evaluated_once(&pool, crate::price_badges::BADGE_IDS, "e").await;
     // The previews stay queued: watched by an active wish and viewed recently.
     let previews: i64 = sqlx::query_scalar(AssertSqlSafe(format!(
         "SELECT COUNT(*) FROM {JOBS} WHERE t.state='preview' AND {}",
