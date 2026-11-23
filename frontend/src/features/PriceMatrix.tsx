@@ -181,7 +181,7 @@ export default function PriceMatrix({
           </div>
           <div className="tip-r">
             <i className="w" />
-            Weltweit{active.world?.region && <span className="tip-reg">{regionCode(active.world.region)}</span>}
+            INT{active.world?.region && <span className="tip-reg">{regionCode(active.world.region)}</span>}
             <b className={active.world ? undefined : 'none'}>{active.world ? money(active.world.cents) : 'keine Messung'}</b>
           </div>
           <div className="tip-r">
@@ -192,25 +192,28 @@ export default function PriceMatrix({
           </div>
         </div>
       )}
-      <table className="sr-only">
-        <caption>{label}</caption>
-        <thead>
-          <tr>
-            <th scope="col">Zeitraum</th>
-            <th scope="col">{country}</th>
-            <th scope="col">Weltweit</th>
-          </tr>
-        </thead>
-        <tbody>
-          {cols.map(c => (
-            <tr key={c.start}>
-              <th scope="row">{range(c)}</th>
-              <td>{c.home ? money(c.home.cents) : 'keine Messung'}</td>
-              <td>{c.world ? `${money(c.world.cents)}${c.world.region ? ` · ${regionCode(c.world.region)}` : ''}` : 'keine Messung'}</td>
+      {/* 1.0: the box is visually hidden, not the table: a table takes its content's width whatever its own size, and widened the page on phones. */}
+      <div className="sr-only">
+        <table>
+          <caption>{label}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Zeitraum</th>
+              <th scope="col">{country}</th>
+              <th scope="col">Günstigste Region weltweit (INT)</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {cols.map(c => (
+              <tr key={c.start}>
+                <th scope="row">{range(c)}</th>
+                <td>{c.home ? money(c.home.cents) : 'keine Messung'}</td>
+                <td>{c.world ? `${money(c.world.cents)}${c.world.region ? ` · ${regionCode(c.world.region)}` : ''}` : 'keine Messung'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

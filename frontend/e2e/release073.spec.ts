@@ -71,7 +71,7 @@ test('a completely wrong product mapping can be deleted after a confirmation, ac
     await route.fulfill({ status: 204, body: '' });
   });
   await page.reload();
-  await openTab(page, 'Infos');
+  await openTab(page, 'Zuordnungen'); // PROD-03: until 1.0 "Infos"
   // Both the active mapping and the one set aside ("Verworfen") can be deleted.
   await expect(page.getByRole('button', { name: 'Zuordnung Forza Horizon 5 Xbox Key GLOBAL löschen', exact: true })).toBeVisible();
   const setAside = page.locator('.match').filter({ hasText: 'Forza Motorsport 7' });

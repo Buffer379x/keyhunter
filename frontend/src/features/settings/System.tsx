@@ -141,7 +141,7 @@ export default function System({ csrf, busy, onLogout, onSignedOut, onError }: P
                 </>
               ),
             },
-            { label: 'Version', value: <span className="mono">{appVersion}</span> },
+            { label: 'Version', value: <span className="mono app-version">{appVersion}</span> },
           ]}
         />
       </SettingsPanel>

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, HttpError } from '../api';
 import type { AlertDelivery, PriceBadgeData, WishlistItem } from '../api';
-import { Button, EmptyState, Icon, Inset, Label, Notice, PageHeading, Panel, PanelHead, Pill, Price } from '../components';
+import { Button, Cover, EmptyState, Icon, StatePill, Inset, Label, Notice, PageHeading, Panel, PanelHead, Pill, Price } from '../components';
 import { alarmRows } from './alerts-model';
+import { platformName } from './catalog-ui';
 import type { AlarmRow } from './alerts-model';
-import { Cover } from './catalog-ui';
 import { whenVisible } from '../poll';
 import { relativeTime } from '../time';
 import { money } from './price-format';
@@ -42,7 +42,7 @@ const deliveryChip = (state: string) => (
 const channelStates: Record<string, string> = { pending: 'wartet', sent: 'zugestellt', failed: 'fehlgeschlagen', cancelled: 'verworfen' };
 /** "Telegram zugestellt · E-Mail fehlgeschlagen (HTTP 401 · Unauthorized)". */
 const deliveryLine = (deliveries: AlertDelivery[]) => (
-  <small className="faint delivery-channels">
+  <small className="muted delivery-channels">
     {deliveries.map((d, i) => (
       <span key={d.channel}>
         {i > 0 && ' · '}
@@ -127,25 +127,15 @@ function openAlarm(id: string) {
 }
 
 function AlarmStatus({ row, mode }: { row: AlarmRow; mode: Rule['mode'] }) {
-  if (row.reached)
-    return (
-      <Pill tone="ok" icon="check">
-        Ziel erreicht
-      </Pill>
-    );
-  if (!row.enabled)
-    return (
-      <Pill tone="dim" icon="clock">
-        Pausiert
-      </Pill>
-    );
+  if (row.reached) return <StatePill state="reached" />;
+  if (!row.enabled) return <StatePill state="paused" />;
   if (mode === 'low')
     return (
       <Pill tone="dim" icon="bell">
         Neuer Tiefstpreis
       </Pill>
     );
-  if (row.current === null) return <Pill tone="dim">Kein Preis</Pill>;
+  if (row.current === null) return <StatePill state="missing" />;
   return <Pill>{money(row.distance ?? 0)} über Ziel</Pill>;
 }
 
@@ -279,12 +269,15 @@ export default function PriceAlerts({
                 {rows.map(row => {
                   const rule = ruleOf(row.id);
                   const item = items[row.id];
-                  const sub = [item?.game?.edition_name, rule?.basis === 'estimate' && basisName(rule.basis)].filter(Boolean).join(' · ');
+                  // RESP-10: edition and the wish's own platform, so two wishes of one game stay apart.
+                  const sub = [item?.game?.edition_name, item && platformName(item.platform_id), rule?.basis === 'estimate' && basisName(rule.basis)]
+                    .filter(Boolean)
+                    .join(' · ');
                   return (
                     <tr key={row.id} className="click" onClick={() => openAlarm(row.id)}>
                       <td className="c-game">
                         <div className="game-cell">
-                          <Cover src={item?.game?.cover_url ?? null} title={row.title} />
+                          <Cover src={item?.game?.cover_url} title={row.title} />
                           <div>
                             <a
                               className="alarm-title"
@@ -350,7 +343,7 @@ export default function PriceAlerts({
                     <tr key={event.id}>
                       <td className="mono c-time" title={new Date(at * 1000).toLocaleString('de-DE')}>
                         {relativeTime(at)}
-                        {event.attempts > 1 && <span className="faint"> · {event.attempts} Versuche</span>}
+                        {event.attempts > 1 && <span className="muted"> · {event.attempts} Versuche</span>}
                       </td>
                       <td className="c-game">{event.wish_id ? (ruleOf(event.wish_id)?.title ?? 'Ehemaliger Wunschlisteneintrag') : 'Testnachricht'}</td>
                       <td className="r mono c-price">{event.cents !== null ? money(event.cents) : '–'}</td>

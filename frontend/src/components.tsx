@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Button, Help } from './ui';
 
 export * from './ui';
-export { KeyMark, Brand } from './brand';
+export { Brand } from './brand';
 /** Page header (`.page-head`): the h1 with an optional help symbol, a sub line and actions on the right (they wrap below on narrow screens). */
 export function PageHeading({ title, sub, help, actions, id }: { title: string; sub?: ReactNode; help?: ReactNode; actions?: ReactNode; id?: string }) {
   return (

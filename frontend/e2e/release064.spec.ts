@@ -89,7 +89,7 @@ test('an automatically found product that does not match can be checked in a pop
     await route.fulfill({ status: 204, body: '' });
   });
   await page.reload();
-  await openTab(page, 'Infos');
+  await openTab(page, 'Zuordnungen'); // PROD-03: until 1.0 "Infos"
   const match = page.locator('.match').filter({ hasText: 'Deluxe Bundle' });
   await expect(match).toContainText('Selbst prüfen');
   // No direct jump to the shop for an open review: the popup shows the address first.
@@ -147,7 +147,7 @@ test('an account offer cannot be confirmed by hand and a possible namesake names
     await route.fulfill({ status: 204, body: '' });
   });
   await page.reload();
-  await openTab(page, 'Infos');
+  await openTab(page, 'Zuordnungen'); // PROD-03: until 1.0 "Infos"
   const dialog = page.getByRole('dialog', { name: 'Zuordnung prüfen', exact: true });
   await page.locator('.match').filter({ hasText: 'Account' }).getByRole('button', { name: 'Prüfen', exact: true }).click();
   await expect(dialog.getByRole('note')).toContainText('kein Aktivierungscode');

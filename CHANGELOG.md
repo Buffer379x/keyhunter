@@ -1,5 +1,51 @@
 # Änderungen
 
+## 0.9.4 – 2026-11-23
+
+Das neue Layout für Phone, Tablet und Laptop: Wunschliste und Angebote werden auf schmalen Bildschirmen zu Karten, nichts läuft mehr seitlich aus dem Bild, und auf Touch-Geräten sind alle Bedienelemente groß genug. Zustände sehen überall gleich aus, eine Checkliste führt durch den ersten Start, und die Hauptansichten sind ohne schwere Barrierefreiheitsfehler. Nur die Oberfläche ändert sich: keine Migration, beim Update ist nichts zu tun. Falls im Browser-Tab noch das alte Favicon erscheint, die Seite einmal mit Strg+F5 neu laden.
+
+### Neu
+- **Erste Schritte:** Unter der Wunschliste steht für eine neue Installation eine Checkliste: Zielland, Spieleindex (IGDB), Key-Shop, erstes Spiel und Benachrichtigungskanal. Jeder Schritt zeigt „Erledigt“ oder „Offen“, ein Klick führt direkt an die richtige Stelle. Das Fragezeichen erklärt, wofür jeder Schritt nötig ist, auch woher Client-ID und Secret für IGDB kommen. Die Liste verschwindet, sobald alles erledigt ist, und lässt sich mit dem X ausblenden (das merkt sich der Browser).
+- **Einrichtung:** Die Einrichtungsseite sagt in einem Satz, was KeyHunter macht. Das Fragezeichen am Einrichtungscode nennt, wo die Datei `bootstrap-token` liegt (im Container `/data/bootstrap-token`, unter Unraid im Ordner „App data“) und wie man sie im Terminal anzeigt.
+- **„Gekauft“ fragt nach:** Vor dem Verschieben in die Bibliothek erscheint eine kurze Rückfrage. Sie nennt, was endet (Preisabfragen, Preisalarm, Warenkorb-Eintrag).
+- **Spiel hinzufügen auf dem Phone:** Oben rechts gibt es einen orangen **+**-Knopf.
+
+### Layout
+- **Wunschliste auf dem Phone:** Jeder Eintrag ist eine Karte. Der Titel steht mit Cover über die volle Breite, Warenkorb-, Pause- und Warnsymbol direkt daneben. Darunter stehen „Preis DE“ und „Preis INT“ mit Beschriftung, darunter die Status-Pillen. Ein Tipp irgendwo auf die Karte öffnet das Spiel. Am Desktop öffnet weiterhin nur der eingestellte Öffner (Details-Knopf, Titel oder Cover).
+- **Wunschliste auf Tablet und Laptop:** Die Ansicht richtet sich nach der Breite der Liste, nicht nach der Fensterbreite. Bei 1024 px mit Seitenleiste lief die Tabelle bisher über und schnitt Status und Öffnen-Knopf ab. Jetzt gilt: ab 980 px Listenbreite die volle Tabelle, darunter eine Tabelle ohne „Ziel“ und „14 Tage“, unter 800 px Karten.
+- **Angebote:** „Zum Shop“ und der Warenkorb-Knopf bleiben immer rechts im Bild, auch wenn die Tabelle seitlich scrollt. Unter 1240 px Tabellenbreite wird die Tabelle kompakter, dadurch passt sie bei 1366 × 768 vollständig. Unter 980 px werden die Angebote zu Karten, auf dem Phone zu schmalen Karten.
+- **Tab-Leisten** (Spieldetails, Einstellungen, Key-Shops, Kanäle, Tabellenspalten): Der aktive Tab wird in der Leiste sichtbar gescrollt, auch wenn er über einen Link geöffnet wurde. Ein Pfeil am Rand zeigt weitere Tabs an und blättert bei Klick weiter.
+- **Menüs** wie „Pausieren“ und „⋯“ bleiben auf dem Phone im Fenster.
+- **Suchpopup auf dem Phone:** Der Kopf ist zweizeilig, oben „Suche · IGDB“ mit dem Schließen-Knopf, darunter die Plattformwahl. Es scrollt nicht mehr seitlich.
+- **Detailseite auf dem Phone:** Die Seite lässt sich nicht mehr seitlich verschieben.
+- **Touch:** Auf Touch-Geräten sind Knöpfe, Chips, Tabs, Felder und Menüpunkte mindestens 44 × 44 px groß. Mit Maus und Tastatur bleibt alles wie bisher.
+- **Ruhigeres Laden:** Die Kennzahl-Kacheln der Wunschliste halten ihren Platz frei, solange die Liste lädt, die Liste springt beim Laden nicht mehr nach unten. Auch der Abrufstatus in der Seitenleiste hat vorab seinen Platz.
+
+Voraussetzung für das neue Layout sind aktuelle Browser (Chrome/Edge ab 105, Safari ab 16, Firefox ab 110). Ältere Browser zeigen die Desktop-Tabellen mit seitlichem Scrollen.
+
+### Geändert
+- **Einheitliche Zustände:** Jeder Zustand sieht überall gleich aus. „Ziel erreicht“ ist immer grün mit Haken, auch im Preis-Tab. „Veraltet“ ist immer grau mit Uhr, auch in der Spalte „Gesehen“ der Angebote (bisher gelber Text). „Pausiert“ ist gelb mit Pause-Zeichen, auch in den Preisalarmen. Fehlt ein Preis, steht in der Tabelle „–“; den Grund nennt nur die Status-Spalte.
+- **Tab „Zuordnungen“:** Der Tab „Infos“ im Spieldetail heißt jetzt „Zuordnungen“, denn dort werden die Shop-Zuordnungen geprüft. Die Zahl am Tab zeigt weiter, was offen ist. Alte Links mit `tab=infos` öffnen den neuen Tab.
+- **Plattform immer sichtbar:** Die Wunschliste zeigt unter dem Titel Edition und Plattform, z. B. „Standard Edition · Xbox One“, statt des Erscheinungsjahrs. Das Jahr steht im Spieldetail. Der Kopf des Spieldetails nennt nur noch die Plattform des Wunsches, nicht alle Systeme des Spiels. Warenkorb und Preisalarme zeigen die Plattform ebenfalls. So lassen sich zwei Wünsche desselben Spiels für verschiedene Xbox-Systeme unterscheiden.
+- **Abrufbudget zu knapp:** Braucht ein Shop mehr Abrufe am Tag, als sein Tageslimit erlaubt, wird die Kachel „Abrufe heute“ gelb. Unten steht „zu knapp: Driffle“ (bzw. der betroffene Shop) als Link zu Einstellungen › Key-Shops. Bisher wurde nur die Summe aller Shops verglichen, ein knapper Shop fiel so nicht auf.
+- **Cover:** Alle Cover kommen aus einer Komponente. Spiele ohne Bild zeigen überall dieselben Initialen auf einem Farbverlauf, dessen Farbe vom Titel abhängt, jetzt auch in Wunschliste, Warenkorb, Spieldetail und Suchtreffern (bisher ein neutraler Verlauf bzw. das Schlüssel-Zeichen).
+- **Texte:** „1 Spiel“ statt „1 Spiele“. Die günstigste Region weltweit heißt überall kurz **INT**, auch in der Diagrammlegende, im Tooltip, in den Editionen und im Preis-Tab („Günstigste Region · INT“). „Basisspiel“, „Edition“ usw. stehen in der Suche nicht mehr in Grün; Grün bedeutet nur noch „gültig“ oder „erreicht“.
+- **Lesbarkeit:** Grauer Text hat mehr Kontrast. Tabellenköpfe, Zähler, Zeitstempel („Stand …“) und Hinweise sind heller. Das dunklere Grau bleibt nur für Dekoration und ausgeschaltete Elemente.
+- **Favicon:** Im Browser-Tab ist wieder das KeyHunter-Zeichen zu sehen statt einer „1“. Dafür gibt es eine eigene, gröbere Zeichnung für 16 und 32 px. Browser speichern Favicons lange zwischen; erscheint noch das alte Zeichen, hilft Strg+F5 oder das Leeren des Browser-Caches.
+
+### Barrierefreiheit
+- **Fokus:** Textfelder und die Suche oben zeigen beim Tastaturfokus denselben orangen Ring wie alle anderen Bedienelemente.
+- **Menü auf Tablet und Phone:** Das geöffnete Seitenmenü verhält sich wie ein Dialog. Mit der Tab-Taste bleibt man im Menü, die Seite dahinter ist gesperrt. Das erste Escape schließt das Menü, danach liegt der Fokus wieder auf dem Menü-Knopf.
+- **Fragezeichen:** Die Hilfe öffnet nicht mehr schon beim Tabben auf das „?“, sondern bei Klick, Tipp, Enter oder Mausberührung. Screenreader lesen den Text weiterhin vor.
+- **Suche oben:** Ein Tab-Stopp im leeren Suchfeld öffnet kein leeres Ergebnisfenster mehr. Es öffnet sich beim ersten Zeichen, bei Klick oder mit Strg+K.
+- **Tabellen in Abrufstatus und Log** lassen sich mit der Tastatur erreichen und seitlich scrollen. Die Meldungen unten rechts sind als eigener Bereich „Meldungen“ ausgezeichnet.
+- Die Hauptansichten (Wunschliste, alle Detail-Tabs, Warenkorb, Bibliothek, Preisalarme, alle Einstellungs-Tabs, Einrichtung und Anmeldung) haben bei 1366 und 375 px keine schweren Barrierefreiheitsfehler mehr, auch keine Kontrastfehler.
+
+### Entwicklung
+- `deploy/browser-check.sh` prüft zusätzlich mit axe auf Barrierefreiheit (keine schweren oder kritischen Fehler erlaubt) und danach die Layouts in WebKit, im Playwright-Image per Docker. `KEYHUNTER_SKIP_WEBKIT=1` überspringt den WebKit-Teil.
+- Neue Regressionstests für Karten und Tab-Leisten bei 375 bis 1440 px, Touch-Ziele, das modale Menü, „Gekauft“, die ersten Schritte, `tab=infos` und das Budget je Shop. Die Visual-Baselines sind neu aufgenommen; die Versionsnummer ist darin maskiert.
+- CI: Die Browser-Prüfung darf wegen des axe- und WebKit-Laufs 15 statt 5 Minuten laufen.
+
 ## 0.9.3 – 2026-11-22
 
 Preise, Trends und Zuordnungen sind ehrlicher: Ein Preis bleibt so lange aktuell, wie sein Abfrageintervall es vorsieht, gleichnamige Spiele aus anderen Jahren werden nicht mehr automatisch zugeordnet, und veraltete Angebote zeigen keine Ersparnis mehr. Eine vergessene Passphrase lässt sich über die Kommandozeile zurücksetzen. Beim Start ergänzt die Datenbank zwei kleine Migrationen (mit Sicherung vorher); bestätigte Zuordnungen bleiben unverändert, sonst ist beim Update nichts zu tun.

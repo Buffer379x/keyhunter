@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, EmptyState, Help, Icon, IconButton, Inset, Label, Panel, PanelHead, Pill, Price, Reg, Switch } from '../components';
+import { Button, EmptyState, Help, Icon, IconButton, Inset, Label, Panel, PanelHead, Pill, Price, Reg, StatePill, Switch } from '../components';
 import { relativeTime } from '../time';
 import { regionCode } from './regions';
 import { dateTime, money } from './price-format';
@@ -62,19 +62,23 @@ function tempoTitle(row: OfferRow, label: string) {
   return [`Prüftempo ${label}`, state, every].filter(Boolean).join(' · ');
 }
 
+/** When the offer was last seen; a stale time in the grey clock pill of "Veraltet" (DS-04), none as "–" (the validity says why). */
 function Seen({ row }: { row: OfferRow }) {
   const at = row.link.observed_at;
-  if (!at) return <span className="muted">noch nicht abgefragt</span>;
-  const stale = row.link.stale || row.link.reasons?.includes('stale');
-  return (
-    <time className={stale ? 'seen stale' : 'seen'} dateTime={new Date(at * 1000).toISOString()} title={dateTime(at)}>
-      {stale ? 'veraltet · ' : ''}
+  if (!at) return <span className="save none">–</span>;
+  const time = (
+    <time dateTime={new Date(at * 1000).toISOString()} title={dateTime(at)}>
       {relativeTime(at)}
     </time>
   );
+  return row.link.stale || row.link.reasons?.includes('stale') ? <StatePill state="stale">{time}</StatePill> : time;
 }
 
-/** Angebote: every offer of every region, ordered by price only, with its validity in the target country and the difference to its best price. */
+/**
+ * Angebote: every offer of every region, ordered by price only, with its validity in the target country and the difference to its best price.
+ * 1.0: the cells carry their column (`c-…`), so offers.css can compact the table, keep the actions in view and turn the rows into
+ * cards when the table's own box is narrow (container query); on the card `data-label` names the values the table head explains.
+ */
 export default function OffersTab({
   state,
   rows,
@@ -122,7 +126,7 @@ export default function OffersTab({
     <Panel aria-labelledby="offers-title">
       <PanelHead>
         <Label id="offers-title">Angebote · nach Preis</Label>
-        <span className="mono faint count">
+        <span className="mono muted count">
           {shown.length} von {rows.length}
         </span>
         <span className="spacer" />
@@ -131,7 +135,7 @@ export default function OffersTab({
           Nur in {code} aktivierbar
         </Switch>
       </PanelHead>
-      <Inset className="table-wrap" tabIndex={0} role="region" aria-label="Angebotstabelle">
+      <Inset className="table-wrap offers-wrap" tabIndex={0} role="region" aria-label="Angebotstabelle">
         {rows.length === 0 ? (
           <EmptyState
             icon="search"
@@ -167,7 +171,7 @@ export default function OffersTab({
                   <th
                     key={column}
                     scope="col"
-                    className={column === 'price' || column === 'diff' ? 'r' : undefined}
+                    className={`c-${column}${column === 'price' || column === 'diff' ? ' r' : ''}`}
                     aria-sort={column === 'price' ? 'ascending' : undefined}
                   >
                     {offersColumnName(column, code)}
@@ -183,7 +187,7 @@ export default function OffersTab({
                     )}
                   </th>
                 ))}
-                <th scope="col">
+                <th scope="col" className="c-actions">
                   <span className="sr-only">Link</span>
                 </th>
               </tr>
@@ -197,13 +201,13 @@ export default function OffersTab({
                 const speed = tempo(row.link.score);
                 const cells: Record<OffersColumn, ReactNode> = {
                   shop: (
-                    <td key="shop">
+                    <td key="shop" className="c-shop">
                       <b className="shop">{shopName(row)}</b>
                       {row.quote?.seller && <small className="muted seller">{row.quote.seller}</small>}
                     </td>
                   ),
                   region: (
-                    <td key="region">
+                    <td key="region" className="c-region">
                       <div className="world-cell">
                         <Reg code={regionCode(row.link.product?.region)} home={regionCode(row.link.product?.region) === code} decorative />
                         {regionName(row)}
@@ -211,7 +215,7 @@ export default function OffersTab({
                     </td>
                   ),
                   validity: (
-                    <td key="validity">
+                    <td key="validity" className="c-validity">
                       <Pill tone={valid.tone} icon={valid.icon}>
                         {valid.text}
                       </Pill>
@@ -219,7 +223,7 @@ export default function OffersTab({
                     </td>
                   ),
                   price: (
-                    <td key="price" className="r">
+                    <td key="price" className="c-price r">
                       {row.price !== null ? (
                         <Price cents={row.price} tone={row.key === bestKey ? 'hot' : row.current ? 'default' : 'stale'} />
                       ) : (
@@ -228,7 +232,7 @@ export default function OffersTab({
                     </td>
                   ),
                   diff: (
-                    <td key="diff" className="r">
+                    <td key="diff" className="c-diff r" data-label={offersColumnName('diff', code)}>
                       {diff === null ? (
                         <span className="save none">–</span>
                       ) : Math.abs(diff) < 1 ? (
@@ -243,7 +247,7 @@ export default function OffersTab({
                   ),
                   // 0.8.2 "Score", since 0.9.3 "Prüftempo" (häufig / normal / selten): how often the offer is checked, not a rating.
                   score: (
-                    <td key="score" className="tempo">
+                    <td key="score" className="c-score" data-label={offersColumnName('score', code)}>
                       {speed === null ? (
                         <span className="save none">–</span>
                       ) : (
@@ -254,7 +258,7 @@ export default function OffersTab({
                     </td>
                   ),
                   seen: (
-                    <td key="seen" className="muted nowrap">
+                    <td key="seen" className="c-seen muted nowrap">
                       <Seen row={row} />
                     </td>
                   ),
@@ -262,7 +266,7 @@ export default function OffersTab({
                 return (
                   <tr key={row.key} className={row.key === bestKey ? 'best' : undefined}>
                     {columns.map(column => cells[column])}
-                    <td className="r">
+                    <td className="c-actions r">
                       <span className="offer-actions">
                         {onCart && row.current && row.price !== null && (
                           <IconButton
@@ -312,7 +316,7 @@ export default function OffersTab({
             </span>
           ))}
           {reviewCount > 0 && (
-            <button type="button" className="text-button" onClick={() => onTab('infos')}>
+            <button type="button" className="text-button" onClick={() => onTab('zuordnungen')}>
               {reviewCount} {reviewCount === 1 ? 'Zuordnung' : 'Zuordnungen'} prüfen
             </button>
           )}

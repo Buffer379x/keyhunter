@@ -142,9 +142,9 @@ test('dashboard shows automatic discovery, tabs and observed offer eligibility',
   await expect(page.getByRole('button', { name: 'Premium Edition ansehen', exact: true })).toBeVisible();
   await openTab(page, 'Verlauf');
   await expect(page.getByText('Noch keine Preismessung vorhanden.')).toBeVisible();
-  await openTab(page, 'Infos');
+  await openTab(page, 'Zuordnungen'); // PROD-03: until 1.0 "Infos"
   await expect(page.getByText('Erscheinungsjahr', { exact: true })).toBeVisible();
-  await expect(page).toHaveURL(/[?&]tab=infos/);
+  await expect(page).toHaveURL(/[?&]tab=zuordnungen/);
   await page.goBack();
   await expect(page).toHaveURL(/[?&]tab=verlauf/);
   await expect(page.getByRole('tab', { name: /^Verlauf/ })).toHaveAttribute('aria-selected', 'true');

@@ -4,6 +4,7 @@ import { notify } from '../notify';
 import type { WishlistItem } from '../api';
 import {
   Button,
+  Cover,
   EmptyState,
   Icon,
   Help,
@@ -21,8 +22,7 @@ import {
   formatPrice,
 } from '../components';
 import { whenVisible } from '../poll';
-import { itemName } from './catalog-ui';
-import GameCover from './GameCover';
+import { itemName, platformName } from './catalog-ui';
 import { cartSums, entryShop } from './cart-model';
 import type { CartEntry, CartLine, CartScope } from './cart-model';
 import { shopNames } from './shop-names';
@@ -195,10 +195,14 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onCo
                       <tr key={line.item.id} className={line.item.source !== null || line.item.scope !== 'world' ? 'chosen' : undefined}>
                         <td className="c-game">
                           <div className="game-cell">
-                            <GameCover small src={line.item.game?.cover_url} title={name} />
-                            <button type="button" className="title-open" title="Details öffnen" onClick={() => onOpen(line.item)}>
-                              <b>{name}</b>
-                            </button>
+                            <Cover size="xs" src={line.item.game?.cover_url} title={name} />
+                            <div className="game-name">
+                              <button type="button" className="title-open" title="Details öffnen" onClick={() => onOpen(line.item)}>
+                                <b>{name}</b>
+                              </button>
+                              {/* RESP-10: the same game for two systems stays apart */}
+                              <small>{platformName(line.item.platform_id)}</small>
+                            </div>
                           </div>
                         </td>
                         <td className="c-shop">
@@ -256,7 +260,7 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onCo
                               {line.stale && <div className="wl-sub">zuletzt bekannt</div>}
                             </>
                           ) : (
-                            <span className="wl-note faint">
+                            <span className="wl-note muted">
                               {line.item.scope === 'home' ? `Kein ${homeLabel}` : 'Kein Angebot'}
                               {line.item.source ? ` bei ${shopName(line.item.source)}` : ''}
                             </span>
@@ -268,7 +272,7 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onCo
                           ) : line.fee !== null ? (
                             <span className="mono">+{formatPrice(line.fee)}</span>
                           ) : (
-                            <span className="wl-note faint" title={`Für ${shopName(line.source)} ist keine Gebührenschätzung eingestellt`}>
+                            <span className="wl-note muted" title={`Für ${shopName(line.source)} ist keine Gebührenschätzung eingestellt`}>
                               unbekannt
                             </span>
                           )}
@@ -301,7 +305,7 @@ export default function Cart({ csrf, targetCountry, onOpen, onOpenWishlist, onCo
                   <li key={shop.source}>
                     <div className="cart-shop-head">
                       <b>{shopName(shop.source)}</b>
-                      <span className="faint">{games(shop.count)}</span>
+                      <span className="muted">{games(shop.count)}</span>
                       <span className="mono">{formatPrice(shop.total)}</span>
                     </div>
                     <dl className="cart-split">

@@ -13,7 +13,7 @@ permissions:
 jobs:
   checks:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - name: Check out code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -32,7 +32,8 @@ jobs:
       - name: Run browser tests with the synthetic catalog
         env:
           KEYHUNTER_TEST_BROWSER_CHANNEL: chrome
-        timeout-minutes: 5
+        # 1.0: the e2e suite with the axe scan, then the WebKit run of the responsive checks in the Playwright image.
+        timeout-minutes: 15
         run: sh deploy/browser-check.sh
       - name: Compare core views visually
         timeout-minutes: 8

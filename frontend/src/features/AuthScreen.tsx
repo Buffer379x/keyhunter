@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Brand, Button, Notice } from '../components';
+import { Brand, Button, Help, Notice } from '../components';
 import { countryCodes } from './regions';
 
 type Screen = 'loading' | 'setup' | 'login' | 'offline';
@@ -94,16 +94,28 @@ function AuthForm({
     <>
       <div className="auth-title">
         <h1>{setup ? 'KeyHunter einrichten' : 'Anmelden'}</h1>
+        {/* RESP-15: what KeyHunter is for, in one line, before the first question */}
+        {setup && <p className="hint">Vergleicht Xbox-Key-Preise aller Regionen mit deinem Land und meldet Zielpreise.</p>}
         <p className="hint">{setup ? 'Lege die Passphrase für deinen privaten Bereich fest.' : 'Melde dich mit deiner Passphrase an.'}</p>
       </div>
       <form onSubmit={submit}>
         {(localError || error) && <Notice error>{localError || error}</Notice>}
         {setup && (
           <div className="form-row">
-            <label htmlFor="setup-token">Einrichtungscode</label>
+            <span className="with-help">
+              <label htmlFor="setup-token">Einrichtungscode</label>
+              <Help label="Hilfe zum Einrichtungscode">
+                <span>
+                  KeyHunter schreibt den Code beim ersten Start in die Datei bootstrap-token im Datenverzeichnis, im Container /data/bootstrap-token. Er steht
+                  nie im Log.
+                </span>
+                <span>Unraid: /mnt/user/appdata/keyhunter/bootstrap-token (der Ordner aus „App data“).</span>
+                <span>Im Terminal des Docker-Hosts: docker exec KeyHunter cat /data/bootstrap-token</span>
+              </Help>
+            </span>
             <input id="setup-token" type="password" autoComplete="off" value={token} onChange={e => setToken(e.target.value)} required spellCheck={false} />
             <span className="hint">
-              Aus der lokalen Datei <code>bootstrap-token</code> im Datenverzeichnis.
+              Aus der Datei <code>bootstrap-token</code> im Datenverzeichnis.
             </span>
           </div>
         )}

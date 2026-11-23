@@ -28,16 +28,6 @@
   position: relative;
   min-width: 0;
 }
-.library-page .lib-item .game-cover {
-  width: 100%;
-  height: auto;
-  aspect-ratio: 3 / 4;
-  border-radius: 8px;
-}
-.library-page .lib-item .cover-fallback .key-mark {
-  width: 28px;
-  height: 28px;
-}
 /* Every tile has the same text block: two title lines (the edition is part of the title); so the grid never shifts. */
 .library-page .lib-info {
   display: grid;
@@ -135,14 +125,14 @@
   position: static;
   display: contents;
 }
-.library-page .lib.rows .lib-item .game-cover {
+.library-page .lib.rows .lib-item .cover {
   width: 36px;
   border-radius: 5px;
 }
 .library-page .lib.rows .lib-item:has(.lib-tools) {
   grid-template-columns: 36px minmax(0, 1fr) auto;
 }
-.library-page .lib.rows .lib-item .game-cover {
+.library-page .lib.rows .lib-item .cover {
   grid-column: 1;
   grid-row: 1;
 }
@@ -167,7 +157,7 @@
 .library-page .lib.rows .lib-tools .icon-btn {
   box-shadow: none;
 }
-.library-page .lib.rows.lib-skeleton .lib-ghost.cover {
+.library-page .lib.rows.lib-skeleton .lib-ghost.ghost-cover {
   width: 36px;
   border-radius: 5px;
 }
@@ -184,7 +174,7 @@
   background: var(--panel);
   border: 1px solid var(--line);
 }
-.library-page .lib-ghost.cover {
+.library-page .lib-ghost.ghost-cover {
   aspect-ratio: 3 / 4;
   border-radius: 10px;
 }

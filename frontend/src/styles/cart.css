@@ -36,19 +36,6 @@
 .cart-page .cart-table .game-cell {
   min-width: 180px;
 }
-.cart-page .cart-table .gcover {
-  width: 30px;
-  height: 40px;
-  border-radius: 5px;
-  border: 1px solid var(--cover-line);
-  box-shadow: none;
-  flex: none;
-}
-.cart-page .cart-table .gcover .gcover-title {
-  font: 600 10px/1 var(--f-sans);
-  letter-spacing: 0.02em;
-  color: var(--cover-text);
-}
 .cart-page .cart-table .game-cell b {
   overflow-wrap: anywhere;
 }
@@ -132,6 +119,10 @@
   align-items: baseline;
   gap: 8px;
 }
+/* DS-10: the shop name in the Inter weight the app uses for emphasis (600), not the browser's bold (700). */
+.cart-page .cart-shop-head b {
+  font-weight: 600;
+}
 .cart-page .cart-shop-head .faint {
   font-size: var(--t-xs);
 }
@@ -188,7 +179,9 @@
   color: var(--text);
 }
 .cart-page .cart-totals dd.cart-grand {
-  font-size: var(--t-lg, 18px);
+  /* DS-10: JetBrains Mono ships 400 and 500 only; 600 would be synthesised */
+  font-size: var(--t-lg);
+  font-weight: 500;
   color: var(--text);
 }
 .cart-page .cart-sum .hint {

@@ -17,15 +17,6 @@
   display: grid;
   min-width: 0;
 }
-.alerts-page .game-cell .game-cover {
-  width: 34px;
-  height: 44px;
-  border-radius: 5px;
-}
-.alerts-page .game-cell .cover-fallback .key-mark {
-  width: 16px;
-  height: 16px;
-}
 .alerts-page .game-cell small {
   color: var(--muted);
   font-size: var(--t-xs);
@@ -47,7 +38,7 @@
   color: var(--ok);
 }
 .alerts-page .save.none {
-  color: var(--faint);
+  color: var(--muted);
 }
 .alerts-page td.mono {
   white-space: nowrap;

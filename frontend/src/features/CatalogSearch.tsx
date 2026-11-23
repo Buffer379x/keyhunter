@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, HttpError } from '../api';
 import type { CatalogGame, WishlistItem } from '../api';
-import { Button, ConfirmDialog, Field, Icon, IconButton, Notice } from '../components';
-import { ALL_PLATFORMS, Cover, PLATFORMS, kindName, platformName, releaseYear, selectionAllowed } from './catalog-ui';
+import { Button, ConfirmDialog, Cover, Field, Icon, IconButton, Notice } from '../components';
+import { ALL_PLATFORMS, PLATFORMS, kindName, platformName, releaseYear, selectionAllowed } from './catalog-ui';
 
 /**
  * Catalog search: inline in the top bar or as the add dialog. `target` decides where a pick goes: the wishlist
@@ -202,10 +202,12 @@ export default function CatalogSearch({ csrf, open, inline = false, target = 'wi
       maxLength={100}
       placeholder={inline ? 'Spiele suchen …' : 'Titel oder IGDB-ID, z. B. Forza Horizon'}
       value={query}
-      onFocus={inline ? onOpen : undefined}
+      // RESP-20: the top search opens its popup on a click, from the first character or with Ctrl K, not on a Tab stop into the empty field.
+      onFocus={inline && query.trim() ? onOpen : undefined}
+      onClick={inline ? onOpen : undefined}
       onChange={event => {
         setQuery(event.target.value);
-        if (inline) onOpen?.();
+        if (inline && event.target.value.trim()) onOpen?.();
       }}
       disabled={busy}
     />
@@ -266,7 +268,7 @@ export default function CatalogSearch({ csrf, open, inline = false, target = 'wi
             const label = several ? `${game.name} (${platformName(system)})` : game.name;
             return (
               <li className="catalog-result" key={`${game.igdb_id}-${system}`}>
-                <Cover src={game.cover_url} />
+                <Cover src={game.cover_url} title={game.name} />
                 <div className="result-info">
                   <h3>{game.name}</h3>
                   <p>

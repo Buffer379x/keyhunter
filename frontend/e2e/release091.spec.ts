@@ -141,7 +141,7 @@ test('the cart shows the games left and the totals right again, with every remov
   expect(sumBox.y, 'below the games on a narrower screen').toBeGreaterThan((await table.boundingBox())!.y + 100);
 });
 
-test('the list counts the offers after the year and marks mappings to review with a warning symbol', async ({ page }) => {
+test('the list counts the offers after edition and platform and marks mappings to review with a warning symbol', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await signInToFixture(page);
   await write(page, 'POST', '/api/v1/wishlist', { igdb_id: 1001, platform_id: 169 });
@@ -155,7 +155,7 @@ test('the list counts the offers after the year and marks mappings to review wit
   });
   await page.reload();
   const rows = wishlistRows(page);
-  await expect(rows.first()).toContainText(/2021 \(38 Angebote\)/);
+  await expect(rows.first()).toContainText(/Xbox Series X\|S \(38 Angebote\)/); // RESP-10: the platform instead of the year
   await expect(rows.nth(1)).toContainText(/\(1 Angebot\)/);
   await expect(rows.first().getByRole('img', { name: '2 ungeprüfte Zuordnungen', exact: true })).toBeVisible();
   await expect(rows.nth(1).getByRole('img', { name: /Zuordnung/ })).toHaveCount(0);

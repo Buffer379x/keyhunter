@@ -124,6 +124,8 @@ test('wishes go into the cart once, show a basket in the list, and the cart sums
   // Bought: gone from the cart as well.
   await table.getByRole('button', { name: 'Forza Horizon 5', exact: true }).click();
   await page.getByRole('button', { name: 'Gekauft', exact: true }).click();
+  // RESP-13: "Gekauft" asks first.
+  await page.getByRole('dialog', { name: 'Als gekauft markieren?' }).getByRole('button', { name: 'In die Bibliothek verschieben', exact: true }).click();
   await expect(navItem(page, 'Warenkorb')).toContainText('0');
   await navTo(page, 'Warenkorb');
   await expect(page.getByRole('heading', { name: 'Der Warenkorb ist leer' })).toBeVisible();

@@ -352,8 +352,8 @@ const mockLog = async (page: Page) => {
   await page.route(/\/api\/v1\/log(\?.*)?$/, r => r.fulfill({ json: logPage }));
 };
 
-// Volatile: the app version in the sidebar changes with every release.
-const masks = (page: Page) => [page.locator('.version')];
+// Volatile: the app version (sidebar, Einstellungen › System) changes with every release.
+const masks = (page: Page) => [page.locator('.version, .app-version')];
 
 async function settle(page: Page) {
   await page.evaluate(() => document.fonts.ready);
@@ -478,5 +478,17 @@ for (const vp of viewports) {
       await expect(page).toHaveScreenshot(`cart-${vp.name}.png`, { mask: masks(page) });
     });
     settings('log', 'settings-log', 'Log', 'Ereignisse', mockLog);
+    // 1.0 (PROD-02): the first steps of a new owner below the empty list: no game yet, no notification channel.
+    test('wishlist first steps', async ({ page }) => {
+      await prepare(page);
+      await page.route('**/api/v1/wishlist', r => (r.request().method() === 'GET' ? r.fulfill({ json: [] }) : r.continue()));
+      await page.route('**/api/v1/alerts', r =>
+        r.request().method() === 'GET' ? r.fulfill({ json: { configured: false, channels: [], rules: [], events: [] } }) : r.continue(),
+      );
+      await page.goto('/');
+      await expect(page.getByRole('region', { name: 'Erste Schritte', exact: true })).toBeVisible();
+      await settle(page);
+      await expect(page).toHaveScreenshot(`wishlist-first-steps-${vp.name}.png`, { mask: masks(page) });
+    });
   });
 }

@@ -7,7 +7,8 @@ const EDGE = 8;
 
 /**
  * Help (0.8.3): every explanation sits behind the same "?" symbol instead of standing in the interface. The popup opens on
- * hover, on keyboard focus and on a tap (touch has no hover); Escape, a tap elsewhere or leaving closes it. It floats fixed
+ * hover and on a click or tap (touch has no hover), or with Enter; Escape, a tap elsewhere or leaving closes it. Keyboard
+ * focus alone does not open it (RESP-20): Tab passes by without a popup, and Escape stays free for the dialog or drawer. It floats fixed
  * above everything (never clipped by a scrolling table) and stays inside the viewport, below the symbol or above when there is
  * no room. The text is the button's accessible description, so screen readers hear it without opening anything.
  * `label` names the button ("Hilfe zu Gebühren"); children are inline content, a `<span>` per paragraph.
@@ -74,9 +75,6 @@ export function Help({ label = 'Hilfe', children, className = '' }: { label?: st
         aria-label={label}
         aria-describedby={id}
         aria-expanded={open}
-        onFocus={event => {
-          if (event.currentTarget.matches(':focus-visible')) setOpen(true);
-        }}
         onBlur={close}
         onClick={() => {
           const next = !pinned;

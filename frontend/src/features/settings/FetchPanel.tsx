@@ -145,7 +145,7 @@ const gameText = (game: string | null, region: string | null) =>
   game ? (
     <>
       <b>{game}</b>
-      {region && <span className="faint"> · {region}</span>}
+      {region && <span className="muted"> · {region}</span>}
     </>
   ) : (
     <span className="faint">–</span>
@@ -186,7 +186,7 @@ function Runs() {
         perPage={list.perPage}
         onPerPage={list.setPerPage}
       />
-      <Inset className="table-wrap set-runs">
+      <Inset className="table-wrap set-runs" tabIndex={0} role="region" aria-label="Tabelle der letzten Abrufe">
         {!data ? (
           <p className="hint set-pad" role="status">
             {list.failed ? 'Die Abrufe konnten nicht gelesen werden.' : 'Abrufe werden geladen …'}
@@ -257,7 +257,7 @@ function Upcoming({ items, paused, now }: { items: UpcomingFetch[]; paused: bool
           {paused ? 'Die automatischen Abfragen sind pausiert; es steht keine angeforderte Abfrage an.' : 'Gerade steht keine Abfrage an.'}
         </p>
       ) : (
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0} role="region" aria-label="Tabelle der nächsten Abfragen">
           <table aria-label="Nächste Abfragen">
             <thead>
               <tr>

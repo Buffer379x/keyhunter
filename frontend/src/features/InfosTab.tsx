@@ -24,10 +24,10 @@ const sourceErrors: Record<string, string> = {
 const needsReview = (link: Link) => link.review !== 'confirmed' || !!link.renamed;
 const longDate = (seconds: number) => new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }).format(seconds * 1000);
 
-/** True for links the owner still has to look at (shown as the count on the Infos tab). */
+/** True for links the owner still has to look at (shown as the count on the Zuordnungen tab). */
 export const reviewLinks = (links: Link[]) => links.filter(link => link.review !== 'rejected' && link.enabled && needsReview(link));
 
-/** Infos: facts about the game and the watch, the IGDB description, and the shop product mappings with their review. */
+/** Zuordnungen tab (until 1.0 "Infos"): facts about the game and the watch, the IGDB description, and the shop product mappings with their review. */
 export default function InfosTab({ item, game, state }: { item: WishlistItem; game: CatalogGame | null; state: OffersState }) {
   const { view, busy, write, error } = state;
   const [url, setUrl] = useState('');

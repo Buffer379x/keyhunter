@@ -9,9 +9,6 @@ table.offers small {
   display: block;
   font-size: var(--t-xs);
 }
-table.offers .seen.stale {
-  color: var(--warn);
-}
 .table-wrap:focus-visible {
   outline-offset: -2px;
 }
@@ -53,4 +50,131 @@ table.offers .offer-cart {
 table.offers .offer-cart svg {
   width: 14px;
   height: 14px;
+}
+/*
+ * (1.0) Width tiers by the table's own box (container query), so the table never hides its actions (RESP-02):
+ *   every width   the actions column sticks to the right edge: "Zum Shop" and the cart button stay in view even when a
+ *                 long seller name or a custom column order still makes the table scroll
+ *   < 1240 px     compact: 8 px cell padding, seller names and reasons wrap (1366 × 768 fits)
+ *   < 980 px      cards in three lines (the compact table needs ≈ 972 px; same switch width as the wishlist): shop, region, price / validity, difference / seen, Prüftempo, actions;
+ *                 the values the table head explains carry a small label (`data-label`)
+ *   < 560 px      phone cards: shop and price, region and difference, validity, then seen and Prüftempo beside the actions
+ */
+.offers-wrap {
+  container: offers / inline-size;
+}
+table.offers :is(th, td).c-actions {
+  position: sticky;
+  right: 0;
+  background: var(--panel-2);
+}
+table.offers td.c-actions::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -12px;
+  width: 12px;
+  background: linear-gradient(to right, transparent, var(--panel-2));
+  pointer-events: none;
+}
+@container offers (width < 1240px) {
+  table.offers :is(th, td) {
+    padding-inline: 8px;
+  }
+  table.offers :is(th, td):first-child {
+    padding-left: 12px;
+  }
+  table.offers :is(th, td):last-child {
+    padding-right: 12px;
+  }
+  table.offers small {
+    white-space: normal;
+  }
+}
+@container offers (width < 980px) {
+  table.offers,
+  table.offers tbody {
+    display: block;
+  }
+  table.offers thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  table.offers tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(10.5rem, auto);
+    align-items: center;
+    grid-template-areas: 'shop region price' 'validity validity diff' 'seen score actions';
+    gap: 8px 16px;
+    padding: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  table.offers tbody tr:last-child {
+    border-bottom: 0;
+  }
+  table.offers td,
+  table.offers td:is(:first-child, :last-child) {
+    padding: 0;
+    border: 0;
+    white-space: normal;
+  }
+  table.offers td.c-shop {
+    grid-area: shop;
+  }
+  table.offers td.c-region {
+    grid-area: region;
+  }
+  table.offers td.c-validity {
+    grid-area: validity;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+  }
+  table.offers td.c-validity small {
+    display: inline;
+  }
+  table.offers td.c-price {
+    grid-area: price;
+  }
+  table.offers td.c-diff {
+    grid-area: diff;
+    white-space: nowrap;
+  }
+  table.offers td.c-score {
+    grid-area: score;
+    white-space: nowrap;
+    text-align: left;
+  }
+  table.offers td.c-seen {
+    grid-area: seen;
+  }
+  table.offers td.c-actions {
+    grid-area: actions;
+    position: static;
+    background: none;
+  }
+  table.offers td.c-actions::before {
+    content: none;
+  }
+  table.offers td[data-label]::before {
+    content: attr(data-label);
+    margin-right: 6px;
+    font: 500 var(--t-label)/1.3 var(--f-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+}
+@container offers (width < 560px) {
+  table.offers tbody tr {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 12px;
+    grid-template-areas: 'shop price' 'region diff' 'validity validity' 'seen actions' 'score actions';
+  }
 }

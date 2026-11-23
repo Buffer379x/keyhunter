@@ -8,7 +8,7 @@ Selbst gehostete Xbox-Wunschliste für Docker und Unraid. KeyHunter sucht über 
 2. Starte den Container mit `ghcr.io/buffer379x/keyhunter:latest`. Unraid lädt das Image direkt aus der GitHub Container Registry.
 3. Wähle das Datenverzeichnis und öffne die WebUI über die LAN-IP. Das aktuelle Template bereitet die Ordnerrechte beim Start vor. HTTPS über einen Reverse Proxy ist optional. [Unraid und Betrieb](docs/operations.md)
 
-Das [GitHub-Package](https://github.com/users/Buffer379x/packages/container/package/keyhunter) liefert auch feste Versions-Tags wie `0.9.2` und `0.9.3`. Die [Releases](https://github.com/Buffer379x/keyhunter/releases) enthalten zusätzlich Archive für die Offline-Installation.
+Das [GitHub-Package](https://github.com/users/Buffer379x/packages/container/package/keyhunter) liefert auch feste Versions-Tags wie `0.9.3` und `0.9.4`. Die [Releases](https://github.com/Buffer379x/keyhunter/releases) enthalten zusätzlich Archive für die Offline-Installation.
 
 ## Lokal mit Compose
 
@@ -33,6 +33,8 @@ sh deploy/check.sh
 cd frontend && npx playwright install chromium && cd ..
 sh deploy/browser-check.sh
 ```
+
+`deploy/browser-check.sh` prüft danach die Layouts zusätzlich in WebKit, im Playwright-Image per Docker. `KEYHUNTER_SKIP_WEBKIT=1` überspringt diesen Teil.
 
 GitHub Actions führt die Prüfungen mit synthetischen Daten aus. [Architektur](docs/architecture.md) · [Abhängigkeiten](docs/dependencies.md)
 

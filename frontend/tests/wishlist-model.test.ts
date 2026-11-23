@@ -193,14 +193,27 @@ test('fetch KPI: sums enabled shops, demand and hourly ticks only when reported'
     },
     at3,
   );
-  assert.deepEqual(full, { used: 35, limit: 220, demand: 240, ticks: [10, 15, 35, 35], paused: false });
+  assert.deepEqual(full, { used: 35, limit: 220, demand: 240, ticks: [10, 15, 35, 35], paused: false, short: ['s'] });
   assert.deepEqual(
     fetchKpi({ shops: [shop({ used: 3, limit: 10 })], errors_24h: 0, recent_runs: [] }, at3),
-    { used: 3, limit: 10, demand: null, ticks: [], paused: false },
+    { used: 3, limit: 10, demand: null, ticks: [], paused: false, short: [] },
     'older server: no demand, no ticks',
   );
   assert.equal(fetchKpi(null), null);
   assert.equal(fetchKpi({ shops: [shop({ used: 1, limit: 2 }, false)], errors_24h: 0, recent_runs: [] }), null);
+  // PROD-14: the sum would be enough (450 of 500), but Eneba alone needs more than its own 400.
+  const kpi = fetchKpi(
+    {
+      shops: [
+        { ...shop({ used: 1, limit: 400, demand_per_day: 450 }), source: 'eneba' },
+        { ...shop({ used: 1, limit: 100, demand_per_day: 0 }), source: 'driffle' },
+      ],
+      errors_24h: 0,
+      recent_runs: [],
+    },
+    at3,
+  );
+  assert.deepEqual([kpi?.demand, kpi?.limit, kpi?.short], [450, 500, ['eneba']]);
 });
 test('alarm sent today ignores test messages and other days', () => {
   const now = new Date(2026, 10, 20, 12).getTime(),

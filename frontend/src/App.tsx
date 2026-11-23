@@ -269,13 +269,19 @@ export default function App() {
     return () => window.removeEventListener('keydown', keyboard);
   }, [openSearch]);
   // Drawer (up to 900 px): Escape closes it and returns focus to the menu button; opening moves focus into it.
+  // The button is in the page, which is inert while the drawer is open: it gets the focus once the drawer has closed.
+  const focusMenu = useRef(false);
   useEffect(() => {
-    if (!navOpen) return;
+    if (!navOpen) {
+      if (focusMenu.current) menuButton.current?.focus();
+      focusMenu.current = false;
+      return;
+    }
     sidebar.current?.querySelector<HTMLElement>('.nav-item[aria-current="page"], .nav-item')?.focus();
     const escape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        focusMenu.current = true;
         setNavOpen(false);
-        menuButton.current?.focus();
       }
     };
     window.addEventListener('keydown', escape);
@@ -350,12 +356,21 @@ export default function App() {
         </span>
       </>
     );
+  // RESP-08: the open drawer is modal; the page behind it is inert, so Tab and the screen reader stay in the navigation.
+  const modalNav = navOpen && drawer;
   return (
     <div className={`app${navOpen ? ' nav-open' : ''}`}>
-      <a href="#main-content" className="skip-link">
+      <a href="#main-content" className="skip-link" inert={modalNav}>
         Zum Inhalt
       </a>
-      <aside className="side" id="app-sidebar" ref={sidebar} aria-label="Seitenleiste">
+      <aside
+        className="side"
+        id="app-sidebar"
+        ref={sidebar}
+        aria-label="Seitenleiste"
+        role={modalNav ? 'dialog' : undefined}
+        aria-modal={modalNav || undefined}
+      >
         <a
           className="brand-box"
           href={window.location.pathname}
@@ -408,7 +423,7 @@ export default function App() {
         </div>
       </aside>
       <div className="scrim" aria-hidden="true" onClick={() => setNavOpen(false)} />
-      <div className="main">
+      <div className="main" inert={modalNav}>
         <header className="top">
           <IconButton
             ref={menuButton}
@@ -440,6 +455,10 @@ export default function App() {
               <Icon name="plus" />
               Spiel hinzufügen
             </Button>
+            {/* 1.0: on the phone the same action as a symbol button, so adding stays one tap away with a filled list. */}
+            <IconButton variant="primary" className="show-sm" label="Spiel hinzufügen" onClick={openAdd}>
+              <Icon name="plus" />
+            </IconButton>
           </div>
         </header>
         <main id="main-content" className="content" tabIndex={-1}>
@@ -456,6 +475,8 @@ export default function App() {
               targetLabel={targetLabel ?? 'Noch nicht gewählt'}
               addOpen={addOpen}
               onAddOpen={setAddOpen}
+              indexState={sourceStatus ? (sourceStatus.igdb?.state ?? 'not_configured') : undefined}
+              shopsActive={auto.saved ? auto.saved.sources.some(source => source.kind === 'shop' && source.enabled && source.configured) : undefined}
               onTitle={setGameTitle}
               onSettings={() => openSettings()}
               onCountChange={reportWishlistCount}

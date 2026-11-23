@@ -5,7 +5,9 @@ import { api, CART_CHANGED } from '../api';
 import { useFetchStatus } from '../fetch-status';
 import { Button, Chip, ConfirmDialog, EmptyState, Field, Help, Icon, Inset, Kpi, Notice, Panel, PanelHead, Seg, formatPrice } from '../components';
 import CatalogSearch from './CatalogSearch';
-import GameDetail, { isTab } from './GameDetail';
+import FirstSteps from './FirstSteps';
+import { openSection } from './settings/sections';
+import GameDetail, { parseTab } from './GameDetail';
 import type { TabId } from './GameDetail';
 import WishlistRow from './WishlistRow';
 import { mergeBadges } from './price-badges';
@@ -37,6 +39,9 @@ interface Props {
   /** The add dialog; the top bar's "Spiel hinzufügen" opens it, so the state lives in the shell. */
   addOpen: boolean;
   onAddOpen: (open: boolean) => void;
+  /** For the first steps (PROD-02): the IGDB state and whether a key shop is on; undefined while unknown. */
+  indexState?: string;
+  shopsActive?: boolean;
   /** Title of the open game for the breadcrumb (null without a selection). */
   onTitle: (title: string | null) => void;
   onSettings: () => void;
@@ -46,24 +51,26 @@ interface Props {
 
 /**
  * Sortable column header: the first click sorts in the column's natural direction, the second reverses it, the third returns to
- * "newest first". `aria-sort` tells screen readers the state; up to 720 px the headers become a row of sort buttons above the cards.
+ * "newest first". `aria-sort` tells screen readers the state; on the cards (narrow list) the headers become a row of sort buttons above them.
  */
 function SortHeader({
   id,
   sort,
   onSort,
   right = false,
+  className = '',
   children,
 }: {
   id: SortKey;
   sort: WishlistSort;
   onSort: (key: SortKey) => void;
   right?: boolean;
+  className?: string;
   children: string;
 }) {
   const active = sort.key === id;
   return (
-    <th className={right ? 'r' : undefined} aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+    <th className={`${className}${right ? ' r' : ''}`.trim() || undefined} aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
       <button
         type="button"
         className={`th-sort${active ? ' on' : ''}`}
@@ -94,8 +101,8 @@ export function returnToList(): boolean {
 }
 const routeTab = (): TabId => {
   const url = new URL(window.location.href);
-  const tab = url.searchParams.get('tab');
-  if (isTab(tab)) return tab;
+  const tab = parseTab(url.searchParams.get('tab'));
+  if (tab) return tab;
   return url.hash === '#alert-editor-title' ? 'alarm' : 'preis';
 };
 const routeSelection = () => new URL(window.location.href).searchParams.get('item');
@@ -129,6 +136,8 @@ export default function Wishlist({
   offersHidden,
   addOpen,
   onAddOpen,
+  indexState,
+  shopsActive,
   onTitle,
   onSettings,
   onCountChange,
@@ -171,6 +180,8 @@ export default function Wishlist({
   const [badges, setBadges] = useState<Record<string, PriceBadgeData>>({});
   const [alerts, setAlerts] = useState<AlertRules>({});
   const [events, setEvents] = useState<AlertEvent[] | null>(null);
+  /** An active notification channel exists (GET /alerts); null until read. */
+  const [channel, setChannel] = useState<boolean | null>(null);
   // Request budget for the "Abrufe heute" tile, from the app's one fetch-status poller (shared with the sidebar card).
   const { data: fetchStatus } = useFetchStatus();
   const [editionItems, setEditionItems] = useState<WishlistItem[]>([]);
@@ -178,6 +189,9 @@ export default function Wishlist({
   const [editionError, setEditionError] = useState('');
   const [removeItem, setRemoveItem] = useState<WishlistItem | null>(null);
   const [purchasing, setPurchasing] = useState(false);
+  /** "Gekauft" asks first (RESP-13): it ends the alarm and the cart entry, and the way back is in the library. */
+  const [confirmPurchase, setConfirmPurchase] = useState(false);
+  const [purchaseError, setPurchaseError] = useState('');
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState('');
   const listScroll = useRef(0);
@@ -288,11 +302,12 @@ export default function Wishlist({
   // Alarm targets ("Ziel" column, "Ziel erreicht") and the delivery log ("Alarm gesendet"), read once; the open detail keeps the rules current.
   useEffect(() => {
     const controller = new AbortController();
-    void api<{ rules: (Rule & { wish_id: string })[]; events?: AlertEvent[] }>('/alerts', 'GET', undefined, undefined, controller.signal)
+    void api<{ rules: (Rule & { wish_id: string })[]; events?: AlertEvent[]; configured?: boolean }>('/alerts', 'GET', undefined, undefined, controller.signal)
       .then(data => {
         if (controller.signal.aborted) return;
         setAlerts(Object.fromEntries(data.rules.map(rule => [rule.wish_id, rule])));
         setEvents(data.events ?? null);
+        setChannel(data.configured ?? null);
       })
       .catch(() => {});
     return () => controller.abort();
@@ -510,6 +525,7 @@ export default function Wishlist({
   async function purchase() {
     if (!selected || preview || purchasing) return;
     setPurchasing(true);
+    setPurchaseError('');
     try {
       await api(`/wishlist/${selected.id}/purchase`, 'POST', {}, csrf);
       ++loadGeneration.current;
@@ -519,10 +535,12 @@ export default function Wishlist({
       // Bought: the server took it out of the cart as well.
       if (selected.in_cart) window.dispatchEvent(new Event(CART_CHANGED));
       returnFocus.current = null;
+      setConfirmPurchase(false);
       closeDetail();
       notify(`${itemName(selected)} wurde in die Bibliothek verschoben.`);
       requestAnimationFrame(() => listHeading.current?.focus({ preventScroll: true }));
     } catch (error) {
+      setPurchaseError(error instanceof Error ? error.message : 'Verschieben fehlgeschlagen.');
       onError(error);
     } finally {
       setPurchasing(false);
@@ -579,42 +597,42 @@ export default function Wishlist({
   const order = visibleColumns(columnOrder(columns), hidden, mode);
   const headers: Record<WishlistColumn, ReactNode> = {
     game: (
-      <SortHeader key="game" id="title" sort={sort} onSort={sortBy}>
+      <SortHeader key="game" id="title" className="c-game" sort={sort} onSort={sortBy}>
         Spiel
       </SortHeader>
     ),
     price: (
-      <SortHeader key="price" id="price" sort={sort} onSort={sortBy} right>
+      <SortHeader key="price" id="price" className="c-de" sort={sort} onSort={sortBy} right>
         {priceLabel}
       </SortHeader>
     ),
     world: (
-      <SortHeader key="world" id="world" sort={sort} onSort={sortBy}>
+      <SortHeader key="world" id="world" className="c-world" sort={sort} onSort={sortBy}>
         Preis INT
       </SortHeader>
     ),
     save: (
-      <SortHeader key="save" id="save" sort={sort} onSort={sortBy} right>
+      <SortHeader key="save" id="save" className="c-save" sort={sort} onSort={sortBy} right>
         Ersparnis
       </SortHeader>
     ),
     target: (
-      <SortHeader key="target" id="target" sort={sort} onSort={sortBy} right>
+      <SortHeader key="target" id="target" className="c-target" sort={sort} onSort={sortBy} right>
         Ziel
       </SortHeader>
     ),
     status: (
-      <SortHeader key="status" id="status" sort={sort} onSort={sortBy}>
+      <SortHeader key="status" id="status" className="c-status" sort={sort} onSort={sortBy}>
         Status
       </SortHeader>
     ),
     trend: (
-      <th key="trend" className="no-sort">
+      <th key="trend" className="no-sort c-trend">
         14 Tage
       </th>
     ),
     open: (
-      <th key="open" className="no-sort">
+      <th key="open" className="no-sort c-more">
         <span className="sr-only">Öffnen</span>
       </th>
     ),
@@ -635,6 +653,21 @@ export default function Wishlist({
       >
         <p>„{removeItem ? itemName(removeItem) : ''}“ wird aus deiner Wunschliste entfernt.</p>
         {removeError && <Notice error>{removeError}</Notice>}
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={confirmPurchase && !!selected}
+        title="Als gekauft markieren?"
+        confirmLabel="In die Bibliothek verschieben"
+        cancelLabel="Abbrechen"
+        busy={purchasing}
+        onCancel={() => setConfirmPurchase(false)}
+        onConfirm={() => void purchase()}
+      >
+        <p>
+          „{selected ? itemName(selected) : ''}“ kommt in die Bibliothek. Die Preisabfragen und der Preisalarm enden
+          {selected?.in_cart ? ', der Eintrag im Warenkorb wird entfernt' : ''}. Zurück geht es über die Bibliothek.
+        </p>
+        {purchaseError && <Notice error>{purchaseError}</Notice>}
       </ConfirmDialog>
     </>
   );
@@ -665,7 +698,10 @@ export default function Wishlist({
           offersColumns={offersColumns}
           offersHidden={offersHidden}
           onTab={changeTab}
-          onPurchase={() => void purchase()}
+          onPurchase={() => {
+            setPurchaseError('');
+            setConfirmPurchase(true);
+          }}
           onRemove={() => {
             setRemoveError('');
             setRemoveItem(selected);
@@ -718,12 +754,20 @@ export default function Wishlist({
           <Button onClick={() => void load()}>Liste erneut laden</Button>
         </Notice>
       )}
+      {/* PERF-05: while the list loads the tiles stand as placeholders, so the list below does not jump when they fill. */}
+      {loading && !listError && (
+        <div className="kpis" aria-hidden="true">
+          {['Wünsche', 'Ziel erreicht', 'Weltweit günstiger', 'Abrufe heute'].map(label => (
+            <Kpi key={label} label={label} value="–" unit={'\u00a0'} foot={emptyFoot} />
+          ))}
+        </div>
+      )}
       {ready && items.length > 0 && (
         <div className="kpis">
           <Kpi
             label="Wünsche"
             value={count(items.length)}
-            unit="Spiele"
+            unit={items.length === 1 ? 'Spiel' : 'Spiele'}
             ticks={addedTicks(items)}
             foot={
               <>
@@ -735,7 +779,7 @@ export default function Wishlist({
           <Kpi
             label="Ziel erreicht"
             value={count(reachedCount)}
-            unit="Spiele"
+            unit={reachedCount === 1 ? 'Spiel' : 'Spiele'}
             ticks={reached.ticks}
             foot={
               !reached.since && !sentToday ? (
@@ -768,6 +812,7 @@ export default function Wishlist({
           />
           <Kpi
             label="Abrufe heute"
+            className={budget?.short.length && !budget.paused ? 'short' : undefined}
             value={budget ? count(budget.used) : '–'}
             unit={budget ? `/ ${count(budget.limit)}` : undefined}
             ticks={budget?.ticks}
@@ -782,7 +827,19 @@ export default function Wishlist({
               ) : (
                 <>
                   <span>Bedarf ≈ {count(budget.demand)} pro Tag</span>
-                  {budget.demand > budget.limit ? <span className="warn">zu knapp</span> : <span className="good">reicht</span>}
+                  {budget.short.length ? (
+                    // PROD-14: a shop needs more checks a day than it may make; its limit is set under Key-Shops.
+                    <button
+                      type="button"
+                      className="text-button warn"
+                      title="Mehr Abrufe nötig, als das Tageslimit erlaubt: Preise bleiben länger alt. Das Limit stellst du unter Einstellungen › Key-Shops ein."
+                      onClick={() => openSection('shops')}
+                    >
+                      zu knapp: {budget.short.map(id => shopNames[id] ?? id).join(', ')}
+                    </button>
+                  ) : (
+                    <span className="good">reicht</span>
+                  )}
                 </>
               )
             }
@@ -824,7 +881,7 @@ export default function Wishlist({
           </Field>
           <PageSize value={view.perPage} onChange={view.setPerPage} />
         </PanelHead>
-        <Inset className="table-wrap">
+        <Inset className="table-wrap wl-wrap">
           {loading ? (
             <p className="empty" role="status">
               Wunschliste wird geladen …
@@ -885,6 +942,18 @@ export default function Wishlist({
         </Inset>
         {ready && visible.length > 0 && <Pager label="Wunschliste" total={visible.length} page={page} perPage={view.perPage} onPage={view.setPage} />}
       </Panel>
+      {ready && (
+        <FirstSteps
+          state={{
+            country: targetCountry ? targetLabel : null,
+            index: indexState,
+            shops: shopsActive,
+            games: items.length,
+            channel: channel ?? undefined,
+          }}
+          onAdd={() => onAddOpen(true)}
+        />
+      )}
       {dialogs}
     </div>
   );

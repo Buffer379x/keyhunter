@@ -73,7 +73,7 @@ test('long facts wrap inside the Infos box and the description has a box of its 
   );
   await addForza(page);
   await page.reload();
-  await openTab(page, 'Infos');
+  await openTab(page, 'Zuordnungen'); // PROD-03: until 1.0 "Infos"
   const facts = page.locator('.info-facts');
   await expect(facts).toContainText('Nintendo Switch');
   for (const size of [

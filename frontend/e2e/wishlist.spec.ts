@@ -158,13 +158,13 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
   // KPI tiles
   await expect(kpi(page, 'Wünsche').locator('.kpi-val')).toHaveText('3Spiele');
   await expect(kpi(page, 'Wünsche').locator('.kpi-foot')).toHaveText('2 mit Preis1 offen');
-  await expect(kpi(page, 'Ziel erreicht').locator('.kpi-val')).toHaveText('1Spiele');
+  await expect(kpi(page, 'Ziel erreicht').locator('.kpi-val')).toHaveText('1Spiel'); // 1.0: singular (RESP-18)
   await expect(kpi(page, 'Ziel erreicht').locator('.kpi-foot')).toHaveText('+1 seit gesternAlarm gesendet');
   await expect(kpi(page, 'Ziel erreicht').locator('.ticks i')).toHaveCount(9);
   await expect(kpi(page, 'Weltweit günstiger').locator('.kpi-val')).toHaveText('1ab 20 %');
   await expect(kpi(page, 'Weltweit günstiger').locator('.kpi-foot')).toHaveText('bis−16,00 € · Forza Horizon');
   await expect(kpi(page, 'Abrufe heute').locator('.kpi-val')).toHaveText('312/ 500');
-  await expect(kpi(page, 'Abrufe heute').locator('.kpi-foot')).toHaveText('Bedarf ≈ 450 pro Tagreicht');
+  await expect(kpi(page, 'Abrufe heute').locator('.kpi-foot')).toHaveText('Bedarf ≈ 450 pro Tagzu knapp: Eneba'); // PROD-14: per shop, Eneba needs 450 of its 400
 
   // Rows: price, cheapest region, saving, target, status pills (hints included), sparkline
   const row = (item: Item) => wishlistTable(page).locator(`tbody tr[data-id="${item.id}"]`);
@@ -185,7 +185,7 @@ test('KPI tiles, filter chips, row details and row → game → back keep filter
   await expect(row(premium).locator('.c-status')).toContainText('5,00 € über Ziel');
   await expect(row(premium).locator('.c-status')).toContainText('Veraltet');
   await expect(row(premium).locator('.spark')).toHaveCount(0);
-  await expect(row(fresh).locator('.c-world')).toHaveText('In keinem Shop gefunden');
+  await expect(row(fresh).locator('.c-world')).toHaveText('–'); // DS-04: the reason stands only in the status column
   await expect(row(fresh).locator('.c-status')).toHaveText('Kein Angebot');
   await expect(row(fresh).locator('.c-target')).toHaveText('–');
 

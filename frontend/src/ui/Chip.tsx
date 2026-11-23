@@ -37,6 +37,32 @@ export function Pill({ tone = 'default', icon, className = '', children }: { ton
   );
 }
 
+/**
+ * The states the app shows as pills, each with one tone, one icon and one default text everywhere (1.0, DS-04):
+ * reached green with a tick, stale grey with a clock, paused amber with the pause symbol, "check this" amber with the
+ * warning symbol, failed red, searching grey with the refresh arrows, no value grey with a dash.
+ */
+const STATES = {
+  reached: { tone: 'ok', icon: 'check', text: 'Ziel erreicht' },
+  valid: { tone: 'ok', icon: 'check', text: 'Gültig' },
+  stale: { tone: 'dim', icon: 'clock', text: 'Veraltet' },
+  paused: { tone: 'warn', icon: 'pause', text: 'Pausiert' },
+  review: { tone: 'warn', icon: 'alert', text: 'Zuordnung prüfen' },
+  error: { tone: 'danger', icon: 'alert', text: 'Abruf fehlgeschlagen' },
+  searching: { tone: 'dim', icon: 'refresh', text: 'Wird gesucht …' },
+  missing: { tone: 'dim', icon: 'minus', text: 'Kein Preis' },
+} as const satisfies Record<string, { tone: PillTone; icon: IconName; text: string }>;
+type PillState = keyof typeof STATES;
+/** A state pill: tone and icon from the one mapping above; `children` replace the default text ("Veraltet · vor 2 Std."). */
+export function StatePill({ state, className, children }: { state: PillState; className?: string; children?: ReactNode }) {
+  const look = STATES[state];
+  return (
+    <Pill tone={look.tone} icon={look.icon} className={className}>
+      {children ?? look.text}
+    </Pill>
+  );
+}
+
 // Flag images (flag-icons, 4:3), emitted as separate files so the bundle stays small and the CSP needs no data: URLs.
 const flags = import.meta.glob<string>('/node_modules/flag-icons/flags/4x3/*.svg', { eager: true, query: '?url&no-inline', import: 'default' });
 const flagUrl = (code: string) => flags[`/node_modules/flag-icons/flags/4x3/${code.toLowerCase()}.svg`];
