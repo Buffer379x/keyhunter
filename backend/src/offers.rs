@@ -1,15 +1,11 @@
 use crate::extract::{ApiJson, ApiPath};
 use crate::{
-    ApiError, ApiResult, Shared, auth,
+    ApiError, ApiResult, Shared,
     eventlog::{self, Area, Level},
     internal, now, pricing,
     shops::{self, Product, Shop, title_key},
 };
-use axum::{
-    Json,
-    extract::State,
-    http::{HeaderMap, StatusCode},
-};
+use axum::{Json, extract::State, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::{AssertSqlSafe, FromRow, SqlitePool};
@@ -275,10 +271,11 @@ pub(crate) struct Link {
     /// The job of the link runs or waits ([`crate::jobs::pending`]); only [`links`] reads it.
     pub queued: bool,
     pub retry_at: i64,
-    /// Price trend within the wish (migration 0016): 0 = mostly the cheapest, 1 = mostly the most expensive.
+    /// Price trend within the wish (migration 0016, [`crate::jobs::trend`]): 0 = mostly the cheapest of all regions, 1 = mostly
+    /// twice that or more.
     #[sqlx(default)]
     pub cheap_score: f64,
-    /// Interval of the next check in seconds (shop interval, validity in the target country, price-trend pace).
+    /// Interval of the next check in seconds (shop interval, price-trend pace; validity in the target country plays no part).
     #[sqlx(default)]
     pub check_every: Option<i64>,
     /// Interval factor of the job from the price trend (0.5 to 2, `shop_job.pace`); `None` without a job yet.
@@ -328,7 +325,7 @@ impl Link {
             .count() as i64
     }
     /// Score 0 to 100 (0.8.2) of a confirmed, measured product: how it does in the check plan. It follows the interval
-    /// factor against the shop interval, `pace × 2` for a preview (see `jobs::effective_interval`), on a log scale:
+    /// factor against the shop interval, `pace × 2` for a preview (see `jobs::trend::effective_interval`), on a log scale:
     /// factor 0.5 (steadily the cheapest of the game, checked twice as often) → 100, 1 (no trend yet, average) → 50,
     /// 2 (steadily the most expensive, or sold out; checked half as often) → 0. `None` for products that are not
     /// checked for a price: unconfirmed, rejected, switched-off shop, not measured yet.
@@ -391,7 +388,7 @@ fn link_query(filter: &str, queued: &str) -> String {
         j.pace AS pace, t.state='preview' AS preview
         FROM offer_link l JOIN source_settings s ON s.id=l.source JOIN shop_state p ON p.source=l.source
         JOIN wishlist_item t ON t.id=l.wish_id LEFT JOIN shop_job j ON j.link_id=l.id WHERE {filter} ORDER BY l.id",
-        min = crate::jobs::MIN_INTERVAL
+        min = crate::jobs::trend::MIN_INTERVAL
     )
 }
 
@@ -403,7 +400,7 @@ pub(crate) fn clock<'q, O>(
     query
         .bind(ts)
         .bind(ts / crate::DAY)
-        .bind(crate::jobs::daily_budget())
+        .bind(crate::jobs::budget::daily_budget())
         .bind(ts - crate::jobs::REQUEST_WINDOW)
 }
 
@@ -412,7 +409,7 @@ pub(crate) async fn links<'e>(
     id: &str,
     ts: i64,
 ) -> sqlx::Result<Vec<Link>> {
-    // check_every follows jobs::effective_interval: twice as long for an edition preview, times the price-trend pace,
+    // check_every follows jobs::trend::effective_interval: twice as long for an edition preview, times the price-trend pace,
     // between 15 minutes (or the shop interval) and a week.
     clock(
         sqlx::query_as(AssertSqlSafe(link_query(
@@ -520,7 +517,6 @@ async fn samples(
 
 pub(crate) async fn list(
     State(state): State<Shared>,
-    _: auth::Session,
     ApiPath(id): ApiPath<String>,
 ) -> ApiResult<Json<OffersView>> {
     let wish = wish(&state.pool, &id).await?;
@@ -721,12 +717,9 @@ pub(crate) struct AddLink {
 }
 pub(crate) async fn add_link(
     State(state): State<Shared>,
-    session: auth::Session,
     ApiPath(id): ApiPath<String>,
-    headers: HeaderMap,
     ApiJson(input): ApiJson<AddLink>,
 ) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
     let (shop, url) = shops::product_link(input.url.trim()).ok_or(BAD_URL)?;
     let enabled: bool =
         sqlx::query_scalar("SELECT enabled AND configured FROM source_settings WHERE id=?")
@@ -761,7 +754,7 @@ pub(crate) async fn add_link(
         .execute(&mut *tx)
         .await?;
     if let Some(link) = link {
-        // The first price of a link added by hand is a direct user action (jobs.rs).
+        // The first price of a link added by hand is a direct user action (module docs of `jobs`).
         sqlx::query("INSERT INTO shop_job(source,link_id,due,initial) VALUES(?,?,?,1)")
             .bind(shop.id())
             .bind(link)
@@ -811,12 +804,9 @@ const NOT_A_KEY: ApiError = ApiError(
 );
 pub(crate) async fn review(
     State(state): State<Shared>,
-    session: auth::Session,
     ApiPath((id, link_id)): ApiPath<(String, i64)>,
-    headers: HeaderMap,
     ApiJson(input): ApiJson<Review>,
 ) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
     crate::wishlist::require_unowned(&state.pool, &id).await?;
     let wish = wish(&state.pool, &id).await?;
     let link = links(&state.pool, &id, now())
@@ -892,11 +882,8 @@ async fn log_review(state: &Shared, id: &str, link: i64, how: &str) {
 /// suggest the product for this wish again (`offer_link_block`); adding the link by hand lifts that.
 pub(crate) async fn remove_link(
     State(state): State<Shared>,
-    session: auth::Session,
     ApiPath((id, link_id)): ApiPath<(String, i64)>,
-    headers: HeaderMap,
 ) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
     crate::wishlist::require_unowned(&state.pool, &id).await?;
     let mut tx = state.pool.begin().await?;
     let blocked = sqlx::query(
@@ -930,17 +917,14 @@ const REFRESH_SPACING: i64 = 900;
 
 pub(crate) async fn refresh(
     State(state): State<Shared>,
-    session: auth::Session,
     ApiPath(id): ApiPath<String>,
-    headers: HeaderMap,
 ) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
     crate::wishlist::require_unowned(&state.pool, &id).await?;
     wish(&state.pool, &id).await?;
     let t = now();
-    crate::jobs::schedule_wish(&state.pool, &id).await?;
+    crate::jobs::attach::schedule_wish(&state.pool, &id).await?;
     // A requested refresh gets top priority, also for links whose last fetch failed. The whole
-    // search run is a direct user action and bypasses pacing (jobs.rs).
+    // search run is a direct user action and bypasses pacing (module docs of `jobs`).
     sqlx::query("UPDATE shop_job SET due=MIN(due,?),requested_at=?,search_page=1,result_count=0,initial=1 WHERE wish_id=? AND lease_until<=? AND COALESCE(checked_at,0)<=?")
         .bind(t).bind(t).bind(&id).bind(t).bind(t-REFRESH_SPACING).execute(&state.pool).await?;
     sqlx::query("UPDATE shop_job SET due=MIN(due,?),requested_at=? WHERE lease_until<=?

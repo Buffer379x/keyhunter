@@ -2,7 +2,7 @@ use crate::DAY;
 use crate::extract::ApiQuery;
 use crate::shops::Product;
 use crate::{
-    ApiError, ApiResult, AppState, Shared, auth, jobs, now, offers,
+    ApiError, ApiResult, AppState, Shared, jobs, now, offers,
     pricing::{self, Reason},
 };
 use axum::{Json, extract::State, http::StatusCode};
@@ -608,7 +608,6 @@ pub(crate) struct BadgeQuery {
 
 pub(crate) async fn list(
     State(state): State<Shared>,
-    _: auth::Session,
     ApiQuery(query): ApiQuery<BadgeQuery>,
 ) -> ApiResult<Json<BTreeMap<String, PriceBadge>>> {
     let target = offers::target(&state.pool).await?;

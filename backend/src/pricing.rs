@@ -19,7 +19,7 @@ use serde::Serialize;
 pub(crate) const FRESH: i64 = 24 * 3600;
 
 /// How long an observation of a link counts as current (FUNC-05, 0.9.3): twice the effective check interval of the
-/// link (`offer_link` joined with its job, see `jobs::effective_interval`), at least [`FRESH`]. A planned check that
+/// link (`offer_link` joined with its job, see `jobs::trend::effective_interval`), at least [`FRESH`]. A planned check that
 /// comes on time therefore never lets a price go stale, whatever interval the owner chose. Without an interval (no
 /// job yet) the floor applies. The one rule for every current/stale decision: prices, badges, KPIs, history, alerts.
 pub(crate) fn fresh_for(check_every: Option<i64>) -> i64 {

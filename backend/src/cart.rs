@@ -5,16 +5,12 @@
 use crate::extract::{ApiJson, ApiPath};
 use crate::price_badges::ShopOffers;
 use crate::{
-    ApiError, ApiResult, Shared, auth,
+    ApiError, ApiResult, Shared,
     eventlog::{self, Area, Level},
     now,
     wishlist::WishlistItem,
 };
-use axum::{
-    Json,
-    extract::State,
-    http::{HeaderMap, StatusCode},
-};
+use axum::{Json, extract::State, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -32,10 +28,7 @@ pub(crate) struct CartEntry {
 }
 
 /// The cart, oldest first, each wish with its current price badge.
-pub(crate) async fn list(
-    State(state): State<Shared>,
-    _: auth::Session,
-) -> ApiResult<Json<Vec<CartEntry>>> {
+pub(crate) async fn list(State(state): State<Shared>) -> ApiResult<Json<Vec<CartEntry>>> {
     let rows: Vec<(String, i64, Option<String>, String)> = sqlx::query_as(
         "SELECT k.wish_id,k.added_at,k.source,k.scope FROM cart_item k JOIN wishlist_item w ON w.id=k.wish_id
         WHERE w.state='wished' ORDER BY k.added_at,k.rowid",
@@ -95,11 +88,8 @@ const NOT_A_WISH: ApiError = ApiError(
 
 pub(crate) async fn add(
     State(state): State<Shared>,
-    session: auth::Session,
-    headers: HeaderMap,
     ApiJson(input): ApiJson<AddInput>,
 ) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
     let (source, scope) = choice(input.source, input.scope)?;
     let added = sqlx::query(
         "INSERT INTO cart_item(wish_id,added_at,source,scope) SELECT id,?,?,? FROM wishlist_item WHERE id=? AND state='wished'
@@ -149,12 +139,9 @@ pub(crate) struct ChangeInput {
 /// Shop and price scope of one entry (cart page switch and shop choice, or an offer from the Angebote tab).
 pub(crate) async fn change(
     State(state): State<Shared>,
-    session: auth::Session,
-    headers: HeaderMap,
     ApiPath(id): ApiPath<String>,
     ApiJson(input): ApiJson<ChangeInput>,
 ) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
     let (source, scope) = choice(input.source, Some(input.scope))?;
     let changed = sqlx::query("UPDATE cart_item SET source=?,scope=? WHERE wish_id=?")
         .bind(&source)
@@ -193,11 +180,8 @@ const NOT_IN_CART: ApiError = ApiError(
 
 pub(crate) async fn remove(
     State(state): State<Shared>,
-    session: auth::Session,
-    headers: HeaderMap,
     ApiPath(id): ApiPath<String>,
 ) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
     let removed = sqlx::query("DELETE FROM cart_item WHERE wish_id=?")
         .bind(&id)
         .execute(&state.pool)

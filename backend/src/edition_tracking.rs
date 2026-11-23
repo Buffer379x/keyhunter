@@ -1,15 +1,11 @@
 use crate::extract::ApiPath;
 use crate::{
-    ApiError, ApiResult, Shared, auth, catalog,
+    ApiError, ApiResult, Shared, catalog,
     eventlog::{self, Area, Level},
     now,
     wishlist::{self, WishlistItem},
 };
-use axum::{
-    Json,
-    extract::State,
-    http::{HeaderMap, StatusCode},
-};
+use axum::{Json, extract::State, http::StatusCode};
 use serde::Serialize;
 use std::time::Duration;
 
@@ -72,18 +68,14 @@ async fn snapshot(state: &Shared, id: &str) -> ApiResult<Prepared> {
 
 pub(crate) async fn get(
     State(state): State<Shared>,
-    _: auth::Session,
     ApiPath(id): ApiPath<String>,
 ) -> ApiResult<Json<Prepared>> {
     Ok(Json(snapshot(&state, &id).await?))
 }
 pub(crate) async fn prepare(
     State(state): State<Shared>,
-    session: auth::Session,
     ApiPath(id): ApiPath<String>,
-    headers: HeaderMap,
 ) -> ApiResult<Json<Prepared>> {
-    auth::require_csrf(&state, &headers, &session)?;
     // Its own task, so it finishes when the client leaves (navigation, reload, request timeout): a dropped request
     // kept the lease, and the game showed "Editionen werden vorbereitet …" for up to three minutes.
     let task = {
@@ -121,7 +113,7 @@ async fn prepare_one(state: &Shared, id: &str) -> ApiResult<()> {
         sqlx::query("UPDATE edition_scan SET checked_at=?,lease_until=0,next_attempt=?,last_error=NULL WHERE wish_id=?").bind(now()).bind(now()+crate::DAY).bind(id).execute(&mut *tx).await?;
         tx.commit().await?;
         let ids:Vec<String>=sqlx::query_scalar("SELECT track_id FROM edition_watch WHERE wish_id=?").bind(id).fetch_all(&state.pool).await?;
-        for track in ids {crate::jobs::schedule_wish(&state.pool,&track).await?;}
+        for track in ids {crate::jobs::attach::schedule_wish(&state.pool,&track).await?;}
         Ok::<_,ApiError>(())
     }.await;
     if let Err(error) = result {

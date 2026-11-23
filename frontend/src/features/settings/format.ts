@@ -1,6 +1,6 @@
 import type { FetchBudget, FetchShopStatus } from '../../api.ts';
 
-/** Seconds without a worker heartbeat after which the backend itself calls a worker stalled (jobs.rs STALL_AFTER). */
+/** Seconds without a worker heartbeat after which the backend itself calls a worker stalled (jobs/mod.rs STALL_AFTER). */
 const WORKER_STALLED_AFTER = 300;
 
 export const shopTitle = (id: string) => (({ eneba: 'Eneba', driffle: 'Driffle', igdb: 'IGDB' }) as Record<string, string>)[id] ?? id;
@@ -42,7 +42,7 @@ export const dateTimeText = (seconds: number) =>
 export const availabilityNames: Record<string, string> = { in_stock: 'lieferbar', sold_out: 'ausverkauft', unknown: 'unbekannt' };
 
 /**
- * What a past fetch found (`detail` of a run, written by jobs.rs): a product page stores the lowest price as "1299 ct" or its
+ * What a past fetch found (`detail` of a run, written by jobs/complete.rs): a product page stores the lowest price as "1299 ct" or its
  * availability ("sold_out"), a search "Seite 1: 5 Produkte". Formatted on read, so old rows keep working; unknown text stays.
  */
 export function foundText(detail: string | null, money: (cents: number) => string): string {

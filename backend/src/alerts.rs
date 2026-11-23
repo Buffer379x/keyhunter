@@ -1,17 +1,16 @@
 use crate::DAY;
 use crate::extract::{ApiJson, ApiPath};
 use crate::{
-    ApiError, ApiResult, Shared, auth,
+    ApiError, ApiResult, Shared,
     eventlog::{self, Area, Level},
-    notify::{self, Alert, Event, Kind, Notifier},
+    notify::{
+        Kind, Notifier,
+        message::{Alert, Event, euro},
+    },
     now, offers,
     shops::{Product, Shop},
 };
-use axum::{
-    Json,
-    extract::State,
-    http::{HeaderMap, StatusCode},
-};
+use axum::{Json, extract::State, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::{FromRow, SqliteConnection, SqlitePool};
@@ -53,7 +52,6 @@ async fn rule(conn: &mut SqliteConnection, id: &str) -> sqlx::Result<Option<Stor
 
 pub(crate) async fn get_rule(
     State(state): State<Shared>,
-    _: auth::Session,
     ApiPath(id): ApiPath<String>,
 ) -> ApiResult<Json<Value>> {
     offers::wish(&state.pool, &id).await?;
@@ -72,12 +70,9 @@ pub(crate) async fn get_rule(
 
 pub(crate) async fn put_rule(
     State(state): State<Shared>,
-    session: auth::Session,
     ApiPath(id): ApiPath<String>,
-    headers: HeaderMap,
     ApiJson(input): ApiJson<Rule>,
 ) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
     crate::wishlist::require_unowned(&state.pool, &id).await?;
     offers::wish(&state.pool, &id).await?;
     if !matches!(input.basis.as_str(), "base" | "estimate")
@@ -93,7 +88,7 @@ pub(crate) async fn put_rule(
         return Err(NEED_COUNTRY);
     }
     let summary = match input.target_cents {
-        Some(cents) => format!("Zielpreis {}", notify::euro(cents)),
+        Some(cents) => format!("Zielpreis {}", euro(cents)),
         None => "neuer Tiefstpreis".into(),
     };
     let summary = if input.enabled {
@@ -130,11 +125,8 @@ pub(crate) async fn put_rule(
 
 pub(crate) async fn remove_rule(
     State(state): State<Shared>,
-    session: auth::Session,
     ApiPath(id): ApiPath<String>,
-    headers: HeaderMap,
 ) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
     let removed = sqlx::query("DELETE FROM alert_rule WHERE wish_id=?")
         .bind(&id)
         .execute(&state.pool)
@@ -187,7 +179,7 @@ struct DeliveryView {
     attempts: i64,
     error: Option<String>,
 }
-pub(crate) async fn list(State(state): State<Shared>, _: auth::Session) -> ApiResult<Json<Value>> {
+pub(crate) async fn list(State(state): State<Shared>) -> ApiResult<Json<Value>> {
     let rules: Vec<RuleView> = sqlx::query_as("SELECT r.*, COALESCE(g.manual_title,json_extract(c.payload,'$.name')) AS title,
         (SELECT state FROM alert_outbox o WHERE o.wish_id=r.wish_id ORDER BY o.id DESC LIMIT 1) AS delivery
         FROM alert_rule r JOIN wishlist_item w ON w.id=r.wish_id JOIN game g ON g.id=w.game_id
@@ -220,12 +212,7 @@ pub(crate) async fn list(State(state): State<Shared>, _: auth::Session) -> ApiRe
 }
 /// POST /alerts/test: queue a test message for every active channel, at most once a minute. It takes the way of an
 /// alert (outbox, one delivery per channel) and shows up in "Letzte Zustellungen".
-pub(crate) async fn test_message(
-    State(state): State<Shared>,
-    session: auth::Session,
-    headers: HeaderMap,
-) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
+pub(crate) async fn test_message(State(state): State<Shared>) -> ApiResult<StatusCode> {
     if state.notifier.active(&state.pool).await?.is_empty() {
         return Err(ApiError(
             StatusCode::CONFLICT,

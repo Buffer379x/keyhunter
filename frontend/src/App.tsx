@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, CART_CHANGED, HttpError } from './api';
 import type { Settings, SourceStatuses } from './api';
 import Wishlist, { returnToList } from './features/Wishlist';
+import type { TabId } from './features/GameDetail';
 import Library from './features/Library';
 import Cart from './features/Cart';
 import CatalogSearch from './features/CatalogSearch';
@@ -221,18 +222,21 @@ export default function App() {
   }, []);
   const openSearch = useCallback(() => setSearchOpen(true), []);
   const closeSearch = useCallback(() => setSearchOpen(false), []);
-  const selectSearchResult = useCallback((item: WishlistItem) => {
+  /** A game on its page below the wishlist (search, library, cart); `tab` opens one tab directly (the cart's warning triangle, PROD-03). */
+  const showGame = useCallback((item: WishlistItem, tab?: TabId) => {
     const url = new URL(window.location.href);
     url.hash = '';
     url.searchParams.delete('view');
     url.searchParams.delete('section');
     url.searchParams.delete('filter');
     url.searchParams.set('item', item.id);
+    if (tab) url.searchParams.set('tab', tab);
     if (url.href !== window.location.href) window.history.pushState(null, '', url);
     setPage('wishlist');
     setError('');
     setWishlistRevision(n => n + 1);
   }, []);
+  const selectSearchResult = useCallback((item: WishlistItem) => showGame(item), [showGame]);
   /** "Spiel hinzufügen" in the top bar: in the library it adds straight to the library (0.7.2); elsewhere the
    * dialog belongs to the wishlist, so open that page first. */
   function openAdd() {
@@ -497,6 +501,7 @@ export default function App() {
               csrf={csrf}
               targetCountry={savedCountry ?? ''}
               onOpen={selectSearchResult}
+              onReview={item => showGame(item, 'zuordnungen')}
               onOpenWishlist={() => navigate('wishlist')}
               onCountChange={setCartCount}
               onError={handleProtectedError}

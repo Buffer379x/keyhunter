@@ -393,7 +393,8 @@ export default function Wishlist({
     return () => main.removeEventListener('scroll', remember);
   }, []);
 
-  function open(id: string) {
+  /** Opens a game from the list, on its first tab or on `tab` (the warning triangle opens Zuordnungen, PROD-03). */
+  function open(id: string, tab?: TabId) {
     // From the list one step back leads to it; from a game opened from the list one more; from a deep link none.
     const depth = showingDetail.current ? (listDepth() ? listDepth() + 1 : 0) : 1;
     if (!showingDetail.current) listScroll.current = scroller()?.scrollTop ?? 0;
@@ -402,8 +403,9 @@ export default function Wishlist({
     const url = new URL(window.location.href);
     url.hash = '';
     url.searchParams.delete('view');
-    url.searchParams.delete('tab');
     url.searchParams.set('item', id);
+    if (tab && tab !== 'preis') url.searchParams.set('tab', tab);
+    else url.searchParams.delete('tab');
     if (url.href !== window.location.href) window.history.pushState(depth ? { [FROM_LIST]: depth } : null, '', url);
   }
   /** Back to the list: a game opened from the list goes back in history (filter, sort and scroll are kept); a deep link pushes the list. */
@@ -951,6 +953,7 @@ export default function Wishlist({
                       scopeLabel={scopeLabel}
                       targetDisabled={!!alerts[item.id] && !alerts[item.id].enabled}
                       onOpen={() => open(item.id)}
+                      onReview={() => open(item.id, 'zuordnungen')}
                       openRef={element => {
                         if (element) rows.current.set(item.id, element);
                         else rows.current.delete(item.id);

@@ -110,5 +110,5 @@ test('SCORE-03: the offers table hides the Prüftempo by default and shows häuf
   await expect(rows.nth(2).locator('td').first()).toHaveText('–');
   // The explanation sits behind the "?" of the column head, and says what a high and a low score mean.
   await table.getByRole('button', { name: 'Hilfe zum Prüftempo' }).hover();
-  await expect(page.getByRole('tooltip').filter({ hasText: 'beständig das günstigste' })).toBeVisible();
+  await expect(page.getByRole('tooltip').filter({ hasText: 'nahe am günstigsten Preis' })).toBeVisible();
 });

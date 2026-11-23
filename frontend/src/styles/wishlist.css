@@ -126,7 +126,6 @@ table.wl th .th-sort:focus-visible {
 }
 .game-cell small {
   color: var(--muted);
-  font-size: var(--t-xs);
 }
 table.wl td.c-target {
   white-space: nowrap;
@@ -325,6 +324,11 @@ table.wl .row-open:hover:not(:disabled) {
     outline: 2px solid var(--accent);
     outline-offset: -2px;
   }
+  /* The warning triangle stays its own target above the stretched opener (1.1, PROD-03). */
+  table.wl tbody tr .wish-review {
+    position: relative;
+    z-index: 1;
+  }
 }
 @container wl (width < 560px) {
   table.wl tbody tr {
@@ -399,9 +403,25 @@ table.wl .row-open:hover:not(:disabled) {
   flex: none;
   color: var(--warn);
 }
-/* (0.9.1) Mappings to review: a warning triangle after the title, next to basket and pause. */
+/* (0.9.1) Mappings to review: a warning triangle after the title, next to basket and pause. A button since 1.1 (PROD-03):
+ * it opens the Zuordnungen tab. On touch a 44 px hit area around the 14 px symbol, with negative margins so the title line
+ * keeps its layout (like the "?" of Help). */
 .game-cell .wish-review {
   display: inline-flex;
   flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 3px;
+  background: none;
   color: var(--warn);
+}
+@media (pointer: coarse) {
+  .game-cell .wish-review {
+    min-width: 44px;
+    min-height: 44px;
+    margin: -15px;
+  }
 }

@@ -1,5 +1,23 @@
 # Änderungen
 
+## 1.1.0 – 2026-11-23
+
+Ein besseres Prüftempo, das jede Region gleich behandelt, eine gerechtere Verteilung bei knappem Budget, ein direkter Weg vom Warndreieck zu den Zuordnungen und eine einheitliche Schrift. Keine Migration, beim Update ist nichts zu tun.
+
+### Geändert
+- **Prüftempo nach Abstand zum günstigsten Preis:** Wie oft ein Angebot geprüft wird, richtet sich jetzt danach, wie weit sein Preis über dem günstigsten lieferbaren Angebot des Spiels in allen Regionen liegt. Der günstigste Preis wird doppelt so oft geprüft wie eingestellt, 10 % darüber etwa 1,6-mal so oft, gut 40 % darüber im eingestellten Intervall, das Doppelte und mehr halb so oft. Bisher zählte die Stellung zwischen günstigstem und teuerstem Angebot: Schon 1 Cent Unterschied konnte das Tempo halbieren, und ein einzelnes sehr teures Angebot verschob alle anderen. Ein einzelnes Angebot gilt jetzt als günstigstes, statt auf seinem alten Tempo stehen zu bleiben. Die Hilfe zum Prüftempo beschreibt die neue Regel.
+- **Jede Region gleich behandelt:** Ob eine Region im Zielland gilt, spielt für das Prüftempo keine Rolle. Ein gleich teures Angebot aus einer anderen Region wird genauso oft geprüft wie ein im Zielland gültiges, ein günstigeres öfter.
+- **Abrufbedarf:** In der Simulation braucht die neue Regel im Mittel rund 7 % weniger Abrufe am Tag (je nach Wunschliste 3 bis 11 % weniger) und erkennt etwas mehr Preisänderungen. Mehr Abrufe werden es bei Spielen, deren Regionen fast gleich viel kosten: Dort gelten alle als günstigste und werden bis zu doppelt so oft geprüft. Die Bedarfsanzeige im Abrufstatus zeigt nach etwa einem Tag den neuen Wert; liegt er über dem Tageslimit, helfen ein höheres Limit oder ein längeres Intervall. Gespeicherte Werte gleichen sich nach einigen Abrufen von selbst an.
+- **Kein Aushungern bei knappem Budget:** Jeder vierte Abruf geht weiterhin an Wiederholungssuchen, ausverkaufte Angebote, Editionsvorschauen und die Discovery, jetzt aber reihum. Bisher konnten viele Editionsvorschauen die Discovery und die wöchentlichen Suchen wochenlang verdrängen. Jetzt läuft die Discovery bei Engpass mindestens alle zwei Tage, und auch die Suchen kommen wieder regelmäßig dran.
+- **Warndreieck führt zu den Zuordnungen:** Ein Klick, Enter oder Tipp auf das gelbe Warndreieck hinter einem Titel öffnet das Spiel direkt im Tab „Zuordnungen“, in der Wunschliste und im Warenkorb. Ein Schritt zurück führt wieder in die Liste. Auf dem Phone ist das Dreieck gut zu treffen; ein Tipp auf die übrige Karte öffnet das Spiel wie bisher im Tab „Preis“.
+- **Einheitliche Schrift:** Hervorhebungen sind überall gleich kräftig (bisher an einigen Stellen fetter), und alle Schriftgrößen folgen einer festen Skala. Dadurch werden einige Texte etwas größer, etwa die Kanalzeile unter „Letzte Zustellungen“, die Cent-Beträge der großen Preise und die Initialen auf dem großen Cover.
+
+### Behoben
+- **Preisalarme auf dem Phone:** In „Letzte Zustellungen“ lag der Titel einer Zustellung unter der Pille „Zugestellt“. Die Karte zeigt jetzt Titel und Preis, darunter die Zeit, dann den Status mit der Kanalzeile über die volle Breite.
+
+### Intern
+- **Aufgeräumter Server-Code:** Abrufdienst und Benachrichtigungen sind in kleinere Module aufgeteilt, Shop-Wissen liegt gesammelt bei den Shops. Anmeldung und CSRF-Prüfung sitzen an einer einzigen Stelle vor allen geschützten Routen; ein Test prüft jede Route, damit keine neue ungeschützt bleibt. Für Nutzer ändert sich nichts.
+
 ## 1.0.2 – 2026-11-23
 
 Feinschliff nach dem Feedback zu 1.0.1 und alle offenen Updates der Abhängigkeiten. Keine Migration, beim Update ist nichts zu tun. Vorhandene Passphrasen gelten weiter.

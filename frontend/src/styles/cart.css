@@ -119,10 +119,6 @@
   align-items: baseline;
   gap: 8px;
 }
-/* DS-10: the shop name in the Inter weight the app uses for emphasis (600), not the browser's bold (700). */
-.cart-page .cart-shop-head b {
-  font-weight: 600;
-}
 .cart-page .cart-shop-head .faint {
   font-size: var(--t-xs);
 }

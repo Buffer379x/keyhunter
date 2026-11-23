@@ -1,5 +1,5 @@
 mod driffle;
-pub(crate) mod eneba;
+mod eneba;
 mod http;
 
 use serde::{Deserialize, Serialize};
@@ -10,6 +10,15 @@ pub(crate) enum Shop {
     Eneba,
     Driffle,
 }
+
+// `shop as usize` indexes per-shop arrays (the worker heartbeat), so `ALL` lists the shops in declaration order.
+const _: () = {
+    let mut i = 0;
+    while i < Shop::ALL.len() {
+        assert!(Shop::ALL[i] as usize == i);
+        i += 1;
+    }
+};
 
 impl Shop {
     pub(crate) const ALL: [Self; 2] = [Self::Eneba, Self::Driffle];
@@ -81,7 +90,7 @@ impl Shop {
     }
 
     pub(crate) async fn product(self, url: &Url) -> Result<Product, ShopError> {
-        let mut client = http::PublicClient::new(self.host()).await?;
+        let mut client = http::PublicClient::new(self).await?;
         let body = client.get(url, 2 * 1024 * 1024, false).await?;
         self.parse(url, &body)
     }
@@ -109,6 +118,37 @@ impl Shop {
         }
     }
 
+    /// Whether the shop has a search for the products of a wish (Eneba); the others only discover.
+    pub(crate) fn searches(self) -> bool {
+        matches!(self, Self::Eneba)
+    }
+
+    /// One page of the shop's search for the title keys of a wish; `known` are indexed candidates the first page adds.
+    /// A shop without a search ([`Self::searches`]) finds nothing.
+    pub(crate) async fn search_page(
+        self,
+        keys: &[String],
+        known: &[String],
+        page: i64,
+    ) -> Result<SearchPage, ShopError> {
+        match self {
+            Self::Eneba => eneba::search_page(keys, known, page).await,
+            Self::Driffle => Ok(SearchPage {
+                urls: vec![],
+                next_page: None,
+            }),
+        }
+    }
+
+    /// The only URLs with a query a shop client may request: Eneba's public search pages. Product links and every
+    /// other endpoint stay query-free.
+    fn allows_query(self, url: &Url) -> bool {
+        match self {
+            Self::Eneba => eneba::search_query(url),
+            Self::Driffle => false,
+        }
+    }
+
     /// Steady-state time between two discovery runs (a daily sitemap at Eneba, one of Driffle's 16 sitemaps).
     pub(crate) fn discovery_every(self, interval: i64) -> i64 {
         match self {
@@ -130,6 +170,12 @@ pub(crate) fn product_link(raw: &str) -> Option<(Shop, Url)> {
     Shop::ALL
         .into_iter()
         .find_map(|shop| Some((shop, shop.product_url(raw)?)))
+}
+
+/// One page of a search; each product gets its own durable job. Country preference never filters it.
+pub(crate) struct SearchPage {
+    pub urls: Vec<String>,
+    pub next_page: Option<i64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

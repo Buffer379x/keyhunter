@@ -1,10 +1,6 @@
 use crate::extract::ApiJson;
-use crate::{ApiError, ApiResult, Shared, auth};
-use axum::{
-    Json,
-    extract::State,
-    http::{HeaderMap, StatusCode},
-};
+use crate::{ApiError, ApiResult, Shared};
+use axum::{Json, extract::State, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 
@@ -163,8 +159,8 @@ async fn load(state: &Shared) -> ApiResult<Settings> {
                     fee_basis_points: r.get("fee_basis_points"),
                     configured: r.get("configured"),
                     poll_interval_seconds: r.get("poll_interval_seconds"),
-                    daily_jobs: shop.then(|| crate::jobs::daily_limit(r.get("daily_jobs"))),
-                    daily_jobs_default: shop.then(crate::jobs::daily_budget),
+                    daily_jobs: shop.then(|| crate::jobs::budget::daily_limit(r.get("daily_jobs"))),
+                    daily_jobs_default: shop.then(crate::jobs::budget::daily_budget),
                 }
             })
             .collect(),
@@ -177,20 +173,14 @@ async fn load(state: &Shared) -> ApiResult<Settings> {
     })
 }
 
-pub(crate) async fn get_settings(
-    State(state): State<Shared>,
-    _: auth::Session,
-) -> ApiResult<Json<Settings>> {
+pub(crate) async fn get_settings(State(state): State<Shared>) -> ApiResult<Json<Settings>> {
     Ok(Json(load(&state).await?))
 }
 
 pub(crate) async fn put_settings(
     State(state): State<Shared>,
-    session: auth::Session,
-    headers: HeaderMap,
     ApiJson(input): ApiJson<Settings>,
 ) -> ApiResult<Json<Settings>> {
-    auth::require_csrf(&state, &headers, &session)?;
     let bad = || {
         ApiError(
             StatusCode::BAD_REQUEST,
@@ -308,7 +298,7 @@ pub(crate) async fn put_settings(
                 .await?;
         }
         if previous != source.poll_interval_seconds {
-            // Same rule as the scheduler (jobs::effective_interval, without the preview factor): the interval times
+            // Same rule as the scheduler (jobs::trend::effective_interval, without the preview factor): the interval times
             // the price-trend pace, at most a week.
             sqlx::query(
             "UPDATE shop_job SET due=MAX(?,(SELECT observed_at FROM offer_link WHERE id=link_id)
@@ -343,19 +333,16 @@ async fn log(state: &Shared, message: &str) {
 fn stored_daily_jobs(source: &SourceSettings) -> Option<i64> {
     source
         .daily_jobs
-        .filter(|v| *v != crate::jobs::daily_budget())
+        .filter(|v| *v != crate::jobs::budget::daily_budget())
 }
 
 pub(crate) async fn put_igdb_credentials(
     State(state): State<Shared>,
-    session: auth::Session,
-    headers: HeaderMap,
     input: Result<
         Json<crate::catalog::provider::IgdbCredentials>,
         axum::extract::rejection::JsonRejection,
     >,
 ) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
     let Json(input) = input.map_err(|_| {
         ApiError(
             StatusCode::BAD_REQUEST,
@@ -377,12 +364,7 @@ pub(crate) async fn put_igdb_credentials(
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub(crate) async fn delete_igdb_credentials(
-    State(state): State<Shared>,
-    session: auth::Session,
-    headers: HeaderMap,
-) -> ApiResult<StatusCode> {
-    auth::require_csrf(&state, &headers, &session)?;
+pub(crate) async fn delete_igdb_credentials(State(state): State<Shared>) -> ApiResult<StatusCode> {
     state
         .catalog
         .update_credentials(None)
