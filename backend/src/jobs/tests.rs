@@ -1277,6 +1277,12 @@ async fn demand_estimate_matches_an_unlimited_simulation() {
         .execute(&pool)
         .await
         .unwrap();
+    // A settled price trend: with equal prices every region is the cheapest of its wish (1.1, SCORE-01/-02), so the
+    // trend stays at 0 and every link keeps pace 0.5 from its first run on.
+    sqlx::query("UPDATE offer_link SET cheap_score=0")
+        .execute(&pool)
+        .await
+        .unwrap();
 
     // Unlimited budget, no pacing: every job runs exactly when it is due.
     let mut estimate = None;
@@ -1312,10 +1318,10 @@ async fn demand_estimate_matches_an_unlimited_simulation() {
         .unwrap();
     let simulated = runs as f64 / 14.0;
     let estimate = estimate.unwrap();
-    // Every region alike (equal prices, no trend): 20 wish links ×3, 12 preview links ×1.5,
-    // 8 weekly searches and the daily discovery.
+    // Every region alike, valid in DE or not, and all at the cheapest price: 20 wish links ×6, 12 preview links ×3,
+    // 8 weekly searches and the daily discovery. (Up to 1.0 equal prices froze the trend at 0.5: ×3 and ×1.5.)
     assert!(
-        (estimate - (60.0 + 18.0 + 8.0 / 7.0 + 1.0)).abs() < 1e-9,
+        (estimate - (120.0 + 36.0 + 8.0 / 7.0 + 1.0)).abs() < 1e-9,
         "{estimate}"
     );
     assert!(

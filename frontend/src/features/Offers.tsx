@@ -172,9 +172,11 @@ export default function OffersTab({
                       <Help label="Hilfe zum Prüftempo">
                         <span>Wie oft KeyHunter dieses Angebot prüft. Der Score (0 bis 100) bestimmt es; die Farbe zeigt ihn.</span>
                         <span>
-                          Häufig (grün): ab {TEMPO_OFTEN} von 100, das Angebot ist beständig das günstigste des Spiels und kommt öfter dran. Selten (gelb): bis{' '}
-                          {TEMPO_RARE}, es ist beständig am teuersten oder ausverkauft. Dazwischen: normal.
+                          Häufig (grün): ab {TEMPO_OFTEN} von 100, das Angebot liegt beständig nahe am günstigsten Preis des Spiels in allen Regionen (höchstens
+                          etwa 20 % darüber) und kommt öfter dran. Selten (gelb): bis {TEMPO_RARE}, es kostet beständig etwa 60 % mehr oder ist ausverkauft.
+                          Dazwischen: normal.
                         </span>
+                        <span>Ob die Region im Zielland gilt, spielt keine Rolle: Gleich teure Angebote werden gleich oft geprüft.</span>
                         <span>Das Tempo ist geplant; bei knappem Abrufbudget kann es länger dauern.</span>
                       </Help>
                     )}

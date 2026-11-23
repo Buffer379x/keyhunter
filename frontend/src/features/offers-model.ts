@@ -19,9 +19,9 @@ export type Link = {
   renamed?: { from: string; to: string } | null;
   /** Confirmed by hand although the shop data does not match the game automatically (0.6.4). */
   manual_match?: boolean;
-  /** Price trend within the game (0.6.5): 0 = mostly the cheapest, 1 = mostly the most expensive, 0.5 = no comparison yet. */
+  /** Price trend within the game (0.6.5, 1.1): 0 = mostly the cheapest of all regions, 1 = mostly twice that or more, 0.5 = not measured yet. */
   cheap_score?: number;
-  /** Interval of the next check in seconds: shop interval, validity in the target country and price trend. */
+  /** Interval of the next check in seconds: shop interval and price trend (validity in the target country plays no part). */
   check_every?: number | null;
   /** Check interval factor as 0 to 100 (0.8.2; shown as "Prüftempo", see `tempo`); null for unconfirmed or not yet measured products. */
   score?: number | null;
@@ -235,8 +235,8 @@ export function tempo(score: number | null | undefined): Tempo | null {
 }
 
 /**
- * Tone of the Prüftempo tag (1.0.1): a high score means the offer is steadily the cheapest of the game, so it is checked more
- * often (green); a low one means steadily the most expensive or sold out (amber); between is neutral.
+ * Tone of the Prüftempo tag (1.0.1): a high score means the offer is steadily at or near the cheapest price of the game in any
+ * region, so it is checked more often (green); a low one means steadily about 60 % above it or sold out (amber); between is neutral.
  */
 export function tempoTone(speed: Tempo): 'ok' | 'default' | 'warn' {
   return speed === 'häufig' ? 'ok' : speed === 'selten' ? 'warn' : 'default';

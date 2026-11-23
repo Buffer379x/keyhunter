@@ -14,9 +14,11 @@
 //!
 //! Every fourth job of a day goes to the most overdue job of classes 2 to 5, so lower
 //! classes keep a share of the budget even when class 1 alone could use it up. Product intervals adapt to
-//! the price trend of each product within its wish (0.6.5, [`trend::price_trend`]): the steadily cheapest region is
-//! checked twice as often, the steadily most expensive one and sold-out products half as often, previews half
-//! as often. Every region is treated alike; the target country only decides which price counts, not how often.
+//! the price trend of each product within its wish (0.6.5, 1.1: [`trend::price_trend`]): the steadily cheapest region is
+//! checked twice as often, one steadily at twice the cheapest price or more and sold-out products half as often,
+//! previews half as often. Every region is treated alike; the target country only decides which price counts, not
+//! how often (owner's rule: an offer that is not valid there is never checked less often than a valid one at the same
+//! price).
 //!
 //! **Budget.** A shop runs at most [`budget::daily_limit`] jobs per UTC day: `source_settings.daily_jobs`
 //! (Settings → Key-Shops), else `KEYHUNTER_SHOP_DAILY_JOBS`, else 500. Every job counts, paced or not.

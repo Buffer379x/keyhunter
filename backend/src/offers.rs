@@ -271,10 +271,11 @@ pub(crate) struct Link {
     /// The job of the link runs or waits ([`crate::jobs::pending`]); only [`links`] reads it.
     pub queued: bool,
     pub retry_at: i64,
-    /// Price trend within the wish (migration 0016): 0 = mostly the cheapest, 1 = mostly the most expensive.
+    /// Price trend within the wish (migration 0016, [`crate::jobs::trend`]): 0 = mostly the cheapest of all regions, 1 = mostly
+    /// twice that or more.
     #[sqlx(default)]
     pub cheap_score: f64,
-    /// Interval of the next check in seconds (shop interval, validity in the target country, price-trend pace).
+    /// Interval of the next check in seconds (shop interval, price-trend pace; validity in the target country plays no part).
     #[sqlx(default)]
     pub check_every: Option<i64>,
     /// Interval factor of the job from the price trend (0.5 to 2, `shop_job.pace`); `None` without a job yet.
