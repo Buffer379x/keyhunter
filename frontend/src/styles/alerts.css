@@ -39,7 +39,7 @@
 .alerts-page td.mono {
   white-space: nowrap;
 }
-/* Up to 720 px the rows become cards (like the wishlist): game and current price, then status and distance */
+/* Up to 720 px the rows become cards (like the wishlist): game and current price, then status and distance (alarms), time and status (deliveries) */
 @media (max-width: 720px) {
   .alerts-page table.alarm-table thead,
   .alerts-page table.delivery-table thead {
@@ -86,15 +86,16 @@
   .alerts-page .alarm-table .game-cell {
     min-width: 0;
   }
+  /* Game and price, the time below, then the status over the full width: the long channel line has room and never
+   * squeezes the title under the pill (1.1). */
   .alerts-page .delivery-table tr {
-    grid-template-areas: 'g s' 't p';
+    grid-template-areas: 'g p' 't t' 's s';
   }
   .alerts-page .delivery-table .c-game {
     grid-area: g;
   }
   .alerts-page .delivery-table .c-status {
     grid-area: s;
-    justify-self: end;
   }
   .alerts-page .delivery-table .c-time {
     grid-area: t;

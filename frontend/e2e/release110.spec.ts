@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { clearWishlist, prepareLayout, settle } from './layout-mocks';
-import { navTo } from './helpers';
+import { navTo, signInToFixture } from './helpers';
 import { backToList, wishlistHeading, wishlistRows } from './detail-helpers';
 
 // Release 1.1: the warning triangle after a title (unreviewed mappings) leads straight to the Zuordnungen tab (PROD-03).
@@ -91,3 +91,60 @@ test.describe('phone, 375 px', () => {
     await expect(page).toHaveURL(new RegExp(`[?&]item=${id}$`));
   });
 });
+
+// 1.1: on the phone card of "Letzte Zustellungen" the long channel line made the status column so wide that the title
+// slid under the "Zugestellt" pill. Title and pill must never overlap.
+for (const width of [390, 320]) {
+  test.describe(`alerts, ${width} px`, () => {
+    test.use({ viewport: { width, height: 800 }, hasTouch: true, isMobile: true });
+
+    test('the title of a delivery card never lies under its status pill', async ({ page }) => {
+      await signInToFixture(page);
+      await page.route('**/api/v1/alerts', route =>
+        route.request().method() !== 'GET'
+          ? route.continue()
+          : route.fulfill({
+              json: {
+                configured: true,
+                channels: ['Telegram', 'E-Mail'],
+                rules: [],
+                events: [
+                  {
+                    id: 1,
+                    wish_id: null,
+                    state: 'sent',
+                    observed_at: 1795107000,
+                    sent_at: 1795107060,
+                    cents: 1290,
+                    attempts: 3,
+                    deliveries: [
+                      { channel: 'telegram', name: 'Telegram', state: 'sent', attempts: 1, error: null },
+                      { channel: 'email', name: 'E-Mail', state: 'failed', attempts: 3, error: 'SMTP: permanent error (535)' },
+                    ],
+                  },
+                ],
+              },
+            }),
+      );
+      await page.goto('/?view=alerts');
+      const card = page.getByRole('table', { name: 'Letzte Zustellungen' }).locator('tbody tr').first();
+      await expect(card.locator('.delivery-channels')).toBeVisible();
+      const boxes = await card.evaluate(row => {
+        // The rendered text of the title, not its cell: the cell can shrink to nothing while the text overflows it.
+        const range = document.createRange();
+        range.selectNodeContents(row.querySelector('.c-game')!);
+        const box = (r: DOMRect) => ({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+        return {
+          title: box(range.getBoundingClientRect()),
+          pill: box(row.querySelector('.c-status .pill')!.getBoundingClientRect()),
+          card: box(row.getBoundingClientRect()),
+        };
+      });
+      const { title, pill, card: frame } = boxes;
+      const overlap =
+        Math.min(title.right, pill.right) > Math.max(title.left, pill.left) && Math.min(title.bottom, pill.bottom) > Math.max(title.top, pill.top);
+      expect(overlap, `title ${JSON.stringify(title)} / pill ${JSON.stringify(pill)}`).toBe(false);
+      expect(title.right).toBeLessThanOrEqual(frame.right);
+    });
+  });
+}
