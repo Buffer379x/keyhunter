@@ -83,9 +83,14 @@ impl Shop {
     pub(crate) async fn product(self, url: &Url) -> Result<Product, ShopError> {
         let mut client = http::PublicClient::new(self.host()).await?;
         let body = client.get(url, 2 * 1024 * 1024, false).await?;
+        self.parse(url, &body)
+    }
+
+    /// The product of a page body, without any request.
+    pub(crate) fn parse(self, url: &Url, body: &str) -> Result<Product, ShopError> {
         match self {
-            Self::Eneba => eneba::parse(url, &body),
-            Self::Driffle => driffle::parse(url, &body),
+            Self::Eneba => eneba::parse(url, body),
+            Self::Driffle => driffle::parse(url, body),
         }
     }
 

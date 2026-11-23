@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1
-FROM node:24.22.1-bookworm-slim AS frontend
+# Base images are pinned by tag and digest (SEC-10). To update: pick the new tag, `docker pull <tag>`, read the digest with
+# `docker image inspect <tag> --format '{{index .RepoDigests 0}}'` and replace both here; Dependabot proposes the same.
+FROM node:24.22.1-bookworm-slim@sha256:be8204d4bd327363357f532187b752ff62759c31bedf98e9e18fc08c9cbd605c AS frontend
 WORKDIR /build/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -11,8 +13,8 @@ WORKDIR /build/backend
 COPY backend/ ./
 RUN --mount=type=cache,target=/usr/local/cargo/registry cargo build --release --locked
 
-FROM debian:bookworm-slim AS runtime
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl util-linux \
+FROM debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc AS runtime
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates util-linux \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 10001 keyhunter \
     && useradd --uid 10001 --gid keyhunter --no-create-home --shell /usr/sbin/nologin keyhunter \

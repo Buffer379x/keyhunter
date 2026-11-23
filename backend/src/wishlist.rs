@@ -235,13 +235,20 @@ impl Target {
     }
 }
 
-pub(crate) async fn add(
-    State(state): State<Shared>,
-    session: auth::Session,
-    headers: HeaderMap,
-    ApiJson(input): ApiJson<AddInput>,
-) -> ApiResult<Response> {
-    auth::require_csrf(&state, &headers, &session)?;
+/// What putting a game on the wishlist did.
+pub(crate) enum Added {
+    /// The wish after the call; `created` is false when it was already on the list.
+    Wish {
+        item: Box<WishlistItem>,
+        created: bool,
+    },
+    /// The game (its title) is in the library and the caller did not confirm.
+    InLibrary(String),
+}
+
+/// The one path onto the wishlist, for the add dialog and the import (PROD-01). With `dry_run` everything is decided
+/// the same way but rolled back, so a preview and the import that follows agree.
+pub(crate) async fn add_wish(state: &Shared, input: AddInput, dry_run: bool) -> ApiResult<Added> {
     if let (Some(id), None) = (input.igdb_id, &input.manual_title) {
         let existing = sqlx::query(items_sql!(
             " WHERE g.igdb_id = ? AND w.platform_id = ? AND w.state='wished'"
@@ -251,15 +258,13 @@ pub(crate) async fn add(
         .fetch_optional(&state.pool)
         .await?;
         if let Some(row) = existing {
-            return Ok((
-                StatusCode::OK,
-                Json(serde_json::json!({"item":with_badge(&state,decode(row)?).await?,"created":false})),
-            )
-                .into_response());
+            return Ok(Added::Wish {
+                item: Box::new(decode(row)?),
+                created: false,
+            });
         }
     }
-    let target =
-        Target::check(&state, input.igdb_id, input.manual_title, input.platform_id).await?;
+    let target = Target::check(state, input.igdb_id, input.manual_title, input.platform_id).await?;
     let family = target.family;
     let mut tx = state.pool.begin().await?;
     let game_id = target.game(&mut tx).await?;
@@ -267,7 +272,7 @@ pub(crate) async fn add(
         let owned: Option<String> = sqlx::query_scalar("SELECT COALESCE(g.manual_title,json_extract(c.payload,'$.name'),'Spiel') FROM wishlist_item w JOIN game g ON g.id=w.game_id LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id WHERE w.state='owned' AND (g.id=? OR (? IS NOT NULL AND COALESCE(json_extract(c.payload,'$.version_parent'),g.igdb_id)=?)) LIMIT 1")
             .bind(&game_id).bind(family).bind(family).fetch_optional(&mut *tx).await?;
         if let Some(title) = owned {
-            return Ok((StatusCode::CONFLICT, Json(serde_json::json!({"error":format!("„{title}“ ist bereits in deiner Bibliothek. Wirklich fortfahren?"),"code":"owned_game"}))).into_response());
+            return Ok(Added::InLibrary(title));
         }
     }
     let item_id = random_token().map_err(|_| internal())?[..32].to_string();
@@ -297,6 +302,13 @@ pub(crate) async fn add(
             .await?;
     }
     let created = inserted.rows_affected() == 1 || moved;
+    if dry_run {
+        tx.rollback().await?;
+        return Ok(Added::Wish {
+            item: Box::new(item),
+            created,
+        });
+    }
     tx.commit().await?;
     if created {
         let game = eventlog::game(&state.pool, &item.id).await;
@@ -309,16 +321,182 @@ pub(crate) async fn add(
         .await;
     }
     crate::jobs::schedule_wish(&state.pool, &item.id).await?;
-    item = with_badge(&state, item).await?;
-    Ok((
-        if created {
-            StatusCode::CREATED
-        } else {
-            StatusCode::OK
+    Ok(Added::Wish {
+        item: Box::new(item),
+        created,
+    })
+}
+
+pub(crate) async fn add(
+    State(state): State<Shared>,
+    session: auth::Session,
+    headers: HeaderMap,
+    ApiJson(input): ApiJson<AddInput>,
+) -> ApiResult<Response> {
+    auth::require_csrf(&state, &headers, &session)?;
+    Ok(match add_wish(&state, input, false).await? {
+        Added::InLibrary(title) => (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({"error":format!("„{title}“ ist bereits in deiner Bibliothek. Wirklich fortfahren?"),"code":"owned_game"})),
+        )
+            .into_response(),
+        Added::Wish { item, created } => (
+            if created {
+                StatusCode::CREATED
+            } else {
+                StatusCode::OK
+            },
+            Json(serde_json::json!({"item":with_badge(&state,*item).await?,"created":created})),
+        )
+            .into_response(),
+    })
+}
+
+/// Entries one import request handles: unknown games are fetched from the catalog one by one, and a request ends
+/// after a minute (the page sends longer files in several requests).
+const IMPORT_ENTRIES: usize = 100;
+
+#[derive(Deserialize)]
+pub(crate) struct ImportInput {
+    version: i64,
+    items: Vec<serde_json::Value>,
+    /// Only report what would happen.
+    #[serde(default)]
+    dry_run: bool,
+}
+
+#[derive(Deserialize)]
+struct ImportEntry {
+    title: Option<String>,
+    platform: String,
+    igdb_id: Option<i64>,
+}
+
+#[derive(Serialize)]
+struct ImportResult {
+    title: String,
+    platform: String,
+    /// `added`, `existing` (already on the list), `library`, `unknown` (the catalog does not know the game for that
+    /// system) or `invalid`.
+    status: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+}
+
+/// POST /api/v1/wishlist/import: the file of the export, each entry through [`add_wish`] like a wish added by hand
+/// (PROD-01). It only adds: nothing is removed or overwritten, a game in the library stays there, and a second
+/// import of the same file adds nothing.
+pub(crate) async fn import(
+    State(state): State<Shared>,
+    session: auth::Session,
+    headers: HeaderMap,
+    ApiJson(input): ApiJson<ImportInput>,
+) -> ApiResult<Json<serde_json::Value>> {
+    auth::require_csrf(&state, &headers, &session)?;
+    if input.version != 1 {
+        return Err(ApiError(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "Diese Datei hat eine unbekannte Version und stammt nicht aus dem Export von KeyHunter.",
+        ));
+    }
+    if input.items.len() > IMPORT_ENTRIES {
+        return Err(ApiError(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "Höchstens 100 Einträge pro Anfrage.",
+        ));
+    }
+    let mut seen = std::collections::HashSet::new();
+    let mut results = Vec::with_capacity(input.items.len());
+    for value in input.items {
+        let Ok(entry) = serde_json::from_value::<ImportEntry>(value) else {
+            results.push(ImportResult {
+                title: String::new(),
+                platform: String::new(),
+                status: "invalid",
+                message: Some("Der Eintrag hat nicht das Format des Exports.".into()),
+            });
+            continue;
+        };
+        let (status, message) = import_entry(&state, &entry, &mut seen, input.dry_run).await?;
+        results.push(ImportResult {
+            title: entry.title.unwrap_or_default(),
+            platform: entry.platform,
+            status,
+            message,
+        });
+    }
+    let count = |status: &str| results.iter().filter(|r| r.status == status).count();
+    Ok(Json(serde_json::json!({
+        "dry_run": input.dry_run,
+        "counts": {
+            "added": count("added"),
+            "existing": count("existing"),
+            "library": count("library"),
+            "unknown": count("unknown"),
+            "invalid": count("invalid"),
         },
-        Json(serde_json::json!({"item":item,"created":created})),
+        "results": results,
+    })))
+}
+
+/// One entry of an import: its status and, for a refusal, the reason. Only an unavailable catalog ends the import
+/// (nothing is lost: running it again adds the rest).
+async fn import_entry(
+    state: &Shared,
+    entry: &ImportEntry,
+    seen: &mut std::collections::HashSet<(String, i64)>,
+    dry_run: bool,
+) -> ApiResult<(&'static str, Option<String>)> {
+    let Some(platform_id) = catalog::platform_by_name(&entry.platform) else {
+        return Ok((
+            "unknown",
+            Some(format!(
+                "Plattform „{}“ wird nicht unterstützt.",
+                entry.platform
+            )),
+        ));
+    };
+    let (igdb_id, manual_title) = match (entry.igdb_id, entry.title.as_deref()) {
+        (Some(id), _) => (Some(id), None),
+        (None, Some(title)) => (None, Some(title.to_string())),
+        (None, None) => return Ok(("invalid", Some("Der Eintrag hat keinen Titel.".into()))),
+    };
+    let key = match (igdb_id, &manual_title) {
+        (Some(id), _) => id.to_string(),
+        (None, title) => title
+            .iter()
+            .flat_map(|t| t.split_whitespace())
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase(),
+    };
+    if !seen.insert((key, platform_id)) {
+        return Ok(("existing", Some("Steht in der Datei mehrfach.".into())));
+    }
+    let added = add_wish(
+        state,
+        AddInput {
+            igdb_id,
+            manual_title,
+            platform_id,
+            confirm_owned: false,
+        },
+        dry_run,
     )
-        .into_response())
+    .await;
+    Ok(match added {
+        Ok(Added::Wish { created: true, .. }) => ("added", None),
+        Ok(Added::Wish { .. }) => ("existing", None),
+        Ok(Added::InLibrary(title)) => (
+            "library",
+            Some(format!("„{title}“ ist schon in der Bibliothek.")),
+        ),
+        Err(ApiError(StatusCode::BAD_REQUEST, message)) => ("invalid", Some(message.into())),
+        Err(ApiError(StatusCode::NOT_FOUND | StatusCode::UNPROCESSABLE_ENTITY, message)) => {
+            ("unknown", Some(message.into()))
+        }
+        Err(error) => return Err(error),
+    })
 }
 
 #[derive(Deserialize)]
