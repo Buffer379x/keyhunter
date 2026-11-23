@@ -1,0 +1,1017 @@
+{
+  "endpoint": "GET /wishlist/{id}/offers",
+  "shape": {
+    "fields": {
+      "best_base": {
+        "required": true,
+        "shape": {
+          "kind": "scalar",
+          "nullable": true,
+          "types": [
+            "number"
+          ]
+        }
+      },
+      "best_estimate": {
+        "required": true,
+        "shape": {
+          "kind": "scalar",
+          "nullable": true,
+          "types": [
+            "number"
+          ]
+        }
+      },
+      "discovery_running": {
+        "required": true,
+        "shape": {
+          "kind": "scalar",
+          "types": [
+            "boolean"
+          ]
+        }
+      },
+      "histories": {
+        "required": true,
+        "shape": {
+          "fields": {
+            "all": {
+              "required": true,
+              "shape": {
+                "items": {
+                  "fields": {
+                    "base_cents": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "nullable": true,
+                        "types": [
+                          "number"
+                        ]
+                      }
+                    },
+                    "fresh_until": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "nullable": true,
+                        "types": [
+                          "number"
+                        ]
+                      }
+                    },
+                    "link_id": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "nullable": true,
+                        "types": [
+                          "number"
+                        ]
+                      }
+                    },
+                    "observed_at": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "types": [
+                          "number"
+                        ]
+                      }
+                    },
+                    "region": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "nullable": true,
+                        "types": [
+                          "string"
+                        ]
+                      }
+                    },
+                    "source": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "nullable": true,
+                        "types": [
+                          "string"
+                        ]
+                      }
+                    }
+                  },
+                  "kind": "object"
+                },
+                "kind": "array"
+              }
+            },
+            "preferred": {
+              "required": true,
+              "shape": {
+                "items": {
+                  "fields": {
+                    "base_cents": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "nullable": true,
+                        "types": [
+                          "number"
+                        ]
+                      }
+                    },
+                    "fresh_until": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "nullable": true,
+                        "types": [
+                          "number"
+                        ]
+                      }
+                    },
+                    "link_id": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "nullable": true,
+                        "types": [
+                          "number"
+                        ]
+                      }
+                    },
+                    "observed_at": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "types": [
+                          "number"
+                        ]
+                      }
+                    },
+                    "region": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "nullable": true,
+                        "types": [
+                          "string"
+                        ]
+                      }
+                    },
+                    "source": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "nullable": true,
+                        "types": [
+                          "string"
+                        ]
+                      }
+                    }
+                  },
+                  "kind": "object"
+                },
+                "kind": "array"
+              }
+            }
+          },
+          "kind": "object"
+        }
+      },
+      "last_known": {
+        "required": true,
+        "shape": {
+          "nullable": true
+        }
+      },
+      "links": {
+        "required": true,
+        "shape": {
+          "items": {
+            "fields": {
+              "attempted_at": {
+                "required": true,
+                "shape": {
+                  "nullable": true
+                }
+              },
+              "can_confirm": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "boolean"
+                  ]
+                }
+              },
+              "cheap_score": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "number"
+                  ]
+                }
+              },
+              "check_every": {
+                "required": true,
+                "shape": {
+                  "nullable": true
+                }
+              },
+              "current": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "boolean"
+                  ]
+                }
+              },
+              "data_state": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "string"
+                  ]
+                }
+              },
+              "eligible": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "boolean"
+                  ]
+                }
+              },
+              "enabled": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "boolean"
+                  ]
+                }
+              },
+              "fits_target": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "boolean"
+                  ]
+                }
+              },
+              "fresh_until": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "number"
+                  ]
+                }
+              },
+              "id": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "number"
+                  ]
+                }
+              },
+              "last_error": {
+                "required": true,
+                "shape": {
+                  "nullable": true
+                }
+              },
+              "manual_allowed": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "boolean"
+                  ]
+                }
+              },
+              "manual_match": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "boolean"
+                  ]
+                }
+              },
+              "mismatch": {
+                "required": true,
+                "shape": {
+                  "items": {
+                    "kind": "scalar",
+                    "types": [
+                      "string"
+                    ]
+                  },
+                  "kind": "array"
+                }
+              },
+              "observed_at": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "number"
+                  ]
+                }
+              },
+              "product": {
+                "required": true,
+                "shape": {
+                  "fields": {
+                    "activation": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "types": [
+                          "string"
+                        ]
+                      }
+                    },
+                    "availability": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "types": [
+                          "string"
+                        ]
+                      }
+                    },
+                    "market": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "types": [
+                          "string"
+                        ]
+                      }
+                    },
+                    "name": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "types": [
+                          "string"
+                        ]
+                      }
+                    },
+                    "region": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "types": [
+                          "string"
+                        ]
+                      }
+                    }
+                  },
+                  "kind": "object"
+                }
+              },
+              "queued": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "boolean"
+                  ]
+                }
+              },
+              "quotes": {
+                "required": true,
+                "shape": {
+                  "items": {
+                    "fields": {
+                      "base_cents": {
+                        "required": true,
+                        "shape": {
+                          "kind": "scalar",
+                          "types": [
+                            "number"
+                          ]
+                        }
+                      },
+                      "estimated_total_cents": {
+                        "required": true,
+                        "shape": {
+                          "kind": "scalar",
+                          "nullable": true,
+                          "types": [
+                            "number"
+                          ]
+                        }
+                      },
+                      "id": {
+                        "required": true,
+                        "shape": {
+                          "kind": "scalar",
+                          "types": [
+                            "string"
+                          ]
+                        }
+                      },
+                      "seller": {
+                        "required": true,
+                        "shape": {
+                          "kind": "scalar",
+                          "types": [
+                            "string"
+                          ]
+                        }
+                      }
+                    },
+                    "kind": "object"
+                  },
+                  "kind": "array"
+                }
+              },
+              "reasons": {
+                "required": true,
+                "shape": {
+                  "items": {
+                    "kind": "scalar",
+                    "types": [
+                      "string"
+                    ]
+                  },
+                  "kind": "array"
+                }
+              },
+              "renamed": {
+                "required": true,
+                "shape": {
+                  "nullable": true
+                }
+              },
+              "retry_at": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "number"
+                  ]
+                }
+              },
+              "review": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "string"
+                  ]
+                }
+              },
+              "score": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "nullable": true,
+                  "types": [
+                    "number"
+                  ]
+                }
+              },
+              "source": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "string"
+                  ]
+                }
+              },
+              "stale": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "boolean"
+                  ]
+                }
+              },
+              "url": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "string"
+                  ]
+                }
+              }
+            },
+            "kind": "object"
+          },
+          "kind": "array"
+        }
+      },
+      "offer_count": {
+        "required": true,
+        "shape": {
+          "kind": "scalar",
+          "types": [
+            "number"
+          ]
+        }
+      },
+      "price_badge": {
+        "required": true,
+        "shape": {
+          "fields": {
+            "cents": {
+              "required": true,
+              "shape": {
+                "kind": "scalar",
+                "nullable": true,
+                "types": [
+                  "number"
+                ]
+              }
+            },
+            "checked_at": {
+              "required": true,
+              "shape": {
+                "kind": "scalar",
+                "types": [
+                  "number"
+                ]
+              }
+            },
+            "estimate_cents": {
+              "required": true,
+              "shape": {
+                "kind": "scalar",
+                "nullable": true,
+                "types": [
+                  "number"
+                ]
+              }
+            },
+            "observed_at": {
+              "required": true,
+              "shape": {
+                "kind": "scalar",
+                "nullable": true,
+                "types": [
+                  "number"
+                ]
+              }
+            },
+            "pending": {
+              "required": true,
+              "shape": {
+                "kind": "scalar",
+                "types": [
+                  "boolean"
+                ]
+              }
+            },
+            "refreshing": {
+              "required": true,
+              "shape": {
+                "kind": "scalar",
+                "types": [
+                  "boolean"
+                ]
+              }
+            },
+            "region": {
+              "required": true,
+              "shape": {
+                "kind": "scalar",
+                "nullable": true,
+                "types": [
+                  "string"
+                ]
+              }
+            },
+            "source": {
+              "required": true,
+              "shape": {
+                "kind": "scalar",
+                "nullable": true,
+                "types": [
+                  "string"
+                ]
+              }
+            },
+            "stale": {
+              "required": true,
+              "shape": {
+                "kind": "scalar",
+                "types": [
+                  "boolean"
+                ]
+              }
+            },
+            "state": {
+              "required": true,
+              "shape": {
+                "kind": "scalar",
+                "types": [
+                  "string"
+                ]
+              }
+            },
+            "trend": {
+              "required": true,
+              "shape": {
+                "items": {
+                  "kind": "scalar",
+                  "nullable": true,
+                  "types": [
+                    "number"
+                  ]
+                },
+                "kind": "array"
+              }
+            },
+            "with_fees": {
+              "required": true,
+              "shape": {
+                "fields": {
+                  "base_cents": {
+                    "required": true,
+                    "shape": {
+                      "kind": "scalar",
+                      "nullable": true,
+                      "types": [
+                        "number"
+                      ]
+                    }
+                  },
+                  "cents": {
+                    "required": true,
+                    "shape": {
+                      "kind": "scalar",
+                      "nullable": true,
+                      "types": [
+                        "number"
+                      ]
+                    }
+                  },
+                  "observed_at": {
+                    "required": true,
+                    "shape": {
+                      "kind": "scalar",
+                      "nullable": true,
+                      "types": [
+                        "number"
+                      ]
+                    }
+                  },
+                  "region": {
+                    "required": true,
+                    "shape": {
+                      "kind": "scalar",
+                      "nullable": true,
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  },
+                  "source": {
+                    "required": true,
+                    "shape": {
+                      "kind": "scalar",
+                      "nullable": true,
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  },
+                  "stale": {
+                    "required": true,
+                    "shape": {
+                      "kind": "scalar",
+                      "types": [
+                        "boolean"
+                      ]
+                    }
+                  },
+                  "trend": {
+                    "required": true,
+                    "shape": {
+                      "items": {
+                        "kind": "scalar",
+                        "nullable": true,
+                        "types": [
+                          "number"
+                        ]
+                      },
+                      "kind": "array"
+                    }
+                  },
+                  "world": {
+                    "required": true,
+                    "shape": {
+                      "fields": {
+                        "activation": {
+                          "required": true,
+                          "shape": {
+                            "kind": "scalar",
+                            "types": [
+                              "string"
+                            ]
+                          }
+                        },
+                        "base_cents": {
+                          "required": true,
+                          "shape": {
+                            "kind": "scalar",
+                            "types": [
+                              "number"
+                            ]
+                          }
+                        },
+                        "cents": {
+                          "required": true,
+                          "shape": {
+                            "kind": "scalar",
+                            "types": [
+                              "number"
+                            ]
+                          }
+                        },
+                        "estimate_cents": {
+                          "required": true,
+                          "shape": {
+                            "kind": "scalar",
+                            "types": [
+                              "number"
+                            ]
+                          }
+                        },
+                        "fits_target": {
+                          "required": true,
+                          "shape": {
+                            "kind": "scalar",
+                            "types": [
+                              "boolean"
+                            ]
+                          }
+                        },
+                        "observed_at": {
+                          "required": true,
+                          "shape": {
+                            "kind": "scalar",
+                            "types": [
+                              "number"
+                            ]
+                          }
+                        },
+                        "region": {
+                          "required": true,
+                          "shape": {
+                            "kind": "scalar",
+                            "types": [
+                              "string"
+                            ]
+                          }
+                        },
+                        "source": {
+                          "required": true,
+                          "shape": {
+                            "kind": "scalar",
+                            "types": [
+                              "string"
+                            ]
+                          }
+                        }
+                      },
+                      "kind": "object",
+                      "nullable": true
+                    }
+                  }
+                },
+                "kind": "object"
+              }
+            },
+            "world": {
+              "required": true,
+              "shape": {
+                "fields": {
+                  "activation": {
+                    "required": true,
+                    "shape": {
+                      "kind": "scalar",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  },
+                  "base_cents": {
+                    "required": true,
+                    "shape": {
+                      "kind": "scalar",
+                      "types": [
+                        "number"
+                      ]
+                    }
+                  },
+                  "cents": {
+                    "required": true,
+                    "shape": {
+                      "kind": "scalar",
+                      "types": [
+                        "number"
+                      ]
+                    }
+                  },
+                  "estimate_cents": {
+                    "required": true,
+                    "shape": {
+                      "kind": "scalar",
+                      "types": [
+                        "number"
+                      ]
+                    }
+                  },
+                  "fits_target": {
+                    "required": true,
+                    "shape": {
+                      "kind": "scalar",
+                      "types": [
+                        "boolean"
+                      ]
+                    }
+                  },
+                  "observed_at": {
+                    "required": true,
+                    "shape": {
+                      "kind": "scalar",
+                      "types": [
+                        "number"
+                      ]
+                    }
+                  },
+                  "region": {
+                    "required": true,
+                    "shape": {
+                      "kind": "scalar",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  },
+                  "source": {
+                    "required": true,
+                    "shape": {
+                      "kind": "scalar",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                "kind": "object",
+                "nullable": true
+              }
+            }
+          },
+          "kind": "object"
+        }
+      },
+      "searches": {
+        "required": true,
+        "shape": {
+          "items": {
+            "fields": {
+              "checked_at": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "nullable": true,
+                  "types": [
+                    "number"
+                  ]
+                }
+              },
+              "last_error": {
+                "required": true,
+                "shape": {
+                  "nullable": true
+                }
+              },
+              "result_count": {
+                "required": true,
+                "shape": {
+                  "nullable": true
+                }
+              },
+              "source": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "string"
+                  ]
+                }
+              },
+              "status": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "string"
+                  ]
+                }
+              }
+            },
+            "kind": "object"
+          },
+          "kind": "array"
+        }
+      },
+      "sources": {
+        "required": true,
+        "shape": {
+          "items": {
+            "fields": {
+              "source": {
+                "required": true,
+                "shape": {
+                  "kind": "scalar",
+                  "types": [
+                    "string"
+                  ]
+                }
+              },
+              "status": {
+                "required": true,
+                "shape": {
+                  "fields": {
+                    "enabled": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "types": [
+                          "boolean"
+                        ]
+                      }
+                    },
+                    "last_error": {
+                      "required": true,
+                      "shape": {
+                        "nullable": true
+                      }
+                    },
+                    "last_success_at": {
+                      "required": true,
+                      "shape": {
+                        "nullable": true
+                      }
+                    },
+                    "retry_at": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "types": [
+                          "number"
+                        ]
+                      }
+                    },
+                    "state": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "types": [
+                          "string"
+                        ]
+                      }
+                    }
+                  },
+                  "kind": "object"
+                }
+              }
+            },
+            "kind": "object"
+          },
+          "kind": "array"
+        }
+      },
+      "target_country": {
+        "required": true,
+        "shape": {
+          "kind": "scalar",
+          "types": [
+            "string"
+          ]
+        }
+      }
+    },
+    "kind": "object"
+  }
+}
