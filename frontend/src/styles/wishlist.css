@@ -425,3 +425,36 @@ table.wl .row-open:hover:not(:disabled) {
     margin: -15px;
   }
 }
+
+/* (1.1.2) Price change since the last check, before the target-country price: up = cheaper, down = dearer, right = same. */
+table.wl .price-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.price-change {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: var(--faint);
+  background: var(--faint-bg);
+}
+.price-change svg {
+  stroke-width: 2.4;
+}
+.price-change.better {
+  color: var(--ok);
+  background: var(--ok-bg);
+}
+.price-change.better svg {
+  transform: rotate(-90deg);
+}
+.price-change.worse {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+.price-change.worse svg {
+  transform: rotate(90deg);
+}

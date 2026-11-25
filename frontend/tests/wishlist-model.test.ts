@@ -63,7 +63,7 @@ test('row facts: saving only when the cheapest region is really cheaper', () => 
   assert.equal(cheaper.reached, true);
   assert.equal(rowFacts(badge(1875, 1875), undefined).saving, null, 'same price is no saving');
   assert.equal(rowFacts(badge(null, 990), undefined).saving, null, 'no target price, no saving');
-  assert.deepEqual(rowFacts(badge(null, 990), undefined).world, { cents: 990, other: null, region: 'IN', source: null, activation: 'confirmed' });
+  assert.deepEqual(rowFacts(badge(null, 990), undefined).world, { cents: 990, other: null, region: 'IN', source: null, activation: 'confirmed', change: null });
 });
 test('FUNC-03: no saving against a price that is only the last known one', () => {
   assert.equal(rowFacts(badge(2890, 1290), undefined).saving, 1600);
@@ -105,7 +105,7 @@ test('row facts: "Mit Gebühren" shows the estimated totals, compares estimate r
   assert.equal(base.reached, true, 'base rule against the base price');
   const total = rowFacts(fees, rule(1050), 'estimate');
   assert.deepEqual([total.price, total.other, total.source, total.stale, total.basis], [1090, 1000, 'eneba', true, 'estimate']);
-  assert.deepEqual(total.world, { cents: 880, other: 800, region: 'IN', source: 'eneba', activation: 'confirmed' });
+  assert.deepEqual(total.world, { cents: 880, other: 800, region: 'IN', source: 'eneba', activation: 'confirmed', change: null });
   assert.equal(total.saving, null, 'the total is only the last known one: no saving (FUNC-03)');
   assert.deepEqual(total.trend, [null, 1090]);
   assert.equal(total.reached, false, 'a base rule does not compare with a total');
@@ -113,6 +113,38 @@ test('row facts: "Mit Gebühren" shows the estimated totals, compares estimate r
   // Without any fee estimate the total is unknown, not the base price.
   const unknown = rowFacts(badge(1000, 800), undefined, 'estimate');
   assert.deepEqual([unknown.price, unknown.world, unknown.trend], [null, null, null]);
+});
+test('1.1.2: the last price change of Preis DE and Preis INT, none for a price that is only the last known one', () => {
+  const cheaper = { previous_cents: 2290, changed_at: 5 };
+  const world = {
+    cents: 990,
+    region: 'IN',
+    observed_at: 1,
+    fits_target: true,
+    activation: 'confirmed' as const,
+    change: { previous_cents: 990, changed_at: null },
+  };
+  const facts = rowFacts(badge(1990, null, { change: cheaper, world }), undefined);
+  assert.deepEqual(facts.change, cheaper);
+  assert.deepEqual(facts.world?.change, { previous_cents: 990, changed_at: null });
+  assert.equal(rowFacts(badge(1990, null, { change: cheaper, stale: true }), undefined).change, null);
+  assert.equal(rowFacts(badge(1990), undefined).change, null, 'older servers send no change');
+  // "Mit Gebühren" takes the change of the totals.
+  const fees = badge(1000, null, {
+    change: cheaper,
+    with_fees: {
+      cents: 1090,
+      base_cents: 1000,
+      observed_at: 2,
+      stale: false,
+      source: 'eneba',
+      region: 'Global',
+      world: null,
+      trend: [],
+      change: { previous_cents: 1200, changed_at: 7 },
+    },
+  });
+  assert.deepEqual(rowFacts(fees, undefined, 'estimate').change, { previous_cents: 1200, changed_at: 7 });
 });
 test('row facts: a trend without any value is no trend', () => {
   assert.equal(rowFacts(badge(2000, null, { trend: Array(14).fill(null) }), undefined).trend, null);

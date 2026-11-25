@@ -2311,11 +2311,21 @@ async fn price_badges_carry_a_daily_target_country_trend() {
     assert_eq!(badges[&id]["trend"], json!(expected));
     let (_, list) = f.call("GET", "/api/v1/wishlist", Value::Null).await;
     assert_eq!(list[0]["price_badge"]["trend"], json!(expected));
+    // 1.1.2: the last change of each price. Before 11,00 € there was no valid DE price (not activatable), so no
+    // arrow; the cheapest region in stock went from 5,00 € (US) to 11,00 €.
+    assert_eq!(badges[&id]["change"], Value::Null);
+    assert_eq!(
+        badges[&id]["world"]["change"],
+        json!({"previous_cents":500,"changed_at":t - 60})
+    );
     // A new fetch (new observation and observation time of the link) updates the cached trend.
     sqlx::query("INSERT INTO price_observation(link_id,product_id,observed_at,market,fingerprint,offers,activation,availability) VALUES(?,'global',?,'DE',?,?,'confirmed','in_stock')")
         .bind(link).bind(t - 30).bind(&fingerprint).bind(quotes(900)).execute(&pool).await.unwrap();
-    sqlx::query("UPDATE offer_link SET observed_at=? WHERE id=?")
+    let mut cheaper = product.clone();
+    cheaper["offers"][0]["cents"] = json!(900);
+    sqlx::query("UPDATE offer_link SET observed_at=?,latest=? WHERE id=?")
         .bind(t - 30)
+        .bind(cheaper.to_string())
         .bind(link)
         .execute(&pool)
         .await
@@ -2325,6 +2335,10 @@ async fn price_badges_carry_a_daily_target_country_trend() {
         .call("GET", "/api/v1/wishlist/price-badges", Value::Null)
         .await;
     assert_eq!(badges[&id]["trend"], json!(expected));
+    assert_eq!(badges[&id]["cents"], 900);
+    let cheaper = json!({"previous_cents":1100,"changed_at":t - 30});
+    assert_eq!(badges[&id]["change"], cheaper);
+    assert_eq!(badges[&id]["world"]["change"], cheaper);
     // A rejected link no longer contributes.
     f.call(
         "PUT",

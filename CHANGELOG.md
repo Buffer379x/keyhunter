@@ -1,5 +1,15 @@
 # Änderungen
 
+## 1.1.2 – 2026-11-25
+
+Ein Pfeil zeigt in der Wunschliste auf einen Blick, ob ein Preis zuletzt günstiger oder teurer geworden ist, und die Bibliothek nimmt Spiele auch dann manuell auf, wenn die Suche ähnliche Treffer findet. Keine Migration und keine Änderung an der Unraid-Vorlage, beim Update ist nichts zu tun.
+
+### Neu
+- **Preistrend in der Wunschliste:** Vor „Preis DE“ (dem Preis im Zielland) und „Preis INT“ steht ein kleiner Pfeil im farbigen Kreis. Er zeigt die letzte Änderung des Preises: grün nach oben, wenn er günstiger geworden ist, rot nach unten, wenn er teurer geworden ist, grau nach rechts, wenn er sich in den letzten 14 Tagen nicht geändert hat. Beim Zeigen auf den Pfeil stehen Betrag, vorheriger Preis und Zeitpunkt da, etwa „Günstiger geworden (vor 6 Std.): −2,00 €, vorher 36,99 €“. Mit „Mit Gebühren“ vergleicht der Pfeil die geschätzten Gesamtpreise. Ohne früheren Preis (erster Preis, wieder lieferbar) und bei einem nur zuletzt bekannten, veralteten Preis erscheint kein Pfeil. Auch auf dem Phone steht der Pfeil vor dem Preis.
+
+### Geändert
+- **Bibliothek: manuell hinzufügen trotz Treffern:** Nicht jedes Spiel steht in IGDB. Findet die Suche nur andere Spiele, ließ sich ein Spiel bisher nicht manuell in die Bibliothek aufnehmen, weil „Manuell hinzufügen“ nur ohne Treffer erschien. Jetzt steht unter den Treffern immer „Nicht dabei? Manuell hinzufügen“ mit der Wahl des Systems. Die Wunschliste bleibt bei Katalogspielen: Dort erscheint „Manuell vormerken“ weiterhin nur ohne Treffer.
+
 ## 1.1.1 – 2026-11-23
 
 Bündel und erweiterte Fassungen lassen sich vormerken, ein halb so großes Image ohne Shell mit deutlich weniger bekannten Schwachstellen, und große Wunschlisten mit vielen Editionsvorschauen werden wieder schnell. Keine Migration und keine Änderung an der Unraid-Vorlage, beim Update ist nichts zu tun.

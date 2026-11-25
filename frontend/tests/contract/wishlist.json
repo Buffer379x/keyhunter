@@ -246,6 +246,33 @@
                   ]
                 }
               },
+              "change": {
+                "required": true,
+                "shape": {
+                  "fields": {
+                    "changed_at": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "types": [
+                          "number"
+                        ]
+                      }
+                    },
+                    "previous_cents": {
+                      "required": true,
+                      "shape": {
+                        "kind": "scalar",
+                        "types": [
+                          "number"
+                        ]
+                      }
+                    }
+                  },
+                  "kind": "object",
+                  "nullable": true
+                }
+              },
               "checked_at": {
                 "required": true,
                 "shape": {
@@ -369,6 +396,33 @@
                         ]
                       }
                     },
+                    "change": {
+                      "required": true,
+                      "shape": {
+                        "fields": {
+                          "changed_at": {
+                            "required": true,
+                            "shape": {
+                              "kind": "scalar",
+                              "types": [
+                                "number"
+                              ]
+                            }
+                          },
+                          "previous_cents": {
+                            "required": true,
+                            "shape": {
+                              "kind": "scalar",
+                              "types": [
+                                "number"
+                              ]
+                            }
+                          }
+                        },
+                        "kind": "object",
+                        "nullable": true
+                      }
+                    },
                     "observed_at": {
                       "required": true,
                       "shape": {
@@ -450,6 +504,32 @@
                               "types": [
                                 "number"
                               ]
+                            }
+                          },
+                          "change": {
+                            "required": true,
+                            "shape": {
+                              "fields": {
+                                "changed_at": {
+                                  "required": true,
+                                  "shape": {
+                                    "kind": "scalar",
+                                    "types": [
+                                      "number"
+                                    ]
+                                  }
+                                },
+                                "previous_cents": {
+                                  "required": true,
+                                  "shape": {
+                                    "kind": "scalar",
+                                    "types": [
+                                      "number"
+                                    ]
+                                  }
+                                }
+                              },
+                              "kind": "object"
                             }
                           },
                           "estimate_cents": {
@@ -535,6 +615,32 @@
                         "types": [
                           "number"
                         ]
+                      }
+                    },
+                    "change": {
+                      "required": true,
+                      "shape": {
+                        "fields": {
+                          "changed_at": {
+                            "required": true,
+                            "shape": {
+                              "kind": "scalar",
+                              "types": [
+                                "number"
+                              ]
+                            }
+                          },
+                          "previous_cents": {
+                            "required": true,
+                            "shape": {
+                              "kind": "scalar",
+                              "types": [
+                                "number"
+                              ]
+                            }
+                          }
+                        },
+                        "kind": "object"
                       }
                     },
                     "estimate_cents": {

@@ -23,6 +23,7 @@
      for decoration, disabled controls and large text only. */
   --muted: #99938c;
   --faint: #7d7770;
+  --faint-bg: rgb(125 119 112 / 0.14); /* 1.1.2: the circle of an unchanged price */
 
   /* Accent: orange means you (brand, your action, your target country and target price) */
   --accent: #ff7a1a;

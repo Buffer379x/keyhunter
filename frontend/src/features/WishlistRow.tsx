@@ -1,6 +1,6 @@
 import { shopNames } from './shop-names';
 import type { ReactNode, Ref } from 'react';
-import type { PriceBadgeData, WishlistItem } from '../api';
+import type { PriceBadgeData, PriceChange, WishlistItem } from '../api';
 import { Cover, Icon, IconButton, Pill, Price, Reg, StatePill, formatPrice } from '../components';
 import { relativeTime } from '../time';
 import { itemName, kindName, platformName } from './catalog-ui';
@@ -102,6 +102,27 @@ function StatusPills({ item, badge, facts }: { item: WishlistItem; badge?: Price
       </StatePill>,
     );
   return pills.length ? <div className="wl-status">{pills}</div> : null;
+}
+
+/**
+ * Last price change (1.1.2), before Preis DE and Preis INT: green arrow up when the price fell, red arrow down when it rose,
+ * grey arrow right when it stayed the same over the 14 days of the trend. The arrow says better or worse, not the direction of
+ * the number; the title names the amount, the price before and when it changed.
+ */
+function Change({ price, change }: { price: number; change: PriceChange }) {
+  const before = change.previous_cents;
+  const when = change.changed_at !== null ? ` (${relativeTime(change.changed_at)})` : '';
+  const [tone, text] =
+    change.changed_at === null || price === before
+      ? ['same', 'Unverändert in den letzten 14 Tagen']
+      : price < before
+        ? ['better', `Günstiger geworden${when}: −${formatPrice(before - price)}, vorher ${formatPrice(before)}`]
+        : ['worse', `Teurer geworden${when}: +${formatPrice(price - before)}, vorher ${formatPrice(before)}`];
+  return (
+    <span className={`price-change ${tone}`} title={text} role="img" aria-label={text}>
+      <Icon name="arrow" size={12} />
+    </span>
+  );
 }
 
 function Spark({ trend, code }: { trend: (number | null)[]; code: string }) {
@@ -223,7 +244,10 @@ export default function WishlistRow({
       >
         {facts.price !== null ? (
           <>
-            <Price cents={facts.price} tone={facts.stale ? 'stale' : 'default'} />
+            <span className="price-line">
+              {facts.change && <Change price={facts.price} change={facts.change} />}
+              <Price cents={facts.price} tone={facts.stale ? 'stale' : 'default'} />
+            </span>
             {origin && <div className="wl-sub">{origin}</div>}
           </>
         ) : feesUnknown ? (
@@ -241,6 +265,7 @@ export default function WishlistRow({
               className="world-cell"
               title={`Günstigste Region weltweit: ${reg?.name ?? 'Region unbekannt'}. ${activationText(world.activation, code)}${worldOther}`}
             >
+              {world.change && <Change price={world.cents} change={world.change} />}
               {reg && <Reg code={reg.code} />}
               <Price cents={world.cents} tone="world" />
             </div>
@@ -252,6 +277,7 @@ export default function WishlistRow({
               className="world-cell home-best"
               title={`Günstigste Region weltweit: ${reg?.name ?? 'Region unbekannt'}. In ${code || 'deinem Zielland'} gibt es kein günstigeres Angebot.${worldOther}`}
             >
+              {world!.change && <Change price={world!.cents} change={world!.change} />}
               {reg && <Reg code={reg.code} home={reg.code === code} />}
               <Price cents={world!.cents} tone="world" />
               <span className="sr-only">, im Zielland am günstigsten</span>

@@ -34,6 +34,8 @@ pub(crate) struct PriceBadge {
     /// oldest first (today: now). Each link carries its last observation forward; `None`
     /// before the first observation or while no confirmed link has a valid price.
     pub trend: Vec<Option<i64>>,
+    /// Last change of `cents` in the trend window (1.1.2, the arrow of the wishlist); `None` without an earlier price.
+    pub change: Option<PriceChange>,
     /// Estimated total of the offer behind `cents` (shop fee from the settings); `None` while
     /// that shop has no fee estimate. The wishlist shows it in the title of the base price (0.7.3).
     pub estimate_cents: Option<i64>,
@@ -58,6 +60,15 @@ pub(crate) struct FeeView {
     pub world: Option<WorldBest>,
     /// Like [`PriceBadge::trend`], with each link's fee added; links without a fee estimate left out.
     pub trend: Vec<Option<i64>>,
+    pub change: Option<PriceChange>,
+}
+
+/// The last change of a best price (1.1.2): the price before it and when it happened. `changed_at` is `None` when the
+/// price stayed the same over the whole trend window (`previous_cents` is then the price itself).
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub(crate) struct PriceChange {
+    pub previous_cents: i64,
+    pub changed_at: Option<i64>,
 }
 
 /// Number of UTC days in [`PriceBadge::trend`].
@@ -78,6 +89,8 @@ pub(crate) struct WorldBest {
     pub fits_target: bool,
     /// Activation of the offer in the target country: `confirmed`, `blocked` or `unknown`.
     pub activation: &'static str,
+    /// Last change of the cheapest price of any region (see [`PriceBadge::change`]).
+    pub change: Option<PriceChange>,
 }
 
 /// Display a saved observation; live alert eligibility remains stricter.
@@ -103,6 +116,12 @@ struct JobSummary {
 /// Observation time and price of a link: `None` when it was not valid in the target country.
 type Series = Vec<(i64, Option<i64>)>;
 type Samples = BTreeMap<i64, Series>;
+/// Samples of the links: valid in the target country (trend, target price) and in stock in any region (cheapest region).
+#[derive(Default)]
+struct History {
+    target: Samples,
+    world: Samples,
+}
 /// A link a badge shows: id, latest observation time, confirmed fingerprint, the shop fee in basis points (`None`
 /// while the shop has no fee estimate) and whether its product can be activated in the target country now.
 type ShownLink = (i64, Option<i64>, Option<String>, Option<i64>, bool);
@@ -123,7 +142,7 @@ struct TrendKey {
 
 /// Trend samples per link, so polling the badges reads only links with new observations.
 #[derive(Default)]
-pub(crate) struct TrendCache(Mutex<HashMap<i64, (TrendKey, Series)>>);
+pub(crate) struct TrendCache(Mutex<HashMap<i64, (TrendKey, Series, Series)>>);
 
 /// Upper bound of cached links; the cache starts over when it is reached.
 const TREND_CACHE_LINKS: usize = 20_000;
@@ -135,16 +154,17 @@ impl TrendCache {
         pool: &SqlitePool,
         links: &[(i64, TrendKey)],
         t: i64,
-    ) -> sqlx::Result<Samples> {
-        let mut samples = Samples::new();
+    ) -> sqlx::Result<History> {
+        let mut samples = History::default();
         let mut missing = vec![];
         let mut active = vec![];
         {
             let cache = self.0.lock().unwrap_or_else(|e| e.into_inner());
             for (link, key) in links {
                 match cache.get(link) {
-                    Some((cached, values)) if cached == key => {
-                        samples.insert(*link, values.clone());
+                    Some((cached, target, world)) if cached == key => {
+                        samples.target.insert(*link, target.clone());
+                        samples.world.insert(*link, world.clone());
                     }
                     _ => {
                         missing.push(*link);
@@ -163,15 +183,17 @@ impl TrendCache {
         }
         let fetched = trend_samples(pool, &missing, &active, &key.target, key.start, t).await?;
         let mut cache = self.0.lock().unwrap_or_else(|e| e.into_inner());
-        if cache.len() + fetched.len() > TREND_CACHE_LINKS {
+        if cache.len() + fetched.target.len() > TREND_CACHE_LINKS {
             cache.clear();
         }
         for (link, key) in links {
-            if let Some(values) = fetched.get(link) {
-                cache.insert(*link, (key.clone(), values.clone()));
+            if let (Some(target), Some(world)) = (fetched.target.get(link), fetched.world.get(link))
+            {
+                cache.insert(*link, (key.clone(), target.clone(), world.clone()));
             }
         }
-        samples.extend(fetched);
+        samples.target.extend(fetched.target);
+        samples.world.extend(fetched.world);
         Ok(samples)
     }
 }
@@ -183,6 +205,7 @@ impl TrendCache {
 /// same market, and activatable in the target country. An observation in the target country
 /// itself carries its own activation (`valid_cents`); one elsewhere in the EU market counts with
 /// its stock price when the product can be activated in the target country now (`active`).
+/// The same once more for the cheapest region: every in-stock price of the link in any market (`stock_cents`).
 /// One row per link keeps the transfer small.
 async fn trend_samples(
     pool: &SqlitePool,
@@ -191,11 +214,12 @@ async fn trend_samples(
     target: &str,
     start: i64,
     t: i64,
-) -> sqlx::Result<Samples> {
+) -> sqlx::Result<History> {
     let links = serde_json::to_string(links).unwrap_or_else(|_| "[]".into());
     let active = serde_json::to_string(active).unwrap_or_else(|_| "[]".into());
     let markets = serde_json::to_string(&pricing::markets(target)).unwrap_or_else(|_| "[]".into());
-    let rows: Vec<(i64, Option<i64>, Option<String>)> = sqlx::query_as(
+    #[allow(clippy::type_complexity)]
+    let rows: Vec<(i64, Option<i64>, Option<String>, Option<i64>, Option<String>)> = sqlx::query_as(
         "SELECT l.id,
             (SELECT CASE WHEN p.market=?2 THEN p.valid_cents WHEN l.id IN (SELECT value FROM json_each(?5)) THEN p.stock_cents END
                 FROM price_observation p WHERE p.link_id=l.id AND p.fingerprint=l.fingerprint AND p.observed_at<?3
@@ -203,7 +227,11 @@ async fn trend_samples(
             (SELECT group_concat(o.observed_at||':'||COALESCE(CASE WHEN o.market=?2 THEN o.valid_cents
                     WHEN l.id IN (SELECT value FROM json_each(?5)) THEN o.stock_cents END,''),',')
                 FROM price_observation o WHERE o.link_id=l.id AND o.fingerprint=l.fingerprint AND o.observed_at>=?3
-                AND o.observed_at<=?4 AND (o.market=?2 OR o.market IN (SELECT value FROM json_each(?6))))
+                AND o.observed_at<=?4 AND (o.market=?2 OR o.market IN (SELECT value FROM json_each(?6)))),
+            (SELECT p.stock_cents FROM price_observation p WHERE p.link_id=l.id AND p.fingerprint=l.fingerprint
+                AND p.observed_at<?3 ORDER BY p.observed_at DESC LIMIT 1),
+            (SELECT group_concat(o.observed_at||':'||COALESCE(o.stock_cents,''),',') FROM price_observation o
+                WHERE o.link_id=l.id AND o.fingerprint=l.fingerprint AND o.observed_at>=?3 AND o.observed_at<=?4)
         FROM offer_link l WHERE l.id IN (SELECT value FROM json_each(?1))",
     )
     .bind(links)
@@ -214,10 +242,8 @@ async fn trend_samples(
     .bind(markets)
     .fetch_all(pool)
     .await?;
-    let mut samples = Samples::new();
-    for (link, carried, window) in rows {
-        let entry = samples.entry(link).or_default();
-        entry.push((start - 1, carried));
+    let series = |carried: Option<i64>, window: Option<String>| {
+        let mut entry = vec![(start - 1, carried)];
         for sample in window.iter().flat_map(|w| w.split(',')) {
             if let Some((at, cents)) = sample.split_once(':')
                 && let Ok(at) = at.parse()
@@ -226,6 +252,14 @@ async fn trend_samples(
             }
         }
         entry.sort_unstable_by_key(|(at, _)| *at);
+        entry
+    };
+    let mut samples = History::default();
+    for (link, carried, window, world_carried, world_window) in rows {
+        samples.target.insert(link, series(carried, window));
+        samples
+            .world
+            .insert(link, series(world_carried, world_window));
     }
     Ok(samples)
 }
@@ -257,6 +291,42 @@ fn trend(links: &[i64], samples: &Samples, start: i64) -> Vec<Option<i64>> {
                 .min()
         })
         .collect()
+}
+
+/// The last change of the best price of the given links (1.1.2), when `current` is that best price now: the price
+/// before the change and its time, or the price itself without a change in the window. `None` without a price before
+/// the change (a first price, or one back in stock) and when the samples do not end at `current` (another rule decides
+/// the shown price, as for a price that is only the last known one).
+fn last_change(links: &[i64], samples: &Samples, current: Option<i64>) -> Option<PriceChange> {
+    let current = current?;
+    let mut times: Vec<i64> = links
+        .iter()
+        .filter_map(|link| samples.get(link))
+        .flatten()
+        .map(|(at, _)| *at)
+        .collect();
+    times.sort_unstable();
+    times.dedup();
+    let best = |t: i64| {
+        links
+            .iter()
+            .filter_map(|link| samples.get(link)?.iter().rev().find(|(at, _)| *at <= t)?.1)
+            .min()
+    };
+    let steps: Vec<(i64, Option<i64>)> = times.into_iter().map(|t| (t, best(t))).collect();
+    if steps.last()?.1 != Some(current) {
+        return None;
+    }
+    match steps.iter().rposition(|(_, cents)| *cents != Some(current)) {
+        None => Some(PriceChange {
+            previous_cents: current,
+            changed_at: None,
+        }),
+        Some(i) => Some(PriceChange {
+            previous_cents: steps[i].1?,
+            changed_at: Some(steps[i + 1].0),
+        }),
+    }
 }
 
 /// Badges for many items with at most four queries in total, independent of the number of
@@ -325,8 +395,23 @@ pub(crate) async fn load_many(
     let samples = state.trend_cache.samples(pool, &shown, t).await?;
     for (_, badge, links) in &mut badges {
         let ids: Vec<i64> = links.iter().map(|(link, _)| *link).collect();
-        badge.trend = trend(&ids, &samples, start);
-        badge.with_fees.trend = trend(&ids, &with_fees(&samples, links), start);
+        let fees = with_fees(&samples.target, links);
+        badge.trend = trend(&ids, &samples.target, start);
+        badge.with_fees.trend = trend(&ids, &fees, start);
+        // A last known price is no current price, so it has no change to show either.
+        let shown = |cents: Option<i64>, stale: bool| cents.filter(|_| !stale);
+        badge.change = last_change(&ids, &samples.target, shown(badge.cents, badge.stale));
+        badge.with_fees.change = last_change(
+            &ids,
+            &fees,
+            shown(badge.with_fees.cents, badge.with_fees.stale),
+        );
+        if let Some(world) = &mut badge.world {
+            world.change = last_change(&ids, &samples.world, Some(world.cents));
+        }
+        if let Some(world) = &mut badge.with_fees.world {
+            world.change = last_change(&ids, &with_fees(&samples.world, links), Some(world.cents));
+        }
     }
     Ok(badges
         .into_iter()
@@ -354,6 +439,7 @@ fn compute(
         source: None,
         region: None,
         trend: vec![],
+        change: None,
         estimate_cents: None,
         with_fees: FeeView::default(),
         offer_count: 0,
@@ -426,6 +512,7 @@ fn compute(
                 observed_at: best.observed_at,
                 fits_target,
                 activation,
+                change: None,
             })
         });
         let prices = pricing::best(
@@ -625,6 +712,60 @@ pub(crate) async fn list(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn last_change_is_the_step_of_the_best_price_before_now() {
+        let samples = Samples::from([
+            (
+                1,
+                vec![
+                    (9, Some(1000)),
+                    (20, Some(1000)),
+                    (30, Some(900)),
+                    (40, Some(900)),
+                ],
+            ),
+            (2, vec![(9, Some(1200)), (35, Some(950))]),
+            (3, vec![(9, None), (25, Some(700))]),
+            (4, vec![(9, Some(500)), (15, None), (28, Some(500))]),
+            (5, vec![(9, Some(800)), (50, Some(800))]),
+        ]);
+        let change = |links: &[i64], current| last_change(links, &samples, current);
+        // 1000 → 900 at 30; the later observations of the same price change nothing.
+        assert_eq!(
+            change(&[1, 2], Some(900)),
+            Some(PriceChange {
+                previous_cents: 1000,
+                changed_at: Some(30)
+            })
+        );
+        // A dearer link that gets cheaper but stays above the best is no change of the best price.
+        assert_eq!(
+            change(&[1, 5], Some(800)),
+            Some(PriceChange {
+                previous_cents: 800,
+                changed_at: None
+            }),
+            "unchanged over the window"
+        );
+        assert_eq!(
+            change(&[3], Some(700)),
+            None,
+            "a first price has nothing to compare"
+        );
+        assert_eq!(
+            change(&[4], Some(500)),
+            None,
+            "back in stock: no price right before"
+        );
+        assert_eq!(
+            change(&[1, 2], Some(950)),
+            None,
+            "the samples must end at the shown price"
+        );
+        assert_eq!(change(&[1, 2], None), None);
+        assert_eq!(change(&[], Some(900)), None);
+    }
 
     #[test]
     fn trend_carries_each_link_forward_and_takes_the_daily_best() {
