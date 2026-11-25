@@ -39,7 +39,11 @@ export type Link = {
   fits_target: boolean;
   /** End of the freshness limit of the last observation: twice the check interval, at least 24 h (FUNC-05). */
   fresh_until?: number | null;
+  /** Other games of the list that hold the same shop product (1.1.4); empty for a set-aside link. */
+  assigned_elsewhere?: Assigned[];
 };
+/** A game of the list that holds a shop product (1.1.4): a product belongs to one game only. */
+export type Assigned = { wish_id: string; name: string | null; platform_id: number; state: string };
 export type Mismatch = 'title' | 'platform' | 'key_type' | 'year';
 export type HistoryPoint = {
   observed_at: number;

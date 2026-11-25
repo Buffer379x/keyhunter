@@ -1,5 +1,21 @@
 # Änderungen
 
+## 1.1.4 – 2026-11-25
+
+Ein Shop-Produkt lässt sich nur noch einem Spiel zuordnen, Driffle-Editionen mit DLC gelten wieder als Spiel-Key, und die Editionsinhalte kommen jetzt auch dann aus dem Xbox Store, wenn IGDB keinen Store-Link kennt. Keine Migration und keine Änderung an der Unraid-Vorlage, beim Update ist nichts zu tun.
+
+### Neu
+- **Keine doppelten Zuordnungen:** Ein Shop-Produkt gehört zu genau einem Spiel deiner Liste. Fügst du im Tab „Zuordnungen“ einen Link ein, prüft KeyHunter ihn sofort. Ist das Produkt schon zugeordnet, erscheint vor dem Hinzufügen eine Warnung, etwa „Dieses Produkt ist schon „Forza Horizon 5“ zugeordnet. Doppelte Zuordnungen sind nicht möglich: Lösche oder verwirf die Zuordnung dort zuerst.“, und „Link prüfen“ ist gesperrt. Auch der Server nimmt den Link nicht an. Bei Driffle zählt die Produkt-ID am Ende der Adresse, derselbe Key unter einer geänderten Adresse ist also ebenfalls doppelt. Ein verworfener Link zählt nicht als Zuordnung.
+- **Automatische Suche:** Die Suche hängt ein Produkt, das schon einem Spiel gehört, nicht an ein zweites. Passt ein neues Produkt zu zwei Wünschen, bekommt es der ältere. Verwirfst oder löschst du die Zuordnung dort, darf die Suche das Produkt dem anderen Spiel geben.
+- **Bestehende Doppelte:** Zuordnungen aus früheren Versionen, die zwei Spiele teilen, tragen vorne ein gelbes Warn-Icon und darunter den Hinweis „Doppelt zugeordnet: dasselbe Produkt gehört auch zu „…““. Sie zählen in der Zahl am Tab „Zuordnungen“ mit, bis du eine der beiden löschst oder verwirfst.
+- **Editionsinhalte aus dem Xbox Store:** Bisher kamen Inhaltsliste und Beschreibung einer Edition nur aus dem Microsoft Store, wenn IGDB für genau diese Edition einen Store-Link kennt. Fehlt der Link oder passt er nicht, liest KeyHunter jetzt die Xbox-Store-Seite einer verlinkten Edition desselben Spiels, die alle Editionen aufführt, und sonst die Xbox-Store-Suche nach dem Spiel. Eine Edition bekommt ein Store-Produkt nur, wenn genau ein Xbox-Spiel für ihre Plattform ihren Titel trägt, etwa „Dragon Ball Z: Kakarot Daima Edition“. Danach prüft KeyHunter Titel, Plattform und Inhalte wie bisher im Microsoft-Katalog. Unter „Quelle & Stand“ steht dann „über den Xbox Store gefunden“.
+
+### Behoben
+- **Driffle: Editionen mit DLC galten als Konto:** Driffle führt Editionen, die Zusatzinhalte enthalten, als „Spiel und DLC“, etwa die Deluxe Edition von Star Wars Jedi: Survivor. KeyHunter erkannte bisher nur reine Spiele als Key, deshalb hieß es „Laut Shop ist das kein Aktivierungscode, sondern etwa ein Konto“. Jetzt gelten auch diese Editionen als Spiel-Key. Reine Add-ons, Upgrades und Konten bleiben über die Wörter in Titel und Adresse ausgeschlossen. Bestehende Zuordnungen korrigieren sich beim nächsten Abruf der Produktseite.
+
+### Intern
+- **Stabilere Browser-Tests:** Zwei Tests, die API-Anfragen zählen, zählten auf langsamen Rechnern manchmal noch die Anfragen der Anmeldung mit. Sie warten jetzt, bis keine Anfrage mehr läuft.
+
 ## 1.1.3 – 2026-11-25
 
 Eine Preistendenz auf der Spielseite schätzt aus dem bisherigen Verlauf, ob der Preis eher fällt, steigt oder bleibt, und die Richtung der Preispfeile ist jetzt einstellbar. Eine kleine Migration ergänzt die neue Einstellung; vor der Migration legt die App wie immer automatisch eine Sicherung an. Keine Änderung an der Unraid-Vorlage, beim Update ist nichts zu tun.

@@ -11,6 +11,8 @@ type Content = {
   observed_at: number;
   items: { id: string; name: string }[];
   description: string | null;
+  /** "xbox": the store product was found on the Xbox store itself, not through the IGDB link (1.1.4). */
+  via?: 'xbox';
 };
 export const editionName = (game: CatalogGame) => game.edition_name ?? (game.kind === 'base_game' ? 'Standard Edition' : game.name);
 
@@ -204,6 +206,7 @@ export default function EditionComparison({ gameId, platformId, games, savedId, 
                           ) : (
                             'Keine Store-Zuordnung'
                           )}
+                          {entry?.via === 'xbox' && <span className="muted"> · über den Xbox Store gefunden</span>}
                           {entry && <span className="muted"> · {dateTime(entry.observed_at)}</span>}
                         </td>
                       );

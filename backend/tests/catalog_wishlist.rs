@@ -2484,6 +2484,120 @@ async fn games_can_be_added_straight_to_the_library() {
     }
 }
 
+/// 1.1.4: a shop product belongs to one game of the list. The check before the add names the game that holds it, the add
+/// itself is refused, a Driffle product counts by its id also under a renamed slug, and a set-aside link holds nothing.
+#[tokio::test]
+async fn a_product_link_is_assigned_to_one_game_only() {
+    let f = Fixture::new().await;
+    let mut ids = Vec::new();
+    for igdb in [1, 2] {
+        let (_, saved) = f
+            .call(
+                "POST",
+                "/api/v1/wishlist",
+                json!({"igdb_id":igdb,"platform_id":169}),
+            )
+            .await;
+        ids.push(saved["item"]["id"].as_str().unwrap().to_string());
+    }
+    let (first, second) = (&ids[0], &ids[1]);
+    // Driffle is switched off in the fixture.
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(
+            sqlx::sqlite::SqliteConnectOptions::new()
+                .filename(f.config.data_dir.join("keyhunter.db")),
+        )
+        .await
+        .unwrap();
+    sqlx::query("UPDATE source_settings SET enabled=1 WHERE id='driffle'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let url = "https://driffle.com/de/some-game-ar-xbox-series-xs-xbox-live-digital-code-p9896327";
+    let renamed =
+        "https://driffle.com/some-game-deluxe-ar-xbox-series-xs-xbox-live-digital-key-p9896327";
+    let check = |wish: &str, url: &str| {
+        format!(
+            "/api/v1/wishlist/{wish}/offers/assigned?url={}",
+            url.replace(':', "%3A").replace('/', "%2F")
+        )
+    };
+    let (status, free) = f.call("GET", &check(second, url), Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(free, json!({"valid":true,"here":false,"assigned":[]}));
+    let (_, invalid) = f
+        .call("GET", &check(second, "https://example.com/x"), Value::Null)
+        .await;
+    assert_eq!(invalid["valid"], false);
+
+    let offers = |wish: &str| format!("/api/v1/wishlist/{wish}/offers");
+    assert_eq!(
+        f.call("POST", &offers(first), json!({ "url": url }))
+            .await
+            .0,
+        StatusCode::ACCEPTED
+    );
+    // The same product again, here or under the renamed slug: refused before and on the add.
+    for candidate in [url, renamed] {
+        let (_, here) = f.call("GET", &check(first, candidate), Value::Null).await;
+        assert_eq!(here["here"], true, "{candidate}");
+        assert_eq!(
+            f.call("POST", &offers(first), json!({ "url": candidate }))
+                .await
+                .0,
+            StatusCode::CONFLICT,
+            "{candidate}"
+        );
+        let (_, held) = f.call("GET", &check(second, candidate), Value::Null).await;
+        assert_eq!(held["here"], false);
+        assert_eq!(held["assigned"][0]["wish_id"], first.as_str());
+        assert!(held["assigned"][0]["name"].is_string());
+        assert_eq!(held["assigned"][0]["platform_id"], 169);
+        let (status, refused) = f
+            .call("POST", &offers(second), json!({ "url": candidate }))
+            .await;
+        assert_eq!(status, StatusCode::CONFLICT, "{candidate}");
+        assert!(
+            refused["error"]
+                .as_str()
+                .unwrap()
+                .contains("Doppelte Zuordnungen")
+        );
+    }
+
+    // An assignment from before 1.1.4 that holds the product twice: both rows carry the other game.
+    sqlx::query("INSERT INTO offer_link(wish_id,source,url) VALUES(?,'driffle',?)")
+        .bind(second)
+        .bind(renamed.replace("driffle.com/", "driffle.com/de/"))
+        .execute(&pool)
+        .await
+        .unwrap();
+    for (wish, other) in [(first, second), (second, first)] {
+        let (_, view) = f.call("GET", &offers(wish), Value::Null).await;
+        assert_eq!(
+            view["links"][0]["assigned_elsewhere"][0]["wish_id"],
+            other.as_str()
+        );
+    }
+    // Set aside ("Verwerfen") on the second game, the product is the first one's alone again.
+    let link: i64 = sqlx::query_scalar("SELECT id FROM offer_link WHERE wish_id=?")
+        .bind(second)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    f.call(
+        "PUT",
+        &format!("{}/{link}", offers(second)),
+        json!({"decision":"rejected"}),
+    )
+    .await;
+    let (_, view) = f.call("GET", &offers(first), Value::Null).await;
+    assert_eq!(view["links"][0]["assigned_elsewhere"], json!([]));
+    let (_, view) = f.call("GET", &offers(second), Value::Null).await;
+    assert_eq!(view["links"][0]["assigned_elsewhere"], json!([]));
+}
+
 /// 0.7.3: a completely wrong mapping is deleted with its prices; the automatic search leaves it
 /// out from then on, adding the link by hand brings it back.
 #[tokio::test]

@@ -32,6 +32,7 @@ pub(super) fn parse(url: &Url, body: &str) -> Result<Product, ShopError> {
         .ok_or(ShopError::Parse)?;
     let title = name
         .strip_suffix(" - Xbox Live - Digital Key")
+        .or_else(|| name.strip_suffix(" - Xbox Live - Digital Code"))
         .and_then(|s| s.rsplit_once(" ("))
         .and_then(|(s, platforms)| {
             let expected = data["regions"].as_array()?.first()?["name"].as_str()?;
@@ -44,9 +45,12 @@ pub(super) fn parse(url: &Url, body: &str) -> Result<Product, ShopError> {
         .unwrap_or_default();
     let key_game = !title.is_empty()
         && data["platform"] == "Xbox Live"
-        && data["productTypes"]
-            .as_array()
-            .is_some_and(|kinds| kinds.len() == 1 && kinds[0] == "game")
+        // An edition that bundles add-ons is typed ["dlc", "game"] (1.1.4: the Deluxe Edition of Star Wars Jedi: Survivor);
+        // a pure add-on has no "game", and the words of slug and title below keep add-ons and upgrades out.
+        && data["productTypes"].as_array().is_some_and(|kinds| {
+            kinds.iter().any(|kind| kind == "game")
+                && kinds.iter().all(|kind| kind == "game" || kind == "dlc")
+        })
         && !slug
             .split('-')
             .any(|word| matches!(word, "account" | "addon" | "upgrade" | "dlc" | "gift"))
@@ -820,8 +824,8 @@ mod tests {
     fn product_key_game_excludes_non_games_accounts_and_dlc() {
         let cases: &[Case] = &[
             ("other platform", |s| data(s)["platform"] = "Steam".into()),
-            ("two types", |s| {
-                data(s)["productTypes"] = serde_json::json!(["game", "dlc"])
+            ("game and another type", |s| {
+                data(s)["productTypes"] = serde_json::json!(["game", "software"])
             }),
             ("dlc type", |s| {
                 data(s)["productTypes"] = serde_json::json!(["dlc"])
@@ -851,6 +855,14 @@ mod tests {
         }
         let name = NAME.replace("Standard Edition", "Addon Standard Edition");
         assert!(parse_ok(&BASE.replace(NAME, &name)).key_game);
+        // 1.1.4: an edition with add-ons is typed ["dlc", "game"] by Driffle and still a game key.
+        for kinds in [
+            serde_json::json!(["dlc", "game"]),
+            serde_json::json!(["game", "dlc"]),
+        ] {
+            let body = next(|s| data(s)["productTypes"] = kinds.clone());
+            assert!(parse_ok(&body).key_game, "{kinds}");
+        }
     }
 
     #[test]

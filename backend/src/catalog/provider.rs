@@ -431,11 +431,17 @@ fn write_credentials(path: &Path, credentials: &IgdbCredentials) -> anyhow::Resu
 }
 
 pub(super) async fn decode<T: serde::de::DeserializeOwned>(
-    mut response: Response,
+    response: Response,
 ) -> Result<T, CatalogError> {
+    let bytes = body(response, MAX_RESPONSE).await?;
+    serde_json::from_slice(&bytes).map_err(|_| CatalogError::InvalidResponse)
+}
+
+/// The body of a response, at most `limit` bytes.
+pub(super) async fn body(mut response: Response, limit: usize) -> Result<Vec<u8>, CatalogError> {
     if response
         .content_length()
-        .is_some_and(|size| size > MAX_RESPONSE as u64)
+        .is_some_and(|size| size > limit as u64)
     {
         return Err(CatalogError::InvalidResponse);
     }
@@ -445,12 +451,12 @@ pub(super) async fn decode<T: serde::de::DeserializeOwned>(
         .await
         .map_err(|_| CatalogError::Unavailable)?
     {
-        if bytes.len() + chunk.len() > MAX_RESPONSE {
+        if bytes.len() + chunk.len() > limit {
             return Err(CatalogError::InvalidResponse);
         }
         bytes.extend_from_slice(&chunk);
     }
-    serde_json::from_slice(&bytes).map_err(|_| CatalogError::InvalidResponse)
+    Ok(bytes)
 }
 
 #[derive(Deserialize)]

@@ -623,6 +623,20 @@ table.contents details p {
 .matches .match-error {
   color: var(--danger);
 }
+/* (1.1.4) A product held by another game too: the warning mark in front of the entry and the note below its title. */
+.matches .double-mark {
+  display: inline-flex;
+  flex: none;
+  margin-top: 2px;
+  color: var(--warn);
+}
+.matches .double-mark svg {
+  width: 15px;
+  height: 15px;
+}
+.matches .double-note {
+  color: var(--warn);
+}
 .matches .match-pace {
   color: var(--muted);
   font-size: var(--t-xs);

@@ -190,6 +190,15 @@
         "shape": {
           "items": {
             "fields": {
+              "assigned_elsewhere": {
+                "required": true,
+                "shape": {
+                  "items": {
+                    "kind": "unknown"
+                  },
+                  "kind": "array"
+                }
+              },
               "attempted_at": {
                 "required": true,
                 "shape": {
