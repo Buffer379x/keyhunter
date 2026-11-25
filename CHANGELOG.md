@@ -1,5 +1,14 @@
 # Änderungen
 
+## 1.1.3 – 2026-11-25
+
+Eine Preistendenz auf der Spielseite schätzt aus dem bisherigen Verlauf, ob der Preis eher fällt, steigt oder bleibt, und die Richtung der Preispfeile ist jetzt einstellbar. Eine kleine Migration ergänzt die neue Einstellung; vor der Migration legt die App wie immer automatisch eine Sicherung an. Keine Änderung an der Unraid-Vorlage, beim Update ist nichts zu tun.
+
+### Neu
+- **Preistendenz auf der Spielseite:** Im Tab „Preis“ steht unter „Warum dieser Preis zählt“ ein neuer Kasten „Preistendenz“: „Eher fallend“, „Eher steigend“ oder „Eher stabil“ mit Pfeil, einer Begründung in einem Satz und der Sicherheit (gering, mittel, hoch). Eine kleine Grafik zeigt die letzten 90 Tage mit dem üblichen Preis (gestrichelt), früheren Rabatten (grün hinterlegt) und der erwarteten Richtung, darunter Trend, üblicher Preis, Zahl der Rabatte und ihr Rhythmus. Für die Zukunft nennt KeyHunter keinen Betrag.
+- **So entsteht die Tendenz:** Grundlage ist allein der gespeicherte Verlauf, der tägliche Tiefstpreis im Zielland. Der übliche Preis ist der Median der letzten 90 Tage; fällt der Preis plötzlich um 10 % oder mehr darunter, zählt das als Rabatt. Läuft gerade ein Rabatt, ist der Preis eher steigend (Rabatte enden). Sonst setzt sich ein klarer Trend der letzten drei Wochen fort (ab 1,5 % pro Woche, robust gegen einzelne Ausreißer). Sonst ist er eher fallend, wenn nach dem bisherigen Rhythmus ein Rabatt fällig ist, und sonst eher stabil. Die Sicherheit steigt mit der Länge des Verlaufs und der Zahl früherer Rabatte. Unter 14 Tagen Verlauf steht dort, wie viele Tage noch fehlen.
+- **Richtung der Preispfeile wählbar:** Unter Einstellungen › Allgemein › „Preispfeile“: „Wie der Preis“ (neu der Standard: grün nach unten heißt günstiger, rot nach oben teurer) oder „Besser oder schlechter“ (wie in 1.1.2: grün nach oben heißt günstiger). Die Einstellung gilt für die Wunschliste und die Preistendenz.
+
 ## 1.1.2 – 2026-11-25
 
 Ein Pfeil zeigt in der Wunschliste auf einen Blick, ob ein Preis zuletzt günstiger oder teurer geworden ist, und die Bibliothek nimmt Spiele auch dann manuell auf, wenn die Suche ähnliche Treffer findet. Keine Migration und keine Änderung an der Unraid-Vorlage, beim Update ist nichts zu tun.

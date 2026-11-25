@@ -162,6 +162,15 @@
           ]
         }
       },
+      "trend_arrows": {
+        "required": true,
+        "shape": {
+          "kind": "scalar",
+          "types": [
+            "string"
+          ]
+        }
+      },
       "wishlist_columns": {
         "required": true,
         "shape": {

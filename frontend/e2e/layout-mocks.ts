@@ -148,7 +148,7 @@ const link = (id: number, source: string, region: string, quotes: [number, strin
     ...extra,
   });
 const seller = 'GameKeys Express Store International Ltd.';
-const offers = {
+export const offers = {
   links: [
     link(1, 'eneba', 'India', [[1290, seller]], ['activation_unknown', 'purchase_context_mismatch']),
     link(2, 'driffle', 'Argentina', [[1490, null]], ['activation_blocked']),

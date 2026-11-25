@@ -33,6 +33,8 @@ interface Props {
   columns?: string[];
   hidden?: string[];
   opener?: string;
+  /** Direction of the price-change arrows (1.1.3). */
+  arrows?: 'price' | 'rating';
   /** Order and hidden columns of the offers table on the game page (0.8.2). */
   offersColumns?: string[];
   offersHidden?: string[];
@@ -111,6 +113,7 @@ export default function Wishlist({
   columns,
   hidden,
   opener,
+  arrows,
   offersColumns,
   offersHidden,
   addOpen,
@@ -469,6 +472,7 @@ export default function Wishlist({
           targetLabel={targetLabel}
           offersColumns={offersColumns}
           offersHidden={offersHidden}
+          arrows={arrows === 'rating' ? 'rating' : 'price'}
           onSettings={onSettings}
           onRule={updateRule}
         />
@@ -501,8 +505,8 @@ export default function Wishlist({
                 Verglichen werden alle Regionen, abgefragt werden alle gleich.
               </span>
               <span>
-                Der Pfeil vor einem Preis zeigt dessen letzte Änderung: grün nach oben günstiger, rot nach unten teurer, grau nach rechts unverändert in den
-                letzten 14 Tagen.
+                Der Pfeil vor einem Preis zeigt dessen letzte Änderung: grün günstiger, rot teurer, grau nach rechts unverändert in den letzten 14 Tagen.
+                {arrows === 'rating' ? ' Grün zeigt nach oben, rot nach unten.' : ' Der Pfeil zeigt in die Richtung des Preises.'}
               </span>
               <span>Das Suchfeld filtert nach Titel; ein Shop-Name zeigt die Spiele, bei denen dieser Shop am günstigsten ist.</span>
             </Help>
@@ -687,6 +691,7 @@ export default function Wishlist({
                       facts={facts[item.id]}
                       columns={order}
                       mode={mode}
+                      arrows={arrows === 'rating' ? 'rating' : 'price'}
                       code={code}
                       compare
                       scopeLabel={scopeLabel}

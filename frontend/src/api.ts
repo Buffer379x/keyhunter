@@ -22,6 +22,8 @@ export interface Settings {
   /** Hidden wishlist columns and what opens the game page ("button", "title", "cover"), 0.7.1. */
   wishlist_hidden?: string[];
   wishlist_open?: string;
+  /** Price-change arrows (1.1.3): "price" follows the price (green down = cheaper), "rating" says better or worse (green up). */
+  trend_arrows?: 'price' | 'rating';
   /** Order and hidden columns of the offers table on the game page (0.8.2). */
   offers_columns: string[];
   offers_hidden: string[];

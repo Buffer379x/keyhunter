@@ -1,7 +1,7 @@
 import { BigPrice, Button, Help, Icon, Inset, Label, Panel, PanelHead, Pill, Reg, Seg, StatePill } from '../components';
 import { relativeTime } from '../time';
 import { countryData, regionCode } from './regions';
-import { dailyStats } from './history-model';
+import { columns, dailyStats } from './history-model';
 import { fetchFailed, nextAttempt, trendLeader, validity, verdict, verdictText } from './offers-model';
 import type { Basis, OfferRow, OffersView, Summary } from './offers-model';
 import PriceMatrix from './PriceMatrix';
@@ -9,6 +9,9 @@ import { ruleTarget, targetReached } from './PriceAlerts';
 import type { Rule } from './PriceAlerts';
 import { dateTime, money } from './price-format';
 import { shopNames } from './shop-names';
+import { OUTLOOK_DAYS, priceOutlook } from './price-outlook';
+import { OutlookPanel } from './PriceOutlook';
+import type { TrendArrows } from './WishlistRow';
 
 /** Grundpreis or Gesamtpreis geschätzt; only shown when a shop has a fee estimate configured. */
 export function BasisSwitch({ basis, onChange }: { basis: Basis; onChange: (basis: Basis) => void }) {
@@ -44,11 +47,13 @@ type Props = {
   land: string;
   rule: Rule | null;
   searching: boolean;
+  /** Direction of the price arrows (settings, 1.1.3), for the price outlook. */
+  arrows?: TrendArrows;
   onTab: (tab: string) => void;
 };
 
-/** Preis: the best price in the target country against the cheapest region worldwide, the verdict, 30 days of history, the gauge and the facts. */
-export default function PriceTab({ view, rows, summary, basis, onBasis, hasEstimates, code, land, rule, searching, onTab }: Props) {
+/** Preis: the best price in the target country against the cheapest region worldwide, the verdict, 30 days of history, the gauge, the facts and the price outlook (1.1.3). */
+export default function PriceTab({ view, rows, summary, basis, onBasis, hasEstimates, code, land, rule, searching, arrows = 'price', onTab }: Props) {
   const now = Date.now() / 1000;
   const { targetCents, targetRow, world, saving } = summary;
   const same = !!world && targetCents !== null && saving <= 0;
@@ -83,6 +88,12 @@ export default function PriceTab({ view, rows, summary, basis, onBasis, hasEstim
   const cheaper = rows.filter(r => r.current && r.price !== null && !r.eligible && (targetCents === null || r.price < targetCents));
   // Region that has been the cheapest most steadily (price trend of the scheduler, which checks it more often).
   const leader = view ? trendLeader(view.links) : null;
+  const outlook = view
+    ? priceOutlook(
+        columns(preferred, [], OUTLOOK_DAYS, OUTLOOK_DAYS, now).map(column => column.home?.cents ?? null),
+        view.best_base,
+      )
+    : null;
 
   return (
     <div className="grid-2">
@@ -402,6 +413,7 @@ export default function PriceTab({ view, rows, summary, basis, onBasis, hasEstim
             </ul>
           </Inset>
         </Panel>
+        <OutlookPanel result={outlook} money={money} land={land} arrows={arrows} />
       </div>
     </div>
   );

@@ -19,6 +19,7 @@ import { useOffersView } from './useOffersView';
 import { PAUSE_WEEKS, pauseEnd, pauseText, weeksText } from './wish-pause';
 import type { TabId } from '../route';
 import type { OpenWish } from './useWishDetail';
+import type { TrendArrows } from './WishlistRow';
 
 type Props = {
   /** The open wish: its editions, tab, actions and their state (useWishDetail). */
@@ -28,6 +29,8 @@ type Props = {
   /** Order and hidden columns of the offers table (0.8.2). */
   offersColumns?: string[];
   offersHidden?: string[];
+  /** Direction of the price arrows (settings, 1.1.3), for the price outlook. */
+  arrows?: TrendArrows;
   onSettings: () => void;
   /** The alert rule as read or saved here, so the list's target column stays current. */
   onRule: (id: string, rule: Rule | null) => void;
@@ -81,7 +84,7 @@ function StatusPill({
 }
 
 function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
-  const { wish, targetCountry, targetLabel, offersColumns, offersHidden, onSettings, alert, rule } = props;
+  const { wish, targetCountry, targetLabel, offersColumns, offersHidden, arrows, onSettings, alert, rule } = props;
   const {
     item,
     viewed,
@@ -334,6 +337,7 @@ function Detail(props: Props & { alert: AlertState; rule: Rule | null }) {
             land={land}
             rule={rule}
             searching={searching}
+            arrows={arrows}
             onTab={go}
           />
         )}
