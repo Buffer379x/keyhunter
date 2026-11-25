@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { api } from '../api';
 import type { FormEvent } from 'react';
 import type { CatalogGame, WishlistItem } from '../api';
 import { Button, ConfirmDialog, Help, Icon, IconButton, Inset, Label, Notice, Panel, PanelHead, Pill, Reg } from '../components';
 import { itemName, kindName, platformName } from './catalog-ui';
 import LinkReview from './LinkReview';
-import type { Link } from './offers-model';
+import type { Assigned, Link } from './offers-model';
 import { everyText, trendText } from './offers-model';
 import { countryData, regionCode } from './regions';
 import { shopNames } from './shop-names';
@@ -22,15 +23,47 @@ const sourceErrors: Record<string, string> = {
   invalid_response: 'Antwort konnte nicht gelesen werden',
 };
 const needsReview = (link: Link) => link.review !== 'confirmed' || !!link.renamed;
+/** Held by another game too (1.1.4, assignments from before the check): the owner removes one of them. */
+const doubled = (link: Link) => (link.assigned_elsewhere?.length ?? 0) > 0;
+const stateNames: Record<string, string> = { owned: 'Bibliothek', preview: 'Vorschau' };
+/** „Forza Horizon 5“ (Xbox One, Bibliothek): the platform and the list only where they are not the usual wish. */
+function assignedNames(list: Assigned[], platformId: number) {
+  return list
+    .map(entry => {
+      const extra = [entry.platform_id !== platformId && platformName(entry.platform_id), stateNames[entry.state]].filter(Boolean).join(', ');
+      return `„${entry.name ?? 'Unbekanntes Spiel'}“${extra ? ` (${extra})` : ''}`;
+    })
+    .join(', ');
+}
+/** The check before a link is added by hand (1.1.4). */
+type Check = { valid: boolean; here: boolean; assigned: Assigned[] };
 const longDate = (seconds: number) => new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }).format(seconds * 1000);
 
 /** True for links the owner still has to look at (shown as the count on the Zuordnungen tab). */
-export const reviewLinks = (links: Link[]) => links.filter(link => link.review !== 'rejected' && link.enabled && needsReview(link));
+export const reviewLinks = (links: Link[]) => links.filter(link => link.review !== 'rejected' && link.enabled && (needsReview(link) || doubled(link)));
 
 /** Zuordnungen tab (until 1.0 "Infos"): facts about the game and the watch, the IGDB description, and the shop product mappings with their review. */
 export default function InfosTab({ item, game, state }: { item: WishlistItem; game: CatalogGame | null; state: OffersState }) {
   const { view, busy, write, error } = state;
   const [url, setUrl] = useState('');
+  const [check, setCheck] = useState<{ url: string; result: Check } | null>(null);
+  // The warning comes before the add: a moment after typing or pasting, the address is checked against the list.
+  useEffect(() => {
+    const wanted = url.trim();
+    if (!wanted) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void api<Check>(`/wishlist/${item.id}/offers/assigned?url=${encodeURIComponent(wanted)}`, 'GET', undefined, controller.signal)
+        .then(result => setCheck({ url: wanted, result }))
+        .catch(() => undefined);
+    }, 300);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [url, item.id, view?.links.length]);
+  const known = check && check.url === url.trim() ? check.result : null;
+  const refused = !!known && (known.here || known.assigned.length > 0);
   const [reviewing, setReviewing] = useState<number | null>(null);
   const reviewLink = view?.links.find(link => link.id === reviewing) ?? null;
   /** A completely wrong mapping the owner wants gone, with its prices (0.7.3); "Verwerfen" only sets it aside. */
@@ -57,6 +90,7 @@ export default function InfosTab({ item, game, state }: { item: WishlistItem; ga
   const ordered = [...links].sort((a, b) => Number(needsReview(b)) - Number(needsReview(a)) || a.id - b.id);
   async function add(event: FormEvent) {
     event.preventDefault();
+    if (refused) return;
     if (await write('', 'POST', { url }, 'Produktlink zur Prüfung vorgemerkt.')) setUrl('');
   }
   const released = game?.first_release_date ? new Date(game.first_release_date * 1000) : null;
@@ -159,13 +193,26 @@ export default function InfosTab({ item, game, state }: { item: WishlistItem; ga
             )}
             {ordered.map(link => {
               const review = needsReview(link);
+              const twice = doubled(link);
               return (
-                <li key={link.id} className={`match ${review ? 'warn' : 'ok'}`}>
-                  <Icon name={review ? 'alert' : 'check'} />
+                <li key={link.id} className={`match ${review || twice ? 'warn' : 'ok'}`}>
+                  {twice ? (
+                    <span className="double-mark" role="img" aria-label="Doppelt zugeordnet" title="Doppelt zugeordnet">
+                      <Icon name="alert" />
+                    </span>
+                  ) : (
+                    <Icon name={review ? 'alert' : 'check'} />
+                  )}
                   <div className="match-body">
                     <b>
                       {shopNames[link.source] ?? link.source} · {link.product?.name ?? 'Produktdaten ausstehend'}
                     </b>
+                    {twice && (
+                      <span className="double-note">
+                        Doppelt zugeordnet: dasselbe Produkt gehört auch zu {assignedNames(link.assigned_elsewhere!, item.platform_id)}. Lösche oder verwirf es
+                        bei einem der Spiele.
+                      </span>
+                    )}
                     <span className="muted">
                       {link.product?.region && (
                         <>
@@ -270,12 +317,25 @@ export default function InfosTab({ item, game, state }: { item: WishlistItem; ga
                   maxLength={300}
                   placeholder="https://www.eneba.com/…"
                   value={url}
+                  aria-describedby={refused ? 'shop-product-double' : undefined}
+                  aria-invalid={refused || undefined}
                   onChange={e => setUrl(e.target.value)}
                 />
-                <Button type="submit" disabled={busy}>
+                <Button type="submit" disabled={busy || refused}>
                   Link prüfen
                 </Button>
               </span>
+              {refused && known && (
+                <div className="note warn" role="alert" id="shop-product-double">
+                  <Icon name="alert" />
+                  <span>
+                    {known.here
+                      ? `Dieses Produkt ist „${itemName(item)}“ schon zugeordnet.`
+                      : `Dieses Produkt ist schon ${assignedNames(known.assigned, item.platform_id)} zugeordnet.`}{' '}
+                    Doppelte Zuordnungen sind nicht möglich{known.here ? '.' : ': Lösche oder verwirf die Zuordnung dort zuerst.'}
+                  </span>
+                </div>
+              )}
             </div>
           </form>
         </Inset>

@@ -539,6 +539,7 @@ pub(crate) async fn list(
     let scope = pricing::Scope::target(&target);
     let peers = peers(&state.pool, &wish).await?;
     let links = links(&state.pool, &id, t).await?;
+    let assigned = assignments(&state.pool).await?;
     let mut samples = samples(&state.pool, &wish, &links).await?;
     for link in links {
         let product = link.product();
@@ -609,7 +610,13 @@ pub(crate) async fn list(
                 all_samples.push(sample);
             }
         }
-        rows.push(json!({"id":link.id,"source":link.source,"url":link.url,
+        // Other games that hold the same product (1.1.4): shown with a warning, a set-aside link holds nothing.
+        let elsewhere = if link.review == "rejected" {
+            Vec::new()
+        } else {
+            elsewhere(&assigned, &id, &link.source, &link.url)
+        };
+        rows.push(json!({"id":link.id,"source":link.source,"url":link.url,"assigned_elsewhere":elsewhere,
             "review": if confirmed { "confirmed" } else if link.review == "confirmed" { "pending" } else { &link.review },
             // A plain confirmation is enough; otherwise `mismatch` says why the owner has to look, and only a key for the
             // wish's system can be confirmed by hand at all (FUNC-01, FUNC-04).
@@ -711,6 +718,100 @@ fn update_min(min: &mut Option<i64>, value: i64) {
     *min = Some(min.map_or(value, |old| old.min(value)));
 }
 
+/// A shop product assigned to a wish, for the duplicate check (1.1.4): a product belongs to one game of the list only.
+#[derive(Serialize, FromRow, Clone)]
+pub(crate) struct Assigned {
+    wish_id: String,
+    name: Option<String>,
+    platform_id: i64,
+    state: String,
+    #[serde(skip)]
+    source: String,
+    #[serde(skip)]
+    url: String,
+}
+
+/// The product behind a link: Driffle keeps its product id ("…-p9896327") when it renames the slug, so the id counts.
+pub(crate) fn product_key(source: &str, url: &str) -> String {
+    match (source, url.rsplit_once("-p")) {
+        ("driffle", Some((_, id))) => format!("driffle:{id}"),
+        _ => format!("{source}:{url}"),
+    }
+}
+
+/// Every assignment that counts: all links except those set aside ("Verwerfen"), in the order they were wished.
+pub(crate) async fn assignments<'e>(
+    executor: impl sqlx::Executor<'e, Database = sqlx::Sqlite>,
+) -> sqlx::Result<Vec<Assigned>> {
+    sqlx::query_as(AssertSqlSafe(format!(
+        "SELECT l.wish_id,l.source,l.url,{} AS name,w.platform_id,w.state
+        FROM offer_link l JOIN wishlist_item w ON w.id=l.wish_id JOIN game g ON g.id=w.game_id
+        LEFT JOIN catalog_game c ON c.igdb_id=g.igdb_id WHERE l.review!='rejected' ORDER BY w.created_at,l.id",
+        eventlog::GAME_NAME
+    )))
+    .fetch_all(executor)
+    .await
+}
+
+/// The other wishes that hold the product of `source`/`url`, each once.
+pub(crate) fn elsewhere<'a>(
+    all: &'a [Assigned],
+    wish: &str,
+    source: &str,
+    url: &str,
+) -> Vec<&'a Assigned> {
+    let key = product_key(source, url);
+    let mut found: Vec<&Assigned> = Vec::new();
+    for entry in all {
+        if entry.wish_id != wish
+            && product_key(&entry.source, &entry.url) == key
+            && !found.iter().any(|seen| seen.wish_id == entry.wish_id)
+        {
+            found.push(entry);
+        }
+    }
+    found
+}
+
+/// Whether `wish` holds the product of `source`/`url` already, under this address or another one of the shop.
+pub(crate) fn holds(all: &[Assigned], wish: &str, source: &str, url: &str) -> bool {
+    let key = product_key(source, url);
+    all.iter()
+        .any(|entry| entry.wish_id == wish && product_key(&entry.source, &entry.url) == key)
+}
+
+const ASSIGNED_ELSEWHERE: ApiError = ApiError(
+    StatusCode::CONFLICT,
+    "Dieses Produkt ist schon einem anderen Spiel deiner Liste zugeordnet. Doppelte Zuordnungen sind nicht möglich.",
+);
+const ASSIGNED_HERE: ApiError = ApiError(
+    StatusCode::CONFLICT,
+    "Dieses Produkt ist diesem Spiel schon zugeordnet.",
+);
+
+#[derive(Deserialize)]
+pub(crate) struct AssignedQuery {
+    url: String,
+}
+/// The check before adding a link by hand (1.1.4): whether the address is a product page at all, whether this wish has it
+/// already, and which other games hold the same product. Read-only; the warning comes before the add.
+pub(crate) async fn assigned(
+    State(state): State<Shared>,
+    ApiPath(id): ApiPath<String>,
+    crate::extract::ApiQuery(query): crate::extract::ApiQuery<AssignedQuery>,
+) -> ApiResult<Json<Value>> {
+    wish(&state.pool, &id).await?;
+    let Some((shop, url)) = shops::product_link(query.url.trim()) else {
+        return Ok(Json(json!({"valid":false,"here":false,"assigned":[]})));
+    };
+    let all = assignments(&state.pool).await?;
+    Ok(Json(json!({
+        "valid": true,
+        "here": holds(&all, &id, shop.id(), url.as_str()),
+        "assigned": elsewhere(&all, &id, shop.id(), url.as_str()),
+    })))
+}
+
 #[derive(Deserialize)]
 pub(crate) struct AddLink {
     url: String,
@@ -735,6 +836,15 @@ pub(crate) async fn add_link(
     crate::wishlist::require_unowned(&state.pool, &id).await?;
     wish(&state.pool, &id).await?;
     let mut tx = state.pool.begin().await?;
+    // One game per product (1.1.4): a product another wish holds is not added here; the form warned before.
+    let all = assignments(&mut *tx).await?;
+    if !elsewhere(&all, &id, shop.id(), url.as_str()).is_empty() {
+        return Err(ASSIGNED_ELSEWHERE);
+    }
+    // Already here, also as the same Driffle product under another address of the shop.
+    if holds(&all, &id, shop.id(), url.as_str()) {
+        return Err(ASSIGNED_HERE);
+    }
     let link: Option<i64> = sqlx::query_scalar(
         "INSERT INTO offer_link(wish_id,source,url)
         SELECT ?,?,? WHERE (SELECT count(*) FROM offer_link WHERE wish_id=? AND auto_discovered=0)<16

@@ -62,6 +62,7 @@ impl CatalogProvider for FixtureProvider {
                 source_url: None,
                 observed_at: 1795107000,
                 description: Some("Synthetische Editionsinhalte für den Browser-Test.".into()),
+                via: None,
                 items: if game.kind == "edition" {
                     vec![
                         ContentItem {

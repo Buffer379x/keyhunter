@@ -393,6 +393,7 @@ fn protected_api(state: &Shared) -> Router<Shared> {
             get(offers::list).post(offers::add_link),
         )
         .route("/wishlist/{id}/offers/refresh", post(offers::refresh))
+        .route("/wishlist/{id}/offers/assigned", get(offers::assigned))
         .route(
             "/wishlist/{id}/offers/{link}",
             put(offers::review).delete(offers::remove_link),

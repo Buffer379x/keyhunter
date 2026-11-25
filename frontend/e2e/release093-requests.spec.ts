@@ -17,6 +17,8 @@ function recordReads(page: Page) {
 // the "Abrufe heute" tile share one /status/fetch poller.
 test('the navigation reads /counts and the fetch status once, not the lists (CODE-08, PERF-06)', async ({ page }) => {
   await signInToFixture(page);
+  // The reads of the sign-in may still run on a slow machine; counted from here they would count twice.
+  await page.waitForLoadState('networkidle');
   const reads = recordReads(page);
   await page.reload();
   await expect(wishlistHeading(page)).toBeVisible();

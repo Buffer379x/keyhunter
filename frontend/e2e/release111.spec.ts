@@ -12,11 +12,12 @@ test.afterEach(async ({ page }) => clearWishlist(page));
 /** API requests as "GET /wishlist/{id}/offers" (ids and query left out), and a wait until none is in flight. */
 function trackApi(page: Page) {
   const seen: string[] = [];
-  let open = 0;
+  // Requests seen starting: one that started before the tracker (the sign-in on a slow machine) never counts as open.
+  const open = new Set<Request>();
   const api = (request: Request) => new URL(request.url()).pathname.startsWith('/api/v1/');
   page.on('request', request => {
     if (!api(request)) return;
-    open += 1;
+    open.add(request);
     const path = new URL(request.url()).pathname
       .slice('/api/v1'.length)
       .split('/')
@@ -25,7 +26,7 @@ function trackApi(page: Page) {
     seen.push(`${request.method()} ${path}`);
   });
   const done = (request: Request) => {
-    if (api(request)) open -= 1;
+    open.delete(request);
   };
   page.on('requestfinished', done);
   page.on('requestfailed', done);
@@ -38,7 +39,7 @@ function trackApi(page: Page) {
     },
     async idle() {
       await page.waitForTimeout(150);
-      await expect.poll(() => open, { timeout: 10_000 }).toBe(0);
+      await expect.poll(() => open.size, { timeout: 10_000 }).toBe(0);
       await page.waitForTimeout(50);
     },
   };
@@ -83,6 +84,7 @@ test('CODE-07: polling keeps its requests and its pace; fast only while a fetch 
   await page.clock.install();
   await signInToFixture(page);
   await addForza(page);
+  await page.waitForLoadState('networkidle');
   const tracker = trackApi(page);
   await page.reload();
   await expect(wishlistHeading(page)).toBeVisible();

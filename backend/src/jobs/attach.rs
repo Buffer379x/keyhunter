@@ -33,10 +33,17 @@ pub(super) async fn enqueue_candidates(
     initial: bool,
 ) -> sqlx::Result<i64> {
     let mut found = 0;
+    // One game per product (1.1.4): the search leaves a product out that another wish holds already.
+    let assigned = offers::assignments(&mut *conn).await?;
     for raw in urls {
         let Some(url) = shop.product_url(raw) else {
             continue;
         };
+        if !offers::elsewhere(&assigned, id, shop.id(), url.as_str()).is_empty()
+            && !offers::holds(&assigned, id, shop.id(), url.as_str())
+        {
+            continue;
+        }
         let link: Option<i64> = sqlx::query_scalar(
             "INSERT INTO offer_link(wish_id,source,url,auto_discovered)
             SELECT ?1,?2,?3,1 WHERE NOT EXISTS(SELECT 1 FROM offer_link_block WHERE wish_id=?1 AND source=?2 AND url=?3)
@@ -92,10 +99,11 @@ pub(super) async fn confirm_discovered(
 
 /// Attach indexed candidates to every non-owned item (after start and after discovery).
 pub(super) async fn attach(pool: &SqlitePool, shop: Shop) -> anyhow::Result<()> {
-    let ids: Vec<String> =
-        sqlx::query_scalar("SELECT id FROM wishlist_item w WHERE w.state!='owned'")
-            .fetch_all(pool)
-            .await?;
+    let ids: Vec<String> = sqlx::query_scalar(
+        "SELECT id FROM wishlist_item w WHERE w.state!='owned' ORDER BY created_at,id",
+    )
+    .fetch_all(pool)
+    .await?;
     attach_items(pool, shop, &ids, false).await
 }
 
@@ -122,10 +130,11 @@ async fn attach_items(
         return Ok(());
     }
     let ids_json = serde_json::to_string(ids)?;
-    let keys: Vec<(String, Vec<String>)> = offers::wishes(pool, &ids_json)
-        .await?
-        .into_iter()
-        .map(|(id, wish)| (id, shop.candidate_keys(wish.keys())))
+    // In the order of `ids` (the oldest wish first): of two wishes a new product fits, the older one gets it (1.1.4).
+    let mut wishes = offers::wishes(pool, &ids_json).await?;
+    let keys: Vec<(String, Vec<String>)> = ids
+        .iter()
+        .filter_map(|id| Some((id.clone(), shop.candidate_keys(wishes.remove(id)?.keys()))))
         .filter(|(_, keys)| !keys.is_empty())
         .collect();
     let wanted: std::collections::BTreeSet<&String> =
@@ -462,6 +471,55 @@ mod tests {
             urls,
             ["https://www.eneba.com/de/xbox-forza-horizon-5-xbox-live-key-global"]
         );
+    }
+
+    /// 1.1.4: a product belongs to one game of the list. The search leaves a product out that another wish holds, and gives
+    /// it to the next one once the first sets it aside.
+    #[tokio::test]
+    async fn the_search_gives_a_product_to_one_wish_only() {
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        sqlx::query("INSERT INTO game(id,manual_title,manual_key,created_at) VALUES('g','Forza Horizon 5','forza horizon 5',0)").execute(&pool).await.unwrap();
+        for (id, platform, at) in [("series", 169, 1), ("one", 49, 2)] {
+            sqlx::query(
+                "INSERT INTO wishlist_item(id,game_id,platform_id,created_at) VALUES(?,'g',?,?)",
+            )
+            .bind(id)
+            .bind(platform)
+            .bind(at)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+        let url = "https://www.eneba.com/de/xbox-forza-horizon-5-xbox-live-key-global";
+        sqlx::query(
+            "INSERT INTO shop_candidate(source,url,title_key) VALUES('eneba',?,'forza horizon 5')",
+        )
+        .bind(url)
+        .execute(&pool)
+        .await
+        .unwrap();
+        let holders = || async {
+            sqlx::query_scalar::<_, String>(
+                "SELECT wish_id FROM offer_link WHERE review!='rejected' ORDER BY id",
+            )
+            .fetch_all(&pool)
+            .await
+            .unwrap()
+        };
+        attach(&pool, Shop::Eneba).await.unwrap();
+        attach(&pool, Shop::Eneba).await.unwrap();
+        assert_eq!(holders().await, ["series"]);
+        sqlx::query("UPDATE offer_link SET review='rejected' WHERE wish_id='series'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        attach(&pool, Shop::Eneba).await.unwrap();
+        assert_eq!(holders().await, ["one"]);
     }
 
     /// FUNC-01: a same-titled game of another year keeps a found product pending, and the update leaves every mapping
