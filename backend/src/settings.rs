@@ -108,6 +108,10 @@ pub(crate) struct Settings {
     /// What opens the game page from the list: "button", "title" or "cover" (0.7.1). Absent on PUT keeps it.
     #[serde(default)]
     wishlist_open: Option<String>,
+    /// Price-change arrows (1.1.3): "price" follows the price (green down = cheaper), "rating" says better or worse (green
+    /// up = cheaper). Absent on PUT keeps it.
+    #[serde(default)]
+    trend_arrows: Option<String>,
     /// Order and hidden columns of the offers table (0.8.2). Absent on PUT keeps the stored ones.
     #[serde(default)]
     offers_columns: Option<Vec<String>>,
@@ -122,7 +126,7 @@ pub(crate) struct Settings {
 
 async fn load(state: &Shared) -> ApiResult<Settings> {
     let row = sqlx::query(
-        "SELECT target_country, currency, wishlist_columns, wishlist_hidden, wishlist_open, offers_columns, offers_hidden FROM app_settings WHERE id = 1",
+        "SELECT target_country, currency, wishlist_columns, wishlist_hidden, wishlist_open, trend_arrows, offers_columns, offers_hidden FROM app_settings WHERE id = 1",
     )
     .fetch_one(&state.pool)
     .await?;
@@ -139,6 +143,7 @@ async fn load(state: &Shared) -> ApiResult<Settings> {
                 .collect(),
         ),
         wishlist_open: Some(row.get("wishlist_open")),
+        trend_arrows: Some(row.get("trend_arrows")),
         offers_columns: Some(offers_order(row.get("offers_columns"))),
         offers_hidden: Some(
             row.get::<String, _>("offers_hidden")
@@ -200,6 +205,10 @@ pub(crate) async fn put_settings(
             .wishlist_open
             .as_deref()
             .is_some_and(|open| !matches!(open, "button" | "title" | "cover"))
+        || input
+            .trend_arrows
+            .as_deref()
+            .is_some_and(|arrows| !matches!(arrows, "price" | "rating"))
         || input
             .offers_columns
             .as_ref()
@@ -269,6 +278,12 @@ pub(crate) async fn put_settings(
     if let Some(hidden) = &input.offers_hidden {
         sqlx::query("UPDATE app_settings SET offers_hidden = ? WHERE id = 1")
             .bind(hidden.join(","))
+            .execute(&mut *tx)
+            .await?;
+    }
+    if let Some(arrows) = &input.trend_arrows {
+        sqlx::query("UPDATE app_settings SET trend_arrows = ? WHERE id = 1")
+            .bind(arrows)
             .execute(&mut *tx)
             .await?;
     }

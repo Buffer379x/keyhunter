@@ -415,6 +415,7 @@ export default function App() {
               columns={auto.saved?.wishlist_columns}
               hidden={auto.saved?.wishlist_hidden}
               opener={auto.saved?.wishlist_open}
+              arrows={auto.saved?.trend_arrows}
               offersColumns={auto.saved?.offers_columns}
               offersHidden={auto.saved?.offers_hidden}
               targetLabel={targetLabel ?? 'Noch nicht gewählt'}

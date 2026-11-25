@@ -1348,6 +1348,29 @@ async fn wishlist_columns_can_be_hidden_and_the_opener_chosen() {
 }
 
 #[tokio::test]
+async fn the_direction_of_the_price_arrows_is_a_setting() {
+    let f = Fixture::new().await;
+    let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;
+    assert_eq!(
+        settings["trend_arrows"], "price",
+        "1.1.3 default: the arrow follows the price"
+    );
+    settings["trend_arrows"] = json!("rating");
+    let (code, saved) = f.call("PUT", "/api/v1/settings", settings.clone()).await;
+    assert_eq!(code, StatusCode::OK);
+    assert_eq!(saved["trend_arrows"], "rating");
+    settings["trend_arrows"] = json!("up");
+    assert_eq!(
+        f.call("PUT", "/api/v1/settings", settings.clone()).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    // A client that does not send it (an older page) keeps it.
+    settings.as_object_mut().unwrap().remove("trend_arrows");
+    let (_, kept) = f.call("PUT", "/api/v1/settings", settings).await;
+    assert_eq!(kept["trend_arrows"], "rating");
+}
+
+#[tokio::test]
 async fn wishlist_column_order_defaults_saves_and_validates() {
     let f = Fixture::new().await;
     let (_, mut settings) = f.call("GET", "/api/v1/settings", Value::Null).await;

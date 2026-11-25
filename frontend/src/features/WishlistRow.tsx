@@ -104,12 +104,15 @@ function StatusPills({ item, badge, facts }: { item: WishlistItem; badge?: Price
   return pills.length ? <div className="wl-status">{pills}</div> : null;
 }
 
+/** Direction of the price-change arrows, a setting (1.1.3). */
+export type TrendArrows = 'price' | 'rating';
 /**
- * Last price change (1.1.2), before Preis DE and Preis INT: green arrow up when the price fell, red arrow down when it rose,
- * grey arrow right when it stayed the same over the 14 days of the trend. The arrow says better or worse, not the direction of
- * the number; the title names the amount, the price before and when it changed.
+ * Last price change (1.1.2), before Preis DE and Preis INT: green when the price fell, red when it rose, a grey arrow right
+ * when it stayed the same over the 14 days of the trend. With `arrows` "price" (the default since 1.1.3) the arrow follows the
+ * price, green pointing down; with "rating" it says better or worse, green pointing up. The title names the amount, the price
+ * before and when it changed.
  */
-function Change({ price, change }: { price: number; change: PriceChange }) {
+function Change({ price, change, arrows }: { price: number; change: PriceChange; arrows: TrendArrows }) {
   const before = change.previous_cents;
   const when = change.changed_at !== null ? ` (${relativeTime(change.changed_at)})` : '';
   const [tone, text] =
@@ -118,8 +121,10 @@ function Change({ price, change }: { price: number; change: PriceChange }) {
       : price < before
         ? ['better', `Günstiger geworden${when}: −${formatPrice(before - price)}, vorher ${formatPrice(before)}`]
         : ['worse', `Teurer geworden${when}: +${formatPrice(price - before)}, vorher ${formatPrice(before)}`];
+  // "price": the arrow follows the price (cheaper = down); "rating": up is better (1.1.2 look).
+  const direction = tone === 'same' ? 'right' : (tone === 'better') === (arrows === 'rating') ? 'up' : 'down';
   return (
-    <span className={`price-change ${tone}`} title={text} role="img" aria-label={text}>
+    <span className={`price-change ${tone} ${direction}`} title={text} role="img" aria-label={text}>
       <Icon name="arrow" size={12} />
     </span>
   );
@@ -151,6 +156,7 @@ export default function WishlistRow({
   facts,
   columns,
   mode,
+  arrows = 'price',
   code,
   compare,
   scopeLabel,
@@ -166,6 +172,8 @@ export default function WishlistRow({
   columns: WishlistColumn[];
   /** What opens the game page (settings): the details button, the title or the cover; the other two are plain. */
   mode: OpenMode;
+  /** Direction of the price-change arrows (settings, 1.1.3). */
+  arrows?: TrendArrows;
   /** Target country code ("DE"), or "" without one. */
   code: string;
   /** The badge price is the target-country price (price scope "preferred"), so a cheapest region that is not cheaper means the target country is cheapest. */
@@ -245,7 +253,7 @@ export default function WishlistRow({
         {facts.price !== null ? (
           <>
             <span className="price-line">
-              {facts.change && <Change price={facts.price} change={facts.change} />}
+              {facts.change && <Change price={facts.price} change={facts.change} arrows={arrows} />}
               <Price cents={facts.price} tone={facts.stale ? 'stale' : 'default'} />
             </span>
             {origin && <div className="wl-sub">{origin}</div>}
@@ -265,7 +273,7 @@ export default function WishlistRow({
               className="world-cell"
               title={`Günstigste Region weltweit: ${reg?.name ?? 'Region unbekannt'}. ${activationText(world.activation, code)}${worldOther}`}
             >
-              {world.change && <Change price={world.cents} change={world.change} />}
+              {world.change && <Change price={world.cents} change={world.change} arrows={arrows} />}
               {reg && <Reg code={reg.code} />}
               <Price cents={world.cents} tone="world" />
             </div>
@@ -277,7 +285,7 @@ export default function WishlistRow({
               className="world-cell home-best"
               title={`Günstigste Region weltweit: ${reg?.name ?? 'Region unbekannt'}. In ${code || 'deinem Zielland'} gibt es kein günstigeres Angebot.${worldOther}`}
             >
-              {world!.change && <Change price={world!.cents} change={world!.change} />}
+              {world!.change && <Change price={world!.cents} change={world!.change} arrows={arrows} />}
               {reg && <Reg code={reg.code} home={reg.code === code} />}
               <Price cents={world!.cents} tone="world" />
               <span className="sr-only">, im Zielland am günstigsten</span>

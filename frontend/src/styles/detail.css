@@ -796,3 +796,71 @@ dialog.link-review[open] {
 .pill.pause-pill {
   color: var(--warn);
 }
+
+/* (1.1.3) Price outlook: a box of its own with a small chart. The arrow is the one of the wishlist (wishlist.css, .price-change). */
+.price-change.big {
+  width: 26px;
+  height: 26px;
+}
+.outlook {
+  padding: 14px 16px 16px;
+  display: grid;
+  gap: 12px;
+}
+.outlook-verdict {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.outlook-verdict > .price-change {
+  flex: none;
+}
+.outlook-verdict b {
+  font-size: var(--t-lg);
+}
+.outlook-verdict p {
+  margin: 2px 0 0;
+  color: var(--text-2);
+}
+.outlook-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.outlook-chart .discount {
+  fill: var(--ok-bg);
+}
+.outlook-chart .usual {
+  stroke: var(--faint);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.outlook-chart .price {
+  fill: none;
+  stroke: var(--text-2);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+.outlook-chart .now {
+  fill: var(--accent);
+}
+.outlook-chart :is(.ahead, .ahead-head) {
+  fill: none;
+  stroke: var(--faint);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.outlook-chart .ahead {
+  stroke-dasharray: 2 3;
+}
+.outlook-chart.falling :is(.ahead, .ahead-head) {
+  stroke: var(--ok);
+}
+.outlook-chart.rising :is(.ahead, .ahead-head) {
+  stroke: var(--danger);
+}
+.outlook-note {
+  margin: 0;
+  font-size: var(--t-xs);
+}

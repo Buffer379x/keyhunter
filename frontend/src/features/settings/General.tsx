@@ -77,6 +77,27 @@ export default function General({
               ))}
             </select>
           </div>
+          <div className="form-row">
+            <span className="with-help">
+              <span id="trend-arrows-label">Preispfeile</span>
+              <Help label="Hilfe zu den Preispfeilen">
+                <span>Der Pfeil vor „Preis {target ?? 'DE'}“ und „Preis INT“ in der Wunschliste zeigt die letzte Änderung des Preises.</span>
+                <span>
+                  „Wie der Preis“: Der Pfeil zeigt in die Richtung des Preises, grün nach unten heißt günstiger. „Besser oder schlechter“: grün nach oben heißt
+                  günstiger, rot nach unten teurer.
+                </span>
+              </Help>
+            </span>
+            <Seg
+              label="Preispfeile"
+              value={settings.trend_arrows === 'rating' ? 'rating' : 'price'}
+              onChange={value => edit(current => ({ ...current, trend_arrows: value }))}
+              options={[
+                { value: 'price', label: 'Wie der Preis' },
+                { value: 'rating', label: 'Besser oder schlechter' },
+              ]}
+            />
+          </div>
           {unconfirmed && (
             <div className="note warn" role="note" data-testid="activation-note">
               <Icon name="alert" />

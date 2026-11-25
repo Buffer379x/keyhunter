@@ -22,8 +22,8 @@ const row = (page: Page, title: string, subline: string) => page.locator('table.
 async function arrow(cell: Locator) {
   const mark = cell.locator('.price-change');
   if (!(await mark.count())) return null;
-  const classes = (await mark.getAttribute('class')) ?? '';
-  return { tone: classes.replace('price-change', '').trim(), label: ((await mark.getAttribute('aria-label')) ?? '').replace(/\s/g, ' ') };
+  const classes = ((await mark.getAttribute('class')) ?? '').split(' ');
+  return { tone: ['better', 'worse', 'same'].find(tone => classes.includes(tone)), label: ((await mark.getAttribute('aria-label')) ?? '').replace(/\s/g, ' ') };
 }
 
 test('the last price change shows as an arrow before Preis DE and Preis INT', async ({ page }) => {
