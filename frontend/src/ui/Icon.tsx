@@ -32,6 +32,8 @@ const shapes = {
     </>
   ),
   plus: <path d="M12 5v14M5 12h14" />,
+  // 1.1.2: price change since the last check; the list turns it up (cheaper) or down (dearer).
+  arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
   chev: <path d="M9 6l6 6-6 6" />,
   back: <path d="M15 6l-6 6 6 6" />,
   down: <path d="M6 9l6 6 6-6" />,

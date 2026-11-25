@@ -500,6 +500,10 @@ export default function Wishlist({
                 „Preis {targetCountry || 'Zielland'}“ ist der beste Preis eines im Zielland aktivierbaren Keys, „Preis INT“ die günstigste Region weltweit.
                 Verglichen werden alle Regionen, abgefragt werden alle gleich.
               </span>
+              <span>
+                Der Pfeil vor einem Preis zeigt dessen letzte Änderung: grün nach oben günstiger, rot nach unten teurer, grau nach rechts unverändert in den
+                letzten 14 Tagen.
+              </span>
               <span>Das Suchfeld filtert nach Titel; ein Shop-Name zeigt die Spiele, bei denen dieser Shop am günstigsten ist.</span>
             </Help>
           </div>

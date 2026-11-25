@@ -287,7 +287,8 @@ export default function CatalogSearch({ open, inline = false, target = 'wishlist
           })}
         </ul>
       )}
-      {(state === 'error' || (state === 'ready' && results.length === 0)) && query.trim().length >= 2 && (
+      {/* The library also offers it next to hits (1.1.2): an owned game the catalog does not know may still bring similar names. */}
+      {(state === 'error' || (state === 'ready' && (results.length === 0 || library))) && query.trim().length >= 2 && (
         <div className="manual-fallback">
           {platform === ALL_PLATFORMS && (
             <div className="form-row manual-system">
@@ -303,7 +304,7 @@ export default function CatalogSearch({ open, inline = false, target = 'wishlist
           )}
           {library ? (
             <>
-              <h3>Manuell hinzufügen</h3>
+              <h3>{results.length ? 'Nicht dabei? Manuell hinzufügen' : 'Manuell hinzufügen'}</h3>
               <p>„{query.trim()}“ wird ohne Katalogtreffer in der Bibliothek gespeichert.</p>
               <Button disabled={busy} onClick={() => void add(null)}>
                 {busy ? 'Wird gespeichert …' : 'Ohne Katalog hinzufügen'}

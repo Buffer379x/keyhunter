@@ -73,6 +73,8 @@ export interface PriceBadgeData {
    * null for a day without a valid price.
    */
   trend: (number | null)[];
+  /** Last change of `cents` in the trend window (1.1.2); null without an earlier price to compare. */
+  change?: PriceChange | null;
   /** Shop and region of the target-country price, when the server reports them . */
   source?: string | null;
   region?: string | null;
@@ -93,6 +95,8 @@ interface WorldBest {
   fits_target: boolean;
   /** Activation of the offer in the target country. */
   activation: 'confirmed' | 'blocked' | 'unknown';
+  /** Last change of the cheapest price of any region (1.1.2). */
+  change?: PriceChange | null;
 }
 interface FeeView {
   cents: number | null;
@@ -104,6 +108,15 @@ interface FeeView {
   region: string | null;
   world: WorldBest | null;
   trend: (number | null)[];
+  change?: PriceChange | null;
+}
+/**
+ * The last change of a best price (1.1.2): the price before it and when it happened; `changed_at` null when the price stayed
+ * the same over the 14 days of the trend (`previous_cents` is then the price itself).
+ */
+export interface PriceChange {
+  previous_cents: number;
+  changed_at: number | null;
 }
 /** GET and POST /wishlist/{id}/editions: the wish and its tracked editions, and the state of their preparation. */
 export interface EditionsView {

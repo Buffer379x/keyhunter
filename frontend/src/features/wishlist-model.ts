@@ -1,4 +1,4 @@
-import type { AlertEvent, FetchStatusResponse, PriceBadgeData, WishlistItem } from '../api.ts';
+import type { AlertEvent, FetchStatusResponse, PriceBadgeData, PriceChange, WishlistItem } from '../api.ts';
 
 /**
  * Pure derivations of the wishlist page (rows, filter chips, KPI tiles) from real API data only:
@@ -29,7 +29,14 @@ export interface RowFacts {
   source: string | null;
   stale: boolean;
   /** Cheapest current offer of any region; `other` as above. */
-  world: { cents: number; other: number | null; region: string | null; source: string | null; activation: 'confirmed' | 'blocked' | 'unknown' | null } | null;
+  world: {
+    cents: number;
+    other: number | null;
+    region: string | null;
+    source: string | null;
+    activation: 'confirmed' | 'blocked' | 'unknown' | null;
+    change: PriceChange | null;
+  } | null;
   /** Cents the cheapest region saves against `price` (only when it is really cheaper). */
   saving: number | null;
   /** `saving` as a share of `price` (0..1). */
@@ -42,6 +49,8 @@ export interface RowFacts {
   over: number | null;
   /** Daily target-country best price, oldest → newest (the badge trend), null when the badge has none. */
   trend: (number | null)[] | null;
+  /** Last change of `price` (1.1.2), null when there is nothing to compare or the price is only the last known one. */
+  change: PriceChange | null;
   /** Basis of every price above. */
   basis: PriceBasis;
 }
@@ -65,6 +74,7 @@ export function rowFacts(badge: PriceBadgeData | undefined, rule: TargetRule | n
           region: best.region,
           source: best.source ?? null,
           activation: best.activation,
+          change: best.change ?? null,
         }
       : null;
   // A saving against a price that is only the last known one would be invented (FUNC-03).
@@ -73,6 +83,7 @@ export function rowFacts(badge: PriceBadgeData | undefined, rule: TargetRule | n
   const target = rule && rule.mode === 'target' ? rule.target_cents : null;
   const days = basis === 'estimate' ? fees?.trend : badge?.trend;
   const trend = days && days.some(value => value !== null) ? days : null;
+  const change = (basis === 'estimate' ? fees?.change : badge?.change) ?? null;
   const reachable = price !== null && comparable(rule, basis);
   return {
     price,
@@ -86,6 +97,7 @@ export function rowFacts(badge: PriceBadgeData | undefined, rule: TargetRule | n
     reached: reachable && price <= rule!.target_cents!,
     over: reachable && price > rule!.target_cents! ? price - rule!.target_cents! : null,
     trend,
+    change: price !== null && !stale ? change : null,
     basis,
   };
 }

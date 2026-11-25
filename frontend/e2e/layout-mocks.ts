@@ -15,7 +15,9 @@ const now = NOW_MS / 1000,
 
 type Badge = Record<string, unknown>;
 const trend = (from: number, to: number) => Array.from({ length: 14 }, (_, k) => Math.round(from + (to - from) * Math.min(1, k / 10)));
-const priceBadge = (cents: number, world: [number, string], extra: Badge = {}): Badge => ({
+/** The last change of a price (1.1.2): from `before` six hours ago, or unchanged with `before` null. */
+const change = (cents: number, before: number | null) => ({ previous_cents: before ?? cents, changed_at: before === null ? null : now - 6 * H });
+const priceBadge = (cents: number, world: [number, string, (number | null)?], extra: Badge = {}): Badge => ({
   state: 'price',
   cents,
   observed_at: now - 2 * H,
@@ -25,7 +27,15 @@ const priceBadge = (cents: number, world: [number, string], extra: Badge = {}): 
   source: 'eneba',
   region: 'Europe',
   estimate_cents: Math.round(cents * 1.04),
-  world: { cents: world[0], source: 'driffle', region: world[1], observed_at: now - 3 * H, base_cents: world[0], estimate_cents: Math.round(world[0] * 1.05) },
+  world: {
+    cents: world[0],
+    source: 'driffle',
+    region: world[1],
+    observed_at: now - 3 * H,
+    base_cents: world[0],
+    estimate_cents: Math.round(world[0] * 1.05),
+    change: world.length > 2 ? change(world[0], world[2]!) : null,
+  },
   trend: trend(cents + 900, cents),
   ...extra,
 });
@@ -57,8 +67,8 @@ const game = (igdb: number, name: string, platform: number, extra: Record<string
 });
 
 const synthetic: { title: string; badge: Badge; platform?: number; manual?: boolean; extra?: Record<string, unknown>; game?: Record<string, unknown> }[] = [
-  { title: 'Starfield', badge: priceBadge(3499, [1840, 'TR']), extra: { in_cart: true } },
-  { title: 'Indiana Jones und der Große Kreis', badge: priceBadge(4490, [4490, 'DE']) },
+  { title: 'Starfield', badge: priceBadge(3499, [1840, 'TR', 1990], { change: change(3499, 3699) }), extra: { in_cart: true } },
+  { title: 'Indiana Jones und der Große Kreis', badge: priceBadge(4490, [4490, 'DE', null], { change: change(4490, null) }) },
   { title: 'Hogwarts Legacy', badge: priceBadge(2150, [1190, 'AR'], { stale: true, observed_at: now - 9 * D, checked_at: now - 4 * D }), platform: 49 },
   {
     title: 'Microsoft Flight Simulator 2024: Premium Deluxe Edition mit allen Flugzeugen und Flughäfen',
@@ -69,17 +79,25 @@ const synthetic: { title: string; badge: Badge; platform?: number; manual?: bool
   },
   { title: 'Avowed', badge: empty('no_offer') },
   { title: 'Halo: The Master Chief Collection', badge: empty('review'), platform: 49, manual: true, extra: { review_count: 2 } },
-  { title: 'Lies of P', badge: priceBadge(1899, [1250, 'IN']), extra: { paused: true, paused_until: now + 6 * D, in_cart: true } },
+  {
+    title: 'Lies of P',
+    badge: priceBadge(1899, [1250, 'IN', 1150], { change: change(1899, 1799) }),
+    extra: { paused: true, paused_until: now + 6 * D, in_cart: true },
+  },
   { title: 'South of Midnight', badge: empty('error') },
-  { title: "Senua's Saga: Hellblade II", badge: priceBadge(1999, [980, 'AR'], { estimate_cents: null }), extra: { in_cart: true } },
+  {
+    title: "Senua's Saga: Hellblade II",
+    badge: priceBadge(1999, [980, 'AR', null], { estimate_cents: null, change: change(1999, 2299) }),
+    extra: { in_cart: true },
+  },
   { title: 'Hollow Knight', badge: empty('unknown', { pending: true }), manual: true },
   {
     title: "Tom Clancy's Splinter Cell: Chaos Theory – Abwärtskompatible Classic Edition",
-    badge: priceBadge(799, [499, 'PL']),
+    badge: priceBadge(799, [499, 'PL', 549], { change: change(799, null) }),
     platform: 12,
     extra: { review_count: 1 },
   },
-  { title: 'Starfield', badge: priceBadge(5999, [3990, 'BR']), game: { edition_name: 'Premium Edition', kind: 'edition' } },
+  { title: 'Starfield', badge: priceBadge(5999, [3990, 'BR'], { change: change(5999, 5499) }), game: { edition_name: 'Premium Edition', kind: 'edition' } },
 ];
 const syntheticRows = synthetic.map((s, i) => ({
   id: (0xa000 + i).toString(16).padStart(32, '0'),
