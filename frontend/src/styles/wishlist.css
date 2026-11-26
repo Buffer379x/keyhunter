@@ -144,6 +144,12 @@ table.wl td.c-target {
   gap: 8px;
   white-space: nowrap;
 }
+/* The green box and the price arrow beside it (1.1.5). */
+.world-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 /* The target country is the cheapest worldwide: same flag and price as any other row, set on a faint green ground. */
 .world-cell.home-best {
   width: fit-content;

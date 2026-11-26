@@ -13,7 +13,11 @@ type Content = {
   description: string | null;
   /** "xbox": the store product was found on the Xbox store itself, not through the IGDB link (1.1.4). */
   via?: 'xbox';
+  /** An edition only the Xbox store lists (1.1.5): its name after the base game; `igdb_id` is 0. */
+  store_title?: string;
 };
+/** A column of the contents table: an IGDB edition, or one only the Xbox store lists (1.1.5). */
+type Column = { key: string; label: string; entry: Content | undefined; saved: boolean; store: boolean };
 export const editionName = (game: CatalogGame) => game.edition_name ?? (game.kind === 'base_game' ? 'Standard Edition' : game.name);
 
 type Props = {
@@ -51,6 +55,12 @@ export default function EditionComparison({ gameId, platformId, games, savedId, 
   const features = new Map<string, string>();
   for (const entry of data ?? []) for (const item of entry.items) features.set(item.id, item.name);
   const entryOf = (game: CatalogGame) => data?.find(entry => entry.igdb_id === game.igdb_id);
+  const columns: Column[] = [
+    ...games.map(game => ({ key: String(game.igdb_id), label: editionName(game), entry: entryOf(game), saved: game.igdb_id === savedId, store: false })),
+    ...(data ?? [])
+      .filter(entry => entry.store_title)
+      .map(entry => ({ key: entry.source_url ?? entry.store_title!, label: entry.store_title!, entry, saved: false, store: true })),
+  ];
   const priceOf = (game: CatalogGame) => {
     const badge = badgeOf(game);
     return badge?.state === 'price' && badge.cents ? badge.cents : null;
@@ -119,7 +129,7 @@ export default function EditionComparison({ gameId, platformId, games, savedId, 
           })}
         </Inset>
       </Panel>
-      {games.length > 1 && (
+      {columns.length > 1 && (
         <Panel aria-labelledby="contents-title">
           <PanelHead>
             <Label id="contents-title">Inhalte · Microsoft Store</Label>
@@ -149,9 +159,10 @@ export default function EditionComparison({ gameId, platformId, games, savedId, 
                 <thead>
                   <tr>
                     <th scope="col">Inhalt</th>
-                    {games.map(game => (
-                      <th scope="col" key={game.igdb_id} className={game.igdb_id === savedId ? 'saved' : undefined}>
-                        {editionName(game)}
+                    {columns.map(column => (
+                      <th scope="col" key={column.key} className={column.saved ? 'saved' : undefined}>
+                        {column.label}
+                        {column.store && <span className="store-only">nur im Xbox Store</span>}
                       </th>
                     ))}
                   </tr>
@@ -160,12 +171,11 @@ export default function EditionComparison({ gameId, platformId, games, savedId, 
                   {[...features].map(([id, name]) => (
                     <tr key={id}>
                       <th scope="row">{name}</th>
-                      {games.map(game => {
-                        const entry = entryOf(game),
-                          known = entry?.status === 'verified',
+                      {columns.map(({ key, entry }) => {
+                        const known = entry?.status === 'verified',
                           included = entry?.items.some(item => item.id === id);
                         return (
-                          <td key={game.igdb_id} className={known && included ? 'yes' : undefined}>
+                          <td key={key} className={known && included ? 'yes' : undefined}>
                             <span role="img" aria-label={known ? (included ? 'Enthalten' : 'Nicht in der belegten Inhaltsliste') : 'Nicht belegt'}>
                               {known ? included ? <Icon name="check" /> : '—' : '?'}
                             </span>
@@ -177,36 +187,39 @@ export default function EditionComparison({ gameId, platformId, games, savedId, 
                   {features.size === 0 && (
                     <tr>
                       <th scope="row">Strukturierte Inhaltsliste</th>
-                      {games.map(game => (
-                        <td key={game.igdb_id}>Nicht belegt</td>
+                      {columns.map(column => (
+                        <td key={column.key}>Nicht belegt</td>
                       ))}
                     </tr>
                   )}
                   <tr>
                     <th scope="row">Beschreibung</th>
-                    {games.map(game => (
-                      <td key={game.igdb_id} className="small">
+                    {columns.map(column => (
+                      <td key={column.key} className="small">
                         <details>
                           <summary>Anzeigen</summary>
-                          <p>{entryOf(game)?.description ?? game.summary ?? 'Keine Beschreibung verfügbar.'}</p>
+                          <p>
+                            {column.entry?.description ?? games.find(game => String(game.igdb_id) === column.key)?.summary ?? 'Keine Beschreibung verfügbar.'}
+                          </p>
                         </details>
                       </td>
                     ))}
                   </tr>
                   <tr>
                     <th scope="row">Quelle &amp; Stand</th>
-                    {games.map(game => {
-                      const entry = entryOf(game);
+                    {columns.map(({ key, entry, store }) => {
                       return (
-                        <td key={game.igdb_id} className="small">
+                        <td key={key} className="small">
                           {entry?.source_url ? (
                             <a href={entry.source_url} target="_blank" rel="noopener noreferrer">
                               Microsoft / Xbox
                             </a>
+                          ) : entry?.status === 'not_in_store' ? (
+                            'Nicht im Xbox Store, Beschreibung von IGDB'
                           ) : (
                             'Keine Store-Zuordnung'
                           )}
-                          {entry?.via === 'xbox' && <span className="muted"> · über den Xbox Store gefunden</span>}
+                          {entry?.via === 'xbox' && !store && <span className="muted"> · über den Xbox Store gefunden</span>}
                           {entry && <span className="muted"> · {dateTime(entry.observed_at)}</span>}
                         </td>
                       );

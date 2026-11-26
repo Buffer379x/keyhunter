@@ -299,6 +299,7 @@ mod tests {
             name: "Forza Horizon 5".into(),
             title: "Forza Horizon 5".into(),
             platform_ids: vec![169, 49],
+            platform_unknown: false,
             key_game: true,
             region: Some("Global".into()),
             allowed: vec!["DE".into()],

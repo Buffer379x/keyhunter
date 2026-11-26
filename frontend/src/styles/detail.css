@@ -544,6 +544,14 @@ table.contents th[scope='row'] {
 table.contents thead th.saved {
   color: var(--accent-2);
 }
+/* (1.1.5) An edition only the Xbox store lists: a quiet second line under its name. */
+table.contents thead .store-only {
+  display: block;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
 table.contents td {
   color: var(--muted);
 }

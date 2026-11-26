@@ -266,8 +266,18 @@ pub(crate) async fn source_status(State(state): State<Shared>) -> ApiResult<Json
     Ok(Json(Value::Object(entries)))
 }
 
-/// Edition contents that are not all verified are looked up again after 15 minutes (verified ones after a day).
+/// Edition contents that are not all verified are looked up again after 15 minutes (verified ones, and editions the Xbox
+/// store does not have, after a day).
 const UNVERIFIED_CONTENTS_TTL: i64 = 900;
+
+/// The cached edition contents with their format (1.1.5): rows of older versions, a bare list, are looked up again, so the
+/// editions only the Xbox store lists appear at once.
+#[derive(serde::Deserialize, serde::Serialize)]
+struct CachedContents {
+    v: u8,
+    editions: Vec<contents::EditionContent>,
+}
+const CONTENTS_VERSION: u8 = 2;
 
 pub(crate) async fn edition_comparison(
     State(state): State<Shared>,
@@ -289,9 +299,14 @@ pub(crate) async fn edition_comparison(
     .bind(query.platform)
     .fetch_optional(&state.pool)
     .await?
-        && let Ok(entries) = serde_json::from_str::<Vec<contents::EditionContent>>(&payload)
+        && let Ok(cached) = serde_json::from_str::<CachedContents>(&payload)
+        && cached.v == CONTENTS_VERSION
     {
-        let ttl = if entries.iter().all(|e| e.status == "verified") {
+        let entries = cached.editions;
+        let ttl = if entries
+            .iter()
+            .all(|e| matches!(e.status.as_str(), "verified" | "not_in_store"))
+        {
             crate::DAY
         } else {
             UNVERIFIED_CONTENTS_TTL
@@ -329,7 +344,7 @@ pub(crate) async fn edition_comparison(
         .unwrap_or_else(|_| contents::unknown(&games, "unavailable"));
     let at = now();
     sqlx::query("INSERT INTO edition_contents_cache VALUES(?,?,?,?) ON CONFLICT(parent_id,platform_id) DO UPDATE SET payload=excluded.payload,fetched_at=excluded.fetched_at")
-        .bind(parent).bind(query.platform).bind(serde_json::to_string(&entries).map_err(|_|internal())?).bind(at).execute(&state.pool).await?;
+        .bind(parent).bind(query.platform).bind(serde_json::to_string(&CachedContents { v: CONTENTS_VERSION, editions: entries.clone() }).map_err(|_|internal())?).bind(at).execute(&state.pool).await?;
     Ok(Json(
         json!({"editions":entries,"fetched_at":at,"cached":false}),
     ))
