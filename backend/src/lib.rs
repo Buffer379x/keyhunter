@@ -212,6 +212,9 @@ async fn open_database(config: &config::Config) -> Result<SqlitePool> {
     shops::upgrade_fingerprints(&pool)
         .await
         .context("Fingerprint upgrade failed")?;
+    shops::refetch_unparsed(&pool)
+        .await
+        .context("Product refetch failed")?;
     if let Some((from, to)) = backup {
         eventlog::record(
             &pool,

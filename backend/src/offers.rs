@@ -88,6 +88,16 @@ impl Wish {
         serde_json::from_str(self.payload.as_ref()?).ok()
     }
 
+    /// The wish is an add-on (1.1.6, IGDB "DLC", "Expansion", "Pack / Addon"): its keys are the shops' add-on keys.
+    fn addon(&self) -> bool {
+        self.game().is_some_and(|game| game.kind == "dlc")
+    }
+
+    /// An activation code of the wish's kind: a game key, or for an add-on wish also an add-on key (1.1.6).
+    fn kind_matches(&self, product: &Product) -> bool {
+        product.key_game || (product.addon && self.addon())
+    }
+
     pub(crate) fn keys(&self) -> Vec<String> {
         let Some(game) = self.game() else {
             return self.manual_title.iter().map(|s| title_key(s)).collect();
@@ -113,7 +123,7 @@ impl Wish {
             game.selection_allowed()
                 && game.platforms.iter().any(|p| p.id == self.platform_id)
                 && name_keys(&game).contains(&title_key(&product.title))
-        }) && product.key_game
+        }) && self.kind_matches(product)
             && product.platform_ids.contains(&self.platform_id)
             && self.same_release(product, peers)
     }
@@ -122,7 +132,7 @@ impl Wish {
     /// original Xbox also takes an Xbox One key (0.8.2): shops sell those classics as backward-compatible Xbox Live keys.
     /// Such a match is never confirmed automatically ([`Self::auto_matches`] stays exact), the owner checks it once.
     pub(crate) fn matches(&self, product: &Product) -> bool {
-        product.key_game && self.platform_matches(product) && self.title_matches(product)
+        self.kind_matches(product) && self.platform_matches(product) && self.title_matches(product)
     }
 
     fn platform_matches(&self, product: &Product) -> bool {
@@ -138,7 +148,7 @@ impl Wish {
     /// an Xbox 360, original Xbox or Series X|S wish (backward compatible), or a key the shop names no platform for (1.1.5). Nothing else ever counts as a key price,
     /// not even confirmed by hand: accounts, gifts, PC-only products, Series-only keys for older systems.
     pub(crate) fn takes_key(&self, product: &Product) -> bool {
-        product.key_game
+        self.kind_matches(product)
             && (self.platform_matches(product)
                 || (self.platform_id == XBOX_SERIES && product.platform_ids.contains(&XBOX_ONE))
                 || product.platform_unknown)
@@ -182,7 +192,7 @@ impl Wish {
                 Mismatch::Platform
             });
         }
-        if !product.key_game {
+        if !self.kind_matches(product) {
             reasons.push(Mismatch::KeyType);
         }
         if reasons.is_empty() && !self.same_release(product, peers) {
@@ -1079,6 +1089,7 @@ mod tests {
             title: "Fable Anniversary".into(),
             platform_ids: vec![49, 169],
             platform_unknown: false,
+            addon: false,
             key_game: true,
             region: None,
             allowed: vec![],
@@ -1116,6 +1127,7 @@ mod tests {
             title: title.into(),
             platform_ids: platforms.to_vec(),
             platform_unknown: false,
+            addon: false,
             key_game: true,
             region: None,
             allowed: vec![],
@@ -1241,6 +1253,32 @@ mod tests {
         assert!(!forza.takes_key(&unnamed));
     }
 
+    /// 1.1.6: an add-on wish takes the shops' add-on keys by its own title; a game wish never does.
+    #[test]
+    fn an_add_on_wish_takes_add_on_keys() {
+        let dlc = Wish::from_parts(
+            169,
+            None,
+            Some(catalog("Forza Horizon 5: Hot Wheels", "dlc", &[169], None)),
+        );
+        let mut addon = key("forza horizon 5 hot wheels", &[169]);
+        addon.key_game = false;
+        addon.addon = true;
+        assert!(dlc.auto_matches(&addon, &[]) && dlc.takes_key(&addon));
+        assert!(dlc.mismatches(&addon, &[]).is_empty());
+        let forza = Wish::from_parts(
+            169,
+            None,
+            Some(catalog("Forza Horizon 5", "base_game", &[169], None)),
+        );
+        let mut named = addon.clone();
+        named.title = "forza horizon 5".into();
+        assert!(!forza.takes_key(&named) && !forza.auto_matches(&named, &[]));
+        assert_eq!(forza.mismatches(&named, &[]), [Mismatch::KeyType]);
+        // A game key of the add-on's title (Eneba types some add-ons as games) counts as well.
+        assert!(dlc.auto_matches(&key("forza horizon 5 hot wheels", &[169]), &[]));
+    }
+
     /// 1.1.1: a bundle without a parent game (IGDB lists "Final Fantasy VII Remake Intergrade" this way) is matched by its
     /// own title only. It never takes the keys of the game it contains, nor that game the bundle's keys.
     #[test]
@@ -1313,6 +1351,7 @@ mod tests {
             title: "Forza Horizon 5".into(),
             platform_ids: vec![169],
             platform_unknown: false,
+            addon: false,
             key_game: true,
             region: None,
             allowed: vec![],
@@ -1348,6 +1387,7 @@ mod tests {
             title: "Forza Horizon 5".into(),
             platform_ids: vec![169, 49],
             platform_unknown: false,
+            addon: false,
             key_game: true,
             region: Some("Global".into()),
             allowed: vec!["DE".into()],

@@ -272,6 +272,7 @@ export default function CatalogSearch({ open, inline = false, target = 'wishlist
                   <span className={`kind-badge ${selectionAllowed(game) ? '' : 'unverified'}`}>{kindName(game)}</span>
                   {game.kind === 'edition' && !library && <p className="edition-note">Edition separat erfasst · Händlerinhalt noch ungeprüft</p>}
                   {game.kind === 'bundle' && !library && <p className="edition-note">Bündel als ein Key · Inhalt beim Shop prüfen</p>}
+                  {game.kind === 'dlc' && !library && <p className="edition-note">DLC · zählt mit DLC-Keys der Shops, das Hauptspiel ist nötig</p>}
                   {!selectionAllowed(game) && <p className="edition-note">Kein belegtes eigenständiges Spiel bzw. keine zuordenbare Edition.</p>}
                 </div>
                 <Button

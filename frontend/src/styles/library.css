@@ -218,3 +218,22 @@
     width: auto;
   }
 }
+/* (1.1.6) The DLC tag in the top left corner of the cover; in the row view, where the cover is a thumbnail, after the title. */
+.library-page .lib-cover .cover-tag {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: var(--panel);
+  box-shadow: 0 0 0 1px var(--accent-bg);
+}
+.library-page .lib-info .row-tag {
+  display: none;
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+.library-page .lib.rows .lib-cover .cover-tag {
+  display: none;
+}
+.library-page .lib.rows .lib-info .row-tag {
+  display: inline-flex;
+}
