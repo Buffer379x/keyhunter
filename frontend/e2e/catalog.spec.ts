@@ -65,7 +65,8 @@ test('old search cannot replace newer results, outage differs from empty and man
   await page.waitForTimeout(1000);
   await expect(dialog.getByRole('heading', { name: 'Alter Treffer', exact: true })).not.toBeVisible();
   await input.fill('dlc');
-  await expect(dialog.getByRole('button', { name: 'Testspiel Zusatzinhalt (DLC) vormerken', exact: true })).toBeDisabled();
+  // 1.1.6: an add-on can be wished (until then it could not).
+  await expect(dialog.getByRole('button', { name: 'Testspiel Zusatzinhalt (DLC) vormerken', exact: true })).toBeEnabled();
   await input.fill('kein treffer');
   await expect(dialog.getByRole('status')).toContainText('Keine passenden Katalogtreffer');
   await input.fill('ausfall');

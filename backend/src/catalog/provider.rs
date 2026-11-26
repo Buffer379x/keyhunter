@@ -44,7 +44,8 @@ pub struct CatalogGame {
 
 impl CatalogGame {
     /// Products a wish can be saved for. A bundle without a parent game and an expanded game (1.1.1) are sold as one key
-    /// like a game, so they are saved and matched by their own title; neither stands in for the game it contains.
+    /// like a game, so they are saved and matched by their own title; neither stands in for the game it contains. An add-on
+    /// (1.1.6) is matched by its own title against the add-on keys of the shops.
     pub fn selection_allowed(&self) -> bool {
         matches!(
             self.kind.as_str(),
@@ -56,6 +57,7 @@ impl CatalogGame {
                 | "standalone_expansion"
                 | "bundle"
                 | "expanded_game"
+                | "dlc"
         )
     }
 }
@@ -513,7 +515,9 @@ fn normalize(raw: RawGame) -> Result<CatalogGame, CatalogError> {
         Some("Bundle") => "bundle",
         // A fuller release of a game sold as a game of its own, e.g. "Death Stranding: Director's Cut" (1.1.1).
         Some("Expanded Game") => "expanded_game",
-        Some("DLC" | "Expansion" | "Pack / Addon" | "Update") => "dlc",
+        Some("DLC" | "Expansion" | "Pack / Addon") => "dlc",
+        // A patch is nothing to buy (1.1.6, since add-ons can be wished).
+        Some("Update") => "update",
         Some("Remake") => "remake",
         Some("Remaster") => "remaster",
         Some("Port") => "port",
@@ -821,9 +825,10 @@ mod tests {
     }
     #[test]
     fn metadata_conflicts_and_invalid_cover_identifiers_stay_conservative() {
-        let raw:RawGame=serde_json::from_value(json!({"id":12,"name":"Example DLC","game_type":{"type":"DLC"},"cover":{"image_id":"../../elsewhere"}})).unwrap();
+        let raw:RawGame=serde_json::from_value(json!({"id":12,"name":"Example Patch","game_type":{"type":"Update"},"cover":{"image_id":"../../elsewhere"}})).unwrap();
         let game = normalize(raw).unwrap();
-        assert!(!game.selection_allowed());
+        assert_eq!(game.kind, "update");
+        assert!(!game.selection_allowed(), "a patch is nothing to buy");
         assert!(game.cover_url.is_none());
         assert!(game.first_release_date.is_none());
         for (source, kind) in [
@@ -832,6 +837,10 @@ mod tests {
             ("Main Game", "base_game"),
             ("Bundle", "bundle"),
             ("Expanded Game", "expanded_game"),
+            // 1.1.6: add-ons can be wished.
+            ("DLC", "dlc"),
+            ("Expansion", "dlc"),
+            ("Pack / Addon", "dlc"),
         ] {
             let raw: RawGame = serde_json::from_value(
                 json!({"id":12,"name":"Example","game_type":{"type":source}}),

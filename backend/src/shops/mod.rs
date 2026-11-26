@@ -186,9 +186,14 @@ pub(crate) struct Product {
     pub platform_ids: Vec<i64>,
     /// The shop names no platform at all (1.1.5): Eneba leaves it empty for some new Xbox Live keys. Not a PC-only product,
     /// the owner may confirm it ([`crate::offers::Wish::takes_key`]), it is never confirmed automatically.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    /// Always stored since 1.1.6, so a product of an older version is recognised and fetched again ([`refetch_unparsed`]).
+    #[serde(default)]
     pub platform_unknown: bool,
     pub key_game: bool,
+    /// An activation code for an add-on (1.1.6): the shop types it as DLC. A key for a DLC wish, never for a game wish
+    /// ([`crate::offers::Wish::takes_key`]). Accounts, gifts and upgrades stay neither.
+    #[serde(default)]
+    pub addon: bool,
     pub region: Option<String>,
     pub allowed: Vec<String>,
     pub blocked: Vec<String>,
@@ -237,17 +242,14 @@ impl Product {
     /// A renamed shop title keeps the confirmation (audit DQ-05).
     /// A product without platform data (1.1.5) carries a mark, so a confirmation of it does not hold once the shop names one.
     pub(crate) fn fingerprint(&self) -> String {
-        let identity = if self.platform_unknown {
-            serde_json::json!([
-                2,
-                self.id,
-                self.key_game,
-                self.platform_ids,
-                "platform_unknown"
-            ])
-        } else {
-            serde_json::json!([2, self.id, self.key_game, self.platform_ids])
-        };
+        let mut identity = serde_json::json!([2, self.id, self.key_game, self.platform_ids]);
+        let marks = identity.as_array_mut().expect("array");
+        if self.platform_unknown {
+            marks.push("platform_unknown".into());
+        }
+        if self.addon {
+            marks.push("addon".into());
+        }
         hex::encode(crate::digest(&identity.to_string()))
     }
 
@@ -262,6 +264,20 @@ impl Product {
         ]);
         hex::encode(crate::digest(&identity.to_string()))
     }
+}
+
+/// Fetches again at once the products stored before 1.1.6 that were no key game or named no platform (1.1.6): they may be
+/// add-ons or keys without platform data, which an older version could not tell from accounts or PC products. A product
+/// stored since carries both fields, so this runs once per link.
+pub(crate) async fn refetch_unparsed(pool: &sqlx::SqlitePool) -> sqlx::Result<u64> {
+    Ok(sqlx::query(
+        "UPDATE shop_job SET due=0 WHERE link_id IN (SELECT id FROM offer_link WHERE latest IS NOT NULL AND review!='rejected'
+        AND json_type(latest,'$.addon') IS NULL
+        AND (json_extract(latest,'$.key_game')=0 OR json_array_length(latest,'$.platform_ids')=0))",
+    )
+    .execute(pool)
+    .await?
+    .rows_affected())
 }
 
 /// Move confirmations and price history from the 0.5 fingerprint to the stable one.
@@ -375,6 +391,7 @@ mod tests {
             title: "game".into(),
             platform_ids: vec![169],
             platform_unknown: false,
+            addon: false,
             key_game: true,
             region: None,
             allowed: vec!["DE".into()],
@@ -419,5 +436,36 @@ mod tests {
         let expected = [product.fingerprint(), "manual".to_string()];
         assert_eq!(links, expected);
         assert_eq!(history, expected);
+
+        // 1.1.6: a product stored before 1.1.6 without a platform or not a key game is fetched again at once, once.
+        let old = |platforms: &str, key: bool| {
+            format!(
+                r#"{{"id":"p","name":"n","title":"t","platform_ids":{platforms},"key_game":{key},"region":null,"allowed":[],"blocked":[],"purchase_country":null,"offers":[],"availability":"in_stock"}}"#
+            )
+        };
+        let mut current = product.clone();
+        current.platform_ids = vec![];
+        current.platform_unknown = true;
+        for (id, latest) in [
+            (3, old("[]", true)),
+            (4, old("[169]", false)),
+            (5, old("[169]", true)),
+            (6, serde_json::to_string(&current).unwrap()),
+        ] {
+            sqlx::query("INSERT INTO offer_link(id,wish_id,source,url,review,latest) VALUES(?,'w','eneba',?,'pending',?)")
+                .bind(id).bind(format!("https://www.eneba.com/de/xbox-game-{id}-key-global")).bind(latest).execute(&pool).await.unwrap();
+            sqlx::query("INSERT INTO shop_job(source,link_id,due) VALUES('eneba',?,999999)")
+                .bind(id)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        assert_eq!(refetch_unparsed(&pool).await.unwrap(), 2);
+        let due: Vec<(i64, i64)> =
+            sqlx::query_as("SELECT link_id,due FROM shop_job WHERE link_id>=3 ORDER BY link_id")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        assert_eq!(due, [(3, 0), (4, 0), (5, 999999), (6, 999999)]);
     }
 }

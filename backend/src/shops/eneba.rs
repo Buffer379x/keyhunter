@@ -34,14 +34,17 @@ pub(super) fn parse(url: &Url, body: &str) -> Result<Product, ShopError> {
         .map(strip_platforms)
         .unwrap_or_default()
         .to_string();
-    let key_game = !title.is_empty()
-        && product["type"]["value"] == "GAME"
+    let code = !title.is_empty()
         && product["drm"]["slug"] == "xbox"
         && product["category"] == "DIGITAL"
         && product.get("linkedProduct").is_some_and(Value::is_null)
         && !slug
             .split('-')
-            .any(|word| matches!(word, "account" | "konto" | "dlc" | "upgrade" | "gift"));
+            .any(|word| matches!(word, "account" | "konto" | "upgrade" | "gift"));
+    let dlc_word = slug.split('-').any(|word| word == "dlc");
+    let key_game = code && product["type"]["value"] == "GAME" && !dlc_word;
+    // An add-on key (1.1.6): typed DLC, or a game typed product with "dlc" in its address.
+    let addon = code && (product["type"]["value"] == "DLC" || dlc_word);
     // Xbox 360 (0.8.2): Eneba lists the 360 classics it sells as Xbox One / Series X (backward compatible, checked
     // live), so a key marked for the 360 itself is rare; it is recognised all the same.
     let platform_ids = ["XBOX_SERIES_X", "XBOX_ONE", "XBOX_360"]
@@ -163,6 +166,7 @@ pub(super) fn parse(url: &Url, body: &str) -> Result<Product, ShopError> {
         name: name.to_string(),
         title,
         key_game,
+        addon,
         platform_ids,
         platform_unknown,
         region,
@@ -219,6 +223,7 @@ fn strip_platforms(mut title: &str) -> &str {
         " windows 10",
         " windows",
         " pc",
+        " dlc",
     ]
     .into_iter()
     .find_map(|platform| title.strip_suffix(platform))
@@ -542,6 +547,31 @@ mod tests {
         assert!(!product.key_game);
         assert_eq!(product.title, "forza horizon 5");
         assert_eq!(product.offers.len(), 2);
+    }
+
+    /// 1.1.6: an add-on key is typed DLC or has "dlc" in its address; accounts, gifts and upgrades are none.
+    #[test]
+    fn dlc_keys_are_add_ons_not_games() {
+        let body = variant(|s| product_of(s)["type"]["value"] = "DLC".into());
+        let product = parse(&url(SLUG), &body).unwrap();
+        assert!(product.addon && !product.key_game);
+        assert!(!parse_base().addon);
+        assert_ne!(product.fingerprint(), parse_base().fingerprint());
+        let slug = SLUG.replace("horizon-5", "horizon-5-dlc");
+        let product = parse(&url(&slug), &BASE.replace(SLUG, &slug)).unwrap();
+        assert!(product.addon && !product.key_game);
+        for word in ["account", "konto", "upgrade", "gift"] {
+            let slug = SLUG.replace("horizon-5", &format!("horizon-5-dlc-{word}"));
+            let product = parse(&url(&slug), &BASE.replace(SLUG, &slug)).unwrap();
+            assert!(!product.addon && !product.key_game, "{word}");
+        }
+        assert_eq!(
+            strip_suffix(&title_key(
+                "RoboCop: Rogue City - Unfinished Business (DLC) XBOX LIVE Key EUROPE"
+            ))
+            .map(strip_platforms),
+            Some("robocop rogue city unfinished business")
+        );
     }
 
     #[test]

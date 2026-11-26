@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { api, CART_CHANGED } from '../api';
 import type { LibraryItem, WishlistItem } from '../api';
 import { Button, ConfirmDialog, Cover, EmptyState, Field, Icon, IconButton, Inset, Notice, PageHeading, Panel, PanelHead, Seg } from '../components';
-import { itemName, platformName } from './catalog-ui';
+import { DlcTag, itemName, platformName } from './catalog-ui';
 import CatalogSearch from './CatalogSearch';
 import { libraryItems } from './library-sort';
 import { notify, notifyError } from '../notify';
@@ -265,6 +265,7 @@ export default function Library({ addOpen, onAddOpen, onRestored, onOpenWishlist
                       <li key={item.id} className="lib-item">
                         <div className="lib-cover">
                           <Cover size="fluid" src={item.game?.cover_url} title={name} />
+                          <DlcTag game={item.game} className="cover-tag" />
                           {unlocked && (
                             <div className="lib-tools">
                               <IconButton label={`${name} zurück in die Wunschliste`} onClick={() => ask('restore', item)}>
@@ -277,7 +278,10 @@ export default function Library({ addOpen, onAddOpen, onRestored, onOpenWishlist
                           )}
                         </div>
                         <div className="lib-info">
-                          <b title={name}>{name}</b>
+                          <b title={name}>
+                            {name}
+                            <DlcTag game={item.game} className="row-tag" />
+                          </b>
                           <span className="lib-sub">{platformName(item.platform_id)}</span>
                         </div>
                       </li>

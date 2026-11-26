@@ -1,5 +1,17 @@
 # Änderungen
 
+## 1.1.6 – 2026-11-26
+
+Eneba-Keys ohne Plattformangabe lassen sich jetzt wirklich bestätigen, und DLCs lassen sich auf die Wunschliste setzen. Sie tragen ein DLC-Tag. Keine Migration und keine Änderung an der Unraid-Vorlage, beim Update ist nichts zu tun.
+
+### Neu
+- **DLCs auf der Wunschliste:** Zusatzinhalte, die IGDB als DLC, Erweiterung oder Paket führt, lassen sich jetzt wie Spiele vormerken oder in die Bibliothek aufnehmen. In der Suche steht dazu „DLC · zählt mit DLC-Keys der Shops, das Hauptspiel ist nötig“. Reine Updates bleiben ausgeschlossen.
+- **DLC-Tag:** DLCs und eigenständige Erweiterungen wie RoboCop: Rogue City – Unfinished Business tragen in der Wunschliste ein kleines „DLC“-Tag hinter dem Titel und in der Bibliothek eines in der linken oberen Ecke des Covers. In der Listenansicht der Bibliothek steht es hinter dem Titel.
+- **DLC-Keys der Shops:** Ein Shop-Produkt, das Eneba oder Driffle als DLC führt, gilt für einen DLC-Wunsch als passender Key und wird bei gleichem Titel und gleicher Plattform automatisch bestätigt. Für ein Spiel zählt so ein Key wie bisher nie. Konten, Geschenke und Upgrades bleiben ausgeschlossen. Die automatische Eneba-Suche sucht weiterhin nur Spiele. Ein reines DLC-Produkt fügst du im Tab „Zuordnungen“ per Link hinzu.
+
+### Behoben
+- **Eneba: weiterhin „nur PC“:** 1.1.5 erkannte Keys ohne Plattformangabe, aber erst beim nächsten Abruf der Produktseite. Bei selten geprüften Links blieb deshalb der alte Stand stehen, und es hieß weiter „nur für PC“. Jetzt ruft KeyHunter nach dem Update alle Links sofort neu ab, die zuvor ohne Plattform oder als „kein Spiel-Key“ gespeichert waren, etwa Prince of Persia: The Lost Crown – Complete Edition (Australien) und RoboCop: Rogue City – Unfinished Business (Mexiko, Europa). Das geschieht einmal pro Link. Danach lässt sich die Zuordnung von Hand bestätigen.
+
 ## 1.1.5 – 2026-11-26
 
 Die Preispfeile stehen jetzt hinter dem Preis und neben der grünen Box, Eneba-Keys ohne Plattformangabe gelten nicht mehr als „nur PC“, und der Editionen-Reiter zeigt auch die Editionen, die nur der Xbox Store kennt. Keine Migration und keine Änderung an der Unraid-Vorlage, beim Update ist nichts zu tun.

@@ -57,6 +57,18 @@ pub(super) fn parse(url: &Url, body: &str) -> Result<Product, ShopError> {
         && !title
             .split(' ')
             .any(|word| matches!(word, "account" | "upgrade" | "dlc"));
+    // An add-on key (1.1.6): typed DLC only, an Xbox Live code, no account, gift or upgrade.
+    let addon = !title.is_empty()
+        && data["platform"] == "Xbox Live"
+        && data["productTypes"]
+            .as_array()
+            .is_some_and(|kinds| !kinds.is_empty() && kinds.iter().all(|kind| kind == "dlc"))
+        && !slug
+            .split('-')
+            .any(|word| matches!(word, "account" | "upgrade" | "gift"))
+        && !title
+            .split(' ')
+            .any(|word| matches!(word, "account" | "upgrade"));
     // Xbox 360 (0.8.2): rare, most 360 classics are sold for Xbox One (backward compatible); recognised all the same.
     let platform_ids = ["xbox_series_x|s", "xbox_one", "xbox_360"]
         .into_iter()
@@ -131,6 +143,7 @@ pub(super) fn parse(url: &Url, body: &str) -> Result<Product, ShopError> {
         platform_ids,
         platform_unknown: false,
         key_game,
+        addon,
         region,
         allowed,
         blocked,
@@ -863,7 +876,18 @@ mod tests {
         ] {
             let body = next(|s| data(s)["productTypes"] = kinds.clone());
             assert!(parse_ok(&body).key_game, "{kinds}");
+            assert!(!parse_ok(&body).addon, "{kinds}");
         }
+        // 1.1.6: a pure DLC is an add-on key, unless it is an account or an upgrade.
+        let body = next(|s| data(s)["productTypes"] = serde_json::json!(["dlc"]));
+        assert!(parse_ok(&body).addon);
+        let name = NAME.replace("Standard Edition", "Account Standard Edition");
+        let body = BASE.replace(NAME, &name);
+        let body = rewrite(&body, NEXT_OPEN, |s| {
+            data(s)["productTypes"] = serde_json::json!(["dlc"])
+        });
+        assert!(!parse_ok(&body).addon);
+        assert!(!parse_ok(BASE).addon);
     }
 
     #[test]

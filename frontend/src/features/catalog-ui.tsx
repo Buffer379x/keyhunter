@@ -8,7 +8,19 @@ export const platformName = (id: number) => platformNames[id] ?? 'Plattform unbe
 export const ALL_PLATFORMS = 0;
 export const itemName = (item: WishlistItem) => item.game?.name ?? item.manual_title ?? 'Unbekannter Titel';
 export const selectionAllowed = (game: CatalogGame) =>
-  ['base_game', 'edition', 'remake', 'remaster', 'port', 'standalone_expansion', 'bundle', 'expanded_game'].includes(game.kind);
+  ['base_game', 'edition', 'remake', 'remaster', 'port', 'standalone_expansion', 'bundle', 'expanded_game', 'dlc'].includes(game.kind);
+/** An add-on (1.1.6): a DLC, or a standalone expansion of a game. Marked "DLC" in the library and the wishlist. */
+const addonText = (game: CatalogGame | null | undefined) =>
+  game?.kind === 'dlc' ? 'DLC / Zusatzinhalt' : game?.kind === 'standalone_expansion' ? 'DLC: eigenständige Erweiterung, läuft ohne Hauptspiel' : null;
+/** The "DLC" tag of an add-on (1.1.6); nothing for a game. */
+export function DlcTag({ game, className = '' }: { game: CatalogGame | null | undefined; className?: string }) {
+  const text = addonText(game);
+  return text ? (
+    <span className={`dlc-tag ${className}`.trim()} title={text}>
+      DLC<span className="sr-only">: {text}</span>
+    </span>
+  ) : null;
+}
 export function kindName(game: CatalogGame): string {
   return (
     (

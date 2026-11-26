@@ -790,9 +790,9 @@ async fn edition_ids_are_distinct_duplicates_are_idempotent_and_wishlist_survive
 }
 
 #[tokio::test]
-async fn dlc_pc_and_wrong_release_platform_cannot_be_saved_as_xbox_game() {
+async fn pc_and_wrong_release_platform_cannot_be_saved_as_xbox_game_but_a_dlc_can() {
     let f = Fixture::new().await;
-    for (id, platform) in [(3, 169), (4, 169), (1, 49)] {
+    for (id, platform) in [(3, 169), (1, 49)] {
         assert_eq!(
             f.call(
                 "POST",
@@ -853,6 +853,16 @@ async fn dlc_pc_and_wrong_release_platform_cannot_be_saved_as_xbox_game() {
         .0,
         StatusCode::CREATED
     );
+    // 1.1.6: an add-on can be wished; it is matched against the add-on keys of the shops.
+    let (status, item) = f
+        .call(
+            "POST",
+            "/api/v1/wishlist",
+            json!({"igdb_id":4,"platform_id":169}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(item["item"]["game"]["kind"], "dlc");
 }
 
 #[tokio::test]

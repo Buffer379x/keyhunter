@@ -116,3 +116,18 @@ dialog.catalog-dialog {
     justify-self: start;
   }
 }
+
+/* (1.1.6) An add-on: a small "DLC" tag after the title in the wishlist, in the corner of the cover in the library. */
+.dlc-tag {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 16px;
+  padding: 0 5px;
+  border: 1px solid var(--accent-line);
+  border-radius: 4px;
+  background: var(--accent-bg);
+  color: var(--accent-2);
+  font: 600 var(--t-micro) / 1 var(--f-mono);
+  letter-spacing: 0.04em;
+}

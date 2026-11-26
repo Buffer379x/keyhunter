@@ -3,7 +3,7 @@ import type { ReactNode, Ref } from 'react';
 import type { PriceBadgeData, PriceChange, WishlistItem } from '../api';
 import { Cover, Icon, IconButton, Pill, Price, Reg, StatePill, formatPrice } from '../components';
 import { relativeTime } from '../time';
-import { itemName, kindName, platformName } from './catalog-ui';
+import { DlcTag, itemName, kindName, platformName } from './catalog-ui';
 import { countryData } from './regions';
 import { WishFlags } from './WishFlags';
 import { badgeTitle } from './price-badge-text';
@@ -232,6 +232,7 @@ export default function WishlistRow({
               ) : (
                 <b>{title}</b>
               )}
+              <DlcTag game={item.game} />
               <WishFlags item={item} showCart onReview={onReview} />
             </span>
             <small>{subline(item)}</small>
