@@ -129,6 +129,7 @@ pub(super) fn parse(url: &Url, body: &str) -> Result<Product, ShopError> {
         name: name.into(),
         title,
         platform_ids,
+        platform_unknown: false,
         key_game,
         region,
         allowed,

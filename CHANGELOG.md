@@ -1,5 +1,22 @@
 # Änderungen
 
+## 1.1.5 – 2026-11-26
+
+Die Preispfeile stehen jetzt hinter dem Preis und neben der grünen Box, Eneba-Keys ohne Plattformangabe gelten nicht mehr als „nur PC“, und der Editionen-Reiter zeigt auch die Editionen, die nur der Xbox Store kennt. Keine Migration und keine Änderung an der Unraid-Vorlage, beim Update ist nichts zu tun.
+
+### Neu
+- **Editionen aus dem Xbox Store:** KeyHunter liest für den Editionsvergleich jetzt immer auch den Xbox Store, nicht nur, wenn IGDB keinen Store-Link kennt. Editionen, die nur der Xbox Store führt, bekommen in „Inhalte · Microsoft Store“ eine eigene Spalte mit dem Vermerk „nur im Xbox Store“, mit der offiziellen Inhaltsliste und der Beschreibung aus dem Microsoft Store. Bei Dragon Ball Z: Kakarot sind das etwa MASTER EDITION, DAIMA EDITION und die Pre-Order Bundles. Als Edition zählt ein Xbox-Spiel für deine Plattform, dessen Titel mit dem Namen des Grundspiels beginnt. Demos zählen nicht, höchstens acht solche Spalten erscheinen. Preise und Vorschau gibt es für diese Editionen nicht, weil IGDB sie nicht kennt.
+- **Pre-Order Bundles:** Eine Edition von IGDB findet ihr Gegenstück im Xbox Store jetzt auch dann, wenn der Store sie als Pre-Order Bundle führt. Die „Ultimate Edition“ von Dragon Ball Z: Kakarot ist dort zum Beispiel das „Ultimate Edition Pre-Order Bundle“.
+- **Nicht im Xbox Store:** Kennt die Xbox-Store-Suche eine Edition von IGDB nicht, steht unter „Quelle & Stand“ „Nicht im Xbox Store, Beschreibung von IGDB“. Ein Beispiel ist die Legendary Edition von Dragon Ball Z: Kakarot, die es im Xbox Store nicht gibt. Die Beschreibung kommt dann wie bisher von IGDB.
+
+### Geändert
+- **Preispfeile hinter dem Preis:** In der Wunschliste steht der Pfeil der letzten Preisänderung jetzt hinter dem Preis, in „Preis DE“ wie in „Preis INT“. Ist dein Zielland weltweit am günstigsten, steht der Pfeil neben der grünen Box statt darin.
+
+### Behoben
+- **Eneba: „nur PC“ bei Xbox-Keys:** Bei manchen neuen Angeboten lässt Eneba die Plattformangabe leer, etwa bei Prince of Persia: The Lost Crown – Complete Edition (Australien) und RoboCop: Rogue City – Unfinished Business (Mexiko, Europa). KeyHunter las das bisher als „gilt nicht für deine Xbox, etwa nur für PC“, und die Zuordnung ließ sich nicht bestätigen. Jetzt heißt es „Der Shop nennt für diesen Key keine Plattform, laut Name ist es ein Xbox-Live-Key“, und du kannst die Zuordnung von Hand bestätigen. Automatisch bestätigt wird so ein Key nie. Nennt Eneba später eine Plattform, fragt KeyHunter erneut. „Nur PC“ erscheint nur noch, wenn Eneba allein Windows angibt.
+- **Eneba: Plattform im Titel:** Steht die Plattform im Namen vor „Xbox Live Key“, etwa bei „SnowRunner - Premium Edition (Xbox One) Xbox Live Key EUROPE“, war sie bisher Teil des Titels. Deshalb passte der Titel nicht zu „SnowRunner: Premium Edition“. Jetzt zählt nur der Spieltitel, die Plattform kommt wie bisher aus den Produktdaten.
+- Bestehende Zuordnungen korrigieren sich beim nächsten Abruf der Produktseite. Der Editionsvergleich wird nach dem Update einmal neu geladen.
+
 ## 1.1.4 – 2026-11-25
 
 Ein Shop-Produkt lässt sich nur noch einem Spiel zuordnen, Driffle-Editionen mit DLC gelten wieder als Spiel-Key, und die Editionsinhalte kommen jetzt auch dann aus dem Xbox Store, wenn IGDB keinen Store-Link kennt. Keine Migration und keine Änderung an der Unraid-Vorlage, beim Update ist nichts zu tun.

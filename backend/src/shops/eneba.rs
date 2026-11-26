@@ -31,6 +31,7 @@ pub(super) fn parse(url: &Url, body: &str) -> Result<Product, ShopError> {
         .filter(|name| !name.is_empty() && name.chars().count() <= 300)
         .ok_or(ShopError::Parse)?;
     let title = strip_suffix(&title_key(name))
+        .map(strip_platforms)
         .unwrap_or_default()
         .to_string();
     let key_game = !title.is_empty()
@@ -53,6 +54,8 @@ pub(super) fn parse(url: &Url, body: &str) -> Result<Product, ShopError> {
         })
         .map(|(_, id)| id)
         .collect();
+    // An empty list (1.1.5): Eneba names no platform for some new Xbox Live keys. Windows alone stays a PC product.
+    let platform_unknown = product["worksOn"].as_array().is_some_and(Vec::is_empty);
     let region = product["regions"]
         .as_array()
         .and_then(|rows| rows.first())
@@ -161,6 +164,7 @@ pub(super) fn parse(url: &Url, body: &str) -> Result<Product, ShopError> {
         title,
         key_game,
         platform_ids,
+        platform_unknown,
         region,
         allowed,
         blocked,
@@ -203,6 +207,26 @@ fn strip_suffix(name: &str) -> Option<&str> {
             name.strip_suffix(suffix)
         }
     })
+}
+
+/// The title without a platform named in it before the key type (1.1.5): "SnowRunner - Premium Edition (Xbox One) Xbox
+/// Live Key" is "snowrunner premium edition". The platforms come from the product data.
+fn strip_platforms(mut title: &str) -> &str {
+    while let Some(rest) = [
+        " xbox series x s",
+        " xbox series x",
+        " xbox one",
+        " windows 10",
+        " windows",
+        " pc",
+    ]
+    .into_iter()
+    .find_map(|platform| title.strip_suffix(platform))
+    .filter(|rest| !rest.is_empty())
+    {
+        title = rest;
+    }
+    title
 }
 
 pub(super) async fn discover(shop: Shop, shard: usize) -> Result<Vec<(String, String)>, ShopError> {
@@ -563,7 +587,15 @@ mod tests {
         });
         let product = parse(&url(SLUG), &body).unwrap();
         assert!(product.platform_ids.is_empty());
+        assert!(!product.platform_unknown, "Windows alone is a PC product");
         assert!(product.key_game);
+        // 1.1.5: an empty list names no platform (new Xbox Live keys such as Prince of Persia: The Lost Crown).
+        let body = variant(|s| product_of(s)["worksOn"] = serde_json::json!([]));
+        let product = parse(&url(SLUG), &body).unwrap();
+        assert!(product.platform_ids.is_empty() && product.platform_unknown);
+        assert!(product.key_game);
+        assert_ne!(product.fingerprint(), parse_base().fingerprint());
+        assert!(!parse_base().platform_unknown);
         let body = variant(|s| {
             product_of(s)["worksOn"] = serde_json::json!([{"value": "XBOX_ONE"}]);
         });
@@ -845,6 +877,28 @@ mod tests {
             strip_suffix("a pc xbox live key b pc xbox live key global"),
             Some("a pc xbox live key b")
         );
+    }
+
+    /// 1.1.5: a platform in the name before the key type is not part of the title (SnowRunner, checked live).
+    #[test]
+    fn a_platform_in_the_name_is_not_part_of_the_title() {
+        let title =
+            |name: &str| strip_suffix(&title_key(name)).map(|t| strip_platforms(t).to_string());
+        assert_eq!(
+            title("SnowRunner - Premium Edition (Xbox One) Xbox Live Key EUROPE"),
+            Some("snowrunner premium edition".into())
+        );
+        assert_eq!(
+            title("Forza Horizon 5 (Xbox Series X|S / Xbox One) XBOX LIVE Key GLOBAL"),
+            Some("forza horizon 5".into())
+        );
+        assert_eq!(
+            title("Prince of Persia: The Lost Crown - Complete Edition XBOX LIVE Key AUSTRALIA"),
+            Some("prince of persia the lost crown complete edition".into())
+        );
+        assert_eq!(title("Halo PC XBOX LIVE Key GLOBAL"), Some("halo".into()));
+        // A title that is only a platform word stays as it is.
+        assert_eq!(title("PC Xbox Live Key"), Some("pc".into()));
     }
 
     fn search(change: impl FnOnce(&mut Value)) -> String {

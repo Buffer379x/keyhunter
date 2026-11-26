@@ -19,6 +19,10 @@ pub struct EditionContent {
     /// "xbox" when KeyHunter found the store product on the Xbox store itself (1.1.4), not through the IGDB link.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub via: Option<String>,
+    /// An edition only the Xbox store lists (1.1.5): its store title after the base game ("MASTER EDITION"). Such an entry
+    /// has no IGDB game, its `igdb_id` is 0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub store_title: Option<String>,
 }
 pub fn unknown(games: &[CatalogGame], status: &str) -> Vec<EditionContent> {
     games
@@ -31,6 +35,7 @@ pub fn unknown(games: &[CatalogGame], status: &str) -> Vec<EditionContent> {
             items: vec![],
             description: game.summary.clone(),
             via: None,
+            store_title: None,
         })
         .collect()
 }
@@ -104,6 +109,12 @@ fn expected_titles(game: &CatalogGame, base: Option<&str>) -> Vec<String> {
         titles.push(format!("{name} standard"));
         titles.push(format!("{name} standard edition"));
     }
+    // Last: the pre-order bundle of the edition (1.1.5), "Ultimate Edition Pre-Order Bundle" on the Xbox store.
+    let bundles: Vec<String> = titles
+        .iter()
+        .map(|t| format!("{t} pre order bundle"))
+        .collect();
+    titles.extend(bundles);
     titles
 }
 /// The name of the base game of `game` among `games`, for [`expected_titles`].
@@ -245,21 +256,32 @@ async fn store_page(
     Ok(store_summaries(&String::from_utf8_lossy(&bytes)))
 }
 
-/// Store ids for the games IGDB links to no store product, or to one that is not theirs (1.1.4): first from the Xbox store
-/// page of an edition with a matching link (it lists the editions of the game), then from the Xbox store search for the
-/// base game. At most two pages; a failed page leaves the games as they are.
-async fn find_store_ids(
+/// What the Xbox store pages said (1.1.4, 1.1.5): the store ids found for the open games, every product the pages list,
+/// and whether the store search was read (only then is a game without a product "not in the Xbox store").
+#[derive(Default)]
+struct Lookup {
+    found: BTreeMap<usize, String>,
+    summaries: Vec<StoreSummary>,
+    searched: bool,
+}
+
+/// Reads the Xbox store for the games IGDB links to no store product, or to one that is not theirs (1.1.4), and for the
+/// editions only the store knows (1.1.5): first the store page of an edition with a matching link (it lists the editions
+/// of the game), then, while a game is still open, the store search for the base game. At most two pages; a failed page
+/// leaves the games as they are.
+async fn look_up(
     client: &reqwest::Client,
     games: &[CatalogGame],
     open: &[usize],
     linked: Option<&str>,
-) -> BTreeMap<usize, String> {
-    let mut found = BTreeMap::new();
+) -> Lookup {
+    let mut lookup = Lookup::default();
     let mut pages = Vec::new();
     if let Some(id) = linked {
-        pages.push(
+        pages.push((
             url::Url::parse(&format!("https://www.xbox.com/de-DE/games/store/-/{id}")).unwrap(),
-        );
+            false,
+        ));
     }
     let search = games
         .iter()
@@ -275,28 +297,114 @@ async fn find_store_ids(
     if let Some(name) = search {
         let mut url = url::Url::parse("https://www.xbox.com/de-DE/search/results/games").unwrap();
         url.query_pairs_mut().append_pair("q", &name);
-        pages.push(url);
+        pages.push((url, true));
     }
-    for url in pages {
-        if open.iter().all(|index| found.contains_key(index)) {
+    for (url, is_search) in pages {
+        if !lookup.summaries.is_empty() && open.iter().all(|index| lookup.found.contains_key(index))
+        {
             break;
         }
         let Ok(summaries) = store_page(client, url).await else {
             continue;
         };
+        lookup.searched |= is_search;
         for &index in open {
-            if !found.contains_key(&index)
+            if !lookup.found.contains_key(&index)
                 && let Some(id) = pick(&summaries, &games[index], base_name(games, &games[index]))
             {
-                found.insert(index, id);
+                lookup.found.insert(index, id);
+            }
+        }
+        lookup.summaries.extend(summaries);
+    }
+    lookup
+}
+
+/// Most editions only the Xbox store lists that are shown (1.1.5).
+const MAX_STORE_EDITIONS: usize = 8;
+
+/// The editions of the base game only the Xbox store lists (1.1.5): Xbox games for the platform whose title starts with the
+/// base game's and goes on ("DRAGON BALL Z: KAKAROT DAIMA EDITION"), no demo, none IGDB already has. Each with its store
+/// id, its title and the edition label after the base game.
+fn store_editions(
+    summaries: &[StoreSummary],
+    games: &[CatalogGame],
+    known: &BTreeSet<String>,
+) -> Vec<(String, String, String)> {
+    let Some(base) = games.iter().find(|g| g.kind == "base_game") else {
+        return vec![];
+    };
+    let key = crate::shops::title_key(&base.name);
+    let platforms: BTreeSet<&str> = games
+        .iter()
+        .flat_map(|g| &g.platforms)
+        .filter_map(|p| generation(p.id).map(|(_, store)| store))
+        .collect();
+    let mut seen = BTreeSet::new();
+    let mut editions = summaries
+        .iter()
+        .filter(|s| {
+            s.game
+                && !known.contains(&s.id)
+                && s.available_on
+                    .iter()
+                    .any(|on| platforms.contains(on.as_str()))
+        })
+        .filter(|s| {
+            let title = crate::shops::title_key(&s.title);
+            title.strip_prefix(&key).is_some_and(|rest| {
+                rest.starts_with(' ')
+                    && !rest
+                        .split(' ')
+                        .any(|w| matches!(w, "demo" | "trial" | "beta" | "soundtrack"))
+            })
+        })
+        .filter(|s| seen.insert(s.id.clone()))
+        .take(MAX_STORE_EDITIONS)
+        .map(|s| {
+            (
+                s.id.clone(),
+                s.title.clone(),
+                edition_label(&s.title, &base.name),
+            )
+        })
+        .collect::<Vec<_>>();
+    editions.sort_by_key(|(_, _, label)| label.to_lowercase());
+    editions
+}
+
+/// A store title without the base game in front: "DRAGON BALL Z : KAKAROT - MASTER EDITION" is "MASTER EDITION"; the whole
+/// title when it does not start with the base game.
+fn edition_label(title: &str, base: &str) -> String {
+    let want: Vec<char> = crate::shops::title_key(base)
+        .chars()
+        .filter(|c| *c != ' ')
+        .collect();
+    let mut matched = 0;
+    for (index, c) in title.char_indices() {
+        if matched == want.len() {
+            let rest = title[index..].trim_start_matches(|c: char| !c.is_alphanumeric());
+            if !rest.is_empty() {
+                return rest.to_string();
+            }
+            break;
+        }
+        if c.is_alphanumeric() {
+            for lower in c.to_lowercase() {
+                if want.get(matched) != Some(&lower) {
+                    return title.to_string();
+                }
+                matched += 1;
             }
         }
     }
-    found
+    title.to_string()
 }
 
 /// Edition contents: through the store link of IGDB, and for the editions without a usable one through the Xbox store
-/// (1.1.4), each verified again against the Microsoft catalog (title, platform, contents).
+/// (1.1.4), each verified again against the Microsoft catalog (title, platform, contents). The Xbox store is always read
+/// (1.1.5): editions only it lists come after the IGDB ones, and an IGDB edition the store search does not have is
+/// "not_in_store".
 pub async fn load(
     client: &reqwest::Client,
     games: &[CatalogGame],
@@ -305,36 +413,89 @@ pub async fn load(
     let open: Vec<usize> = output
         .iter()
         .enumerate()
-        .filter(|(_, e)| matches!(e.status.as_str(), "not_linked" | "identity_mismatch"))
+        .filter(|(_, e)| {
+            matches!(
+                e.status.as_str(),
+                "not_linked" | "identity_mismatch" | "unavailable"
+            )
+        })
         .map(|(index, _)| index)
         .collect();
-    if open.is_empty() {
-        return Ok(output);
-    }
     let linked = output
         .iter()
         .zip(games)
         .find(|(entry, _)| matches!(entry.status.as_str(), "verified" | "ambiguous"))
         .and_then(|(_, game)| game.store_product_id.as_deref());
-    let found = find_store_ids(client, games, &open, linked).await;
-    if found.is_empty() {
-        return Ok(output);
+    let lookup = look_up(client, games, &open, linked).await;
+    let mut known: BTreeSet<String> = games
+        .iter()
+        .zip(&output)
+        .filter(|(_, entry)| entry.source_url.is_some())
+        .filter_map(|(game, _)| game.store_product_id.clone())
+        .collect();
+    known.extend(lookup.found.values().cloned());
+    let extras = store_editions(&lookup.summaries, games, &known);
+    if !lookup.found.is_empty() || !extras.is_empty() {
+        // The found products are checked like linked ones; the other games stay in the list for the base names. The
+        // store editions are checked by their own title.
+        let mut retry = games.to_vec();
+        for (index, game) in retry.iter_mut().enumerate() {
+            game.store_product_id = lookup.found.get(&index).cloned();
+        }
+        let mut platforms: Vec<_> = games
+            .iter()
+            .flat_map(|g| g.platforms.iter().cloned())
+            .collect();
+        platforms.sort_by_key(|p| p.id);
+        platforms.dedup_by_key(|p| p.id);
+        retry.extend(
+            extras
+                .iter()
+                .zip(1..)
+                .map(|((id, title, _), n)| CatalogGame {
+                    igdb_id: -n,
+                    name: title.clone(),
+                    slug: None,
+                    summary: None,
+                    first_release_date: None,
+                    platforms: platforms.clone(),
+                    aliases: vec![],
+                    cover_url: None,
+                    artwork_url: None,
+                    store_product_id: Some(id.clone()),
+                    version_parent: None,
+                    edition_name: None,
+                    kind: "edition".into(),
+                    fetched_at: 0,
+                }),
+        );
+        if let Ok(again) = load_linked(client, &retry).await {
+            for &index in lookup.found.keys() {
+                let entry = &again[index];
+                if matches!(entry.status.as_str(), "verified" | "ambiguous") {
+                    output[index] = EditionContent {
+                        via: Some("xbox".into()),
+                        ..entry.clone()
+                    };
+                }
+            }
+            for ((_, _, label), entry) in extras.iter().zip(&again[games.len()..]) {
+                if matches!(entry.status.as_str(), "verified" | "ambiguous") {
+                    output.push(EditionContent {
+                        igdb_id: 0,
+                        via: Some("xbox".into()),
+                        store_title: Some(label.clone()),
+                        ..entry.clone()
+                    });
+                }
+            }
+        }
     }
-    // The found products are checked like linked ones; the other games stay in the list for the base names.
-    let mut retry = games.to_vec();
-    for (index, game) in retry.iter_mut().enumerate() {
-        game.store_product_id = found.get(&index).cloned();
-    }
-    let Ok(again) = load_linked(client, &retry).await else {
-        return Ok(output);
-    };
-    for &index in found.keys() {
-        let entry = &again[index];
-        if matches!(entry.status.as_str(), "verified" | "ambiguous") {
-            output[index] = EditionContent {
-                via: Some("xbox".into()),
-                ..entry.clone()
-            };
+    if lookup.searched {
+        for &index in &open {
+            if output[index].source_url.is_none() && !lookup.found.contains_key(&index) {
+                output[index].status = "not_in_store".into();
+            }
         }
     }
     Ok(output)
@@ -570,6 +731,81 @@ mod tests {
             base_name(&[base.clone(), deluxe.clone()], &deluxe),
             Some("Test Game")
         );
+    }
+    /// 1.1.5: an edition named like a pre-order bundle on the Xbox store, and the editions only the store lists (titles as
+    /// on the Xbox store for Dragon Ball Z: Kakarot, checked live).
+    #[test]
+    fn the_xbox_store_adds_the_editions_igdb_does_not_know() {
+        let html = page(serde_json::json!({
+            "BT5X0XGCWGD6": {"productId":"BT5X0XGCWGD6","title":"DRAGON BALL Z: KAKAROT","productKind":"Game","availableOn":["XboxOne","XboxSeriesX"]},
+            "9NCD7101W9GF": {"productId":"9NCD7101W9GF","title":"DRAGON BALL Z: KAKAROT Demo Version","productKind":"Game","availableOn":["XboxOne","XboxSeriesX"]},
+            "9N6X1DLPB20P": {"productId":"9N6X1DLPB20P","title":"DRAGON BALL Z: KAKAROT DAIMA EDITION","productKind":"Game","availableOn":["XboxOne","XboxSeriesX"]},
+            "9P2KC6XHHH03": {"productId":"9P2KC6XHHH03","title":"DRAGON BALL Z : KAKAROT - MASTER EDITION","productKind":"Game","availableOn":["XboxOne","XboxSeriesX"]},
+            "9PLS3KNPJ40F": {"productId":"9PLS3KNPJ40F","title":"DRAGON BALL Z: KAKAROT Ultimate Edition Pre-Order Bundle","productKind":"Game","availableOn":["XboxOne","XboxSeriesX"]},
+            "9NW6R6RLH9VJ": {"productId":"9NW6R6RLH9VJ","title":"DRAGON BALL Z: KAKAROT Season Pass","productKind":"Durable","availableOn":["XboxOne","XboxSeriesX"]},
+            "9N7XMJJHNFC3": {"productId":"9N7XMJJHNFC3","title":"DRAGON BALL: Sparking! ZERO","productKind":"Game","availableOn":["XboxSeriesX"]},
+            "9PPCONLY0001": {"productId":"9PPCONLY0001","title":"DRAGON BALL Z: KAKAROT PC Edition","productKind":"Game","availableOn":["PC"]}
+        }));
+        let summaries = store_summaries(&html);
+        let base = game(1, "Dragon Ball Z: Kakarot", "base_game", None, None);
+        let ultimate = game(
+            2,
+            "Dragon Ball Z: Kakarot - Ultimate Edition",
+            "edition",
+            Some("Ultimate Edition"),
+            Some(1),
+        );
+        let legendary = game(
+            3,
+            "Dragon Ball Z: Kakarot - Legendary Edition",
+            "edition",
+            Some("Legendary Edition"),
+            Some(1),
+        );
+        let games = [base.clone(), ultimate.clone(), legendary.clone()];
+        assert_eq!(
+            pick(&summaries, &base, None).as_deref(),
+            Some("BT5X0XGCWGD6")
+        );
+        assert_eq!(
+            pick(&summaries, &ultimate, base_name(&games, &ultimate)).as_deref(),
+            Some("9PLS3KNPJ40F"),
+            "the pre-order bundle of the edition"
+        );
+        assert_eq!(
+            pick(&summaries, &legendary, base_name(&games, &legendary)),
+            None
+        );
+        // The base game and the Ultimate Edition are IGDB's; the demo, the add-on, other games and PC-only ones are none.
+        let known: BTreeSet<String> = ["BT5X0XGCWGD6".into(), "9PLS3KNPJ40F".into()].into();
+        let extras = store_editions(&summaries, &games, &known);
+        let labels: Vec<_> = extras
+            .iter()
+            .map(|(id, _, label)| (id.as_str(), label.as_str()))
+            .collect();
+        assert_eq!(
+            labels,
+            [
+                ("9N6X1DLPB20P", "DAIMA EDITION"),
+                ("9P2KC6XHHH03", "MASTER EDITION")
+            ]
+        );
+        assert!(
+            store_editions(&summaries, &games[1..], &known).is_empty(),
+            "no base game, no store editions"
+        );
+        let mut twice = summaries.clone();
+        twice.extend(summaries.clone());
+        assert_eq!(store_editions(&twice, &games, &known).len(), 2);
+        assert_eq!(
+            edition_label("DRAGON BALL Z: KAKAROT", "Dragon Ball Z: Kakarot"),
+            "DRAGON BALL Z: KAKAROT"
+        );
+        assert_eq!(
+            edition_label("Other Game Deluxe", "Dragon Ball Z: Kakarot"),
+            "Other Game Deluxe"
+        );
+        assert_eq!(edition_label("Ōkami HD – Deluxe", "Ōkami HD"), "Deluxe");
     }
     #[test]
     fn store_links_reject_untrusted_hosts_and_bundle_variations_remain_unknown() {

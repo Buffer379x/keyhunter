@@ -3,7 +3,7 @@ import type { Locator, Page } from '@playwright/test';
 import { navTo, signInToFixture } from './helpers';
 import { clearWishlist, prepareLayout, settle } from './layout-mocks';
 
-// 1.1.2: the arrow of the last price change before Preis DE and Preis INT, and the manual library entry next to catalog hits.
+// 1.1.2: the arrow of the last price change beside Preis DE and Preis INT (after the price since 1.1.5), and the manual library entry next to catalog hits.
 
 /** A write to the API as the page would send it (origin and CSRF token). */
 async function write(page: Page, method: 'DELETE', path: string) {
@@ -26,7 +26,7 @@ async function arrow(cell: Locator) {
   return { tone: ['better', 'worse', 'same'].find(tone => classes.includes(tone)), label: ((await mark.getAttribute('aria-label')) ?? '').replace(/\s/g, ' ') };
 }
 
-test('the last price change shows as an arrow before Preis DE and Preis INT', async ({ page }) => {
+test('the last price change shows as an arrow after Preis DE and Preis INT', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await prepareLayout(page);
   await page.goto('/');
@@ -51,13 +51,13 @@ test('the last price change shows as an arrow before Preis DE and Preis INT', as
   // No arrow for a price that is only the last known one, nor without a change from the server.
   expect(await cells('Hogwarts Legacy', 'Xbox One')).toEqual([null, null]);
   expect(await cells('Starfield', 'Premium Edition')).toEqual([{ tone: 'worse', label: 'Teurer geworden (vor 6 Std.): +5,00 €, vorher 54,99 €' }, null]);
-  // The narrow card keeps the arrow before the price.
+  // The narrow card keeps the arrow after the price (1.1.5).
   await page.setViewportSize({ width: 390, height: 900 });
   const card = row(page, 'Starfield', 'Standard Edition');
   const [mark, price] = [card.locator('td.c-de .price-change'), card.locator('td.c-de .price')];
   await expect(mark).toBeVisible();
   const [a, b] = [await mark.boundingBox(), await price.boundingBox()];
-  expect(a!.x + a!.width).toBeLessThanOrEqual(b!.x);
+  expect(b!.x + b!.width).toBeLessThanOrEqual(a!.x);
   expect(Math.abs(a!.y + a!.height / 2 - (b!.y + b!.height / 2))).toBeLessThan(4);
 });
 

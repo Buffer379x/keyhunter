@@ -44,7 +44,7 @@ export type Link = {
 };
 /** A game of the list that holds a shop product (1.1.4): a product belongs to one game only. */
 export type Assigned = { wish_id: string; name: string | null; platform_id: number; state: string };
-export type Mismatch = 'title' | 'platform' | 'key_type' | 'year';
+export type Mismatch = 'title' | 'platform' | 'platform_unknown' | 'key_type' | 'year';
 export type HistoryPoint = {
   observed_at: number;
   base_cents: number | null;
@@ -259,6 +259,9 @@ export function tempoText(link: Link, label: Tempo): string {
  */
 export function mismatchText(mismatch: Mismatch[], game: string): string {
   if (mismatch.includes('year')) return `Möglicherweise gehört der Key zu einem gleichnamigen Spiel aus einem anderen Erscheinungsjahr als „${game}“.`;
+  // 1.1.5: the shop names no platform at all (Eneba for some new Xbox Live keys).
+  if (mismatch.includes('platform_unknown'))
+    return `Der Shop nennt für diesen Key keine Plattform, laut Name ist es ein Xbox-Live-Key.${mismatch.includes('title') ? ` Titel oder Edition passen zudem nicht automatisch zu „${game}“.` : ''}`;
   const title = mismatch.includes('title'),
     platform = mismatch.includes('platform');
   const subject =

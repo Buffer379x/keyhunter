@@ -36,6 +36,8 @@ pub(crate) enum Mismatch {
     Title,
     /// Not a key for the wish's system; see [`Wish::takes_key`] for the ones the owner may still confirm.
     Platform,
+    /// The shop names no platform (1.1.5); the owner may confirm it.
+    PlatformUnknown,
     /// Not an activation code (an account, a gift, a top-up).
     KeyType,
     /// Possibly a same-titled game of another release year: the catalog knows one on the product's platform, or the
@@ -133,12 +135,13 @@ impl Wish {
     }
 
     /// An Xbox activation code the wish's system can use (FUNC-04, 0.9.3): the wish's platform, or an Xbox One key for
-    /// an Xbox 360, original Xbox or Series X|S wish (backward compatible). Nothing else ever counts as a key price,
+    /// an Xbox 360, original Xbox or Series X|S wish (backward compatible), or a key the shop names no platform for (1.1.5). Nothing else ever counts as a key price,
     /// not even confirmed by hand: accounts, gifts, PC-only products, Series-only keys for older systems.
     pub(crate) fn takes_key(&self, product: &Product) -> bool {
         product.key_game
             && (self.platform_matches(product)
-                || (self.platform_id == XBOX_SERIES && product.platform_ids.contains(&XBOX_ONE)))
+                || (self.platform_id == XBOX_SERIES && product.platform_ids.contains(&XBOX_ONE))
+                || product.platform_unknown)
     }
 
     /// The product is the wished release and not a same-titled game of another year (FUNC-01, 0.9.3). The shops name no
@@ -173,7 +176,11 @@ impl Wish {
             reasons.push(Mismatch::Title);
         }
         if !self.platform_matches(product) {
-            reasons.push(Mismatch::Platform);
+            reasons.push(if product.platform_unknown {
+                Mismatch::PlatformUnknown
+            } else {
+                Mismatch::Platform
+            });
         }
         if !product.key_game {
             reasons.push(Mismatch::KeyType);
@@ -1071,6 +1078,7 @@ mod tests {
             name: "Fable Anniversary XBOX LIVE Key ARGENTINA".into(),
             title: "Fable Anniversary".into(),
             platform_ids: vec![49, 169],
+            platform_unknown: false,
             key_game: true,
             region: None,
             allowed: vec![],
@@ -1107,6 +1115,7 @@ mod tests {
             name: title.into(),
             title: title.into(),
             platform_ids: platforms.to_vec(),
+            platform_unknown: false,
             key_game: true,
             region: None,
             allowed: vec![],
@@ -1222,6 +1231,14 @@ mod tests {
             Some(catalog("Forza Horizon 5", "base_game", &[169, 49], None)),
         );
         assert!(!older.takes_key(&key("forza horizon 5", &[169])));
+        // 1.1.5: no platform named at all is not a PC product: confirmable by hand, never automatically.
+        let mut unnamed = key("forza horizon 5", &[]);
+        unnamed.platform_unknown = true;
+        assert!(forza.takes_key(&unnamed) && older.takes_key(&unnamed));
+        assert!(!forza.auto_matches(&unnamed, &[]));
+        assert_eq!(forza.mismatches(&unnamed, &[]), [Mismatch::PlatformUnknown]);
+        unnamed.key_game = false;
+        assert!(!forza.takes_key(&unnamed));
     }
 
     /// 1.1.1: a bundle without a parent game (IGDB lists "Final Fantasy VII Remake Intergrade" this way) is matched by its
@@ -1295,6 +1312,7 @@ mod tests {
             name: "Forza Horizon 5".into(),
             title: "Forza Horizon 5".into(),
             platform_ids: vec![169],
+            platform_unknown: false,
             key_game: true,
             region: None,
             allowed: vec![],
@@ -1329,6 +1347,7 @@ mod tests {
             name: "Forza Horizon 5".into(),
             title: "Forza Horizon 5".into(),
             platform_ids: vec![169, 49],
+            platform_unknown: false,
             key_game: true,
             region: Some("Global".into()),
             allowed: vec!["DE".into()],

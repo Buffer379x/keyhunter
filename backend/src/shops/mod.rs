@@ -184,6 +184,10 @@ pub(crate) struct Product {
     pub name: String,
     pub title: String,
     pub platform_ids: Vec<i64>,
+    /// The shop names no platform at all (1.1.5): Eneba leaves it empty for some new Xbox Live keys. Not a PC-only product,
+    /// the owner may confirm it ([`crate::offers::Wish::takes_key`]), it is never confirmed automatically.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub platform_unknown: bool,
     pub key_game: bool,
     pub region: Option<String>,
     pub allowed: Vec<String>,
@@ -231,8 +235,19 @@ impl Product {
 
     /// Stable identity of a confirmed product: shop product id, key type and platforms.
     /// A renamed shop title keeps the confirmation (audit DQ-05).
+    /// A product without platform data (1.1.5) carries a mark, so a confirmation of it does not hold once the shop names one.
     pub(crate) fn fingerprint(&self) -> String {
-        let identity = serde_json::json!([2, self.id, self.key_game, self.platform_ids]);
+        let identity = if self.platform_unknown {
+            serde_json::json!([
+                2,
+                self.id,
+                self.key_game,
+                self.platform_ids,
+                "platform_unknown"
+            ])
+        } else {
+            serde_json::json!([2, self.id, self.key_game, self.platform_ids])
+        };
         hex::encode(crate::digest(&identity.to_string()))
     }
 
@@ -359,6 +374,7 @@ mod tests {
             name: "Game".into(),
             title: "game".into(),
             platform_ids: vec![169],
+            platform_unknown: false,
             key_game: true,
             region: None,
             allowed: vec!["DE".into()],
